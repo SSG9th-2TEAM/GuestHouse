@@ -1,12 +1,12 @@
 ---
-name: "🐛 Bug Report"
+name: "Bug Report"
 about: "버그를 제보하고 재현 방법을 공유합니다."
 title: "[BUG] "
 labels: ["bug"]
 assignees: []
 ---
 
-## 🐛 버그 설명
+## 버그 설명
 
 > 어떤 문제가 발생했는지 간단히 적어주세요.
 
