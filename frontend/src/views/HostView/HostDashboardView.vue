@@ -1,16 +1,17 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import HostAccommodationView from './HostAccommodationView.vue'
 
 const router = useRouter()
-const activeTab = ref('dashboard')
+const activeTab = ref('property')
 
 const tabs = [
-  { id: 'dashboard', label: '대시보드' },
-  { id: 'property', label: '숙소' },
-  { id: 'booking', label: '예약' },
-  { id: 'revenue', label: '매출' },
-  { id: 'review', label: '리뷰' }
+  { id: 'dashboard', label: '대시보드', icon: '📊' },
+  { id: 'property', label: '숙소', icon: '🏠' },
+  { id: 'booking', label: '예약', icon: '📅' },
+  { id: 'revenue', label: '매출', icon: '📈' },
+  { id: 'review', label: '리뷰', icon: '💬' }
 ]
 
 const setTab = (tabId) => {
@@ -22,8 +23,11 @@ const setTab = (tabId) => {
   <div class="host-dashboard">
     <!-- Main Content -->
     <div class="container content">
-      <!-- Get Started Card -->
-      <div class="start-card">
+      <!-- Property Tab - Accommodation Management -->
+      <HostAccommodationView v-if="activeTab === 'property'" />
+
+      <!-- Dashboard Tab - Get Started Card -->
+      <div v-else-if="activeTab === 'dashboard'" class="start-card">
         <div class="icon-circle">
         </div>
         
@@ -51,6 +55,7 @@ const setTab = (tabId) => {
         :class="{ active: activeTab === tab.id }"
         @click="setTab(tab.id)"
       >
+        <span class="nav-icon">{{ tab.icon }}</span>
         <span class="nav-label">{{ tab.label }}</span>
       </button>
     </nav>
