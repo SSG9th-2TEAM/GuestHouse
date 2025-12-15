@@ -26,19 +26,12 @@ $RECYCLE.BIN/
 *.iml
 *.iws
 out/
+*.ipr
 
 # VSCode
 .vscode/
 .history/
 .settings/
-
-# Eclipse
-.project
-.classpath
-.settings/
-
-# JetBrains
-*.ipr
 
 ############################
 # Java / Spring Boot / Build
@@ -50,22 +43,26 @@ pom.xml.releaseBackup
 pom.xml.versionsBackup
 release.properties
 
-# Gradle
+# Gradle (멀티모듈 포함)
 .gradle/
-build/
-!gradle/wrapper/gradle-wrapper.jar
-!**/gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
+**/build/
 
-# Spring Boot
+# Spring Boot / Java 빌드 산출물
 *.jar
 *.war
 *.ear
 spring.log
 
-# Lombok
-lombok.config
+# ✅ Gradle Wrapper는 반드시 커밋되어야 함 (위의 *.jar 무시를 예외 처리)
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!gradlew
+!gradlew.bat
+!**/gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.properties
+
+# Lombok (lombok.config를 팀에서 쓴다면 보통 커밋하는 편이라 "무시"는 비추천)
+# lombok.config
 
 ############################
 # Node / Vue / Frontend
@@ -110,9 +107,6 @@ ncp-*.pem
 ############################
 # Docker / 컨테이너
 ############################
-docker-compose.override.yml
-docker-compose.*.override.yml
-docker-compose.*.local.yml
 .docker/
 docker-data/
 docker-compose.override.yml
@@ -151,7 +145,6 @@ secrets*.yaml
 ############################
 # 기타
 ############################
-# OS에서 자동 생성
 Icon?
 .Spotlight-V100
 .Trashes
