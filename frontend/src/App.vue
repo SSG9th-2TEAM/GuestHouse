@@ -1,7 +1,15 @@
-<script setup></script>
+<script setup>
+import TheHeader from './components/TheHeader.vue'
+import { RouterView } from 'vue-router'
+</script>
 
 <template>
-  <RouterView />
+  <div class="app-layout">
+    <TheHeader />
+    <RouterView />
+  </div>
 </template>
 
-<style scoped></style>
+<style>
+@import './assets/style.css';
+</style>
