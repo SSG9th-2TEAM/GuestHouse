@@ -6,11 +6,11 @@ const router = useRouter()
 const route = useRoute()
 
 const tabs = [
-  { id: 'dashboard', label: '대시보드', icon: '🏠', path: '/host' },
-  { id: 'property', label: '숙소', icon: '🛏️', path: '/host/accommodation' },
-  { id: 'booking', label: '예약', icon: '📆', path: '/host/booking' },
-  { id: 'revenue', label: '매출', icon: '💰', path: '/host/revenue' },
-  { id: 'review', label: '리뷰', icon: '⭐', path: '/host/review' }
+  { id: 'dashboard', label: '대시보드', icon: 'home', path: '/host' },
+  { id: 'property', label: '숙소', icon: 'property', path: '/host/accommodation' },
+  { id: 'booking', label: '예약', icon: 'calendar', path: '/host/booking' },
+  { id: 'revenue', label: '매출', icon: 'revenue', path: '/host/revenue' },
+  { id: 'review', label: '리뷰', icon: 'review', path: '/host/review' }
 ]
 
 const activeTab = computed(() => {
@@ -59,7 +59,28 @@ const setTab = (path) => router.push(path)
         :class="{ active: activeTab === tab.id }"
         @click="setTab(tab.path)"
       >
-        <span class="nav-icon" aria-hidden="true">{{ tab.icon }}</span>
+        <svg v-if="tab.icon === 'home'" class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-6H10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
+        </svg>
+        <svg v-else-if="tab.icon === 'property'" class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2h6a1 1 0 0 1 1 1v9h-2v-4H5v4H3Z" />
+          <path d="M5 12h6V9H5Z" />
+          <path d="M13 12h6V9h-6Z" />
+        </svg>
+        <svg v-else-if="tab.icon === 'calendar'" class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="6" width="16" height="14" rx="2" />
+          <path d="M8 3v4" />
+          <path d="M16 3v4" />
+          <path d="M4 10h16" />
+        </svg>
+        <svg v-else-if="tab.icon === 'revenue'" class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="11" width="3" height="8" rx="1" />
+          <rect x="10.5" y="7" width="3" height="12" rx="1" />
+          <rect x="17" y="4" width="3" height="15" rx="1" />
+        </svg>
+        <svg v-else-if="tab.icon === 'review'" class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3.5 14.6 9l5.4.4-4.2 3.3 1.2 5.4L12 15.8 7 18.1l1.2-5.4L4 9.4 9.4 9Z" />
+        </svg>
         <span class="nav-label">{{ tab.label }}</span>
       </button>
     </nav>
