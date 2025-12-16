@@ -1,18 +1,21 @@
 <script setup>
-import { computed, ref } from 'vue'
+import {computed, ref} from 'vue'
+import {useRouter} from 'vue-router'
+
+const router = useRouter()
 
 const kpis = ref([
-  { label: '이번 달 예상 수익', value: 5200000, unit: '₩', trend: '+12%', tone: 'positive' },
-  { label: '이번 달 예약 확정', value: 34, unit: '건', trend: '+4건', tone: 'positive' },
-  { label: '평균 평점', value: 4.8, unit: '/5.0', trend: '최근 30일', tone: 'neutral' },
-  { label: '숙소 운영 현황', value: '5/6', unit: ' 운영중', trend: '1건 점검중', tone: 'warning' }
+  {label: '이번 달 예상 수익', value: 5200000, unit: '₩', trend: '+12%', tone: 'positive', target: '/host/revenue'},
+  {label: '이번 달 예약 확정', value: 34, unit: '건', trend: '+4건', tone: 'positive', target: '/host/booking'},
+  {label: '평균 평점', value: 4.8, unit: '/5.0', trend: '최근 30일', tone: 'neutral', target: '/host/review'},
+  {label: '숙소 운영 현황', value: '5/6', unit: ' 운영중', trend: '1건 점검중', tone: 'warning', target: '/host/accommodation'}
 ])
 
 const todayLabel = '2025년 12월 16일 (화)'
 const tasks = ref([
-  { id: 1, type: 'checkin', time: '15:00', accommodation: '강남 모던 게스트하우스 201호', guest: '김민수', memo: '바베큐 숯 추가 요청' },
-  { id: 2, type: 'checkout', time: '11:00', accommodation: '제주 감성 숙소 별채', guest: '이서연', memo: '침구 교체 필요' },
-  { id: 3, type: 'checkin', time: '18:00', accommodation: '해운대 오션뷰 802호', guest: '박지성', memo: '' }
+  {id: 1, type: 'checkin', time: '15:00', accommodation: '강남 모던 게스트하우스 201호', guest: '김민수', memo: '바베큐 숯 추가 요청'},
+  {id: 2, type: 'checkout', time: '11:00', accommodation: '제주 감성 숙소 별채', guest: '이서연', memo: '침구 교체 필요'},
+  {id: 3, type: 'checkin', time: '18:00', accommodation: '해운대 오션뷰 802호', guest: '박지성', memo: ''}
 ])
 
 const formatKpiValue = (value, unit) => {
@@ -23,21 +26,32 @@ const formatKpiValue = (value, unit) => {
 }
 
 const hasMemo = computed(() => tasks.value.some(t => t.memo))
+
+const goTo = (path) => {
+  if (path) router.push(path)
+}
 </script>
 
 <template>
   <div class="dashboard-home">
     <header class="view-header">
       <div>
-        <p class="eyebrow">대시보드</p>
-        <h2>호스트 한눈에 보기</h2>
+        <h2>대시보드</h2>
         <p class="subtitle">이번 달 운영 현황을 빠르게 확인하세요.</p>
       </div>
     </header>
 
     <!-- KPI grid -->
     <section class="kpi-grid">
-      <article v-for="item in kpis" :key="item.label" class="kpi-card">
+      <article
+          v-for="item in kpis"
+          :key="item.label"
+          class="kpi-card"
+          role="button"
+          tabindex="0"
+          @click="goTo(item.target)"
+          @keypress.enter="goTo(item.target)"
+      >
         <div class="kpi-top">
           <p class="kpi-label">{{ item.label }}</p>
           <span class="kpi-trend" :class="item.tone">{{ item.trend }}</span>

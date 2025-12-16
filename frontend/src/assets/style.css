@@ -1,38 +1,129 @@
 :root {
-  --primary: #BFE7DF;
-  --primary-hover: #A0D1C8;
-  --text-main: #333333;
-  --text-sub: #666666;
-  --bg-body: #F8F9FA;
-  --bg-white: #FFFFFF;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
-  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
-  --radius-md: 12px;
-  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --primary: #BFE7DF;
+    --primary-hover: #A0D1C8;
+
+    --text-main: #111827;
+    --text-sub: #6b7280;
+
+    --bg-body: #F8F9FA;
+    --bg-white: #FFFFFF;
+
+    --border: #e5e7eb;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.04);
+
+    --radius-md: 12px;
+    --radius-lg: 16px;
+
+    --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+    --host-accent: #0f766e;
+    --host-title: #0b3b32;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* ✅ 전역 reset은 최소만 (다른 화면 안 깨지게) */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
 }
 
 body {
-  font-family: var(--font-main);
-  background-color: var(--bg-body);
-  color: var(--text-main);
-  -webkit-font-smoothing: antialiased;
-  line-height: 1.5;
+    margin: 0; /* ✅ body 기본 여백만 제거 */
+    font-family: var(--font-main);
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
 }
 
 button {
-  cursor: pointer;
-  border: none;
-  font-family: inherit;
+    font-family: inherit;
+    cursor: pointer;
 }
 
+/* ✅ border는 건드리지 않음 */
+
 .container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+/* Host 공통 UI */
+.host-view-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1.25rem;
+}
+
+.host-view-header__actions {
+    margin-top: 0.65rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.host-title {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--host-title);
+    margin: 0;
+    letter-spacing: -0.02em;
+}
+
+.host-subtitle {
+    color: var(--text-sub);
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+@media (min-width: 768px) {
+    .host-view-header {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 1rem;
+    }
+
+    .host-view-header__actions {
+        margin-top: 0;
+    }
+}
+
+@media (min-width: 1024px) {
+    .host-title {
+        font-size: 2rem;
+    }
+}
+
+.host-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: #004d40;
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    font-weight: 800;
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+}
+
+.btn-ghost {
+    border: 1px solid #d1d5db;
+    background: transparent;
+    color: var(--host-accent);
+    border-radius: 10px;
+    padding: 0.55rem 0.8rem;
+    font-weight: 800;
 }
