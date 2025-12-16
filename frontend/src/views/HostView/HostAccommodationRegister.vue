@@ -5,6 +5,50 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const emit = defineEmits(['cancel', 'submit'])
 
+// ========== Business License Verification ==========
+const isVerified = ref(false)
+const businessLicenseImage = ref(null)
+const businessLicensePreview = ref(null)
+const extractedText = ref('')
+const isExtracting = ref(false)
+const isVerifying = ref(false)
+
+const handleLicenseUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    businessLicenseImage.value = file
+    businessLicensePreview.value = URL.createObjectURL(file)
+  }
+}
+
+const extractText = () => {
+  if (!businessLicenseImage.value) {
+    openModal('사업자등록증 이미지를 먼저 선택해주세요.')
+    return
+  }
+  isExtracting.value = true
+  // Mock OCR process
+  setTimeout(() => {
+    extractedText.value = '사업자번호: 123-45-67890\n상호: 테스트 게스트하우스\n대표자: 홍길동'
+    isExtracting.value = false
+    openModal('텍스트 추출이 완료되었습니다.')
+  }, 1000)
+}
+
+const verifyBusinessNumber = () => {
+  if (!businessLicenseImage.value) {
+    openModal('사업자등록증 이미지를 먼저 선택해주세요.')
+    return
+  }
+  isVerifying.value = true
+  // Mock verification
+  setTimeout(() => {
+    isVerifying.value = false
+    isVerified.value = true
+    openModal('사업자번호가 확인되었습니다. 이제 숙소를 등록할 수 있습니다.')
+  }, 1000)
+}
+
 // Form data
 const form = ref({
   // 기본정보
@@ -255,8 +299,8 @@ const handleSubmit = () => {
 
 <template>
   <div class="register-page">
-    <!-- Page Header -->
-    <div class="page-header">
+    <!-- Page Header (Only after verification) -->
+    <div v-if="isVerified" class="page-header">
       <div class="header-top">
         <div class="title-area">
           <h1>숙소 등록</h1>
@@ -287,8 +331,37 @@ const handleSubmit = () => {
       </div>
     </div>
 
-    <!-- Form Content -->
-    <div class="form-content">
+    <!-- ========== Verification Step ========== -->
+    <div v-if="!isVerified" class="verification-step">
+      <div class="verification-card">
+        <h2 class="verification-title">사업자등록증 확인</h2>
+        <p class="verification-desc">사업자등록증 이미지를 업로드하여 사업자번호를 확인하세요.</p>
+        
+        <div class="license-upload-area">
+          <div v-if="businessLicensePreview" class="license-preview">
+            <img :src="businessLicensePreview" alt="사업자등록증" />
+            <button class="remove-btn" @click="businessLicensePreview = null; businessLicenseImage = null">&times;</button>
+          </div>
+          <label v-else class="upload-box">
+            <input type="file" accept="image/*" @change="handleLicenseUpload" hidden />
+            <span class="upload-text">이미지 파일 선택</span>
+          </label>
+        </div>
+        
+        <div class="verification-actions">
+          <button 
+            class="btn-verify" 
+            @click="verifyBusinessNumber"
+            :disabled="isVerifying || !businessLicenseImage"
+          >
+            {{ isVerifying ? '확인 중...' : '사업자번호 확인' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Registration Form (Only after verification) ========== -->
+    <div v-else class="form-content">
       <!-- Section: 숙소 등록 -->
       <section class="form-section">
         <h2 class="section-title">숙소 등록</h2>
@@ -1565,6 +1638,157 @@ input[type="number"]:focus {
 .room-amenity-tag.selected {
   border-color: #BFE7DF;
   background: #f0fcfa;
+}
+
+/* ========== Verification Step ========== */
+.verification-step {
+  padding: 2rem 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+}
+
+.verification-card {
+  background: white;
+  border-radius: 20px;
+  padding: 2.5rem;
+  max-width: 500px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.verification-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 0.5rem;
+}
+
+.verification-desc {
+  font-size: 0.95rem;
+  color: #666;
+  margin: 0 0 2rem;
+}
+
+.license-upload-area {
+  margin-bottom: 1.5rem;
+}
+
+.upload-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 2rem;
+  border: 2px dashed #ccc;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.upload-box:hover {
+  border-color: #BFE7DF;
+  background: #f9fcfb;
+}
+
+.upload-text {
+  font-size: 1rem;
+  color: #666;
+}
+
+.license-preview {
+  position: relative;
+  display: inline-block;
+}
+
+.license-preview img {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.license-preview .remove-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ff5252;
+  color: white;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.extracted-text-box {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.extracted-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+  margin: 0 0 0.5rem;
+}
+
+.extracted-content {
+  font-size: 0.9rem;
+  color: #333;
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+.verification-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.btn-extract,
+.btn-verify {
+  padding: 0.875rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn-extract {
+  background: #00875A;
+  color: white;
+}
+
+.btn-extract:hover:not(:disabled) {
+  background: #006644;
+}
+
+.btn-verify {
+  background: #BFE7DF;
+  color: #004d40;
+}
+
+.btn-verify:hover:not(:disabled) {
+  background: #a8ddd2;
+}
+
+.btn-extract:disabled,
+.btn-verify:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
 
