@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ssg9th2team.geharbang.domain.dashboard.host.repository.HostDashboardMapper">
+
+    <!-- TODO: replace table/column names with real schema -->
+    <select id="selectHostSummary" resultType="com.ssg9th2team.geharbang.domain.dashboard.host.entity.HostSummaryRow">
+        SELECT
+            COALESCE(SUM(p.approved_amount), 0)      AS expectedRevenue,
+            COUNT(DISTINCT r.reservation_id)          AS confirmedReservations,
+            COALESCE(AVG(rv.rating), 0)               AS avgRating,
+            COUNT(DISTINCT a.accommodation_id)        AS operatingAccommodations
+        FROM accommodations a
+        LEFT JOIN reservations r ON r.accommodation_id = a.accommodation_id
+            AND r.status = 'CONFIRMED'
+            AND r.check_in &gt;= #{start}
+            AND r.check_in &lt; #{end}
+        LEFT JOIN payments p ON p.reservation_id = r.reservation_id
+            AND p.status = 'DONE'
+        LEFT JOIN reviews rv ON rv.reservation_id = r.reservation_id
+        WHERE a.host_id = #{hostId}
+          AND a.status = 'ACTIVE'
+    </select>
+
+    <!-- TODO: replace table/column names with real schema -->
+    <select id="selectTodaySchedule" resultType="com.ssg9th2team.geharbang.domain.dashboard.host.dto.TodayScheduleItemResponse">
+        SELECT
+            CASE
+                WHEN r.check_in = #{date} THEN 'CHECKIN'
+                ELSE 'CHECKOUT'
+            END AS type,
+            CASE
+                WHEN r.check_in = #{date} THEN CAST('15:00:00' AS TIME)
+                ELSE CAST('11:00:00' AS TIME)
+            END AS time,
+            r.reservation_id   AS reservationId,
+            a.name             AS accommodationName,
+            rm.name            AS roomName,
+            u.name             AS guestName,
+            r.request_note     AS requestNote,
+            u.phone            AS phone
+        FROM reservations r
+        JOIN accommodations a ON a.accommodation_id = r.accommodation_id
+        JOIN rooms rm ON rm.room_id = r.room_id
+        JOIN users u ON u.user_id = r.guest_id
+        WHERE a.host_id = #{hostId}
+          AND r.status IN ('CONFIRMED', 'CHECKIN')
+          AND (r.check_in = #{date} OR r.check_out = #{date})
+        ORDER BY type ASC, time ASC
+    </select>
+
+</mapper>

@@ -1,26 +1,17 @@
 <script setup>
-import AppHeader from "./components/common/AppHeader.vue";
-import AppFooter from "./components/common/AppFooter.vue";
+import TheHeader from './components/TheHeader.vue'
+import TheFooter from './components/TheFooter.vue'
+import { RouterView } from 'vue-router'
 </script>
 
 <template>
-  <AppHeader />
-  <main>
-    <div class="content-wrapper">
-      <RouterView />
-    </div>
-  </main>
-  <AppFooter />
+  <div class="app-layout">
+    <TheHeader />
+    <RouterView />
+    <TheFooter />
+  </div>
 </template>
 
-<style scoped>
-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.content-wrapper {
-  flex: 1;
-}
+<style>
+@import './assets/style.css';
 </style>
