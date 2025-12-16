@@ -34,6 +34,12 @@ root
 └── backend/         # Spring Boot
 ````
 
+## 🤖 CI (GitHub Actions)
+- 워크플로 위치: `.github/workflows/ci.yml`
+- 트리거: `push`/`pull_request` → 백엔드 `./gradlew build -x test`, 프런트 `npm ci && npm run build`
+- 테스트/DB 마이그레이션 추가: 테스트 DB 프로파일 준비 후 `-x test` 제거하고 `./gradlew flywayMigrate` 등을 단계에 넣으면 됩니다.
+- 로컬 확인: 루트에서 `cd backend && ./gradlew build`, `cd frontend && npm run build`로 워크플로와 동일하게 실행해볼 수 있습니다.
+
 ---
 
 ## ⚡ 빠른 시작
