@@ -104,6 +104,9 @@ ncp-credentials.json
 ncp-*.key
 ncp-*.pem
 
+# Google Cloud / Vision API
+**/googlevision/
+
 ############################
 # Docker / 컨테이너
 ############################
