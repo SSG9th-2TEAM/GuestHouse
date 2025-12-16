@@ -61,7 +61,6 @@ const goHistory = () => router.push('/reservations')
         <hr class="divider"/>
         
         <div class="info-item">
-          <span class="icon">🏠</span>
           <div class="text">
             <span class="label">숙소</span>
             <span class="value">{{ info.hotelName }}</span>
@@ -69,7 +68,6 @@ const goHistory = () => router.push('/reservations')
         </div>
 
         <div class="info-item">
-          <span class="icon"></span>
           <div class="text">
             <span class="label">위치</span>
             <span class="value">{{ info.location }}</span>
@@ -77,7 +75,6 @@ const goHistory = () => router.push('/reservations')
         </div>
 
         <div class="info-item">
-          <span class="icon">📅</span>
           <div class="text">
             <span class="label">체크인 / 체크아웃</span>
             <span class="value">{{ info.dates }}</span>
@@ -86,7 +83,6 @@ const goHistory = () => router.push('/reservations')
         </div>
 
         <div class="info-item">
-          <span class="icon">👥</span>
           <div class="text">
             <span class="label">투숙객</span>
             <span class="value">{{ info.guests }}</span>

@@ -1,21 +1,23 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
 
-// Mock Data
-const booking = {
-  hotelName: '그랜드 호텔 서울',
-  rating: 4.8,
-  reviewCount: 219,
-  image: 'https://picsum.photos/id/11/800/400',
-  dates: '2025년 12월 12일 ~ 12월 13일',
-  guests: '성인 1명',
-  price: 150000,
+// Get data from query params
+const booking = computed(() => ({
+  hotelName: route.query.hotelName || '그랜드 호텔 서울',
+  rating: parseFloat(route.query.rating) || 4.8,
+  reviewCount: parseInt(route.query.reviewCount) || 219,
+  image: route.query.image || 'https://picsum.photos/id/11/800/400',
+  roomName: route.query.roomName || '스탠다드 룸',
+  dates: route.query.dates || '날짜를 선택하세요',
+  guests: route.query.guests || '성인 1명',
+  price: parseInt(route.query.roomPrice) || 150000,
   currency: 'KRW',
-  alertMessage: '본 숙소 앞으로 기차나 기숙이 속으로 보는 예약이 가능 차 있습니다' // Copied verbatim from screenshot even if nonsensical
-}
+  alertMessage: '본 숙소 앞으로 기차나 기숙이 속으로 보는 예약이 가능 차 있습니다'
+}))
 
 const coupons = [
   { id: 1, name: '신규 가입 환영 쿠폰', discount: 10000 },
@@ -26,7 +28,7 @@ const selectedCoupon = ref(null)
 
 const finalPrice = computed(() => {
   const discount = selectedCoupon.value ? selectedCoupon.value.discount : 0
-  return booking.price - discount
+  return booking.value.price - discount
 })
 
 const goBack = () => router.back()
@@ -37,7 +39,6 @@ const goBack = () => router.back()
     <!-- Header -->
     <header class="header">
       <button class="icon-btn" @click="goBack">←</button>
-      <button class="icon-btn">✕</button>
     </header>
 
     <div class="container content">

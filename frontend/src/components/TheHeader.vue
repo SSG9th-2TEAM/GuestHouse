@@ -1,13 +1,149 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useSearchStore } from '@/stores/search'
 
 const router = useRouter()
+const searchStore = useSearchStore()
+
 const isMenuOpen = ref(false)
 const isSearchExpanded = ref(false)
-const isHostMode = ref(false)
+const isHostMode = ref(localStorage.getItem('isHostMode') === 'true')
+const isCalendarOpen = ref(false)
+const isGuestOpen = ref(false)
+
+// Toggle host mode and persist to localStorage
+const toggleHostMode = () => {
+  isHostMode.value = !isHostMode.value
+  localStorage.setItem('isHostMode', isHostMode.value.toString())
+  if (isHostMode.value) {
+    router.push('/host')
+  } else {
+    router.push('/')
+  }
+  isMenuOpen.value = false
+}
+
+// Calendar state - from store
+const currentDate = ref(new Date())
 
 const isMobile = () => window.innerWidth <= 768
+
+const toggleGuestPicker = (e) => {
+  e.stopPropagation()
+  isGuestOpen.value = !isGuestOpen.value
+  isCalendarOpen.value = false
+}
+
+const increaseGuest = () => {
+  searchStore.increaseGuest()
+}
+
+const decreaseGuest = () => {
+  searchStore.decreaseGuest()
+}
+
+// Calendar computed properties
+const currentYear = computed(() => currentDate.value.getFullYear())
+const currentMonth = computed(() => currentDate.value.getMonth())
+
+// Next month computed properties
+const nextMonthDate = computed(() => new Date(currentYear.value, currentMonth.value + 1, 1))
+const nextMonthYear = computed(() => nextMonthDate.value.getFullYear())
+const nextMonthMonth = computed(() => nextMonthDate.value.getMonth())
+
+const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
+const weekDays = ['일', '월', '화', '수', '목', '금', '토']
+
+// Function to generate calendar days for any month
+const getCalendarDays = (year, month) => {
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const daysInMonth = lastDay.getDate()
+  const startingDay = firstDay.getDay()
+  
+  const days = []
+  
+  // Empty cells for days before the first day of the month
+  for (let i = 0; i < startingDay; i++) {
+    days.push({ day: '', isEmpty: true })
+  }
+  
+  // Days of the month
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day)
+    const isStartDate = searchStore.startDate && isSameDay(date, searchStore.startDate)
+    const isEndDate = searchStore.endDate && isSameDay(date, searchStore.endDate)
+    const isInRange = isDateInRange(date)
+    const hasEndDate = searchStore.endDate !== null
+    
+    days.push({
+      day,
+      isEmpty: false,
+      date,
+      isToday: isSameDay(date, new Date()),
+      isStartDate,
+      isEndDate,
+      isInRange,
+      hasEndDate
+    })
+  }
+  
+  return days
+}
+
+// Current month calendar days
+const calendarDays = computed(() => getCalendarDays(currentYear.value, currentMonth.value))
+
+// Next month calendar days
+const nextMonthDays = computed(() => getCalendarDays(nextMonthYear.value, nextMonthMonth.value))
+
+const isSameDay = (date1, date2) => {
+  return date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+}
+
+const isDateInRange = (date) => {
+  if (!searchStore.startDate || !searchStore.endDate) return false
+  const time = date.getTime()
+  return time > searchStore.startDate.getTime() && time < searchStore.endDate.getTime()
+}
+
+const toggleCalendar = (e) => {
+  e.stopPropagation()
+  isCalendarOpen.value = !isCalendarOpen.value
+  isGuestOpen.value = false
+}
+
+const prevMonth = () => {
+  currentDate.value = new Date(currentYear.value, currentMonth.value - 1, 1)
+}
+
+const nextMonth = () => {
+  currentDate.value = new Date(currentYear.value, currentMonth.value + 1, 1)
+}
+
+const selectDate = (dayObj) => {
+  if (dayObj.isEmpty) return
+  
+  const clickedDate = dayObj.date
+  
+  // If no start date or both dates are set, start fresh
+  if (!searchStore.startDate || (searchStore.startDate && searchStore.endDate)) {
+    searchStore.setStartDate(clickedDate)
+    searchStore.setEndDate(null)
+  } else {
+    // Set end date
+    if (clickedDate.getTime() < searchStore.startDate.getTime()) {
+      // If clicked date is before start date, swap them
+      searchStore.setEndDate(searchStore.startDate)
+      searchStore.setStartDate(clickedDate)
+    } else {
+      searchStore.setEndDate(clickedDate)
+    }
+  }
+}
 
 const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value
@@ -23,23 +159,18 @@ const handleClickOutside = (e) => {
   if (!e.target.closest('.right-menu')) {
     isMenuOpen.value = false
   }
+  if (!e.target.closest('.date-picker-wrapper')) {
+    isCalendarOpen.value = false
+  }
+  if (!e.target.closest('.guest-picker-wrapper')) {
+    isGuestOpen.value = false
+  }
 }
 
 const handleResize = () => {
   if (!isMobile()) {
     isSearchExpanded.value = false
   }
-}
-
-const toggleHostMode = () => {
-  isHostMode.value = !isHostMode.value
-  if (isHostMode.value) {
-    router.push('/host')
-  } else {
-    router.push('/')
-  }
-  // Optional: keep menu open or close it. Usually navigating closes it.
-  isMenuOpen.value = false 
 }
 
 const handleLogout = () => {
@@ -65,8 +196,8 @@ onUnmounted(() => {
     <div class="header-container">
       <div class="header-content">
         <div class="header-top">
-          <!-- Logo linked to home -->
-          <router-link to="/">
+          <!-- Logo linked to home or host dashboard -->
+          <router-link :to="isHostMode ? '/host' : '/'">
             <img src="@/assets/logo.png" alt="Logo" class="logo" />
           </router-link>
 
@@ -112,25 +243,228 @@ onUnmounted(() => {
         <div
           class="search-bar"
           :class="{ expanded: isSearchExpanded }"
-          @click="toggleSearch"
+          v-if="!isHostMode"
         >
-          <div class="search-item">
-            <label>여행지</label>
-            <input type="text" placeholder="어디로 갈까?">
+          <!-- Collapsed Mobile View - Click to expand -->
+          <div class="search-bar-collapsed" @click="toggleSearch" v-if="!isSearchExpanded">
+            <span class="collapsed-text">어디로 갈까?</span>
+            <span class="collapsed-divider">|</span>
+            <span class="collapsed-text">{{ searchStore.dateDisplayText }}</span>
+            <span class="collapsed-divider">|</span>
+            <span class="collapsed-text">{{ searchStore.guestDisplayText }}</span>
+            <button class="search-btn-mini" aria-label="검색">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Expanded Mobile View -->
+          <div class="search-bar-expanded" v-if="isSearchExpanded" @click.stop>
+            <div class="expanded-close" @click="isSearchExpanded = false">×</div>
+            <div class="search-item-full">
+              <label>여행지</label>
+              <input type="text" placeholder="어디로 갈까?">
+            </div>
+
+            <div class="search-item-full" @click="toggleCalendar">
+              <label>날짜</label>
+              <input type="text" :placeholder="searchStore.dateDisplayText" readonly>
+            </div>
+
+            <!-- Mobile Calendar -->
+            <div class="mobile-calendar-popup" v-if="isCalendarOpen">
+              <div class="mobile-calendar-header">
+                <button class="calendar-nav-btn" @click="prevMonth">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                  </svg>
+                </button>
+                <span class="calendar-month-title">{{ currentYear }}년 {{ monthNames[currentMonth] }}</span>
+                <button class="calendar-nav-btn" @click="nextMonth">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                </button>
+              </div>
+              
+              <div class="calendar-weekdays">
+                <span v-for="day in weekDays" :key="'mobile-current-' + day" class="weekday">{{ day }}</span>
+              </div>
+              <div class="calendar-days">
+                <span
+                  v-for="(dayObj, index) in calendarDays"
+                  :key="'mobile-current-day-' + index"
+                  class="calendar-day"
+                  :class="{
+                    'empty': dayObj.isEmpty,
+                    'today': dayObj.isToday,
+                    'range-start': dayObj.isStartDate,
+                    'range-end': dayObj.isEndDate,
+                    'in-range': dayObj.isInRange,
+                    'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                  }"
+                  @click.stop="selectDate(dayObj)"
+                >
+                  {{ dayObj.day }}
+                </span>
+              </div>
+            </div>
+
+            <div class="search-item-full" @click="toggleGuestPicker">
+              <label>여행자</label>
+              <input type="text" :placeholder="searchStore.guestDisplayText" readonly>
+            </div>
+
+            <!-- Mobile Guest Picker -->
+            <div class="mobile-guest-popup" v-if="isGuestOpen">
+              <div class="guest-header">인원수를 입력하세요</div>
+              <div class="guest-row">
+                <div class="guest-info">
+                  <span class="guest-type">성인</span>
+                  <span class="guest-desc">13세 이상</span>
+                </div>
+                <div class="guest-controls">
+                  <button class="guest-btn" @click.stop="decreaseGuest" :disabled="searchStore.guestCount === 0">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                    </svg>
+                  </button>
+                  <span class="guest-count">{{ searchStore.guestCount }}</span>
+                  <button class="guest-btn" @click.stop="increaseGuest">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button class="search-btn-full">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Desktop View -->
+          <div class="search-bar-desktop">
+            <div class="search-item">
+              <label>여행지</label>
+              <input type="text" placeholder="어디로 갈까?">
+            </div>
+
+          <div class="search-divider"></div>
+
+          <div class="date-picker-wrapper" @click.stop>
+            <div class="search-item" @click="toggleCalendar">
+              <label>날짜</label>
+              <input type="text" :placeholder="searchStore.dateDisplayText" readonly>
+            </div>
+
+            <!-- Calendar Popup -->
+            <div class="calendar-popup" v-if="isCalendarOpen">
+              <div class="calendar-container">
+                <!-- Navigation -->
+                <button class="calendar-nav-btn nav-prev" @click="prevMonth">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                  </svg>
+                </button>
+
+                <!-- Current Month -->
+                <div class="calendar-month">
+                  <div class="calendar-month-title">{{ currentYear }}년 {{ monthNames[currentMonth] }}</div>
+                  <div class="calendar-weekdays">
+                    <span v-for="day in weekDays" :key="'current-' + day" class="weekday">{{ day }}</span>
+                  </div>
+                  <div class="calendar-days">
+                    <span
+                      v-for="(dayObj, index) in calendarDays"
+                      :key="'current-day-' + index"
+                      class="calendar-day"
+                      :class="{
+                        'empty': dayObj.isEmpty,
+                        'today': dayObj.isToday,
+                        'range-start': dayObj.isStartDate,
+                        'range-end': dayObj.isEndDate,
+                        'in-range': dayObj.isInRange,
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                      }"
+                      @click="selectDate(dayObj)"
+                    >
+                      {{ dayObj.day }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Next Month -->
+                <div class="calendar-month">
+                  <div class="calendar-month-title">{{ nextMonthYear }}년 {{ monthNames[nextMonthMonth] }}</div>
+                  <div class="calendar-weekdays">
+                    <span v-for="day in weekDays" :key="'next-' + day" class="weekday">{{ day }}</span>
+                  </div>
+                  <div class="calendar-days">
+                    <span
+                      v-for="(dayObj, index) in nextMonthDays"
+                      :key="'next-day-' + index"
+                      class="calendar-day"
+                      :class="{
+                        'empty': dayObj.isEmpty,
+                        'today': dayObj.isToday,
+                        'range-start': dayObj.isStartDate,
+                        'range-end': dayObj.isEndDate,
+                        'in-range': dayObj.isInRange,
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                      }"
+                      @click="selectDate(dayObj)"
+                    >
+                      {{ dayObj.day }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Navigation -->
+                <button class="calendar-nav-btn nav-next" @click="nextMonth">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="search-divider"></div>
 
-          <div class="search-item">
-            <label>날짜</label>
-            <input type="text" placeholder="날짜 선택">
-          </div>
+          <div class="guest-picker-wrapper" @click.stop>
+            <div class="search-item" @click="toggleGuestPicker">
+              <label>여행자</label>
+              <input type="text" :placeholder="searchStore.guestDisplayText" readonly>
+            </div>
 
-          <div class="search-divider"></div>
-
-          <div class="search-item">
-            <label>여행자</label>
-            <input type="text" placeholder="게스트 추가">
+            <!-- Guest Picker Popup -->
+            <div class="guest-popup" v-if="isGuestOpen">
+              <div class="guest-header">인원수를 입력하세요</div>
+              <div class="guest-row">
+                <div class="guest-info">
+                  <span class="guest-type">성인</span>
+                  <span class="guest-desc">13세 이상</span>
+                </div>
+                <div class="guest-controls">
+                  <button class="guest-btn" @click="decreaseGuest" :disabled="searchStore.guestCount === 0">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                    </svg>
+                  </button>
+                  <span class="guest-count">{{ searchStore.guestCount }}</span>
+                  <button class="guest-btn" @click="increaseGuest">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <button class="search-btn" aria-label="검색">
@@ -138,6 +472,7 @@ onUnmounted(() => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
             </svg>
           </button>
+        </div>
         </div>
       </div>
     </div>
@@ -201,6 +536,17 @@ onUnmounted(() => {
 .search-bar:hover {
   border-color: #6DC3BB;
   box-shadow: 0 4px 12px rgba(109, 195, 187, 0.1);
+}
+
+/* Hide mobile elements on desktop */
+.search-bar-collapsed,
+.search-bar-expanded {
+  display: none !important;
+}
+
+/* Show desktop elements on desktop */
+.search-bar-desktop {
+  display: contents;
 }
 
 .search-item {
@@ -550,13 +896,13 @@ onUnmounted(() => {
 /* Mobile styles */
 @media (max-width: 768px) {
   .app-header {
-    overflow-x: hidden;
+    overflow: visible;
   }
 
   .header-container {
     padding: 8px 12px;
     max-width: 100%;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .header-content {
@@ -579,70 +925,590 @@ onUnmounted(() => {
   /* Mobile menu full width on very small screens if needed, 
      but 300px width is fine for most mobiles */
   .mobile-menu-dropdown {
-    right: -8px; /* Alignment tweak */
+    right: -8px;
     width: 280px;
+  }
+
+  /* Hide desktop search bar on mobile */
+  .search-bar-desktop {
+    display: none !important;
+  }
+
+  .search-bar .search-btn {
+    display: none !important;
   }
 
   .search-bar {
     width: 100%;
     max-width: 100%;
-    padding: 8px 10px;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+  
+  /* Collapsed Mobile Search Bar */
+  .search-bar-collapsed {
+    display: flex !important;
+    align-items: center;
+    background: white;
+    border: 1px solid #e0e6eb;
+    border-radius: 40px;
+    padding: 12px 16px;
     gap: 8px;
-  }
-
-  .search-bar.expanded {
-    flex-direction: column;
-    gap: 0;
-    padding: 12px;
-  }
-
-  .search-item {
-    padding: 6px 4px;
-    min-width: 0;
-  }
-
-  .search-item input {
-    min-width: 0;
     width: 100%;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   }
-
-  .search-bar:not(.expanded) .search-item label {
-    display: none;
+  
+  .search-bar.expanded .search-bar-collapsed {
+    display: none !important;
   }
-
-  .search-bar:not(.expanded) .search-item input {
+  
+  .search-bar.expanded .search-bar-expanded {
+    display: flex !important;
+  }
+  
+  .collapsed-text {
+    font-size: 13px;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .collapsed-divider {
+    color: #e0e6eb;
     font-size: 12px;
   }
-
-  .search-bar.expanded .search-item {
-    border-bottom: 1px solid #e8ecf0;
+  
+  .search-btn-mini {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background-color: #6DC3BB;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    color: white;
+    flex-shrink: 0;
+    margin-left: auto;
   }
-
-  .search-bar.expanded .search-item:last-of-type {
+  
+  /* Expanded Mobile Search Bar */
+  .search-bar-expanded {
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border: 1px solid #e0e6eb;
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%;
+    position: relative;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  }
+  
+  .expanded-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 24px;
+    color: #9ca3af;
+    cursor: pointer;
+    line-height: 1;
+  }
+  
+  .expanded-close:hover {
+    color: #374151;
+  }
+  
+  .search-item-full {
+    display: flex;
+    flex-direction: column;
+    padding: 16px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .search-item-full:last-of-type {
     border-bottom: none;
   }
-
-  .search-item:hover {
-    background-color: transparent;
+  
+  .search-item-full label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 6px;
   }
-
-  .search-bar:not(.expanded) .search-divider {
-    display: none;
+  
+  .search-item-full input {
+    background: transparent;
+    border: none;
+    font-size: 16px;
+    color: #1a1f36;
+    outline: none;
+    padding: 0;
   }
-
-  .search-divider {
-    display: none;
+  
+  .search-item-full input::placeholder {
+    color: #9ca3af;
   }
-
-  .search-btn {
-    width: 36px;
-    height: 36px;
-  }
-
-  .search-bar.expanded .search-btn {
+  
+  .search-btn-full {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
-    border-radius: 8px;
-    margin-top: 8px;
+    height: 48px;
+    background-color: #6DC3BB;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    color: white;
+    margin-top: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    gap: 8px;
+  }
+  
+  .search-btn-full:hover {
+    background-color: #5aaca3;
+  }
+  
+  /* Mobile Calendar Popup */
+  .mobile-calendar-popup {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 8px 0;
+  }
+  
+  .mobile-calendar-popup .calendar-container {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .mobile-calendar-popup .calendar-month {
+    width: 100%;
+  }
+  
+  .mobile-calendar-popup .calendar-container {
+    display: flex;
+    align-items: center;
+  }
+  
+  .mobile-calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  
+  .mobile-calendar-header .calendar-month-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1f36;
+  }
+  
+  .mobile-calendar-popup .calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  
+  .mobile-calendar-popup .calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+  }
+  
+  .mobile-calendar-popup .nav-prev,
+  .mobile-calendar-popup .nav-next {
+    display: flex;
+    flex-shrink: 0;
+  }
+  
+  .mobile-calendar-popup .calendar-month-title {
+    text-align: center;
+  }
+  
+  /* Mobile Guest Popup */
+  .mobile-guest-popup {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 8px 0;
+  }
+  
+  .mobile-guest-popup .guest-header {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+  
+  .mobile-guest-popup .guest-row {
+    padding: 12px 0;
+    border-bottom: none;
+  }
+}
+
+/* Date Picker Styles */
+.date-picker-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.calendar-popup {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 680px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  padding: 24px;
+  z-index: 1001;
+  font-family: 'Noto Sans KR', sans-serif;
+  border: 1px solid #f0f0f0;
+  animation: calendarFadeIn 0.2s ease;
+}
+
+@keyframes calendarFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.calendar-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.calendar-month {
+  flex: 1;
+  min-width: 280px;
+}
+
+.calendar-month-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1f36;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.calendar-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1f36;
+}
+
+.calendar-nav-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-nav-btn:hover {
+  background-color: #f0f7f6;
+  color: #6DC3BB;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  padding: 8px 0;
+}
+
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-day {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  padding: 12px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.calendar-day:not(.empty):hover {
+  background-color: #f0f7f6;
+  color: #6DC3BB;
+}
+
+.calendar-day.empty {
+  cursor: default;
+}
+
+.calendar-day.today:not(.range-start):not(.range-end):not(.in-range) {
+  color: #6DC3BB;
+  font-weight: 700;
+}
+
+/* Range selection styles - using theme color #6DC3BB */
+.calendar-day.range-start,
+.calendar-day.range-end {
+  background-color: #4a9e96;
+  color: white;
+  font-weight: 700;
+  position: relative;
+}
+
+/* Add connecting background line for start date (to the right) */
+.calendar-day.range-start.has-end::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 100%;
+  background-color: #d4f0ed;
+  z-index: -1;
+}
+
+/* Add connecting background line for end date (to the left) */
+.calendar-day.range-end::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background-color: #d4f0ed;
+  z-index: -1;
+}
+
+.calendar-day.range-start:hover,
+.calendar-day.range-end:hover {
+  background-color: #3d8a82;
+  color: white;
+}
+
+.calendar-day.in-range {
+  background-color: #d4f0ed;
+  color: #2d7a73;
+  border-radius: 0;
+}
+
+/* Mobile calendar adjustments */
+@media (max-width: 768px) {
+  .calendar-popup {
+    width: 320px;
+    left: 0;
+    transform: translateX(0);
+    padding: 16px;
+  }
+  
+  .calendar-container {
+    flex-direction: column;
+    gap: 24px;
+  }
+  
+  .calendar-month {
+    min-width: 100%;
+  }
+  
+  .nav-prev, .nav-next {
+    position: absolute;
+    top: 16px;
+  }
+  
+  .nav-prev {
+    left: 8px;
+  }
+  
+  .nav-next {
+    right: 8px;
+  }
+  
+  @keyframes calendarFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .calendar-day {
+    padding: 10px 0;
+    font-size: 13px;
+  }
+}
+
+/* Navigation button positioning for desktop */
+@media (min-width: 769px) {
+  .nav-prev, .nav-next {
+    flex-shrink: 0;
+  }
+}
+
+/* Guest Picker Styles */
+.guest-picker-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.guest-popup {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  padding: 24px;
+  z-index: 1001;
+  font-family: 'Noto Sans KR', sans-serif;
+  border: 1px solid #f0f0f0;
+  animation: guestFadeIn 0.2s ease;
+}
+
+@keyframes guestFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.guest-header {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1f36;
+  margin-bottom: 20px;
+}
+
+.guest-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.guest-row:last-child {
+  border-bottom: none;
+}
+
+.guest-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guest-type {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1f36;
+}
+
+.guest-desc {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.guest-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.guest-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #e0e6eb;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+  transition: all 0.2s ease;
+}
+
+.guest-btn:hover:not(:disabled) {
+  border-color: #6DC3BB;
+  color: #6DC3BB;
+}
+
+.guest-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.guest-count {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1f36;
+  min-width: 24px;
+  text-align: center;
+}
+
+/* Mobile guest picker */
+@media (max-width: 768px) {
+  .guest-popup {
+    width: 280px;
+    left: 0;
+    transform: translateX(0);
+    padding: 20px;
+  }
+  
+  @keyframes guestFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 </style>
