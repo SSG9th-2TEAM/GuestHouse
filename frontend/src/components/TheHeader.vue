@@ -8,9 +8,21 @@ const searchStore = useSearchStore()
 
 const isMenuOpen = ref(false)
 const isSearchExpanded = ref(false)
-const isHostMode = ref(false)
+const isHostMode = ref(localStorage.getItem('isHostMode') === 'true')
 const isCalendarOpen = ref(false)
 const isGuestOpen = ref(false)
+
+// Toggle host mode and persist to localStorage
+const toggleHostMode = () => {
+  isHostMode.value = !isHostMode.value
+  localStorage.setItem('isHostMode', isHostMode.value.toString())
+  if (isHostMode.value) {
+    router.push('/host')
+  } else {
+    router.push('/')
+  }
+  isMenuOpen.value = false
+}
 
 // Calendar state - from store
 const currentDate = ref(new Date())
@@ -161,17 +173,6 @@ const handleResize = () => {
   }
 }
 
-const toggleHostMode = () => {
-  isHostMode.value = !isHostMode.value
-  if (isHostMode.value) {
-    router.push('/host')
-  } else {
-    router.push('/')
-  }
-  // Optional: keep menu open or close it. Usually navigating closes it.
-  isMenuOpen.value = false 
-}
-
 const handleLogout = () => {
   // Mock logout
   alert('로그아웃 되었습니다.')
@@ -195,8 +196,8 @@ onUnmounted(() => {
     <div class="header-container">
       <div class="header-content">
         <div class="header-top">
-          <!-- Logo linked to home -->
-          <router-link to="/">
+          <!-- Logo linked to home or host dashboard -->
+          <router-link :to="isHostMode ? '/host' : '/'">
             <img src="@/assets/logo.png" alt="Logo" class="logo" />
           </router-link>
 
