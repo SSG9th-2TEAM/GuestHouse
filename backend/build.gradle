@@ -41,6 +41,9 @@ dependencies {
 	testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.5'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// 검색 엔진 추가
+	implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
 }
 
 tasks.named('test') {
