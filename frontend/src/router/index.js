@@ -76,7 +76,44 @@ const router = createRouter({
         {
             path: '/host',
             name: 'host-dashboard',
-            component: () => import('../views/HostView/HostDashboardView.vue')
+            component: () => import('../views/HostView/HostDashboardView.vue'),
+            children: [
+                {
+                    path: '',
+                    name: 'host-home',
+                    component: () => import('../views/HostView/HostHomeView.vue')
+                },
+                {
+                    path: 'accommodation',
+                    name: 'host-accommodation',
+                    component: () => import('../views/HostView/HostAccommodationView.vue')
+                },
+                {
+                    path: 'accommodation/register',
+                    name: 'host-register',
+                    component: () => import('../views/HostView/HostAccommodationRegister.vue')
+                },
+                {
+                    path: 'accommodation/edit/:id',
+                    name: 'host-edit',
+                    component: () => import('../views/HostView/HostAccommodationEdit.vue')
+                },
+                {
+                    path: 'booking',
+                    name: 'host-booking',
+                    component: () => import('../views/HostView/HostBookingView.vue')
+                },
+                {
+                    path: 'review',
+                    name: 'host-review',
+                    component: () => import('../views/HostView/HostReviewView.vue')
+                },
+                {
+                    path: 'revenue',
+                    name: 'host-revenue',
+                    component: () => import('../views/HostView/HostRevenueView.vue')
+                }
+            ]
         }
     ]
 })
