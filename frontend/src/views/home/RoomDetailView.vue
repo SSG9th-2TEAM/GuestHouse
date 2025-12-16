@@ -1,8 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useSearchStore } from '@/stores/search'
 
 const router = useRouter()
+const searchStore = useSearchStore()
 
 import { guesthouses } from '../../data/guesthouses'
 
@@ -41,7 +43,6 @@ const guesthouse = {
   ]
 }
 
-const guestCount = ref(2)
 const selectedRoom = ref(null)
 
 const selectRoom = (room) => {
@@ -50,6 +51,47 @@ const selectRoom = (room) => {
 
 const formatPrice = (price) => {
   return price.toLocaleString()
+}
+
+const increaseGuest = () => {
+  searchStore.increaseGuest()
+}
+
+const decreaseGuest = () => {
+  searchStore.decreaseGuest()
+}
+
+// Navigate to booking with all data
+const goToBooking = () => {
+  if (!selectedRoom.value) return
+  
+  // Format dates for display
+  let dateDisplay = '날짜를 선택하세요'
+  if (searchStore.startDate && searchStore.endDate) {
+    const formatDate = (date) => {
+      const year = date.getFullYear()
+      const month = date.getMonth() + 1
+      const day = date.getDate()
+      return `${year}년 ${month}월 ${day}일`
+    }
+    dateDisplay = `${formatDate(searchStore.startDate)} ~ ${formatDate(searchStore.endDate)}`
+  }
+  
+  const guestCount = searchStore.guestCount || 1
+  
+  router.push({
+    path: '/booking/1',
+    query: {
+      hotelName: guesthouse.name,
+      rating: guesthouse.rating,
+      reviewCount: guesthouse.reviewCount,
+      image: guesthouse.images[0],
+      roomName: selectedRoom.value.name,
+      roomPrice: selectedRoom.value.price,
+      dates: dateDisplay,
+      guests: `성인 ${guestCount}명`
+    }
+  })
 }
 </script>
 
@@ -101,14 +143,14 @@ const formatPrice = (price) => {
         <div class="picker-row">
           <div class="picker-field">
             <label>체크인 / 체크아웃</label>
-            <div class="date-display">2024-12-20 - 2024-12-22</div>
+            <div class="date-display">{{ searchStore.checkInOutText }}</div>
           </div>
           <div class="picker-field">
             <label>투숙 인원</label>
             <div class="guest-control">
-              <button @click="guestCount > 1 && guestCount--" :disabled="guestCount <= 1">-</button>
-              <span>성인 {{ guestCount }}</span>
-              <button @click="guestCount < 10 && guestCount++">+</button>
+              <button @click="decreaseGuest" :disabled="searchStore.guestCount <= 1">-</button>
+              <span>성인 {{ searchStore.guestCount || 1 }}</span>
+              <button @click="increaseGuest">+</button>
             </div>
           </div>
         </div>
@@ -200,7 +242,7 @@ const formatPrice = (price) => {
         <span v-else>객실을 선택해주세요</span>
         <div class="total-price" v-if="selectedRoom">₩{{ formatPrice(selectedRoom.price) }}</div>
       </div>
-      <button class="book-btn" :disabled="!selectedRoom" @click="$router.push('/booking/1')">예약하기</button>
+      <button class="book-btn" :disabled="!selectedRoom" @click="goToBooking">예약하기</button>
     </div>
 
   </div>
@@ -209,7 +251,7 @@ const formatPrice = (price) => {
 <style scoped>
 .room-detail {
   padding-bottom: 2rem;
-  max-width: 800px;
+  max-width: 1200px;
 }
 
 .detail-header {
@@ -233,17 +275,17 @@ const formatPrice = (price) => {
 /* Image Grid */
 .image-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
-  grid-template-rows: 200px 200px;
+  grid-template-columns: 1fr 1fr;
+  height: 500px;
   gap: 8px;
   border-radius: var(--radius-md);
   overflow: hidden;
   margin-bottom: 2rem;
 }
 .main-img {
-  grid-row: 1 / span 2;
   background-size: cover;
   background-position: center;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
 }
 .sub-imgs {
   display: grid;
@@ -254,6 +296,12 @@ const formatPrice = (price) => {
 .sub-img {
   background-size: cover;
   background-position: center;
+}
+.sub-img:nth-child(2) {
+  border-radius: 0 var(--radius-md) 0 0;
+}
+.sub-img:nth-child(4) {
+  border-radius: 0 0 var(--radius-md) 0;
 }
 
 /* Sections */
@@ -408,8 +456,44 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   cursor: not-allowed;
 }
 
-@media (max-width: 600px) {
-  .image-grid { grid-template-columns: 1fr; grid-template-rows: 200px auto; }
-  .sub-imgs { display: none; } /* Hide sub images on mobile for simplicity */
+@media (max-width: 768px) {
+  .room-detail {
+    max-width: 100%;
+    padding: 0 16px;
+  }
+  
+  .image-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  
+  .main-img {
+    height: 250px;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+  
+  .sub-imgs {
+    height: 200px;
+  }
+  
+  .sub-img:nth-child(1) {
+    border-radius: 0;
+  }
+  
+  .sub-img:nth-child(2) {
+    border-radius: 0;
+  }
+  
+  .sub-img:nth-child(3) {
+    border-radius: 0 0 0 var(--radius-md);
+  }
+  
+  .sub-img:nth-child(4) {
+    border-radius: 0 0 var(--radius-md) 0;
+  }
+  
+  .picker-row {
+    flex-direction: column;
+  }
 }
 </style>
