@@ -103,10 +103,10 @@ const getBarHeight = (amount) => {
     <div class="chart-section">
       <h3>월별 매출 추이</h3>
       <div class="bar-chart">
-        <div 
-          v-for="data in currentYearData" 
-          :key="data.month" 
-          class="bar-column"
+        <div
+            v-for="data in currentYearData"
+            :key="data.month"
+            class="bar-column"
         >
           <div class="bar-container">
             <div class="bar" :style="{ height: getBarHeight(data.amount) }">
@@ -140,132 +140,146 @@ const getBarHeight = (amount) => {
   padding-bottom: 2rem;
 }
 
+/* ✅ 대시보드 톤: 헤더 선명/굵게 + 모바일 퍼스트 스택 */
 .view-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.5rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
 }
 
 .view-header h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #333;
-  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #0b3b32;
+  margin: 0.15rem 0 0.2rem;
+  letter-spacing: -0.01em;
 }
 
 .subtitle {
-  color: #666;
+  color: #6b7280;
   font-size: 0.95rem;
-  margin-top: 0.25rem;
+  font-weight: 600;
+  margin: 0;
 }
 
 .year-select {
-  padding: 0.5rem 1rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 1rem;
-  color: #333;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
   outline: none;
   background: white;
 }
 
-/* Summary Cards */
+/* Summary Cards (모바일: 세로, 태블릿+: 3열) */
 .summary-cards {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .summary-card {
   background: white;
   border-radius: 16px;
-  padding: 1.5rem;
+  padding: 1.25rem 1.25rem 1.2rem;
   position: relative;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  border: 1px solid #f0f0f0;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
 
 .card-icon {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.9rem;
 }
 
-.green-bg { background: #E0F2F1; color: #00695C; }
+.green-bg { background: #E0F2F1; color: #0f766e; }
 .blue-bg { background: #E3F2FD; color: #1565C0; }
-.orange-bg { background: #FFF3E0; color: #EF6C00; }
+.orange-bg { background: #FFF3E0; color: #B45309; }
 
 .trend-icon {
   position: absolute;
-  top: 1.5rem;
-  right: 1.5rem;
-  font-weight: 700;
+  top: 1.15rem;
+  right: 1.15rem;
+  font-weight: 900;
 }
 
-.trend-icon.up { color: #00C853; }
-.trend-icon.down { color: #FFAB00; }
+.trend-icon.up { color: #0f766e; }
+.trend-icon.down { color: #b45309; }
 
 .card-label {
-  font-size: 0.9rem;
-  color: #666;
-  margin-bottom: 0.5rem;
+  font-size: 0.92rem;
+  color: #6b7280;
+  font-weight: 700;
+  margin: 0 0 0.45rem;
 }
 
 .card-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #333;
-  margin: 0 0 0.5rem;
+  font-size: 1.55rem;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0 0 0.4rem;
 }
 
 .card-trend {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.86rem;
+  font-weight: 800;
+  margin: 0;
 }
 
-.card-trend.positive { color: #00C853; }
+.card-trend.positive { color: #0f766e; }
 
 .card-sub {
-  font-size: 0.85rem;
+  font-size: 0.86rem;
+  font-weight: 700;
   color: #1565C0;
+  margin: 0;
 }
 
 /* Chart Section */
 .chart-section {
   background: white;
-  padding: 1.5rem;
+  padding: 1.25rem;
   border-radius: 16px;
-  margin-bottom: 2rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  margin-bottom: 1.5rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
 
 .chart-section h3 {
   font-size: 1.1rem;
-  color: #333;
-  margin: 0 0 1.5rem;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0 0 1rem;
 }
 
+/* ✅ 모바일에서 12개월 막대가 답답해서: 가로 스크롤 허용(템플릿 변경 없이 CSS만) */
 .bar-chart {
   display: flex;
-  justify-content: space-between;
   align-items: flex-end;
-  height: 200px;
-  padding-top: 2rem; /* space for tooltips */
+  height: 210px;
+  padding-top: 2rem; /* tooltip 공간 */
+  overflow-x: auto;
+  gap: 0.7rem;
+  justify-content: flex-start;
 }
 
 .bar-column {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1;
   height: 100%;
+  flex: 0 0 44px; /* 모바일에서 한 칸 폭 고정 → 스크롤 자연스러움 */
 }
 
 .bar-container {
@@ -278,28 +292,28 @@ const getBarHeight = (amount) => {
 }
 
 .bar {
-  width: 60%;
+  width: 100%;
   background: #BFE7DF;
-  border-radius: 4px 4px 0 0;
+  border-radius: 6px 6px 0 0;
   transition: height 0.3s ease, background 0.2s;
   position: relative;
   cursor: pointer;
 }
 
 .bar:hover {
-  background: #004d40;
+  background: #0f766e;
 }
 
 .tooltip {
   position: absolute;
-  top: -25px;
+  top: -26px;
   left: 50%;
   transform: translateX(-50%);
-  background: #333;
+  background: #111827;
   color: white;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
   white-space: nowrap;
   opacity: 0;
   transition: opacity 0.2s;
@@ -311,30 +325,34 @@ const getBarHeight = (amount) => {
 }
 
 .month-label {
-  font-size: 0.8rem;
-  color: #888;
-  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: #6b7280;
+  font-weight: 700;
+  margin-top: 0.45rem;
 }
 
 /* Stats List */
 .stats-list {
   background: white;
-  padding: 1.5rem;
+  padding: 1.25rem;
   border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
 
 .stats-list h3 {
   font-size: 1.1rem;
-  color: #333;
-  margin: 0 0 1rem;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0 0 0.75rem;
 }
 
 .list-item {
   display: flex;
   justify-content: space-between;
-  padding: 1rem 0;
-  border-bottom: 1px solid #f0f0f0;
+  gap: 0.75rem;
+  padding: 0.95rem 0;
+  border-bottom: 1px solid #f1f5f9;
   font-size: 0.95rem;
 }
 
@@ -343,12 +361,44 @@ const getBarHeight = (amount) => {
 }
 
 .list-item.header {
-  font-weight: 600;
-  color: #666;
-  border-bottom: 2px solid #f0f0f0;
+  font-weight: 900;
+  color: #475569;
+  border-bottom: 2px solid #eef2f7;
+  font-size: 0.92rem;
 }
 
-.month-col { flex: 1; color: #333; }
-.amount-col { flex: 1; text-align: right; font-weight: 600; }
-.occupancy-col { flex: 1; text-align: right; color: #666; }
+.month-col { flex: 1; color: #0f172a; font-weight: 700; }
+.amount-col { flex: 1; text-align: right; font-weight: 900; color: #0f172a; }
+.occupancy-col { flex: 1; text-align: right; color: #6b7280; font-weight: 700; }
+
+/* 태블릿+에서는 헤더 가로, 카드 3열, 차트 스크롤 해제 */
+@media (min-width: 768px) {
+  .view-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .year-select {
+    width: auto;
+  }
+
+  .summary-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .bar-chart {
+    overflow-x: visible;
+    justify-content: space-between;
+    gap: 0;
+  }
+
+  .bar-column {
+    flex: 1;
+  }
+
+  .bar {
+    width: 60%;
+  }
+}
 </style>
