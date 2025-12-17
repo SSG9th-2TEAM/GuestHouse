@@ -114,6 +114,42 @@ const router = createRouter({
                     component: () => import('../views/HostView/HostRevenueView.vue')
                 }
             ]
+        },
+        {
+            path: '/admin',
+            component: () => import('../views/AdminView/AdminLayout.vue'),
+            children: [
+                {
+                    path: '',
+                    name: 'admin-dashboard',
+                    component: () => import('../views/AdminView/AdminDashboardView.vue')
+                },
+                {
+                    path: 'users',
+                    name: 'admin-users',
+                    component: () => import('../views/AdminView/AdminUsersView.vue')
+                },
+                {
+                    path: 'accommodations',
+                    name: 'admin-accommodations',
+                    component: () => import('../views/AdminView/AdminAccommodationsView.vue')
+                },
+                {
+                    path: 'bookings',
+                    name: 'admin-bookings',
+                    component: () => import('../views/AdminView/AdminBookingsView.vue')
+                },
+                {
+                    path: 'payments',
+                    name: 'admin-payments',
+                    component: () => import('../views/AdminView/AdminPaymentsView.vue')
+                },
+                {
+                    path: 'reports',
+                    name: 'admin-reports',
+                    component: () => import('../views/AdminView/AdminReportsView.vue')
+                }
+            ]
         }
     ]
 })
