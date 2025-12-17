@@ -151,10 +151,34 @@ const roomForm = ref({
   size: '',
   description: '',
   amenities: [],
+  representativeImage: null,
+  representativeImagePreview: '',
   isActive: true
 })
 
 const roomBedTypes = ['스탠다드', '디럭스', '스위트', '더블', '트윈', '패밀리']
+
+// 객실 이미지 업로드 처리
+const handleRoomImageUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    if (!file.type.startsWith('image/')) {
+      openModal('이미지 파일만 업로드 가능합니다.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      openModal('파일 크기는 5MB 이하여야 합니다.')
+      return
+    }
+    roomForm.value.representativeImage = file
+    roomForm.value.representativeImagePreview = URL.createObjectURL(file)
+  }
+}
+
+const removeRoomImage = () => {
+  roomForm.value.representativeImage = null
+  roomForm.value.representativeImagePreview = ''
+}
 
 // 객실 편의시설 옵션 (일부만)
 const roomAmenityOptions = {
@@ -190,12 +214,16 @@ const addRoom = () => {
     openModal('객실 이름, 타입, 주중/주말 요금은 필수입니다.')
     return
   }
-  
+  if (!roomForm.value.representativeImage) {
+    openModal('객실 대표 이미지를 등록해주세요.')
+    return
+  }
+
   rooms.value.push({
     id: Date.now(),
     ...roomForm.value
   })
-  
+
   // 폼 초기화
   roomForm.value = {
     name: '',
@@ -205,6 +233,9 @@ const addRoom = () => {
     maxGuests: '',
     size: '',
     description: '',
+    amenities: [],
+    representativeImage: null,
+    representativeImagePreview: '',
     isActive: true
   }
   showRoomForm.value = false
@@ -640,16 +671,41 @@ const handleSubmit = () => {
         <!-- 객실 추가 폼 -->
         <div v-if="showRoomForm" class="room-form">
           <h4 class="room-form-title">새 객실 정보</h4>
-          
+
           <div class="form-group">
             <label>객실명 <span class="required">*</span></label>
-            <input 
-              v-model="roomForm.name" 
-              type="text" 
+            <input
+              v-model="roomForm.name"
+              type="text"
               placeholder="예: 스탠다드 더블룸"
             />
           </div>
-          
+
+          <div class="form-group">
+            <label>객실 대표 이미지 <span class="required">*</span></label>
+            <div class="room-image-upload-area">
+              <div v-if="roomForm.representativeImagePreview" class="room-image-preview">
+                <img :src="roomForm.representativeImagePreview" alt="객실 대표 이미지" />
+                <button type="button" class="room-remove-image-btn" @click="removeRoomImage">
+                  ✕
+                </button>
+              </div>
+              <label v-else class="room-upload-box">
+                <input
+                  type="file"
+                  accept="image/*"
+                  @change="handleRoomImageUpload"
+                  class="hidden-file-input"
+                />
+                <div class="room-upload-content">
+                  <span class="room-upload-icon">📷</span>
+                  <span class="room-upload-text">이미지 업로드</span>
+                  <span class="room-upload-hint">JPG, PNG (최대 5MB)</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <div class="form-group">
             <label>객실 침대 유형 <span class="required">*</span></label>
             <select v-model="roomForm.type">
@@ -1565,6 +1621,92 @@ input[type="number"]:focus {
 .room-amenity-tag.selected {
   border-color: #BFE7DF;
   background: #f0fcfa;
+}
+
+/* Room Image Upload Styles */
+.room-image-upload-area {
+  width: 100%;
+}
+
+.room-upload-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 150px;
+  border: 2px dashed #BFE7DF;
+  border-radius: 12px;
+  background: #f8fffe;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.room-upload-box:hover {
+  background: #f0fbf9;
+  border-color: #8fd4c7;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.room-upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.room-upload-icon {
+  font-size: 2rem;
+}
+
+.room-upload-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.room-upload-hint {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.room-image-preview {
+  position: relative;
+  width: 100%;
+  max-width: 200px;
+}
+
+.room-image-preview img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+}
+
+.room-remove-image-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.room-remove-image-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
 }
 </style>
 
