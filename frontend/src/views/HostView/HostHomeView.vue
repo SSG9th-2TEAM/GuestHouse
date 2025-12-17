@@ -1,170 +1,121 @@
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import {computed, ref} from 'vue'
+import {useRouter} from 'vue-router'
 
 const router = useRouter()
 
-// Carousel State
-const currentSlide = ref(0)
-const stats = ref([
-  {
-    label: '이번 달 예상 수익',
-    value: '₩5,200,000',
-    trend: '▲ 15%',
-    trendClass: 'positive',
-    iconType: 'chart'
-  },
-  {
-    label: '이번 달 예약률',
-    value: '85%',
-    trend: '▲ 5%',
-    trendClass: 'positive',
-    iconType: 'calendar'
-  },
-  {
-    label: '평균 평점',
-    value: '4.8',
-    trend: '-',
-    trendClass: 'neutral',
-    iconType: 'star'
-  }
+const kpis = ref([
+  {label: '이번 달 예상 수익', value: 5200000, unit: '₩', trend: '+12%', tone: 'positive', target: '/host/revenue'},
+  {label: '이번 달 예약 확정', value: 34, unit: '건', trend: '+4건', tone: 'positive', target: '/host/booking'},
+  {label: '평균 평점', value: 4.8, unit: '/5.0', trend: '최근 30일', tone: 'neutral', target: '/host/review'},
+  {label: '숙소 운영 현황', value: '5/6', unit: ' 운영중', trend: '1건 점검중', tone: 'warning', target: '/host/accommodation'}
 ])
 
-const nextSlide = () => {
-  currentSlide.value = (currentSlide.value + 1) % stats.value.length
-}
-
-const prevSlide = () => {
-  currentSlide.value = (currentSlide.value - 1 + stats.value.length) % stats.value.length
-}
-
-// Stats Mock Data
-const schedule = ref([
-  {
-    id: 1,
-    type: 'checkin', // checkin, checkout
-    time: '15:00',
-    accommodationName: '강남 모던 게스트하우스',
-    roomName: '201호',
-    guestName: '김철수',
-    note: '바베큐 숯 추가 요청'
-  },
-  {
-    id: 2,
-    type: 'checkout',
-    time: '11:00',
-    accommodationName: '제주도 감성 숙소',
-    roomName: '별채',
-    guestName: '이영희',
-    note: ''
-  }
+const todayLabel = '2025년 12월 16일 (화)'
+const tasks = ref([
+  {id: 1, type: 'checkin', time: '15:00', accommodation: '강남 모던 게스트하우스 201호', guest: '김민수', phone: '010-1234-5678', email: 'minsu@example.com', memo: '바베큐 숯 추가 요청'},
+  {id: 2, type: 'checkout', time: '11:00', accommodation: '제주 감성 숙소 별채', guest: '이서연', phone: '010-2345-6789', email: 'seoyeon@example.com', memo: '침구 교체 필요'},
+  {id: 3, type: 'checkin', time: '18:00', accommodation: '해운대 오션뷰 802호', guest: '박지성', phone: '010-9876-5432', email: 'park@example.com', memo: ''}
 ])
 
-const currentDate = '12월 10일 (수)' // Mock date matching image
-
-const getActionBadgeClass = (type) => {
-  return type === 'checkin' ? 'badge-checkin' : 'badge-checkout'
+const formatKpiValue = (value, unit) => {
+  if (typeof value === 'number') {
+    return `${unit === '₩' ? '₩' : ''}${value.toLocaleString()}${unit === '₩' ? '' : unit}`
+  }
+  return `${value}${unit ?? ''}`
 }
 
-const getActionLabel = (type) => {
-  return type === 'checkin' ? '체크인' : '체크아웃'
+const hasMemo = computed(() => tasks.value.some(t => t.memo))
+
+const goTo = (path) => {
+  if (path) router.push(path)
+}
+
+const selectedTask = ref(null)
+const showTaskModal = ref(false)
+const openTask = (task) => {
+  selectedTask.value = task
+  showTaskModal.value = true
+}
+const closeTask = () => {
+  selectedTask.value = null
+  showTaskModal.value = false
 }
 </script>
 
 <template>
   <div class="dashboard-home">
-    <div class="view-header">
-      <h2>대시보드 개요</h2>
-      <p class="subtitle">2025년 12월</p>
-    </div>
+    <header class="view-header">
+      <div>
+        <h2>대시보드</h2>
+        <p class="subtitle">이번 달 운영 현황을 빠르게 확인하세요.</p>
+      </div>
+    </header>
 
-    <!-- Stats Carousel -->
-    <div class="stats-carousel-container">
-      <button class="nav-btn prev" @click="prevSlide">
-        &#10094;
-      </button>
-      
-      <div class="stats-card">
-        <div class="stats-icon-circle">
-          <!-- Icon: Chart -->
-          <svg v-if="stats[currentSlide].iconType === 'chart'" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>
-          
-          <!-- Icon: Calendar -->
-          <svg v-else-if="stats[currentSlide].iconType === 'calendar'" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-          
-          <!-- Icon: Star -->
-          <svg v-else-if="stats[currentSlide].iconType === 'star'" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+    <!-- KPI grid -->
+    <section class="kpi-grid">
+      <article
+          v-for="item in kpis"
+          :key="item.label"
+          class="kpi-card"
+          role="button"
+          tabindex="0"
+          @click="goTo(item.target)"
+          @keypress.enter="goTo(item.target)"
+      >
+        <div class="kpi-top">
+          <p class="kpi-label">{{ item.label }}</p>
+          <span class="kpi-trend" :class="item.tone">{{ item.trend }}</span>
         </div>
+        <p class="kpi-value">{{ formatKpiValue(item.value, item.unit) }}</p>
+      </article>
+    </section>
 
-        <div class="stats-content">
-          <p class="stats-label">{{ stats[currentSlide].label }}</p>
-          <h1 class="stats-value">{{ stats[currentSlide].value }}</h1>
-          <p class="stats-trend" :class="stats[currentSlide].trendClass">
-            {{ stats[currentSlide].trend }}
-          </p>
+    <!-- Today tasks -->
+    <section class="task-panel">
+      <div class="task-head">
+        <div>
+          <h3>오늘 일정</h3>
+          <p class="task-date">{{ todayLabel }}</p>
         </div>
+        <span class="task-chip">체크인/아웃 {{ tasks.length }}건</span>
       </div>
 
-      <button class="nav-btn next" @click="nextSlide">
-        &#10095;
-      </button>
-    </div>
-
-    <!-- Carousel Indicators -->
-    <div class="carousel-dots">
-      <span 
-        v-for="(stat, index) in stats" 
-        :key="index"
-        class="dot"
-        :class="{ active: currentSlide === index }"
-        @click="currentSlide = index"
-      ></span>
-    </div>
-
-    <!-- Today's Schedule -->
-    <div class="schedule-section">
-      <div class="schedule-header">
-        <h3>오늘의 스케줄</h3>
-        <span class="date-label">{{ currentDate }}</span>
-      </div>
-
-      <div class="schedule-list">
-        <div v-for="item in schedule" :key="item.id" class="schedule-card">
-          <div class="card-top">
-            <span class="action-badge" :class="getActionBadgeClass(item.type)">
-              {{ getActionLabel(item.type) }}
+      <div class="task-list">
+        <div v-for="task in tasks" :key="task.id" class="task-card" role="button" tabindex="0" @click="openTask(task)" @keypress.enter="openTask(task)">
+          <div class="task-row">
+            <span class="pill" :class="task.type === 'checkin' ? 'pill-green' : 'pill-gray'">
+              {{ task.type === 'checkin' ? '체크인' : '체크아웃' }}
             </span>
-            <span class="time-label">{{ item.time }}</span>
+            <span class="time">{{ task.time }}</span>
           </div>
-
-          <div class="card-body">
-            <h4 class="accommodation-name">{{ item.accommodationName }}</h4>
-            <p class="room-name">{{ item.roomName }}</p>
-            <p class="guest-name">{{ item.guestName }}</p>
-            
-            <div v-if="item.note" class="note-box">
-              <span class="note-icon">📝</span>
-              {{ item.note }}
-            </div>
-          </div>
-
-          <div class="card-actions">
-            <button class="action-btn">
-              <!-- Phone Icon -->
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-              전화
-            </button>
-            <button class="action-btn">
-              <!-- Message Icon -->
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-              문자
-            </button>
-          </div>
+          <p class="accommodation">{{ task.accommodation }}</p>
+          <p class="guest">{{ task.guest }} 님</p>
+          <p v-if="task.memo" class="memo">📝 {{ task.memo }}</p>
         </div>
       </div>
 
-      <div v-if="schedule.length === 0" class="empty-schedule">
-        <p>오늘 예정된 스케줄이 없습니다.</p>
+      <p v-if="!tasks.length" class="empty">오늘 예정된 일정이 없습니다.</p>
+      <p v-else-if="hasMemo" class="footnote">메모가 있는 일정은 📝 로 표시됩니다.</p>
+    </section>
+
+    <div v-if="showTaskModal && selectedTask" class="modal-backdrop" @click.self="closeTask">
+      <div class="modal">
+        <header class="modal-head">
+          <div>
+            <p class="eyebrow small">오늘 일정</p>
+            <h3>{{ selectedTask.accommodation }}</h3>
+          </div>
+          <button class="close-btn" @click="closeTask">×</button>
+        </header>
+        <div class="modal-body">
+          <div class="modal-row"><span>유형</span><strong>{{ selectedTask.type === 'checkin' ? '체크인' : '체크아웃' }}</strong></div>
+          <div class="modal-row"><span>시간</span><strong>{{ selectedTask.time }}</strong></div>
+          <div class="modal-row"><span>게스트</span><strong>{{ selectedTask.guest }}</strong></div>
+          <div class="modal-row"><span>연락처</span><strong>{{ selectedTask.phone || '미입력' }}</strong></div>
+          <div class="modal-row"><span>이메일</span><strong>{{ selectedTask.email || '미입력' }}</strong></div>
+          <div class="modal-row"><span>메모</span><strong>{{ selectedTask.memo || '메모 없음' }}</strong></div>
+        </div>
       </div>
     </div>
   </div>
@@ -172,262 +123,283 @@ const getActionLabel = (type) => {
 
 <style scoped>
 .dashboard-home {
-  padding-bottom: 2rem;
-}
-
-.view-header {
-  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .view-header h2 {
-  font-size: 1.5rem;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #0b3b32;
+  margin: 0.25rem 0;
+}
+
+.eyebrow {
+  font-size: 0.85rem;
+  color: #0f766e;
   font-weight: 700;
-  color: #333;
   margin: 0;
 }
 
 .subtitle {
-  color: #666;
-  font-size: 0.95rem;
-  margin-top: 0.25rem;
-}
-
-/* Carousel */
-.stats-carousel-container {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.nav-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: white;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #666;
-  font-weight: bold;
-  font-size: 1rem;
-}
-
-.stats-card {
-  flex: 1;
-  background: white;
-  border-radius: 20px;
-  padding: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-  border: 1px solid #f0f0f0;
-  min-height: 120px;
-}
-
-.stats-icon-circle {
-  width: 60px;
-  height: 60px;
-  min-width: 60px; /* Prevent shrinking */
-  background: #E0F2F1;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #00695C;
-}
-
-.stats-content {
-  flex: 1;
-  min-width: 0; /* Enable truncation if needed */
-}
-
-.stats-label {
-  font-size: 0.9rem;
-  color: #666;
-  margin: 0 0 0.25rem;
-  white-space: nowrap;
-}
-
-.stats-value {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: #333;
-  margin: 0 0 0.25rem;
-  white-space: nowrap; 
-}
-
-.stats-trend {
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.stats-trend.positive { color: #00C853; }
-.stats-trend.neutral { color: #757575; }
-.stats-trend.negative { color: #FF5252; }
-
-.carousel-dots {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 2rem;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #e0e0e0;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.dot.active {
-  background: #00695C;
-  width: 24px;
-  border-radius: 4px;
-}
-
-/* Schedule Section */
-.schedule-section {
-  background: white;
-  border-radius: 20px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-  border: 1px solid #f0f0f0;
-}
-
-.schedule-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.schedule-header h3 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #333;
+  color: #6b7280;
   margin: 0;
 }
 
-.date-label {
-  font-size: 0.9rem;
-  color: #888;
-}
-
-.schedule-list {
-  display: flex;
-  flex-direction: column;
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
 }
 
-.schedule-card {
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  padding: 1.25rem;
+.kpi-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 1.1rem 1.25rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  cursor: pointer;
 }
 
-.card-top {
+.kpi-top {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.kpi-label {
+  font-size: 0.95rem;
+  color: #4b5563;
+  margin: 0;
+}
+
+.kpi-trend {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+}
+
+.kpi-trend.positive {
+  color: #0f766e;
+  background: #e0f2f1;
+  border-color: #c0e6df;
+}
+
+.kpi-trend.warning {
+  color: #b45309;
+  background: #fff7ed;
+  border-color: #fde68a;
+}
+
+.kpi-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  border-color: #d1e9e3;
+}
+
+.task-panel {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.task-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 1rem;
 }
 
-.action-badge {
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.25rem 0.6rem;
-  border-radius: 4px;
-  color: white;
-}
-
-.badge-checkin {
-  background: #00875A;
-}
-
-.badge-checkout {
-  background: #757575;
-}
-
-.time-label {
-  font-size: 1rem;
+.task-head h3 {
+  margin: 0;
+  font-size: 1.1rem;
   font-weight: 700;
-  color: #333;
+  color: #0f172a;
 }
 
-.card-body {
-  margin-bottom: 1.25rem;
-}
-
-.accommodation-name {
+.task-date {
+  margin: 0.15rem 0 0;
+  color: #6b7280;
   font-size: 0.95rem;
-  font-weight: 600;
-  color: #333;
-  margin: 0 0 0.2rem;
 }
 
-.room-name {
-  font-size: 0.85rem;
-  color: #888;
-  margin: 0 0 0.5rem;
-}
-
-.guest-name {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #333;
-  margin: 0 0 0.5rem;
-}
-
-.note-box {
-  background: #FFF8E1;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  color: #F57F17;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.note-icon {
+.task-chip {
+  background: #e0f2f1;
+  color: #0f766e;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #c0e6df;
   font-size: 0.9rem;
 }
 
-.card-actions {
-  display: flex;
+.task-list {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 0.75rem;
 }
 
-.action-btn {
-  flex: 1;
-  padding: 0.6rem;
-  border: 1px solid #e0e0e0;
-  background: white;
-  border-radius: 8px;
-  color: #333;
-  font-size: 0.9rem;
+.task-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #f9fafb;
   cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.pill {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.pill-green {
+  background: #e0f2f1;
+  color: #0f766e;
+}
+
+.pill-gray {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.time {
+  font-weight: 700;
+  color: #111827;
+}
+
+.accommodation {
+  font-weight: 700;
+  color: #111827;
+  margin: 0.1rem 0;
+}
+
+.guest {
+  margin: 0;
+  color: #374151;
+  font-size: 0.95rem;
+}
+
+.memo {
+  margin: 0.35rem 0 0;
+  color: #b45309;
+  font-size: 0.9rem;
+}
+
+.task-card:hover {
+  border-color: #0f766e;
+  background: #f0fcf9;
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.07);
+}
+
+.empty {
+  text-align: center;
+  color: #9ca3af;
+  margin: 1rem 0 0;
+}
+
+.footnote {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  padding: 1rem;
+  z-index: 80;
 }
 
-.action-btn:hover {
-  background: #f9f9f9;
+.modal {
+  background: white;
+  border-radius: 14px;
+  padding: 1.25rem;
+  width: min(420px, 100%);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.2);
 }
 
-.empty-schedule {
-  text-align: center;
-  color: #888;
-  padding: 2rem 0;
-  font-size: 0.9rem;
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.close-btn {
+  border: none;
+  background: #f5f5f5;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.modal-body {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.modal-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.modal-row span:first-child {
+  color: #6b7280;
+}
+
+.eyebrow.small {
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .task-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .view-header h2 {
+    font-size: 2rem;
+  }
+
+  .task-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 </style>

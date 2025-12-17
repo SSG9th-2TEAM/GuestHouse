@@ -1,16 +1,14 @@
 <script setup>
-import { ref, computed } from 'vue'
+import {ref, computed} from 'vue'
 import HostAccommodationRegister from './HostAccommodationRegister.vue'
 
-// viewMode: 'list' | 'register' | 'edit'
 const viewMode = ref('list')
 
-// 호스트의 숙소 목록 (실제로는 API에서 가져올 데이터)
 const hostAccommodations = ref([
   {
     id: 1,
     name: '제주도 감성 숙소',
-    status: 'active', // active, inactive
+    status: 'active',
     location: '제주시 애월읍',
     maxGuests: 4,
     roomCount: 2,
@@ -57,38 +55,15 @@ const hostAccommodations = ref([
 const accommodationCount = computed(() => hostAccommodations.value.length)
 const hasAccommodations = computed(() => hostAccommodations.value.length > 0)
 
-const formatPrice = (price) => {
-  return new Intl.NumberFormat('ko-KR').format(price)
-}
+const formatPrice = (price) => new Intl.NumberFormat('ko-KR').format(price)
+const getStatusLabel = (status) => (status === 'active' ? '운영중' : '운영중지')
 
-const getStatusLabel = (status) => {
-  return status === 'active' ? '운영중' : '운영중지'
-}
-
-const handleRegister = () => {
-  viewMode.value = 'register'
-}
-
-const handleRegisterCancel = () => {
-  viewMode.value = 'list'
-}
+const handleRegisterCancel = () => (viewMode.value = 'list')
 
 const handleRegisterSubmit = (formData) => {
-  // Mock API call to save data
   const newId = Math.max(...hostAccommodations.value.map(a => a.id), 0) + 1
-  const newAccommodation = {
-    id: newId,
-    ...formData,
-    status: 'active'
-  }
-  
-  hostAccommodations.value.unshift(newAccommodation)
+  hostAccommodations.value.unshift({id: newId, ...formData, status: 'active'})
   viewMode.value = 'list'
-}
-
-const handleEdit = (id) => {
-  // TODO: 숙소 수정 페이지로 이동 implementation
-  console.log('숙소 수정:', id)
 }
 
 const handleDelete = (id) => {
@@ -100,65 +75,50 @@ const handleDelete = (id) => {
 
 <template>
   <div class="accommodation-container">
-    
-    <!-- Registration View -->
-    <HostAccommodationRegister 
-      v-if="viewMode === 'register'"
-      @cancel="handleRegisterCancel"
-      @submit="handleRegisterSubmit"
+    <HostAccommodationRegister
+        v-if="viewMode === 'register'"
+        @cancel="handleRegisterCancel"
+        @submit="handleRegisterSubmit"
     />
 
-    <!-- List View -->
     <div v-else class="list-view-wrapper">
-      <!-- Header -->
-      <div class="page-header">
-        <h1 class="page-title">숙소 등록/관리</h1>
-        <p class="page-subtitle">총 {{ accommodationCount }}개의 숙소</p>
+      <div class="view-header">
+        <div>
+          <h2>숙소 관리</h2>
+          <p class="subtitle">총 {{ accommodationCount }}개의 숙소</p>
+        </div>
       </div>
 
-      <!-- Register Button -->
       <button class="register-btn" @click="$router.push('/host/accommodation/register')">
         <span class="plus-icon">+</span>
         새 숙소 등록
       </button>
 
-      <!-- Accommodation List -->
       <div v-if="hasAccommodations" class="accommodation-list">
-        <div 
-          v-for="accommodation in hostAccommodations" 
-          :key="accommodation.id" 
-          class="accommodation-card"
+        <article
+            v-for="accommodation in hostAccommodations"
+            :key="accommodation.id"
+            class="accommodation-card"
         >
-          <!-- Main Image Only -->
           <div class="card-image">
-            <img :src="accommodation.images[0] || 'https://via.placeholder.com/400x300'" :alt="accommodation.name" />
+            <img :src="accommodation.images[0] || 'https://via.placeholder.com/400x300'" :alt="accommodation.name"/>
           </div>
 
-          <!-- Info Section -->
           <div class="card-info">
             <div class="info-header">
               <h3 class="accommodation-name">{{ accommodation.name }}</h3>
-              <span 
-                class="status-badge" 
-                :class="{ active: accommodation.status === 'active', inactive: accommodation.status === 'inactive' }"
+              <span
+                  class="status-badge"
+                  :class="{ active: accommodation.status === 'active', inactive: accommodation.status === 'inactive' }"
               >
                 {{ getStatusLabel(accommodation.status) }}
               </span>
             </div>
 
             <div class="info-details">
-              <span class="detail-item">
-                <span class="detail-icon">📍</span>
-                {{ accommodation.location }}
-              </span>
-              <span class="detail-item">
-                <span class="detail-icon">👥</span>
-                최대 {{ accommodation.maxGuests }}명
-              </span>
-              <span class="detail-item">
-                <span class="detail-icon">🛏️</span>
-                {{ accommodation.roomCount }}개 객실
-              </span>
+              <span class="detail-item"><span class="detail-icon">📍</span>{{ accommodation.location }}</span>
+              <span class="detail-item"><span class="detail-icon">👥</span>최대 {{ accommodation.maxGuests }}명</span>
+              <span class="detail-item"><span class="detail-icon">🛏️</span>{{ accommodation.roomCount }}개 객실</span>
             </div>
 
             <div class="price-actions">
@@ -167,193 +127,175 @@ const handleDelete = (id) => {
                 <span class="price-unit">/박</span>
               </div>
               <div class="action-buttons">
-                <button class="action-btn edit-btn" @click="$router.push(`/host/accommodation/edit/${accommodation.id}`)">
-                  수정
+                <button class="action-btn edit-btn"
+                        @click="$router.push(`/host/accommodation/edit/${accommodation.id}`)">수정
                 </button>
-                <button class="action-btn delete-btn" @click="handleDelete(accommodation.id)">
-                  삭제
-                </button>
+                <button class="action-btn delete-btn" @click="handleDelete(accommodation.id)">삭제</button>
               </div>
             </div>
           </div>
-        </div>
+        </article>
       </div>
 
-      <!-- Empty State -->
       <div v-else class="empty-state">
         <div class="empty-icon">🏠</div>
         <h2>등록된 숙소가 없습니다</h2>
         <p>새 숙소를 등록하여 게스트를 맞이해보세요!</p>
       </div>
-
-    </div> <!-- End List View Wrapper -->
-
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* ✅ 토큰이 있으면 쓰고, 없으면 fallback로 안전하게 */
 .accommodation-container {
-  padding: 0 1rem 2rem;
+  padding-bottom: 2rem;
 }
 
-.page-header {
-  margin-bottom: 1.5rem;
+.view-header {
+  margin-bottom: 1.25rem;
 }
 
-.page-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #222;
-  margin-bottom: 0.25rem;
+.view-header h2 {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--host-title, #0b3b32);
+  margin: 0.15rem 0 0.2rem;
+  letter-spacing: -0.01em;
 }
 
-.page-subtitle {
-  font-size: 0.9rem;
-  color: #888;
+.subtitle {
+  color: var(--text-sub, #6b7280);
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
-/* Register Button */
 .register-btn {
   width: 100%;
-  padding: 1rem;
-  background: #BFE7DF;
+  padding: 0.95rem 1rem;
+  background: var(--primary, #BFE7DF);
   color: #004d40;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 900;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  transition: all 0.2s;
+  margin-bottom: 1.25rem;
 }
 
 .register-btn:hover {
-  background: #a8ddd2;
+  background: var(--primary-hover, #A0D1C8);
 }
 
 .plus-icon {
   font-size: 1.2rem;
-  font-weight: 700;
+  font-weight: 900;
 }
 
-/* Accommodation List */
 .accommodation-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  display: grid;
+  gap: 1rem;
 }
 
 .accommodation-card {
-  background: white;
+  background: var(--bg-white, #fff);
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  display: flex;
-  flex-direction: column;
+  border: 1px solid var(--border, #e5e7eb);
+  box-shadow: var(--shadow-md, 0 4px 14px rgba(0, 0, 0, 0.04));
+  display: grid;
+  grid-template-columns: 1fr;
 }
 
-/* Card Image */
 .card-image {
-  height: 240px;
+  height: 210px;
   width: 100%;
   overflow: hidden;
-  position: relative;
 }
 
 .card-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s;
 }
 
-.accommodation-card:hover .card-image img {
-  transform: scale(1.02);
-}
-
-/* Card Info */
 .card-info {
-  padding: 1.25rem;
-  flex-grow: 1;
+  padding: 1.15rem 1.15rem 1.2rem;
 }
 
 .info-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  gap: 0.6rem;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
 }
 
 .accommodation-name {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: #222;
+  font-size: 1.12rem;
+  font-weight: 900;
+  color: var(--text-main, #0f172a);
   margin: 0;
 }
 
 .status-badge {
-  padding: 0.25rem 0.6rem;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  border: 1px solid var(--border, #e5e7eb);
+  white-space: nowrap;
 }
 
 .status-badge.active {
-  background: #BFE7DF;
-  color: #004d40;
+  background: #e0f2f1;
+  color: var(--host-accent, #0f766e);
+  border-color: #c0e6df;
 }
 
 .status-badge.inactive {
-  background: #f0f0f0;
-  color: #888;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .info-details {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 1.2rem;
-  margin-bottom: 1.5rem;
-  color: #555;
-  font-size: 0.9rem;
+  gap: 0.65rem 1rem;
+  margin-bottom: 1.1rem;
+  color: #374151;
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
 .detail-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
-.detail-icon {
-  font-size: 1rem;
-}
-
-/* Price & Actions */
 .price-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.price-info {
-  display: flex;
-  align-items: baseline;
-  gap: 0.2rem;
+  gap: 0.75rem;
 }
 
 .price {
   font-size: 1.35rem;
-  font-weight: 700;
-  color: #111;
+  font-weight: 900;
+  color: var(--text-main, #0f172a);
 }
 
 .price-unit {
   font-size: 0.9rem;
-  color: #888;
+  color: var(--text-sub, #6b7280);
+  font-weight: 800;
 }
 
 .action-buttons {
@@ -365,57 +307,68 @@ const handleDelete = (id) => {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border, #e5e7eb);
   background: white;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
+  font-weight: 900;
 }
 
 .edit-btn {
-  color: #555;
+  color: var(--host-accent, #0f766e);
 }
 
 .edit-btn:hover {
-  border-color: #BFE7DF;
+  border-color: #c0e6df;
   background: #f0fcf9;
-  color: #004d40;
 }
 
 .delete-btn {
-  color: #e74c3c;
+  color: #ef4444;
 }
 
 .delete-btn:hover {
-  border-color: #ffebee;
+  border-color: #fee2e2;
   background: #fff5f5;
 }
 
-/* Empty State */
+@media (min-width: 768px) {
+  .accommodation-card {
+    grid-template-columns: 260px 1fr;
+  }
+
+  .card-image {
+    height: 100%;
+  }
+
+  .register-btn {
+    width: auto;
+  }
+}
+
 .empty-state {
   text-align: center;
-  padding: 4rem 2rem;
-  background: white;
+  padding: 3.25rem 1.5rem;
+  background: var(--bg-white, #fff);
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border, #e5e7eb);
+  box-shadow: var(--shadow-md, 0 4px 14px rgba(0, 0, 0, 0.04));
 }
 
 .empty-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
+  font-size: 3.5rem;
+  margin-bottom: 0.8rem;
 }
 
 .empty-state h2 {
   font-size: 1.25rem;
-  font-weight: 600;
-  color: #222;
-  margin-bottom: 0.5rem;
+  font-weight: 900;
+  color: var(--text-main, #0f172a);
+  margin: 0 0 0.35rem;
 }
 
 .empty-state p {
-  color: #888;
+  color: var(--text-sub, #6b7280);
   font-size: 0.95rem;
+  margin: 0;
 }
 </style>

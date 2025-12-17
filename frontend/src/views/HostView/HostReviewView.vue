@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import {ref, computed} from 'vue'
 
 // Mock Data for Reviews
 const reviews = ref([
@@ -11,8 +11,8 @@ const reviews = ref([
     rating: 5,
     date: '2024-12-08',
     content: '정말 깨끗하고 호스트님이 친절하셨어요. 제주 여행 다시 오면 또 이용하고 싶습니다!',
-    reply: '', // Host reply content
-    showReplyForm: true // Default open as per image
+    reply: '',
+    showReplyForm: true
   },
   {
     id: 2,
@@ -82,7 +82,7 @@ const submitReply = (reviewId) => {
   if (review && replyText.value[reviewId]) {
     review.reply = replyText.value[reviewId]
     review.showReplyForm = false
-    alert('답변이 등록되었습니다.') // Simple feedback
+    alert('답변이 등록되었습니다.')
   }
 }
 
@@ -113,7 +113,7 @@ const cancelReply = (reviewId) => {
               <span class="accommodation-name">{{ review.accommodationName }}</span>
             </div>
           </div>
-          
+
           <div class="meta-info">
             <div class="rating">
               <span v-for="n in 5" :key="n" class="star" :class="{ filled: n <= review.rating }">★</span>
@@ -140,22 +140,22 @@ const cancelReply = (reviewId) => {
 
           <!-- Reply Form -->
           <div v-else-if="review.showReplyForm" class="reply-form">
-            <textarea 
-              v-model="replyText[review.id]" 
-              placeholder="답변을 작성하세요..."
-              rows="3"
+            <textarea
+                v-model="replyText[review.id]"
+                placeholder="답변을 작성하세요..."
+                rows="3"
             ></textarea>
             <div class="form-actions">
               <button class="btn-cancel" @click="cancelReply(review.id)">취소</button>
               <button class="btn-submit" @click="submitReply(review.id)">답변 등록</button>
             </div>
           </div>
-          
+
           <!-- Reply Button (If no reply and form closed) -->
-          <button 
-            v-else 
-            class="btn-reply-toggle" 
-            @click="toggleReplyForm(review.id)"
+          <button
+              v-else
+              class="btn-reply-toggle"
+              @click="toggleReplyForm(review.id)"
           >
             답글 달기
           </button>
@@ -177,74 +177,85 @@ const cancelReply = (reviewId) => {
   padding-bottom: 2rem;
 }
 
+/* ✅ 대시보드 톤 헤더 */
 .view-header {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .view-header h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #333;
-  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #0b3b32;
+  margin: 0.15rem 0 0.2rem;
+  letter-spacing: -0.01em;
 }
 
 .subtitle {
-  color: #666;
+  color: #6b7280;
   font-size: 0.95rem;
-  margin-top: 0.25rem;
+  font-weight: 600;
+  margin: 0;
 }
 
-/* Review Card */
+/* Review Card (대시보드 카드 톤) */
 .review-card {
   background: white;
   border-radius: 16px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-  margin-bottom: 1.5rem;
-  border: 1px solid #f0f0f0;
+  padding: 1.25rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 1rem;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
 }
 
 .user-profile {
   display: flex;
-  gap: 1rem;
+  gap: 0.8rem;
   align-items: center;
+  min-width: 0;
 }
 
 .avatar {
   width: 48px;
   height: 48px;
-  background: #E0F2F1; /* Light Teal background matching theme */
-  color: #00695C;
+  background: #E0F2F1;
+  color: #0f766e;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  font-size: 1.1rem;
+  font-weight: 900;
+  font-size: 1.05rem;
+  flex: 0 0 auto;
 }
 
 .user-info {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .user-name {
-  font-weight: 700;
-  color: #333;
+  font-weight: 900;
+  color: #0f172a;
   font-size: 1rem;
 }
 
 .accommodation-name {
-  font-size: 0.85rem;
-  color: #888;
+  font-size: 0.88rem;
+  color: #6b7280;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .meta-info {
@@ -253,48 +264,59 @@ const cancelReply = (reviewId) => {
   flex-direction: column;
   align-items: flex-end;
   gap: 0.25rem;
+  flex: 0 0 auto;
 }
 
 .rating {
-  color: #e0e0e0;
+  color: #e5e7eb;
   letter-spacing: -2px;
+  font-size: 0.95rem;
 }
 
 .star.filled {
-  color: #FFB300; /* Amber for stars */
+  color: #FFB300;
 }
 
 .date {
   font-size: 0.85rem;
-  color: #888;
+  color: #6b7280;
+  font-weight: 700;
 }
 
+/* 본문 */
 .review-content {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   font-size: 0.95rem;
-  color: #333;
-  line-height: 1.6;
+  color: #0f172a;
+  line-height: 1.65;
+  font-weight: 600;
+}
+
+.review-content p {
+  margin: 0;
 }
 
 /* Reply Section */
 .reply-section {
-  margin-top: 1rem;
+  margin-top: 0.75rem;
 }
 
 .reply-form textarea {
   width: 100%;
-  padding: 1rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
   font-size: 0.95rem;
   resize: vertical;
   box-sizing: border-box;
   font-family: inherit;
+  font-weight: 600;
 }
 
 .reply-form textarea:focus {
   outline: none;
-  border-color: #07b99c;
+  border-color: #c0e6df;
+  box-shadow: 0 0 0 3px rgba(191, 231, 223, 0.45);
 }
 
 .form-actions {
@@ -306,21 +328,22 @@ const cancelReply = (reviewId) => {
 
 .btn-cancel,
 .btn-submit {
-  padding: 0.6rem 1rem;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 600;
+  height: 44px;
+  padding: 0 1rem;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  font-weight: 900;
   cursor: pointer;
 }
 
 .btn-cancel {
   background: white;
-  border: 1px solid #e0e0e0;
-  color: #666;
+  border: 1px solid #e5e7eb;
+  color: #475569;
 }
 
 .btn-submit {
-  background: #00875A; /* Darker green for primary action as seen in image */
+  background: #0f766e;
   border: none;
   color: white;
 }
@@ -328,50 +351,55 @@ const cancelReply = (reviewId) => {
 .btn-reply-toggle {
   background: none;
   border: none;
-  color: #00695C;
-  font-weight: 600;
+  color: #0f766e;
+  font-weight: 900;
   cursor: pointer;
   padding: 0;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
 }
 
 .existing-reply {
-  background: #f9f9f9;
-  padding: 1rem;
-  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0.95rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #eef2f7;
 }
 
 .reply-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
 
 .host-label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #333;
+  font-size: 0.88rem;
+  font-weight: 900;
+  color: #0f172a;
 }
 
 .edit-reply-btn {
   background: none;
   border: none;
-  color: #888;
-  font-size: 0.8rem;
+  color: #6b7280;
+  font-size: 0.85rem;
   cursor: pointer;
   text-decoration: underline;
+  font-weight: 800;
 }
 
 .reply-text {
-  font-size: 0.9rem;
-  color: #555;
+  font-size: 0.92rem;
+  color: #334155;
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.6;
+  font-weight: 600;
 }
 
-/* Card Footer */
+/* Footer */
 .card-footer {
-  margin-top: 1rem;
+  margin-top: 0.9rem;
   display: flex;
   justify-content: flex-end;
 }
@@ -379,15 +407,29 @@ const cancelReply = (reviewId) => {
 .btn-report {
   background: none;
   border: none;
-  color: #FF5252;
-  font-size: 0.85rem;
+  color: #ef4444;
+  font-size: 0.88rem;
   display: flex;
   align-items: center;
   gap: 0.25rem;
   cursor: pointer;
+  font-weight: 900;
 }
 
 .icon {
   font-size: 1rem;
+}
+
+/* ✅ 모바일 퍼스트 보강: 작은 화면에서 헤더 줄바꿈 */
+@media (max-width: 430px) {
+  .card-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .meta-info {
+    align-items: flex-start;
+    text-align: left;
+  }
 }
 </style>
