@@ -107,8 +107,32 @@ const roomForm = ref({
   maxGuests: '',
   size: '',
   description: '',
+  representativeImage: null,
+  representativeImagePreview: '',
   isActive: true
 })
+
+// 객실 이미지 업로드 처리
+const handleRoomImageUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    if (!file.type.startsWith('image/')) {
+      openModal('이미지 파일만 업로드 가능합니다.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      openModal('파일 크기는 5MB 이하여야 합니다.')
+      return
+    }
+    roomForm.value.representativeImage = file
+    roomForm.value.representativeImagePreview = URL.createObjectURL(file)
+  }
+}
+
+const removeRoomImage = () => {
+  roomForm.value.representativeImage = null
+  roomForm.value.representativeImagePreview = ''
+}
 
 const roomBedTypes = ['스탠다드', '디럭스', '스위트', '더블', '트윈', '패밀리']
 
@@ -123,6 +147,10 @@ const toggleRoomActive = (id) => {
 const addRoom = () => {
   if (!roomForm.value.name || !roomForm.value.type || !roomForm.value.weekdayPrice || !roomForm.value.weekendPrice) {
     openModal('객실 이름, 타입, 주중/주말 요금은 필수입니다.')
+    return
+  }
+  if (!roomForm.value.representativeImage) {
+    openModal('객실 대표 이미지를 등록해주세요.')
     return
   }
   
@@ -143,6 +171,8 @@ const addRoom = () => {
     maxGuests: '',
     size: '',
     description: '',
+    representativeImage: null,
+    representativeImagePreview: '',
     isActive: true
   }
   showRoomForm.value = false
@@ -343,13 +373,38 @@ onMounted(() => {
           
           <div class="form-group">
             <label>객실명 <span class="required">*</span></label>
-            <input 
-              v-model="roomForm.name" 
-              type="text" 
+            <input
+              v-model="roomForm.name"
+              type="text"
               placeholder="예: 스탠다드 더블룸"
             />
           </div>
-          
+
+          <div class="form-group">
+            <label>객실 대표 이미지 <span class="required">*</span></label>
+            <div class="image-upload-area">
+              <div v-if="roomForm.representativeImagePreview" class="image-preview">
+                <img :src="roomForm.representativeImagePreview" alt="객실 대표 이미지" />
+                <button type="button" class="remove-image-btn" @click="removeRoomImage">
+                  ✕
+                </button>
+              </div>
+              <label v-else class="upload-box">
+                <input
+                  type="file"
+                  accept="image/*"
+                  @change="handleRoomImageUpload"
+                  class="hidden-input"
+                />
+                <div class="upload-content">
+                  <span class="upload-icon">📷</span>
+                  <span class="upload-text">이미지 업로드</span>
+                  <span class="upload-hint">JPG, PNG (최대 5MB)</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <div class="form-group">
             <label>객실 침대 유형 <span class="required">*</span></label>
             <select v-model="roomForm.type">
@@ -792,5 +847,95 @@ onMounted(() => {
 .detail-value {
   font-weight: 600;
   color: #333;
+}
+
+/* Image Upload Styles */
+.image-upload-area {
+  width: 100%;
+}
+
+.upload-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 150px;
+  border: 2px dashed #BFE7DF;
+  border-radius: 12px;
+  background: #f8fffe;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.upload-box:hover {
+  background: #f0fbf9;
+  border-color: #8fd4c7;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-icon {
+  font-size: 2rem;
+}
+
+.upload-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.upload-hint {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.image-preview {
+  position: relative;
+  width: 100%;
+  max-width: 200px;
+}
+
+.image-preview img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.remove-image-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.required {
+  color: #ff5252;
 }
 </style>
