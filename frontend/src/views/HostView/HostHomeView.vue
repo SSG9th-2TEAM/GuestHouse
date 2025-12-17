@@ -13,9 +13,9 @@ const kpis = ref([
 
 const todayLabel = '2025년 12월 16일 (화)'
 const tasks = ref([
-  {id: 1, type: 'checkin', time: '15:00', accommodation: '강남 모던 게스트하우스 201호', guest: '김민수', memo: '바베큐 숯 추가 요청'},
-  {id: 2, type: 'checkout', time: '11:00', accommodation: '제주 감성 숙소 별채', guest: '이서연', memo: '침구 교체 필요'},
-  {id: 3, type: 'checkin', time: '18:00', accommodation: '해운대 오션뷰 802호', guest: '박지성', memo: ''}
+  {id: 1, type: 'checkin', time: '15:00', accommodation: '강남 모던 게스트하우스 201호', guest: '김민수', phone: '010-1234-5678', email: 'minsu@example.com', memo: '바베큐 숯 추가 요청'},
+  {id: 2, type: 'checkout', time: '11:00', accommodation: '제주 감성 숙소 별채', guest: '이서연', phone: '010-2345-6789', email: 'seoyeon@example.com', memo: '침구 교체 필요'},
+  {id: 3, type: 'checkin', time: '18:00', accommodation: '해운대 오션뷰 802호', guest: '박지성', phone: '010-9876-5432', email: 'park@example.com', memo: ''}
 ])
 
 const formatKpiValue = (value, unit) => {
@@ -29,6 +29,17 @@ const hasMemo = computed(() => tasks.value.some(t => t.memo))
 
 const goTo = (path) => {
   if (path) router.push(path)
+}
+
+const selectedTask = ref(null)
+const showTaskModal = ref(false)
+const openTask = (task) => {
+  selectedTask.value = task
+  showTaskModal.value = true
+}
+const closeTask = () => {
+  selectedTask.value = null
+  showTaskModal.value = false
 }
 </script>
 
@@ -71,7 +82,7 @@ const goTo = (path) => {
       </div>
 
       <div class="task-list">
-        <div v-for="task in tasks" :key="task.id" class="task-card">
+        <div v-for="task in tasks" :key="task.id" class="task-card" role="button" tabindex="0" @click="openTask(task)" @keypress.enter="openTask(task)">
           <div class="task-row">
             <span class="pill" :class="task.type === 'checkin' ? 'pill-green' : 'pill-gray'">
               {{ task.type === 'checkin' ? '체크인' : '체크아웃' }}
@@ -87,6 +98,26 @@ const goTo = (path) => {
       <p v-if="!tasks.length" class="empty">오늘 예정된 일정이 없습니다.</p>
       <p v-else-if="hasMemo" class="footnote">메모가 있는 일정은 📝 로 표시됩니다.</p>
     </section>
+
+    <div v-if="showTaskModal && selectedTask" class="modal-backdrop" @click.self="closeTask">
+      <div class="modal">
+        <header class="modal-head">
+          <div>
+            <p class="eyebrow small">오늘 일정</p>
+            <h3>{{ selectedTask.accommodation }}</h3>
+          </div>
+          <button class="close-btn" @click="closeTask">×</button>
+        </header>
+        <div class="modal-body">
+          <div class="modal-row"><span>유형</span><strong>{{ selectedTask.type === 'checkin' ? '체크인' : '체크아웃' }}</strong></div>
+          <div class="modal-row"><span>시간</span><strong>{{ selectedTask.time }}</strong></div>
+          <div class="modal-row"><span>게스트</span><strong>{{ selectedTask.guest }}</strong></div>
+          <div class="modal-row"><span>연락처</span><strong>{{ selectedTask.phone || '미입력' }}</strong></div>
+          <div class="modal-row"><span>이메일</span><strong>{{ selectedTask.email || '미입력' }}</strong></div>
+          <div class="modal-row"><span>메모</span><strong>{{ selectedTask.memo || '메모 없음' }}</strong></div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -128,6 +159,8 @@ const goTo = (path) => {
   border-radius: 14px;
   padding: 1.1rem 1.25rem;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  cursor: pointer;
 }
 
 .kpi-top {
@@ -169,6 +202,12 @@ const goTo = (path) => {
   font-weight: 800;
   color: #0f172a;
   margin: 0;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  border-color: #d1e9e3;
 }
 
 .task-panel {
@@ -221,6 +260,8 @@ const goTo = (path) => {
   border-radius: 12px;
   padding: 1rem;
   background: #f9fafb;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
 
 .task-row {
@@ -270,6 +311,13 @@ const goTo = (path) => {
   font-size: 0.9rem;
 }
 
+.task-card:hover {
+  border-color: #0f766e;
+  background: #f0fcf9;
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.07);
+}
+
 .empty {
   text-align: center;
   color: #9ca3af;
@@ -280,6 +328,63 @@ const goTo = (path) => {
   margin: 0.75rem 0 0;
   font-size: 0.85rem;
   color: #6b7280;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 80;
+}
+
+.modal {
+  background: white;
+  border-radius: 14px;
+  padding: 1.25rem;
+  width: min(420px, 100%);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.close-btn {
+  border: none;
+  background: #f5f5f5;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.modal-body {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.modal-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.modal-row span:first-child {
+  color: #6b7280;
+}
+
+.eyebrow.small {
+  font-size: 0.8rem;
+  margin: 0;
 }
 
 @media (min-width: 768px) {

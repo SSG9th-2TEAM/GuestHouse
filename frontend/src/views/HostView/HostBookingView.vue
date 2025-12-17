@@ -129,14 +129,18 @@ const openModal = (booking) => {
 
         <div class="grid">
           <div
-              v-for="(cell, idx) in calendarCells"
-              :key="idx"
-              class="cell"
-              :class="{ empty: cell.empty, selected: !cell.empty && selectedDate === cell.day }"
-              @click="!cell.empty && (selectedDate = cell.day)"
+            v-for="(cell, idx) in calendarCells"
+            :key="idx"
+            class="cell"
+            :class="{
+              empty: cell.empty,
+              selected: !cell.empty && selectedDate === cell.day,
+              'has-booking': !cell.empty && cell.count
+            }"
+            @click="!cell.empty && (selectedDate = cell.day)"
           >
             <span v-if="!cell.empty" class="day">{{ cell.day }}</span>
-            <span v-if="!cell.empty && cell.count" class="badge">{{ cell.count }}건</span>
+            <span v-if="!cell.empty && cell.count" class="count-chip">{{ cell.count }}건</span>
           </div>
         </div>
       </div>
@@ -224,6 +228,7 @@ const openModal = (booking) => {
   background: #eef2f3;
   border-radius: 12px;
   padding: 0.15rem;
+  white-space: nowrap;
 }
 
 .tab-btn {
@@ -438,18 +443,24 @@ td { color: #111827; }
   background: #e0f2f1;
 }
 
+.cell.has-booking {
+  border-color: #bfe7df;
+  background: #f6fffb;
+}
+
 .day { font-weight: 900; color: #111827; }
 
-.badge {
+.count-chip {
   position: absolute;
-  bottom: 0.35rem;
-  right: 0.35rem;
-  background: var(--host-accent, #0f766e);
-  color: white;
+  left: 0.35rem;
+  bottom: 0.3rem;
+  border: 1px solid #bfe7df;
+  color: #0f766e;
+  background: #fff;
   border-radius: 999px;
-  padding: 0.15rem 0.45rem;
-  font-size: 0.8rem;
-  font-weight: 900;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .date-panel h4 {
