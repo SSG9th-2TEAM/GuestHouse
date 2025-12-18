@@ -70,6 +70,7 @@ defineProps({
   justify-content: center;
   font-size: 1.2rem;
   cursor: pointer;
+  border: none;
 }
 
 .card-content {
@@ -114,6 +115,7 @@ defineProps({
   font-weight: 600;
   font-size: 0.875rem;
   transition: opacity 0.2s;
+  border: none;
 }
 
 .book-btn:hover {
