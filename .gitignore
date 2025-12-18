@@ -46,6 +46,7 @@ release.properties
 # Gradle (멀티모듈 포함)
 .gradle/
 **/build/
+backend/bin/
 
 # Spring Boot / Java 빌드 산출물
 *.jar
