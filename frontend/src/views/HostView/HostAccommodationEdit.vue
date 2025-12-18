@@ -68,45 +68,54 @@ const rooms = ref([
   {
     id: 1,
     name: '스탠다드 더블룸',
-    type: '더블',
     weekdayPrice: 50000,
     weekendPrice: 70000,
+    minGuests: 1,
     maxGuests: 2,
-    size: 20,
+    bedCount: 1,
+    bathroomCount: 1,
+    amenities: ['비누', '샤워', '에어컨', '무료 WiFi'],
     isActive: true
   },
   {
     id: 2,
     name: '디럭스 트윈룸',
-    type: '트윈',
     weekdayPrice: 70000,
     weekendPrice: 90000,
+    minGuests: 1,
     maxGuests: 2,
-    size: 25,
+    bedCount: 2,
+    bathroomCount: 1,
+    amenities: ['비누', '샤워', '개인 욕실', '에어컨', '난방', '무료 WiFi'],
     isActive: true
   },
   {
     id: 3,
     name: '패밀리룸',
-    type: '패밀리',
     weekdayPrice: 100000,
     weekendPrice: 130000,
+    minGuests: 2,
     maxGuests: 4,
-    size: 35,
+    bedCount: 2,
+    bathroomCount: 2,
+    amenities: ['비누', '샤워', '개인 욕실', '에어컨', '난방', '전용 주방', '무료 WiFi', '금고'],
     isActive: false
   }
 ])
 
 // 객실 폼
 const showRoomForm = ref(false)
+const editingRoomId = ref(null) // 수정 중인 객실 ID (null이면 추가 모드)
 const roomForm = ref({
   name: '',
-  type: '',
   weekdayPrice: '',
   weekendPrice: '',
+  minGuests: '',
   maxGuests: '',
-  size: '',
+  bedCount: '',
+  bathroomCount: '',
   description: '',
+  amenities: [],
   representativeImage: null,
   representativeImagePreview: '',
   isActive: true
@@ -134,7 +143,34 @@ const removeRoomImage = () => {
   roomForm.value.representativeImagePreview = ''
 }
 
-const roomBedTypes = ['스탠다드', '디럭스', '스위트', '더블', '트윈', '패밀리']
+// 객실 편의시설 옵션
+const roomAmenityOptions = {
+  bathroom: {
+    label: '욕실',
+    items: ['비누', '샤워', '개인 욕실']
+  },
+  bedroom: {
+    label: '침실',
+    items: ['간이/추가 침대 제공', '에어컨', '난방']
+  },
+  dining: {
+    label: '식사 및 음료',
+    items: ['공용 주방 이용', '전용 주방']
+  },
+  etc: {
+    label: '기타',
+    items: ['무료 WiFi', '금고', '다리미']
+  }
+}
+
+const toggleRoomAmenity = (item) => {
+  const index = roomForm.value.amenities.indexOf(item)
+  if (index > -1) {
+    roomForm.value.amenities.splice(index, 1)
+  } else {
+    roomForm.value.amenities.push(item)
+  }
+}
 
 const toggleRoomActive = (id) => {
   if (!isEditing.value) return
@@ -145,32 +181,37 @@ const toggleRoomActive = (id) => {
 }
 
 const addRoom = () => {
-  if (!roomForm.value.name || !roomForm.value.type || !roomForm.value.weekdayPrice || !roomForm.value.weekendPrice) {
-    openModal('객실 이름, 타입, 주중/주말 요금은 필수입니다.')
+  if (!roomForm.value.name || !roomForm.value.weekdayPrice || !roomForm.value.weekendPrice) {
+    openModal('객실 이름, 주중/주말 요금은 필수입니다.')
     return
   }
   if (!roomForm.value.representativeImage) {
     openModal('객실 대표 이미지를 등록해주세요.')
     return
   }
-  
+
   rooms.value.push({
     id: Date.now(),
     ...roomForm.value,
     weekdayPrice: Number(roomForm.value.weekdayPrice),
     weekendPrice: Number(roomForm.value.weekendPrice),
+    minGuests: Number(roomForm.value.minGuests),
     maxGuests: Number(roomForm.value.maxGuests),
-    size: Number(roomForm.value.size)
+    bedCount: Number(roomForm.value.bedCount),
+    bathroomCount: Number(roomForm.value.bathroomCount),
+    amenities: [...roomForm.value.amenities]
   })
-  
+
   roomForm.value = {
     name: '',
-    type: '',
     weekdayPrice: '',
     weekendPrice: '',
+    minGuests: '',
     maxGuests: '',
-    size: '',
+    bedCount: '',
+    bathroomCount: '',
     description: '',
+    amenities: [],
     representativeImage: null,
     representativeImagePreview: '',
     isActive: true
@@ -181,6 +222,76 @@ const addRoom = () => {
 
 const deleteRoom = (id) => {
   rooms.value = rooms.value.filter(r => r.id !== id)
+}
+
+// 객실 수정 버튼 클릭 - 기존 정보 로드
+const editRoom = (room) => {
+  editingRoomId.value = room.id
+  roomForm.value = {
+    name: room.name,
+    weekdayPrice: room.weekdayPrice,
+    weekendPrice: room.weekendPrice,
+    minGuests: room.minGuests,
+    maxGuests: room.maxGuests,
+    bedCount: room.bedCount,
+    bathroomCount: room.bathroomCount,
+    description: room.description || '',
+    amenities: room.amenities ? [...room.amenities] : [],
+    representativeImage: room.representativeImage || null,
+    representativeImagePreview: room.representativeImagePreview || '',
+    isActive: room.isActive
+  }
+  showRoomForm.value = true
+}
+
+// 객실 수정 완료
+const updateRoom = () => {
+  if (!roomForm.value.name || !roomForm.value.weekdayPrice || !roomForm.value.weekendPrice) {
+    openModal('객실 이름, 주중/주말 요금은 필수입니다.')
+    return
+  }
+
+  const roomIndex = rooms.value.findIndex(r => r.id === editingRoomId.value)
+  if (roomIndex !== -1) {
+    rooms.value[roomIndex] = {
+      ...rooms.value[roomIndex],
+      name: roomForm.value.name,
+      weekdayPrice: Number(roomForm.value.weekdayPrice),
+      weekendPrice: Number(roomForm.value.weekendPrice),
+      minGuests: Number(roomForm.value.minGuests),
+      maxGuests: Number(roomForm.value.maxGuests),
+      bedCount: Number(roomForm.value.bedCount),
+      bathroomCount: Number(roomForm.value.bathroomCount),
+      description: roomForm.value.description,
+      amenities: [...roomForm.value.amenities],
+      representativeImage: roomForm.value.representativeImage,
+      representativeImagePreview: roomForm.value.representativeImagePreview,
+      isActive: roomForm.value.isActive
+    }
+  }
+
+  resetRoomForm()
+  openModal('객실 정보가 수정되었습니다.')
+}
+
+// 객실 폼 초기화
+const resetRoomForm = () => {
+  roomForm.value = {
+    name: '',
+    weekdayPrice: '',
+    weekendPrice: '',
+    minGuests: '',
+    maxGuests: '',
+    bedCount: '',
+    bathroomCount: '',
+    description: '',
+    amenities: [],
+    representativeImage: null,
+    representativeImagePreview: '',
+    isActive: true
+  }
+  editingRoomId.value = null
+  showRoomForm.value = false
 }
 
 const formatPrice = (price) => {
@@ -321,37 +432,143 @@ onMounted(() => {
         <h3 class="section-title">등록된 객실</h3>
         
         <div v-if="rooms.length > 0" class="room-list">
-          <div v-for="room in rooms" :key="room.id" class="room-card">
-            <div class="room-info">
-              <h4 class="room-name">{{ room.name }}</h4>
-              <div class="room-details">
-                <div class="detail-row">
-                  <span class="detail-label">주중 요금</span>
-                  <span class="detail-value">₩{{ formatPrice(room.weekdayPrice) }}</span>
+          <div v-for="room in rooms" :key="room.id" class="room-item">
+            <div class="room-card" :class="{ 'editing': editingRoomId === room.id }">
+              <div class="room-info">
+                <h4 class="room-name">{{ room.name }}</h4>
+                <div class="room-details">
+                  <div class="detail-row">
+                    <span class="detail-label">주중 요금</span>
+                    <span class="detail-value">₩{{ formatPrice(room.weekdayPrice) }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">주말 요금 (금~토)</span>
+                    <span class="detail-value">₩{{ formatPrice(room.weekendPrice) }}</span>
+                  </div>
+                  <div class="detail-row">
+                     <span class="detail-label">인원</span>
+                     <span class="detail-value">{{ room.minGuests }}~{{ room.maxGuests }}명</span>
+                  </div>
+                  <div class="detail-row">
+                     <span class="detail-label">침대/욕실</span>
+                     <span class="detail-value">침대 {{ room.bedCount }}개 | 욕실 {{ room.bathroomCount }}개</span>
+                  </div>
                 </div>
-                <div class="detail-row">
-                  <span class="detail-label">주말 요금 (금~토)</span>
-                  <span class="detail-value">₩{{ formatPrice(room.weekendPrice) }}</span>
-                </div>
-                <div class="detail-row">
-                   <span class="detail-label">인원/크기</span>
-                   <span class="detail-value">{{ room.maxGuests }}명 | {{ room.size }}m²</span>
+                <div class="room-toggle">
+                  <span>{{ room.isActive ? 'ON' : 'OFF' }}</span>
+                  <div
+                    class="toggle-switch small"
+                    :class="{ active: room.isActive }"
+                    @click="toggleRoomActive(room.id)"
+                  >
+                    <div class="toggle-slider"></div>
+                  </div>
                 </div>
               </div>
-              <div class="room-toggle">
-                <span>{{ room.isActive ? 'ON' : 'OFF' }}</span>
-                <div 
-                  class="toggle-switch small" 
-                  :class="{ active: room.isActive }"
-                  @click="toggleRoomActive(room.id)"
-                >
-                  <div class="toggle-slider"></div>
-                </div>
+              <!-- Edit/Delete Buttons (Edit Mode Only) -->
+              <div v-if="isEditing && editingRoomId !== room.id" class="room-actions">
+                <button class="room-btn edit-btn" @click="editRoom(room)">수정</button>
+                <button class="room-btn delete-btn" @click="deleteRoom(room.id)">삭제</button>
               </div>
             </div>
-            <!-- Delete Button (Edit Mode Only) -->
-            <div v-if="isEditing" class="room-actions">
-              <button class="room-btn" @click="deleteRoom(room.id)">삭제</button>
+
+            <!-- 해당 객실 수정 폼 (카드 바로 밑에 펼쳐짐) -->
+            <div v-if="editingRoomId === room.id" class="room-edit-form">
+              <div class="form-group">
+                <label>객실명 <span class="required">*</span></label>
+                <input v-model="roomForm.name" type="text" placeholder="예: 스탠다드 더블룸" />
+              </div>
+
+              <div class="form-group">
+                <label>객실 대표 이미지</label>
+                <div class="image-upload-area">
+                  <div v-if="roomForm.representativeImagePreview" class="image-preview">
+                    <img :src="roomForm.representativeImagePreview" alt="객실 대표 이미지" />
+                    <button type="button" class="remove-image-btn" @click="removeRoomImage">✕</button>
+                  </div>
+                  <label v-else class="upload-box">
+                    <input type="file" accept="image/*" @change="handleRoomImageUpload" class="hidden-input" />
+                    <div class="upload-content">
+                      <span class="upload-icon">📷</span>
+                      <span class="upload-text">이미지 업로드</span>
+                      <span class="upload-hint">JPG, PNG (최대 5MB)</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-row two-col">
+                <div class="form-group">
+                  <label>주중 요금 (일~목) <span class="required">*</span></label>
+                  <div class="input-with-unit">
+                    <input v-model="roomForm.weekdayPrice" type="number" placeholder="50000" />
+                    <span class="unit">원</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>주말 요금 (금~토) <span class="required">*</span></label>
+                  <div class="input-with-unit">
+                    <input v-model="roomForm.weekendPrice" type="number" placeholder="70000" />
+                    <span class="unit">원</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row two-col">
+                <div class="form-group">
+                  <label>최소 인원</label>
+                  <input v-model="roomForm.minGuests" type="number" placeholder="명" />
+                </div>
+                <div class="form-group">
+                  <label>최대 인원</label>
+                  <input v-model="roomForm.maxGuests" type="number" placeholder="명" />
+                </div>
+              </div>
+
+              <div class="form-row two-col">
+                <div class="form-group">
+                  <label>침대 개수</label>
+                  <input v-model="roomForm.bedCount" type="number" placeholder="개" />
+                </div>
+                <div class="form-group">
+                  <label>욕실 개수</label>
+                  <input v-model="roomForm.bathroomCount" type="number" placeholder="개" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>객실 설명</label>
+                <textarea v-model="roomForm.description" rows="3" placeholder="객실의 특징, 편의시설, 전망 등을 상세히 입력해 주세요."></textarea>
+              </div>
+
+              <!-- 객실 편의시설 -->
+              <div class="room-amenities-section">
+                <h4 class="room-amenities-title">객실 편의시설</h4>
+
+                <div v-for="(category, key) in roomAmenityOptions" :key="key" class="room-amenity-category">
+                  <div class="room-amenity-label">{{ category.label }}</div>
+                  <div class="room-amenity-tags">
+                    <label
+                      v-for="item in category.items"
+                      :key="item"
+                      class="room-amenity-tag"
+                      :class="{ selected: roomForm.amenities.includes(item) }"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="roomForm.amenities.includes(item)"
+                        @change="toggleRoomAmenity(item)"
+                      />
+                      {{ item }}
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="room-form-actions">
+                <button class="btn-outline" @click="resetRoomForm">취소</button>
+                <button class="btn-primary" @click="updateRoom">수정 완료</button>
+              </div>
             </div>
           </div>
         </div>
@@ -367,9 +584,9 @@ onMounted(() => {
           + 객실 추가하기
         </button>
         
-        <!-- Room Add Form -->
+        <!-- Room Add/Edit Form -->
         <div v-if="showRoomForm" class="room-form">
-          <h4 class="room-form-title">새 객실 정보</h4>
+          <h4 class="room-form-title">{{ editingRoomId ? '객실 정보 수정' : '새 객실 정보' }}</h4>
           
           <div class="form-group">
             <label>객실명 <span class="required">*</span></label>
@@ -405,24 +622,14 @@ onMounted(() => {
             </div>
           </div>
 
-          <div class="form-group">
-            <label>객실 침대 유형 <span class="required">*</span></label>
-            <select v-model="roomForm.type">
-              <option value="" disabled>선택해주세요</option>
-              <option v-for="type in roomBedTypes" :key="type" :value="type">
-                {{ type }}
-              </option>
-            </select>
-          </div>
-          
           <div class="form-row two-col">
             <div class="form-group">
               <label>주중 요금 (일~목) <span class="required">*</span></label>
               <div class="input-with-unit">
-                <input 
-                  v-model="roomForm.weekdayPrice" 
-                  type="number" 
-                  placeholder="0"
+                <input
+                  v-model="roomForm.weekdayPrice"
+                  type="number"
+                  placeholder="50000"
                 />
                 <span class="unit">원</span>
               </div>
@@ -430,46 +637,92 @@ onMounted(() => {
             <div class="form-group">
               <label>주말 요금 (금~토) <span class="required">*</span></label>
               <div class="input-with-unit">
-                <input 
-                  v-model="roomForm.weekendPrice" 
-                  type="number" 
-                  placeholder="0"
+                <input
+                  v-model="roomForm.weekendPrice"
+                  type="number"
+                  placeholder="70000"
                 />
                 <span class="unit">원</span>
               </div>
             </div>
           </div>
           
-          <div class="form-group">
-            <label>최대 인원 <span class="required">*</span></label>
-            <input 
-              v-model="roomForm.maxGuests" 
-              type="number" 
-              placeholder="명"
-            />
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label>최소 인원</label>
+              <input
+                v-model="roomForm.minGuests"
+                type="number"
+                placeholder="명"
+              />
+            </div>
+            <div class="form-group">
+              <label>최대 인원</label>
+              <input
+                v-model="roomForm.maxGuests"
+                type="number"
+                placeholder="명"
+              />
+            </div>
           </div>
-          
-          <div class="form-group">
-            <label>객실크기 (m²) <span class="required">*</span></label>
-            <input 
-              v-model="roomForm.size" 
-              type="number" 
-              placeholder="예: 30.0"
-            />
+
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label>침대 개수</label>
+              <input
+                v-model="roomForm.bedCount"
+                type="number"
+                placeholder="개"
+              />
+            </div>
+            <div class="form-group">
+              <label>욕실 개수</label>
+              <input
+                v-model="roomForm.bathroomCount"
+                type="number"
+                placeholder="개"
+              />
+            </div>
           </div>
           
           <div class="form-group">
             <label>객실 설명 <span class="required">*</span></label>
-            <textarea 
-              v-model="roomForm.description" 
+            <textarea
+              v-model="roomForm.description"
               rows="3"
               placeholder="객실의 특징, 편의시설, 전망 등을 상세히 입력해 주세요."
             ></textarea>
           </div>
-          
+
+          <!-- 객실 편의시설 -->
+          <div class="room-amenities-section">
+            <h4 class="room-amenities-title">객실 편의시설</h4>
+
+            <div v-for="(category, key) in roomAmenityOptions" :key="key" class="room-amenity-category">
+              <div class="room-amenity-label">{{ category.label }}</div>
+              <div class="room-amenity-tags">
+                <label
+                  v-for="item in category.items"
+                  :key="item"
+                  class="room-amenity-tag"
+                  :class="{ selected: roomForm.amenities.includes(item) }"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="roomForm.amenities.includes(item)"
+                    @change="toggleRoomAmenity(item)"
+                  />
+                  {{ item }}
+                </label>
+              </div>
+            </div>
+          </div>
+
           <div class="room-form-actions">
-            <button class="btn-outline" @click="showRoomForm = false">취소</button>
-            <button class="btn-primary" @click="addRoom">추가</button>
+            <button class="btn-outline" @click="resetRoomForm">취소</button>
+            <button class="btn-primary" @click="editingRoomId ? updateRoom() : addRoom()">
+              {{ editingRoomId ? '수정 완료' : '추가' }}
+            </button>
           </div>
         </div>
       </section>
@@ -688,7 +941,6 @@ onMounted(() => {
 .room-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
 }
 
 .room-card {
@@ -741,6 +993,7 @@ onMounted(() => {
 
 .room-actions {
   display: flex;
+  gap: 0.5rem;
   margin-top: 0.5rem;
 }
 
@@ -750,13 +1003,47 @@ onMounted(() => {
   background: white;
   border-radius: 6px;
   font-size: 0.8rem;
-  color: #ff5252;
   cursor: pointer;
 }
 
-.room-btn:hover {
+.room-btn.edit-btn {
+  color: #004d40;
+  border-color: #BFE7DF;
+}
+
+.room-btn.edit-btn:hover {
+  background: #f5fcfa;
+  border-color: #8fd4c7;
+}
+
+.room-btn.delete-btn {
+  color: #ff5252;
+}
+
+.room-btn.delete-btn:hover {
   background: #fff5f5;
   border-color: #ff5252;
+}
+
+/* Room Item (카드 + 수정폼 감싸는 컨테이너) */
+.room-item {
+  margin-bottom: 1rem;
+}
+
+.room-card.editing {
+  border-color: #BFE7DF;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none;
+}
+
+/* Room Edit Form (카드 바로 밑에 펼쳐지는 수정 폼) */
+.room-edit-form {
+  background: #f8fffe;
+  border: 1px solid #BFE7DF;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  padding: 1.5rem;
 }
 
 /* Add Room Button */
@@ -937,5 +1224,76 @@ onMounted(() => {
 
 .required {
   color: #ff5252;
+}
+
+/* Hide number input spin buttons */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Room Amenities Section */
+.room-amenities-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.room-amenities-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 1rem;
+}
+
+.room-amenity-category {
+  margin-bottom: 1.25rem;
+}
+
+.room-amenity-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+
+.room-amenity-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.room-amenity-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+}
+
+.room-amenity-tag input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-right: 0.4rem;
+  accent-color: #BFE7DF;
+}
+
+.room-amenity-tag:hover {
+  border-color: #BFE7DF;
+}
+
+.room-amenity-tag.selected {
+  border-color: #BFE7DF;
+  background: #f0fcfa;
 }
 </style>
