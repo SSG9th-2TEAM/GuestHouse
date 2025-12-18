@@ -3,6 +3,8 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 
+use guesthouse;
+
 -- accommodation: 운영 정보 확장
 ALTER TABLE accommodation
     ADD COLUMN IF NOT EXISTS parking_info VARCHAR (100) NULL COMMENT '주차 가능 여부/설명',
