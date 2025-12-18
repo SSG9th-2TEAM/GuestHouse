@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -49,6 +49,12 @@ const verifyBusinessNumber = () => {
   }, 1000)
 }
 
+// 카카오맵 관련
+const mapContainer = ref(null)
+const map = ref(null)
+const marker = ref(null)
+const geocoder = ref(null)
+
 // Form data
 const form = ref({
   // 기본정보
@@ -61,6 +67,8 @@ const form = ref({
   city: '',
   district: '',
   address: '',
+  latitude: null,
+  longitude: null,
   // 교통정보
   transportInfo: '',
   // 운영 정책
@@ -188,19 +196,18 @@ const rooms = ref([])
 const showRoomForm = ref(false)
 const roomForm = ref({
   name: '',
-  type: '',
   weekdayPrice: '',
   weekendPrice: '',
+  minGuests: '',
   maxGuests: '',
-  size: '',
+  bedCount: '',
+  bathroomCount: '',
   description: '',
   amenities: [],
   representativeImage: null,
   representativeImagePreview: '',
   isActive: true
 })
-
-const roomBedTypes = ['스탠다드', '디럭스', '스위트', '더블', '트윈', '패밀리']
 
 // 객실 이미지 업로드 처리
 const handleRoomImageUpload = (event) => {
@@ -254,8 +261,8 @@ const toggleRoomAmenity = (item) => {
 }
 
 const addRoom = () => {
-  if (!roomForm.value.name || !roomForm.value.type || !roomForm.value.weekdayPrice || !roomForm.value.weekendPrice) {
-    openModal('객실 이름, 타입, 주중/주말 요금은 필수입니다.')
+  if (!roomForm.value.name || !roomForm.value.weekdayPrice || !roomForm.value.weekendPrice) {
+    openModal('객실 이름, 주중/주말 요금은 필수입니다.')
     return
   }
   if (!roomForm.value.representativeImage) {
@@ -271,11 +278,12 @@ const addRoom = () => {
   // 폼 초기화
   roomForm.value = {
     name: '',
-    type: '',
     weekdayPrice: '',
     weekendPrice: '',
+    minGuests: '',
     maxGuests: '',
-    size: '',
+    bedCount: '',
+    bathroomCount: '',
     description: '',
     amenities: [],
     representativeImage: null,
@@ -297,9 +305,92 @@ const toggleRoomActive = (id) => {
   }
 }
 
-const handleLocationCheck = () => {
-  openModal('위치가 확인되었습니다!')
+// 카카오맵 SDK 로딩 대기
+const waitForKakao = () => {
+  return new Promise((resolve) => {
+    if (window.kakao && window.kakao.maps) {
+      resolve()
+    } else {
+      const checkKakao = setInterval(() => {
+        if (window.kakao && window.kakao.maps) {
+          clearInterval(checkKakao)
+          resolve()
+        }
+      }, 100)
+    }
+  })
 }
+
+// 카카오맵 초기화
+const initMap = async () => {
+  await waitForKakao()
+
+  window.kakao.maps.load(() => {
+    const container = mapContainer.value
+    if (!container) return
+
+    const options = {
+      center: new window.kakao.maps.LatLng(37.5665, 126.9780), // 서울시청 기본 좌표
+      level: 3
+    }
+
+    map.value = new window.kakao.maps.Map(container, options)
+    geocoder.value = new window.kakao.maps.services.Geocoder()
+
+    // 마커 생성
+    marker.value = new window.kakao.maps.Marker({
+      position: options.center,
+      map: map.value
+    })
+    marker.value.setVisible(false)
+  })
+}
+
+// 주소로 좌표 검색
+const handleLocationCheck = () => {
+  const fullAddress = `${form.value.city} ${form.value.district} ${form.value.address}`.trim()
+
+  if (!fullAddress || fullAddress.length < 5) {
+    openModal('주소를 입력해주세요.')
+    return
+  }
+
+  if (!geocoder.value) {
+    openModal('지도가 초기화되지 않았습니다. 잠시 후 다시 시도해주세요.')
+    return
+  }
+
+  geocoder.value.addressSearch(fullAddress, (result, status) => {
+    if (status === window.kakao.maps.services.Status.OK) {
+      const coords = new window.kakao.maps.LatLng(result[0].y, result[0].x)
+
+      // 좌표 저장
+      form.value.latitude = parseFloat(result[0].y)
+      form.value.longitude = parseFloat(result[0].x)
+
+      // 지도 중심 이동
+      map.value.setCenter(coords)
+
+      // 마커 위치 변경 및 표시
+      marker.value.setPosition(coords)
+      marker.value.setVisible(true)
+
+      openModal('위치가 확인되었습니다!')
+    } else {
+      openModal('주소를 찾을 수 없습니다. 정확한 주소를 입력해주세요.')
+    }
+  })
+}
+
+// isVerified가 true가 되면 지도 초기화
+watch(() => isVerified.value, async (newVal) => {
+  if (newVal) {
+    await nextTick()
+    setTimeout(() => {
+      initMap()
+    }, 100)
+  }
+})
 
 
 
@@ -484,10 +575,8 @@ const handleSubmit = () => {
       <!-- Section: 지도 -->
       <section class="form-section">
         <h3 class="subsection-title">지도 <span class="required">*</span></h3>
-        
-        <div class="map-placeholder">
-          <span>지도가 여기에 표시됩니다</span>
-        </div>
+
+        <div ref="mapContainer" class="kakao-map"></div>
         <p class="help-text">위치 확인 버튼을 클릭하면 지도에 마커가 표시됩니다</p>
       </section>
 
@@ -709,12 +798,12 @@ const handleSubmit = () => {
                 <span class="detail-value">₩{{ Number(room.weekendPrice).toLocaleString() }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">최대 인원</span>
-                <span class="detail-value">{{ room.maxGuests }}명</span>
+                <span class="detail-label">인원</span>
+                <span class="detail-value">{{ room.minGuests }}~{{ room.maxGuests }}명</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">크기</span>
-                <span class="detail-value">{{ room.size }}평</span>
+                <span class="detail-label">침대/욕실</span>
+                <span class="detail-value">침대 {{ room.bedCount }}개 | 욕실 {{ room.bathroomCount }}개</span>
               </div>
             </div>
               <div class="room-toggle">
@@ -779,24 +868,14 @@ const handleSubmit = () => {
             </div>
           </div>
 
-          <div class="form-group">
-            <label>객실 침대 유형 <span class="required">*</span></label>
-            <select v-model="roomForm.type">
-              <option value="" disabled>선택해주세요</option>
-              <option v-for="type in roomBedTypes" :key="type" :value="type">
-                {{ type }}
-              </option>
-            </select>
-          </div>
-          
           <div class="form-row two-col">
             <div class="form-group">
               <label>주중 요금 (일~목) <span class="required">*</span></label>
               <div class="input-with-unit">
-                <input 
-                  v-model="roomForm.weekdayPrice" 
-                  type="number" 
-                  placeholder="0"
+                <input
+                  v-model="roomForm.weekdayPrice"
+                  type="number"
+                  placeholder="50000"
                 />
                 <span class="unit">원</span>
               </div>
@@ -804,32 +883,52 @@ const handleSubmit = () => {
             <div class="form-group">
               <label>주말 요금 (금~토) <span class="required">*</span></label>
               <div class="input-with-unit">
-                <input 
-                  v-model="roomForm.weekendPrice" 
-                  type="number" 
-                  placeholder="0"
+                <input
+                  v-model="roomForm.weekendPrice"
+                  type="number"
+                  placeholder="70000"
                 />
                 <span class="unit">원</span>
               </div>
             </div>
           </div>
           
-          <div class="form-group">
-            <label>최대 인원 <span class="required">*</span></label>
-            <input 
-              v-model="roomForm.maxGuests" 
-              type="number" 
-              placeholder="명"
-            />
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label>최소 인원</label>
+              <input
+                v-model="roomForm.minGuests"
+                type="number"
+                placeholder="명"
+              />
+            </div>
+            <div class="form-group">
+              <label>최대 인원</label>
+              <input
+                v-model="roomForm.maxGuests"
+                type="number"
+                placeholder="명"
+              />
+            </div>
           </div>
-          
-          <div class="form-group">
-            <label>객실크기 (m²) <span class="required">*</span></label>
-            <input 
-              v-model="roomForm.size" 
-              type="number" 
-              placeholder="예: 30.0"
-            />
+
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label>침대 개수</label>
+              <input
+                v-model="roomForm.bedCount"
+                type="number"
+                placeholder="개"
+              />
+            </div>
+            <div class="form-group">
+              <label>욕실 개수</label>
+              <input
+                v-model="roomForm.bathroomCount"
+                type="number"
+                placeholder="개"
+              />
+            </div>
           </div>
           
           <div class="form-group">
@@ -1168,18 +1267,22 @@ select {
   background: #a8ddd2;
 }
 
-/* Map Placeholder */
-.map-placeholder {
+/* Kakao Map */
+.kakao-map {
   width: 100%;
   height: 280px;
   background: #f5f5f5;
   border: 1px solid #e0e0e0;
   border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #888;
-  font-size: 0.95rem;
+}
+
+.coords-info {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #666;
+  background: #f0f0f0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
 }
 
 .help-text {
@@ -1629,6 +1732,13 @@ input[type="number"] {
   font-size: 0.95rem;
   background: white;
   box-sizing: border-box;
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 input[type="number"]:focus {
