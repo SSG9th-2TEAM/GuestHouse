@@ -1,21 +1,46 @@
 <script setup>
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
+import FilterModal from '../../components/FilterModal.vue'
 import { useRouter } from 'vue-router'
 import { guesthouses } from '../../data/guesthouses'
+import { ref, computed } from 'vue'
 
 const router = useRouter()
 const items = guesthouses
+
+// Filter State
+const isFilterModalOpen = ref(false)
+const minPrice = ref(null)
+const maxPrice = ref(null)
+
+// Computed Items
+const filteredItems = computed(() => {
+  return items.filter(item => {
+    if (minPrice.value !== null && item.price < minPrice.value) return false
+    if (maxPrice.value !== null && item.price > maxPrice.value) return false
+    return true
+  })
+})
+
+const handleApplyFilter = ({ min, max }) => {
+  minPrice.value = min
+  maxPrice.value = max
+  isFilterModalOpen.value = false
+}
 </script>
 
 <template>
   <main class="container main-content">
     <div class="header">
       <h1>숙소 목록</h1>
+      <button class="filter-btn" @click="isFilterModalOpen = true">
+        🔍 필터
+      </button>
     </div>
 
     <div class="list-container">
       <GuesthouseCard 
-        v-for="item in items" 
+        v-for="item in filteredItems" 
         :key="item.id"
         :title="item.title"
         :location="item.location"
@@ -33,6 +58,15 @@ const items = guesthouses
         <span class="text">지도에서 보기</span>
       </button>
     </div>
+
+    <!-- Filter Modal -->
+    <FilterModal 
+      :is-open="isFilterModalOpen"
+      :current-min="minPrice"
+      :current-max="maxPrice"
+      @close="isFilterModalOpen = false"
+      @apply="handleApplyFilter"
+    />
   </main>
 </template>
 
@@ -50,12 +84,33 @@ const items = guesthouses
   margin-bottom: 2rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .header h1 {
   font-size: 2rem;
   font-weight: 700;
   color: var(--text-main);
+  margin: 0;
+}
+
+.filter-btn {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  background: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-btn:hover {
+  background-color: #f5f5f5;
 }
 
 .list-container {
