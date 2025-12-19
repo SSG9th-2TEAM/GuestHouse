@@ -60,6 +60,7 @@ td {
   text-align: left;
   padding: 12px 10px;
   border-bottom: 1px solid #eef1f4;
+  vertical-align: middle;
 }
 
 th {
@@ -72,5 +73,15 @@ th {
 td {
   font-size: 0.95rem;
   color: #1f2937;
+}
+
+:deep(.admin-table--nowrap th),
+:deep(.admin-table--nowrap td) {
+  white-space: nowrap;
+}
+
+:deep(.admin-table--tight th),
+:deep(.admin-table--tight td) {
+  padding: 10px 8px;
 }
 </style>

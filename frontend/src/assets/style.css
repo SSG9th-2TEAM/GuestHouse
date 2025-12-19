@@ -119,6 +119,139 @@ button {
     background: var(--primary-hover);
 }
 
+/* Admin common UI */
+.admin-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow-md);
+}
+
+.admin-filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.admin-input,
+.admin-select {
+    height: 38px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 0 12px;
+    font-weight: 600;
+    background: #ffffff;
+    color: #1f2937;
+}
+
+.admin-input {
+    min-width: 220px;
+}
+
+.admin-chip {
+    background: #f1f5f9;
+    color: #0b3b32;
+    border: 1px solid #e2e8f0;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.admin-btn {
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-weight: 800;
+    border: 1px solid transparent;
+    background: #ffffff;
+}
+
+.admin-btn--primary {
+    background: #0f766e;
+    color: #ffffff;
+}
+
+.admin-btn--ghost {
+    border-color: #cbd5e1;
+    color: #0f766e;
+}
+
+.admin-btn--muted {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+    color: #334155;
+}
+
+.admin-btn--danger {
+    border-color: #fecaca;
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.admin-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.admin-inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.admin-inline-actions--nowrap {
+    flex-wrap: nowrap;
+}
+
+.admin-dropdown {
+    position: relative;
+}
+
+.admin-dropdown summary {
+    cursor: pointer;
+}
+
+.admin-dropdown summary:hover,
+.admin-dropdown summary:focus-visible {
+    border-color: #0f766e;
+    background: #f8fafc;
+}
+
+.admin-dropdown summary {
+    list-style: none;
+}
+
+.admin-dropdown summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-dropdown__menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 140px;
+    z-index: 20;
+}
+
+.admin-dropdown__item {
+    text-align: left;
+    width: 100%;
+}
+
 .btn-ghost {
     border: 1px solid #d1d5db;
     background: transparent;

@@ -4,7 +4,7 @@ defineProps({
   variant: {
     type: String,
     default: 'neutral',
-    validator: (v) => ['success', 'warning', 'neutral', 'accent'].includes(v)
+    validator: (v) => ['success', 'warning', 'neutral', 'accent', 'danger'].includes(v)
   }
 })
 </script>
@@ -48,5 +48,11 @@ defineProps({
   background: #eef6ff;
   color: #1d4ed8;
   border-color: #cfe0ff;
+}
+
+.admin-badge--danger {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
 }
 </style>

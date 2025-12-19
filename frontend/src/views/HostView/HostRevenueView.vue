@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { exportCSV, exportXLSX } from '../../utils/reportExport'
 
 const selectedYear = ref(2025)
 const years = [2024, 2025]
@@ -56,6 +57,32 @@ const getBarHeight = (amount) => {
   const percentage = (amount / maxRevenue.value) * 100
   return `${percentage}%`
 }
+
+const downloadReport = (format) => {
+  const today = new Date().toISOString().slice(0, 10)
+  const rows = currentYearData.value.map((item) => ({
+    year: selectedYear.value,
+    month: `${item.month}월`,
+    revenue: item.amount
+  }))
+  const sheets = [
+    {
+      name: '매출 리포트',
+      columns: [
+        { key: 'year', label: '연도' },
+        { key: 'month', label: '월' },
+        { key: 'revenue', label: '매출액' }
+      ],
+      rows
+    }
+  ]
+
+  if (format === 'xlsx') {
+    exportXLSX({ filename: `host-revenue-${today}.xlsx`, sheets })
+    return
+  }
+  exportCSV({ filename: `host-revenue-${today}.csv`, sheets })
+}
 </script>
 
 <template>
@@ -65,9 +92,22 @@ const getBarHeight = (amount) => {
         <h2>매출 리포트</h2>
         <p class="subtitle">{{ selectedYear }}년 재무 현황</p>
       </div>
-      <select v-model="selectedYear" class="year-select">
-        <option v-for="year in years" :key="year" :value="year">{{ year }}년</option>
-      </select>
+      <div class="header-actions">
+        <select v-model="selectedYear" class="year-select">
+          <option v-for="year in years" :key="year" :value="year">{{ year }}년</option>
+        </select>
+        <details class="admin-dropdown">
+          <summary class="admin-btn admin-btn--ghost">다운로드</summary>
+          <div class="admin-dropdown__menu">
+            <button class="admin-btn admin-btn--ghost admin-dropdown__item" type="button" @click="downloadReport('csv')">
+              CSV
+            </button>
+            <button class="admin-btn admin-btn--primary admin-dropdown__item" type="button" @click="downloadReport('xlsx')">
+              XLSX
+            </button>
+          </div>
+        </details>
+      </div>
     </div>
 
     <!-- Summary Cards -->
@@ -173,6 +213,13 @@ const getBarHeight = (amount) => {
   color: #0f172a;
   outline: none;
   background: white;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
 }
 
 /* Summary Cards (모바일: 세로, 태블릿+: 3열) */

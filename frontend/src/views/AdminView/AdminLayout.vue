@@ -15,11 +15,7 @@ const navItems = [
 const isActive = (to, exact = false) =>
   exact ? route.path === to : route.path.startsWith(to)
 
-const roleSwitches = [
-  { label: '게스트', to: '/' },
-  { label: '호스트', to: '/host' },
-  { label: '관리자', to: '/admin' }
-]
+const roleSwitches = []
 </script>
 
 <template>
@@ -27,10 +23,7 @@ const roleSwitches = [
     <header class="admin-topbar">
       <div class="admin-topbar__brand">
         <div class="admin-logo-dot" />
-        <div>
-          <div class="admin-brand-title">게스트하우스 관리자</div>
-          <div class="admin-brand-sub">운영 지표 & 관리 콘솔</div>
-        </div>
+        <div class="admin-brand-title">관리자 콘솔</div>
       </div>
       <nav class="admin-nav">
         <RouterLink
@@ -43,7 +36,7 @@ const roleSwitches = [
           {{ item.label }}
         </RouterLink>
       </nav>
-      <div class="admin-role-switch">
+      <div v-if="roleSwitches.length" class="admin-role-switch">
         <RouterLink
           v-for="role in roleSwitches"
           :key="role.to"
@@ -76,7 +69,7 @@ const roleSwitches = [
   color: #e7fffb;
   padding: 14px 18px;
   display: grid;
-  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-columns: 1fr 2fr;
   gap: 12px;
   align-items: center;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
@@ -100,11 +93,6 @@ const roleSwitches = [
   font-weight: 900;
   font-size: 1.05rem;
   letter-spacing: -0.01em;
-}
-
-.admin-brand-sub {
-  font-size: 0.85rem;
-  color: #c7fff6;
 }
 
 .admin-nav {

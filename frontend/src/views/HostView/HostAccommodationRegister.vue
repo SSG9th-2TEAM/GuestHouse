@@ -1,9 +1,11 @@
 <script setup>
 import { ref, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useHostAccommodationsStore } from '@/stores/hostAccommodations'
 
 const router = useRouter()
 const emit = defineEmits(['cancel', 'submit'])
+const accommodationStore = useHostAccommodationsStore()
 
 // ========== Business License Verification ==========
 const isVerified = ref(false)
@@ -412,7 +414,26 @@ const handleSubmit = () => {
   }
   
   // 실제 API 연동 시 여기에 저장 로직 추가
-  console.log('Submitting form:', { ...form.value, rooms: rooms.value })
+  const prices = rooms.value
+    .flatMap((room) => [Number(room.weekdayPrice), Number(room.weekendPrice)])
+    .filter((price) => Number.isFinite(price) && price > 0)
+
+  const maxGuests = rooms.value
+    .map((room) => Number(room.maxGuests) || 0)
+    .reduce((acc, cur) => Math.max(acc, cur), 0)
+
+  const summary = {
+    name: form.value.name,
+    status: form.value.isActive ? 'active' : 'inactive',
+    location: [form.value.city, form.value.district].filter(Boolean).join(' '),
+    maxGuests,
+    roomCount: rooms.value.length,
+    price: prices.length ? Math.min(...prices) : 0,
+    images: [form.value.bannerImage, ...form.value.detailImages].filter(Boolean)
+  }
+
+  accommodationStore.addAccommodation(summary)
+  emit('submit', summary)
   
   registrationSuccess.value = true
   openModal('숙소가 성공적으로 등록되었습니다.')
@@ -2042,4 +2063,3 @@ input[type="number"]:focus {
   background: rgba(0, 0, 0, 0.8);
 }
 </style>
-
