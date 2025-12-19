@@ -5,10 +5,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 use guesthouse;
 
--- accommodation: 운영 정보 확장
-ALTER TABLE accommodation
-    ADD COLUMN IF NOT EXISTS parking_info VARCHAR (100) NULL COMMENT '주차 가능 여부/설명',
-    ADD COLUMN IF NOT EXISTS insta_info VARCHAR (100) NULL COMMENT '인스타그램 계정/링크';
+-- accommodation: 운영 정보 확장 (MySQL 5.7 호환성 이슈로 컬럼 추가는 V005에서 처리)
 
 -- room: 주말 요금 컬럼 추가(옵션)
 ALTER TABLE room
