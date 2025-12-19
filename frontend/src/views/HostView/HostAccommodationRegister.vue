@@ -196,19 +196,18 @@ const rooms = ref([])
 const showRoomForm = ref(false)
 const roomForm = ref({
   name: '',
-  type: '',
   weekdayPrice: '',
   weekendPrice: '',
+  minGuests: '',
   maxGuests: '',
-  size: '',
+  bedCount: '',
+  bathroomCount: '',
   description: '',
   amenities: [],
   representativeImage: null,
   representativeImagePreview: '',
   isActive: true
 })
-
-const roomBedTypes = ['스탠다드', '디럭스', '스위트', '더블', '트윈', '패밀리']
 
 // 객실 이미지 업로드 처리
 const handleRoomImageUpload = (event) => {
@@ -262,8 +261,8 @@ const toggleRoomAmenity = (item) => {
 }
 
 const addRoom = () => {
-  if (!roomForm.value.name || !roomForm.value.type || !roomForm.value.weekdayPrice || !roomForm.value.weekendPrice) {
-    openModal('객실 이름, 타입, 주중/주말 요금은 필수입니다.')
+  if (!roomForm.value.name || !roomForm.value.weekdayPrice || !roomForm.value.weekendPrice) {
+    openModal('객실 이름, 주중/주말 요금은 필수입니다.')
     return
   }
   if (!roomForm.value.representativeImage) {
@@ -279,11 +278,12 @@ const addRoom = () => {
   // 폼 초기화
   roomForm.value = {
     name: '',
-    type: '',
     weekdayPrice: '',
     weekendPrice: '',
+    minGuests: '',
     maxGuests: '',
-    size: '',
+    bedCount: '',
+    bathroomCount: '',
     description: '',
     amenities: [],
     representativeImage: null,
@@ -798,12 +798,12 @@ const handleSubmit = () => {
                 <span class="detail-value">₩{{ Number(room.weekendPrice).toLocaleString() }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">최대 인원</span>
-                <span class="detail-value">{{ room.maxGuests }}명</span>
+                <span class="detail-label">인원</span>
+                <span class="detail-value">{{ room.minGuests }}~{{ room.maxGuests }}명</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">크기</span>
-                <span class="detail-value">{{ room.size }}평</span>
+                <span class="detail-label">침대/욕실</span>
+                <span class="detail-value">침대 {{ room.bedCount }}개 | 욕실 {{ room.bathroomCount }}개</span>
               </div>
             </div>
               <div class="room-toggle">
@@ -868,24 +868,14 @@ const handleSubmit = () => {
             </div>
           </div>
 
-          <div class="form-group">
-            <label>객실 침대 유형 <span class="required">*</span></label>
-            <select v-model="roomForm.type">
-              <option value="" disabled>선택해주세요</option>
-              <option v-for="type in roomBedTypes" :key="type" :value="type">
-                {{ type }}
-              </option>
-            </select>
-          </div>
-          
           <div class="form-row two-col">
             <div class="form-group">
               <label>주중 요금 (일~목) <span class="required">*</span></label>
               <div class="input-with-unit">
-                <input 
-                  v-model="roomForm.weekdayPrice" 
-                  type="number" 
-                  placeholder="0"
+                <input
+                  v-model="roomForm.weekdayPrice"
+                  type="number"
+                  placeholder="50000"
                 />
                 <span class="unit">원</span>
               </div>
@@ -893,32 +883,52 @@ const handleSubmit = () => {
             <div class="form-group">
               <label>주말 요금 (금~토) <span class="required">*</span></label>
               <div class="input-with-unit">
-                <input 
-                  v-model="roomForm.weekendPrice" 
-                  type="number" 
-                  placeholder="0"
+                <input
+                  v-model="roomForm.weekendPrice"
+                  type="number"
+                  placeholder="70000"
                 />
                 <span class="unit">원</span>
               </div>
             </div>
           </div>
           
-          <div class="form-group">
-            <label>최대 인원 <span class="required">*</span></label>
-            <input 
-              v-model="roomForm.maxGuests" 
-              type="number" 
-              placeholder="명"
-            />
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label>최소 인원</label>
+              <input
+                v-model="roomForm.minGuests"
+                type="number"
+                placeholder="명"
+              />
+            </div>
+            <div class="form-group">
+              <label>최대 인원</label>
+              <input
+                v-model="roomForm.maxGuests"
+                type="number"
+                placeholder="명"
+              />
+            </div>
           </div>
-          
-          <div class="form-group">
-            <label>객실크기 (m²) <span class="required">*</span></label>
-            <input 
-              v-model="roomForm.size" 
-              type="number" 
-              placeholder="예: 30.0"
-            />
+
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label>침대 개수</label>
+              <input
+                v-model="roomForm.bedCount"
+                type="number"
+                placeholder="개"
+              />
+            </div>
+            <div class="form-group">
+              <label>욕실 개수</label>
+              <input
+                v-model="roomForm.bathroomCount"
+                type="number"
+                placeholder="개"
+              />
+            </div>
           </div>
           
           <div class="form-group">
@@ -1722,6 +1732,13 @@ input[type="number"] {
   font-size: 0.95rem;
   background: white;
   box-sizing: border-box;
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 input[type="number"]:focus {

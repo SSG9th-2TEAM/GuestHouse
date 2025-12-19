@@ -389,6 +389,8 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   padding: 0.5rem 1rem;
   background: #eee;
   border-radius: 8px;
+  border: none;
+  cursor: pointer;
 }
 .select-btn.active {
   background: var(--primary);
@@ -450,6 +452,8 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   border-radius: 8px;
   font-weight: bold;
   font-size: 1rem;
+  border: none;
+  cursor: pointer;
 }
 .book-btn:disabled {
   background: #ccc;

@@ -7,3 +7,7 @@ import lombok.Getter;
 @Builder
 public class AccommodationDto {
 }
+
+
+
+
