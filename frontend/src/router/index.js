@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { getUserInfo } from '@/api/authClient';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -188,5 +189,18 @@ const router = createRouter({
         }
     ]
 })
+
+router.beforeEach((to, from, next) => {
+  const userInfo = getUserInfo();
+  const isAdminRoute = to.path.startsWith('/admin');
+
+  if (isAdminRoute && (!userInfo || userInfo.role !== 'ADMIN')) {
+    // 관리자 페이지에 접근하려 하지만, 관리자가 아닌 경우
+    alert('접근 권한이 없습니다.');
+    next('/'); // 메인 페이지로 리디렉션
+  } else {
+    next(); // 그 외의 경우는 정상적으로 진행
+  }
+});
 
 export default router
