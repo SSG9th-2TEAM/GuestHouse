@@ -1,5 +1,6 @@
 <script setup>
 import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { ref } from 'vue'
 
 const route = useRoute()
 
@@ -15,22 +16,22 @@ const navItems = [
 const isActive = (to, exact = false) =>
   exact ? route.path === to : route.path.startsWith(to)
 
-const roleSwitches = [
-  { label: '게스트', to: '/' },
-  { label: '호스트', to: '/host' },
-  { label: '관리자', to: '/admin' }
-]
+const roleSwitches = []
+
+const isDarkMode = ref(localStorage.getItem('adminDarkMode') === 'true')
+
+const toggleDarkMode = () => {
+  isDarkMode.value = !isDarkMode.value
+  localStorage.setItem('adminDarkMode', String(isDarkMode.value))
+}
 </script>
 
 <template>
-  <div class="admin-shell">
+  <div class="admin-shell" :class="{ 'is-dark': isDarkMode }">
     <header class="admin-topbar">
       <div class="admin-topbar__brand">
         <div class="admin-logo-dot" />
-        <div>
-          <div class="admin-brand-title">게스트하우스 관리자</div>
-          <div class="admin-brand-sub">운영 지표 & 관리 콘솔</div>
-        </div>
+        <div class="admin-brand-title">관리자 콘솔</div>
       </div>
       <nav class="admin-nav">
         <RouterLink
@@ -43,7 +44,13 @@ const roleSwitches = [
           {{ item.label }}
         </RouterLink>
       </nav>
-      <div class="admin-role-switch">
+      <div class="admin-actions">
+        <button class="admin-theme-toggle" type="button" @click="toggleDarkMode">
+          <span class="toggle-dot" :class="{ 'is-on': isDarkMode }" />
+          {{ isDarkMode ? '다크모드' : '라이트모드' }}
+        </button>
+      </div>
+      <div v-if="roleSwitches.length" class="admin-role-switch">
         <RouterLink
           v-for="role in roleSwitches"
           :key="role.to"
@@ -76,7 +83,7 @@ const roleSwitches = [
   color: #e7fffb;
   padding: 14px 18px;
   display: grid;
-  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-columns: 1fr 2fr auto;
   gap: 12px;
   align-items: center;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
@@ -100,11 +107,6 @@ const roleSwitches = [
   font-weight: 900;
   font-size: 1.05rem;
   letter-spacing: -0.01em;
-}
-
-.admin-brand-sub {
-  font-size: 0.85rem;
-  color: #c7fff6;
 }
 
 .admin-nav {
@@ -159,11 +161,41 @@ const roleSwitches = [
   border-color: #d8f5dd;
 }
 
+.admin-actions {
+  justify-self: end;
+}
+
+.admin-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #e7fffb;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.toggle-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #c7fff6;
+  box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.35);
+}
+
+.toggle-dot.is-on {
+  background: #0ea5e9;
+  box-shadow: inset 0 0 0 2px rgba(14, 165, 233, 0.35);
+}
+
 .admin-main {
   max-width: 1200px;
   margin: 0 auto;
   padding: 18px 16px 32px;
 }
+
 
 @media (max-width: 1024px) {
   .admin-topbar {
@@ -175,6 +207,10 @@ const roleSwitches = [
   }
 
   .admin-role-switch {
+    justify-self: flex-start;
+  }
+
+  .admin-actions {
     justify-self: flex-start;
   }
 }
