@@ -26,4 +26,14 @@ public interface ReservationService {
      * 숙소별 예약 목록 조회
      */
     List<ReservationResponseDto> getReservationsByAccommodationId(Long accommodationsId);
+
+    /**
+     * 대기 상태 예약 삭제 (결제 취소 시)
+     */
+    void deletePendingReservation(Long reservationId);
+
+    /**
+     * 오래된 대기 예약 정리 (스케줄러용)
+     */
+    int cleanupOldPendingReservations();
 }

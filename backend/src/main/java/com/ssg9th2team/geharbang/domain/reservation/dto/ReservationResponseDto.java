@@ -8,6 +8,7 @@ public record ReservationResponseDto(
         Long reservationId,
         Long accommodationsId,
         String accommodationName,
+        String accommodationAddress,
         LocalDateTime checkin,
         LocalDateTime checkout,
         Integer stayNights,
@@ -24,7 +25,8 @@ public record ReservationResponseDto(
         return new ReservationResponseDto(
                 reservation.getId(),
                 reservation.getAccommodationsId(),
-                null, // accommodationName은 조인 필요 시 별도 설정
+                null, // accommodationName
+                null, // accommodationAddress
                 reservation.getCheckin(),
                 reservation.getCheckout(),
                 reservation.getStayNights(),
@@ -39,11 +41,13 @@ public record ReservationResponseDto(
                 reservation.getCreatedAt());
     }
 
-    public static ReservationResponseDto from(Reservation reservation, String accommodationName) {
+    public static ReservationResponseDto from(Reservation reservation, String accommodationName,
+            String accommodationAddress) {
         return new ReservationResponseDto(
                 reservation.getId(),
                 reservation.getAccommodationsId(),
                 accommodationName,
+                accommodationAddress,
                 reservation.getCheckin(),
                 reservation.getCheckout(),
                 reservation.getStayNights(),

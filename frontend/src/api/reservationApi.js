@@ -66,3 +66,18 @@ export async function getAccommodationReservations(accommodationsId) {
 
     return response.json()
 }
+
+/**
+ * 대기 상태 예약 삭제 (결제 취소 시)
+ * @param {number} reservationId - 예약 ID
+ * @returns {Promise<void>}
+ */
+export async function deletePendingReservation(reservationId) {
+    const response = await fetch(`${baseURL}/reservations/pending/${reservationId}`, {
+        method: 'DELETE'
+    })
+
+    if (!response.ok) {
+        console.error(`대기 예약 삭제 실패: ${response.status}`)
+    }
+}

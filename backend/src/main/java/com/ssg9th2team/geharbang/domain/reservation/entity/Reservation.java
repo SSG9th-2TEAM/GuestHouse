@@ -76,4 +76,32 @@ public class Reservation {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    /**
+     * 결제 완료 시 상태 업데이트
+     * - 예약상태: 2 (확정)
+     * - 결제상태: 1 (완료)
+     */
+    public void updatePaymentCompleted() {
+        this.reservationStatus = 2; // 예약 확정
+        this.paymentStatus = 1; // 결제 완료
+    }
+
+    /**
+     * 결제 실패 시 상태 업데이트
+     * - 결제상태: 2 (실패)
+     */
+    public void updatePaymentFailed() {
+        this.paymentStatus = 2; // 결제 실패
+    }
+
+    /**
+     * 환불 시 상태 업데이트
+     * - 예약상태: 3 (취소)
+     * - 결제상태: 3 (환불)
+     */
+    public void updateRefunded() {
+        this.reservationStatus = 3; // 예약 취소
+        this.paymentStatus = 3; // 환불
+    }
 }

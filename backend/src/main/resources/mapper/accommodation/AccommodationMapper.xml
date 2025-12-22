@@ -182,21 +182,6 @@
         </foreach>
     </insert>
 
-    <!-- 객실 등록 -->
-    <insert id="insertRooms">
-        INSERT INTO room (
-            accommodations_id, room_name, price, weekend_price,
-            min_guests, max_guests, room_description, main_image_url,
-            room_status, bathroom_count, room_type, bed_count
-        )
-        VALUES
-        <foreach collection="rooms" item="room" separator=",">
-            (#{accommodationsId}, #{room.roomName}, #{room.price}, #{room.weekendPrice},
-             #{room.minGuests}, #{room.maxGuests}, #{room.roomDescription}, #{room.mainImageUrl},
-             1, #{room.bathroomCount}, #{room.roomType}, #{room.bedCount})
-        </foreach>
-    </insert>
-
 
 
 

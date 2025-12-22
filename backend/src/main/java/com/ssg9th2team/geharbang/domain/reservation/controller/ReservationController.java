@@ -58,4 +58,14 @@ public class ReservationController {
         List<ReservationResponseDto> responses = reservationService.getReservationsByAccommodationId(accommodationsId);
         return ResponseEntity.ok(responses);
     }
+
+    /**
+     * 대기 상태 예약 삭제 (결제 취소 시)
+     */
+    @DeleteMapping("/pending/{reservationId}")
+    public ResponseEntity<Void> deletePendingReservation(
+            @PathVariable Long reservationId) {
+        reservationService.deletePendingReservation(reservationId);
+        return ResponseEntity.noContent().build();
+    }
 }
