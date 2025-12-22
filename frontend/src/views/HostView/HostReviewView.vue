@@ -1,66 +1,13 @@
 <script setup>
-import {ref, computed} from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { fetchHostReviews, createHostReviewReply, reportHostReview } from '@/api/hostReview'
 
-// Mock Data for Reviews
-const reviews = ref([
-  {
-    id: 1,
-    userName: '김민수',
-    userInitial: '김',
-    accommodationName: '제주도 감성 숙소',
-    rating: 5,
-    date: '2024-12-08',
-    content: '정말 깨끗하고 호스트님이 친절하셨어요. 제주 여행 다시 오면 또 이용하고 싶습니다!',
-    reply: '',
-    showReplyForm: true
-  },
-  {
-    id: 2,
-    userName: '이서연',
-    userInitial: '이',
-    accommodationName: '부산 해운대 오션뷰',
-    rating: 5,
-    date: '2024-12-07',
-    content: '바다뷰가 정말 환상적이었어요. 위치도 좋고 시설도 깔끔했습니다.',
-    reply: '',
-    showReplyForm: false
-  },
-  {
-    id: 3,
-    userName: '박지성',
-    userInitial: '박',
-    accommodationName: '서울 강남 레지던스',
-    rating: 4,
-    date: '2024-12-05',
-    content: '위치는 좋았는데 편의시설이 조금 부족했어요. 그래도 전반적으로 만족합니다.',
-    reply: '소중한 후기 감사합니다. 편의시설 보완하도록 하겠습니다.',
-    showReplyForm: false
-  },
-  {
-    id: 4,
-    userName: '최현우',
-    userInitial: '최',
-    accommodationName: '경주 한옥 스테이',
-    rating: 5,
-    date: '2024-12-01',
-    content: '고즈넉한 분위기가 너무 좋았습니다. 부모님 모시고 갔는데 정말 좋아하셨어요.',
-    reply: '',
-    showReplyForm: false
-  },
-  {
-    id: 5,
-    userName: '정수민',
-    userInitial: '정',
-    accommodationName: '강릉 오션뷰 펜션',
-    rating: 4,
-    date: '2024-11-28',
-    content: '뷰는 끝내주는데 방음이 살짝 아쉬웠어요.',
-    reply: '',
-    showReplyForm: false
-  }
-])
+const reviews = ref([])
+const isLoading = ref(false)
+const loadError = ref('')
 
 const averageRating = computed(() => {
+  if (!reviews.value.length) return '0.0'
   const sum = reviews.value.reduce((acc, curr) => acc + curr.rating, 0)
   return (sum / reviews.value.length).toFixed(1)
 })
@@ -77,12 +24,18 @@ const toggleReplyForm = (reviewId) => {
   }
 }
 
-const submitReply = (reviewId) => {
+const submitReply = async (reviewId) => {
   const review = reviews.value.find(r => r.id === reviewId)
-  if (review && replyText.value[reviewId]) {
-    review.reply = replyText.value[reviewId]
-    review.showReplyForm = false
-    alert('답변이 등록되었습니다.')
+  const content = replyText.value[reviewId]?.trim()
+  if (review && content) {
+    const response = await createHostReviewReply(reviewId, { content })
+    if (response.ok) {
+      review.reply = content
+      review.showReplyForm = false
+      alert('답변이 등록되었습니다.')
+      return
+    }
+    alert('답변 등록에 실패했습니다.')
   }
 }
 
@@ -90,9 +43,57 @@ const cancelReply = (reviewId) => {
   const review = reviews.value.find(r => r.id === reviewId)
   if (review) {
     review.showReplyForm = false
-    replyText.value[reviewId] = ''
+    replyText.value[reviewId] = review.reply || ''
   }
 }
+
+const normalizeReview = (item) => {
+  const userName = item.userName ?? item.reviewerName ?? item.name ?? ''
+  return {
+    id: item.reviewId ?? item.id,
+    userName,
+    userInitial: userName ? userName.slice(0, 1) : 'U',
+    accommodationName: item.accommodationName ?? item.property ?? '',
+    rating: item.rating ?? 0,
+    date: item.createdAt?.slice(0, 10) ?? item.date ?? '',
+    content: item.content ?? item.reviewContent ?? '',
+    reply: item.reply ?? item.replyContent ?? '',
+    showReplyForm: false,
+    reported: Boolean(item.reported)
+  }
+}
+
+const loadReviews = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  const response = await fetchHostReviews({ periodDays: 30 })
+  if (response.ok) {
+    const payload = response.data
+    const list = Array.isArray(payload)
+      ? payload
+      : payload?.items ?? payload?.content ?? payload?.data ?? []
+    reviews.value = list.map(normalizeReview)
+  } else {
+    loadError.value = '리뷰를 불러오지 못했습니다.'
+  }
+  isLoading.value = false
+}
+
+const reportReview = async (reviewId) => {
+  const review = reviews.value.find(r => r.id === reviewId)
+  if (!review || review.reported) return
+  const reason = prompt('신고 사유를 입력해주세요.')
+  if (!reason) return
+  const response = await reportHostReview(reviewId, { reason })
+  if (response.ok) {
+    review.reported = true
+    alert('리뷰가 신고되었습니다.')
+    return
+  }
+  alert('리뷰 신고에 실패했습니다.')
+}
+
+onMounted(loadReviews)
 </script>
 
 <template>
@@ -153,9 +154,9 @@ const cancelReply = (reviewId) => {
 
           <!-- Reply Button (If no reply and form closed) -->
           <button
-              v-else
-              class="btn-reply-toggle"
-              @click="toggleReplyForm(review.id)"
+            v-else
+            class="btn-reply-toggle"
+            @click="toggleReplyForm(review.id)"
           >
             답글 달기
           </button>
@@ -163,12 +164,16 @@ const cancelReply = (reviewId) => {
 
         <!-- Report Button -->
         <div class="card-footer">
-          <button class="btn-report">
-            <span class="icon">🚩</span> 신고하기
+          <button class="btn-report" :disabled="review.reported" @click="reportReview(review.id)">
+            <span class="icon">🚩</span> {{ review.reported ? '신고 완료' : '신고하기' }}
           </button>
         </div>
       </div>
     </div>
+
+    <p v-if="isLoading" class="empty-box">리뷰를 불러오는 중입니다.</p>
+    <p v-else-if="loadError" class="empty-box">{{ loadError }}</p>
+    <p v-else-if="!reviews.length" class="empty-box">등록된 리뷰가 없습니다.</p>
   </div>
 </template>
 
@@ -205,6 +210,12 @@ const cancelReply = (reviewId) => {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
   margin-bottom: 1rem;
   border: 1px solid #e5e7eb;
+}
+
+.empty-box {
+  margin-top: 1rem;
+  color: #6b7280;
+  font-weight: 600;
 }
 
 .card-header {
@@ -414,6 +425,11 @@ const cancelReply = (reviewId) => {
   gap: 0.25rem;
   cursor: pointer;
   font-weight: 900;
+}
+
+.btn-report:disabled {
+  color: #9ca3af;
+  cursor: default;
 }
 
 .icon {
