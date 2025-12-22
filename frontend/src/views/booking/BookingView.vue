@@ -1,19 +1,24 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { createReservation } from '@/api/reservationApi'
 
 const router = useRouter()
 const route = useRoute()
 
 // Get data from query params
 const booking = computed(() => ({
+  accommodationsId: parseInt(route.params.id) || 1,
   hotelName: route.query.hotelName || '그랜드 호텔 서울',
   rating: parseFloat(route.query.rating) || 4.8,
   reviewCount: parseInt(route.query.reviewCount) || 219,
   image: route.query.image || 'https://picsum.photos/id/11/800/400',
   roomName: route.query.roomName || '스탠다드 룸',
   dates: route.query.dates || '날짜를 선택하세요',
+  checkin: route.query.checkin || null,
+  checkout: route.query.checkout || null,
   guests: route.query.guests || '성인 1명',
+  guestCount: parseInt(route.query.guestCount) || 1,
   price: parseInt(route.query.roomPrice) || 150000,
   currency: 'KRW',
   alertMessage: '본 숙소 앞으로 기차나 기숙이 속으로 보는 예약이 가능 차 있습니다'
@@ -25,6 +30,8 @@ const coupons = [
 ]
 
 const selectedCoupon = ref(null)
+const isLoading = ref(false)
+const errorMessage = ref('')
 
 const finalPrice = computed(() => {
   const discount = selectedCoupon.value ? selectedCoupon.value.discount : 0
@@ -32,6 +39,59 @@ const finalPrice = computed(() => {
 })
 
 const goBack = () => router.back()
+
+// 예약 생성 및 결제 처리
+const handlePayment = async () => {
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    // 체크인/체크아웃 날짜 파싱 (없으면 기본값 사용)
+    const now = new Date()
+    const checkinDate = booking.value.checkin 
+      ? new Date(booking.value.checkin) 
+      : new Date(now.getTime() + 24 * 60 * 60 * 1000) // 내일
+    const checkoutDate = booking.value.checkout 
+      ? new Date(booking.value.checkout) 
+      : new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000) // 모레
+
+    const reservationData = {
+      accommodationsId: booking.value.accommodationsId,
+      userId: null, // null이면 백엔드에서 기본값(1L) 사용
+      checkin: checkinDate.toISOString(),
+      checkout: checkoutDate.toISOString(),
+      guestCount: booking.value.guestCount,
+      totalAmount: booking.value.price,
+      couponId: selectedCoupon.value?.id || null,
+      couponDiscountAmount: selectedCoupon.value?.discount || 0,
+      reserverName: '홍길동', // TODO: 실제 사용자 정보로 대체
+      reserverPhone: '010-1234-5678' // TODO: 실제 사용자 정보로 대체
+    }
+
+    const response = await createReservation(reservationData)
+
+    // 성공 시 booking-success 페이지로 이동
+    router.push({
+      name: 'booking-success',
+      state: {
+        bookingData: {
+          reservationId: response.reservationId,
+          hotelName: booking.value.hotelName,
+          dates: booking.value.dates,
+          guests: booking.value.guests,
+          basePrice: booking.value.price,
+          totalPrice: finalPrice.value,
+          paymentDate: new Date().toLocaleString()
+        }
+      }
+    })
+  } catch (error) {
+    console.error('예약 생성 실패:', error)
+    errorMessage.value = '예약 처리 중 오류가 발생했습니다. 다시 시도해주세요.'
+  } finally {
+    isLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -125,16 +185,14 @@ const goBack = () => router.back()
 
     <!-- Bottom Action -->
     <div class="bottom-action">
-      <button class="pay-btn" @click="router.push({ 
-        name: 'booking-success', 
-        state: { 
-          bookingData: {
-            ...booking, 
-            totalPrice: finalPrice,
-            basePrice: booking.price
-          } 
-        } 
-      })">결제하기</button>
+      <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+      <button 
+        class="pay-btn" 
+        :disabled="isLoading"
+        @click="handlePayment"
+      >
+        {{ isLoading ? '처리 중...' : '결제하기' }}
+      </button>
     </div>
   </div>
 </template>
@@ -346,5 +404,21 @@ const goBack = () => router.back()
   font-size: 1.1rem;
   font-weight: bold;
   box-sizing: border-box;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.pay-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  width: 100%;
+  max-width: 600px;
+  color: #e11d48;
+  font-size: 0.9rem;
+  text-align: center;
+  margin-bottom: 0.5rem;
 }
 </style>

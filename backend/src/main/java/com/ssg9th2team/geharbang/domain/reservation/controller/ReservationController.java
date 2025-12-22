@@ -1,0 +1,61 @@
+package com.ssg9th2team.geharbang.domain.reservation.controller;
+
+import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationRequestDto;
+import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationResponseDto;
+import com.ssg9th2team.geharbang.domain.reservation.service.ReservationService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/reservations")
+@RequiredArgsConstructor
+public class ReservationController {
+
+    private final ReservationService reservationService;
+
+    /**
+     * 예약 생성
+     */
+    @PostMapping
+    public ResponseEntity<ReservationResponseDto> createReservation(
+            @RequestBody ReservationRequestDto requestDto) {
+        ReservationResponseDto response = reservationService.createReservation(requestDto);
+        return ResponseEntity
+                .created(URI.create("/api/reservations/" + response.reservationId()))
+                .body(response);
+    }
+
+    /**
+     * 예약 단건 조회
+     */
+    @GetMapping("/{reservationId}")
+    public ResponseEntity<ReservationResponseDto> getReservation(
+            @PathVariable Long reservationId) {
+        ReservationResponseDto response = reservationService.getReservationById(reservationId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 사용자별 예약 목록 조회
+     */
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<ReservationResponseDto>> getReservationsByUser(
+            @PathVariable Long userId) {
+        List<ReservationResponseDto> responses = reservationService.getReservationsByUserId(userId);
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * 숙소별 예약 목록 조회
+     */
+    @GetMapping("/accommodation/{accommodationsId}")
+    public ResponseEntity<List<ReservationResponseDto>> getReservationsByAccommodation(
+            @PathVariable Long accommodationsId) {
+        List<ReservationResponseDto> responses = reservationService.getReservationsByAccommodationId(accommodationsId);
+        return ResponseEntity.ok(responses);
+    }
+}
