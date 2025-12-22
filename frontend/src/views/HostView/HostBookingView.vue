@@ -1,11 +1,11 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { fetchHostBookings, fetchHostBookingCalendar } from '@/api/hostBooking'
 
-const bookings = ref([
-  { id: 1, guestName: '김민수', guestPhone: '010-1234-5678', guestEmail: 'minsu.kim@email.com', property: '제주도 감성 숙소', checkIn: '2025-12-15', checkOut: '2025-12-17', guests: 2, amount: 320000, status: '확정' },
-  { id: 2, guestName: '이서연', guestPhone: '010-2345-6789', guestEmail: 'seoyeon.lee@email.com', property: '부산 해운대 오션뷰', checkIn: '2025-12-20', checkOut: '2025-12-23', guests: 4, amount: 620000, status: '확정' },
-  { id: 3, guestName: '박지훈', guestPhone: '010-3456-7890', guestEmail: 'jihun.park@email.com', property: '서울 강남 모던하우스', checkIn: '2025-12-18', checkOut: '2025-12-19', guests: 1, amount: 95000, status: '대기중' }
-])
+const bookings = ref([])
+const calendarBookings = ref([])
+const isLoading = ref(false)
+const loadError = ref('')
 
 const statusColor = {
   확정: 'badge-green',
@@ -18,7 +18,7 @@ const selectedDate = ref(null)
 const selectedBooking = ref(null)
 const showModal = ref(false)
 
-const currentMonth = ref(new Date(2025, 11, 1))
+const currentMonth = ref(new Date())
 
 const daysInMonth = computed(() => new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 0).getDate())
 const firstDay = computed(() => new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth(), 1).getDay())
@@ -29,7 +29,9 @@ const calendarCells = computed(() => {
   for (let d = 1; d <= daysInMonth.value; d++) {
     const dateObj = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth(), d)
     const dateStr = dateObj.toISOString().split('T')[0]
-    const count = bookings.value.filter(b => dateObj >= new Date(b.checkIn) && dateObj <= new Date(b.checkOut)).length
+    const count = calendarBookings.value.filter(
+      b => dateObj >= new Date(b.checkIn) && dateObj <= new Date(b.checkOut)
+    ).length
     cells.push({ empty: false, day: d, dateStr, count })
   }
   return cells
@@ -38,7 +40,9 @@ const calendarCells = computed(() => {
 const selectedDateBookings = computed(() => {
   if (!selectedDate.value) return []
   const target = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth(), selectedDate.value)
-  return bookings.value.filter(b => target >= new Date(b.checkIn) && target <= new Date(b.checkOut))
+  return calendarBookings.value.filter(
+    b => target >= new Date(b.checkIn) && target <= new Date(b.checkOut)
+  )
 })
 
 const prevMonth = () => {
@@ -56,6 +60,67 @@ const openModal = (booking) => {
   selectedBooking.value = booking
   showModal.value = true
 }
+
+const normalizeStatus = (status) => {
+  const value = String(status ?? '').toLowerCase()
+  if (value === 'confirmed' || value === '확정' || value === '2') return '확정'
+  if (value === 'pending' || value === '대기' || value === '대기중' || value === '1') return '대기중'
+  if (value === 'checkin' || value === '체크인' || value === '3') return '체크인'
+  return status || '대기중'
+}
+
+const normalizeBooking = (item) => ({
+  id: item.bookingId ?? item.reservationId ?? item.id,
+  guestName: item.guestName ?? item.reserverName ?? item.name ?? '',
+  guestPhone: item.guestPhone ?? item.reserverPhone ?? item.phone ?? '',
+  guestEmail: item.guestEmail ?? item.email ?? '',
+  property: item.accommodationName ?? item.property ?? '',
+  checkIn: item.checkin ?? item.checkIn ?? '',
+  checkOut: item.checkout ?? item.checkOut ?? '',
+  guests: item.guestCount ?? item.guests ?? 0,
+  amount: item.finalPaymentAmount ?? item.amount ?? item.totalAmount ?? 0,
+  status: normalizeStatus(item.status ?? item.reservationStatus)
+})
+
+const loadBookings = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  const response = await fetchHostBookings()
+  if (response.ok) {
+    const payload = response.data
+    const list = Array.isArray(payload)
+      ? payload
+      : payload?.items ?? payload?.content ?? payload?.data ?? []
+    bookings.value = list.map(normalizeBooking)
+  } else {
+    loadError.value = '예약 목록을 불러오지 못했습니다.'
+  }
+  isLoading.value = false
+}
+
+const loadCalendar = async (month) => {
+  const response = await fetchHostBookingCalendar(month)
+  if (response.ok) {
+    const payload = response.data
+    const list = Array.isArray(payload)
+      ? payload
+      : payload?.items ?? payload?.content ?? payload?.data ?? []
+    calendarBookings.value = list.map(normalizeBooking)
+  }
+}
+
+const toMonthParam = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+
+onMounted(async () => {
+  await loadBookings()
+  await loadCalendar(toMonthParam(currentMonth.value))
+})
+
+watch(currentMonth, (value) => {
+  selectedDate.value = null
+  loadCalendar(toMonthParam(value))
+})
 </script>
 
 <template>
@@ -166,6 +231,9 @@ const openModal = (booking) => {
         <div v-else class="empty-box"><p>예약이 없습니다.</p></div>
       </div>
     </section>
+
+    <p v-if="isLoading" class="empty-box">예약 데이터를 불러오는 중입니다.</p>
+    <p v-else-if="loadError" class="empty-box">{{ loadError }}</p>
 
     <div v-if="showModal && selectedBooking" class="modal-backdrop" @click.self="showModal = false">
       <div class="modal">

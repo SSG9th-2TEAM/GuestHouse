@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.accommodation.dto;
 
-import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
+import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -52,6 +53,7 @@ public class AccommodationResponseDto {
     private List<String> amenities;
     private List<String> themes;
 
-
+    // 숙소 상세보기 -> 객실 리스트
+    private List<RoomResponseListDto> rooms;
 
 }

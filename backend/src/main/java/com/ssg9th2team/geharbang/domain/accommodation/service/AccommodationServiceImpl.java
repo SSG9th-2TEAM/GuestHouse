@@ -69,9 +69,14 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         // 3. 숙소 저장
         accommodationMapper.insertAccommodation(accommodation);
+
+        // 숙소 저장 -> 숙소 아이디 생성 -> 숙소 아이디로 연관 테이블 저장
         Long accommodationsId = accommodation.getAccommodationsId();
 
-        // 4. 연관 테이블 저장
+
+
+        // ===================== 4. 연관 테이블 저장 ==========================
+
         // 이미지가 없거나 비어있지 않다면 실행
         if (createRequestDto.getImages() != null && !createRequestDto.getImages().isEmpty()) {
             accommodationMapper.insertAccommodationImages(accommodationsId, createRequestDto.getImages());
@@ -89,7 +94,12 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         // 객실
         if (createRequestDto.getRooms() != null && !createRequestDto.getRooms().isEmpty()) {
+            System.out.println("DEBUG: Inserting rooms for accommodationId: " + accommodationsId);
+            System.out.println("DEBUG: Number of rooms to insert: " + createRequestDto.getRooms().size());
             roomMapper.insertRooms(accommodationsId, createRequestDto.getRooms());
+
+            // 객실 등록 후 숙소의 최소 가격 업데이트
+            accommodationMapper.updateMinPrice(accommodationsId);
         }
 
         return accommodationsId;
