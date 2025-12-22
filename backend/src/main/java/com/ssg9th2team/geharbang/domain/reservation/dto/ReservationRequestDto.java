@@ -1,15 +1,15 @@
 package com.ssg9th2team.geharbang.domain.reservation.dto;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record ReservationRequestDto(
         Long accommodationsId,
+        Long roomId,
         Long userId,
-        LocalDateTime checkin,
-        LocalDateTime checkout,
+        Instant checkin,
+        Instant checkout,
         Integer guestCount,
         Integer totalAmount,
-        Long couponId,
         Integer couponDiscountAmount,
         String reserverName,
         String reserverPhone) {
