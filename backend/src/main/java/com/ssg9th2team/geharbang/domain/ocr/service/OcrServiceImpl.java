@@ -24,9 +24,16 @@ public class OcrServiceImpl implements OcrService {
     private Resource credentialsResource;
 
     private ImageAnnotatorSettings visionSettings;
+    private boolean ocrEnabled = false;
 
     @PostConstruct
     public void init() {
+        if (credentialsResource == null || !credentialsResource.exists()) {
+            log.warn("Google Cloud Vision 인증 파일이 없어 OCR 기능을 비활성화합니다.");
+            ocrEnabled = false;
+            return;
+        }
+
         try {
             GoogleCredentials credentials = GoogleCredentials
                     .fromStream(credentialsResource.getInputStream())
@@ -35,10 +42,12 @@ public class OcrServiceImpl implements OcrService {
             visionSettings = ImageAnnotatorSettings.newBuilder()
                     .setCredentialsProvider(() -> credentials)
                     .build();
+            ocrEnabled = true;
 
             log.info("Google Cloud Vision 인증 초기화 완료");
         } catch (IOException e) {
-            log.error("Google Cloud Vision 인증 파일 로드 실패", e);
+            ocrEnabled = false;
+            log.warn("Google Cloud Vision 인증 파일 로드 실패: OCR 기능 비활성화", e);
         }
     }
 
@@ -57,6 +66,13 @@ public class OcrServiceImpl implements OcrService {
     @Override
     public OcrResponse extractBusinessLicense(String base64Image) {
         try {
+            if (!ocrEnabled) {
+                return OcrResponse.builder()
+                        .success(false)
+                        .errorMessage("OCR 기능이 비활성화되어 있습니다. 관리자에게 문의해주세요.")
+                        .build();
+            }
+
             // Base64 이미지 디코딩
             byte[] imageBytes = decodeBase64Image(base64Image);
 

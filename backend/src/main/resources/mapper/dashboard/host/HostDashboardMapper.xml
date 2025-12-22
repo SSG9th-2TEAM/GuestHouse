@@ -5,50 +5,106 @@
 
 <mapper namespace="com.ssg9th2team.geharbang.domain.dashboard.host.repository.HostDashboardMapper">
 
-    <!-- TODO: replace table/column names with real schema -->
-    <select id="selectHostSummary" resultType="com.ssg9th2team.geharbang.domain.dashboard.host.entity.HostSummaryRow">
+    <!-- ===================================================================== -->
+    <!-- 호스트 대시보드 요약 KPI 조회 (host_daily_stats 기반)              -->
+    <!-- ===================================================================== -->
+    <select id="selectHostSummary"
+            resultType="com.ssg9th2team.geharbang.domain.dashboard.host.entity.HostSummaryRow">
+
+        <!--
+          [stats 기반 집계]
+          - host_daily_stats는 "호스트/일자 1행"이므로 집계가 단순하고 빠름
+          - KPI는 기간 SUM/AVG + 운영 숙소 수 서브쿼리로 계산래ㅜ
+
+          파라미터 (DATE 권장):
+          - #{hostId} : 호스트 ID
+          - #{start}  : 조회 시작 일자 (예: 2025-12-01)
+          - #{end}    : 조회 종료 일자 (예: 2026-01-01)  -> [start, end) 닫힘-열림
+        -->
         SELECT
-            COALESCE(SUM(p.approved_amount), 0)      AS expectedRevenue,
-            COUNT(DISTINCT r.reservation_id)          AS confirmedReservations,
-            COALESCE(AVG(rv.rating), 0)               AS avgRating,
-            COUNT(DISTINCT a.accommodation_id)        AS operatingAccommodations
-        FROM accommodations a
-        LEFT JOIN reservations r ON r.accommodation_id = a.accommodation_id
-            AND r.status = 'CONFIRMED'
-            AND r.check_in &gt;= #{start}
-            AND r.check_in &lt; #{end}
-        LEFT JOIN payments p ON p.reservation_id = r.reservation_id
-            AND p.status = 'DONE'
-        LEFT JOIN reviews rv ON rv.reservation_id = r.reservation_id
-        WHERE a.host_id = #{hostId}
-          AND a.status = 'ACTIVE'
+            /* 1) 기간 내 매출 합 */
+            COALESCE(SUM(h.revenue), 0) AS expectedRevenue,
+
+            /* 2) 기간 내 예약 건수 */
+            COALESCE(SUM(h.reservation_count), 0) AS confirmedReservations,
+
+            /* 3) 평균 평점 (기간 평균) */
+            COALESCE(AVG(h.avg_rating), 0) AS avgRating,
+
+            /* 4) 운영/승인된 숙소 수 */
+            (
+                SELECT COUNT(*)
+                FROM accommodation a2
+                WHERE a2.user_id = #{hostId}
+                  AND a2.accommodation_status = 1
+                  AND a2.approval_status = 'APPROVED'
+            ) AS operatingAccommodations
+        FROM host_daily_stats h
+        WHERE h.user_id = #{hostId}
+          AND h.stat_date &gt;= #{start}
+          AND h.stat_date &lt; #{end}
+
     </select>
 
-    <!-- TODO: replace table/column names with real schema -->
-    <select id="selectTodaySchedule" resultType="com.ssg9th2team.geharbang.domain.dashboard.host.dto.TodayScheduleItemResponse">
+
+    <!-- ===================================================================== -->
+    <!-- 호스트 '오늘 일정' 조회 (성능 우선 설계: DATE() 제거 + 범위조회)     -->
+    <!-- ===================================================================== -->
+    <select id="selectTodaySchedule"
+            resultType="com.ssg9th2team.geharbang.domain.dashboard.host.dto.TodayScheduleItemResponse">
+
+        <!--
+          [왜 DATE(r.checkin) = ? 를 피했나?]
+          - DATETIME 컬럼에 DATE() 함수를 씌우면 인덱스 활용이 어려워질 수 있음
+          - 데이터가 커질수록 느려질 가능성이 커서, [dateStart, dateEnd) 범위 조회로 변경
+
+          파라미터 (DATETIME):
+          - #{hostId}    : 호스트 ID
+          - #{dateStart} : 오늘 00:00:00
+          - #{dateEnd}   : 내일 00:00:00
+        -->
+        SELECT *
+        FROM (
+        /* (1) 오늘 체크인 일정 */
         SELECT
-            CASE
-                WHEN r.check_in = #{date} THEN 'CHECKIN'
-                ELSE 'CHECKOUT'
-            END AS type,
-            CASE
-                WHEN r.check_in = #{date} THEN CAST('15:00:00' AS TIME)
-                ELSE CAST('11:00:00' AS TIME)
-            END AS time,
-            r.reservation_id   AS reservationId,
-            a.name             AS accommodationName,
-            rm.name            AS roomName,
-            u.name             AS guestName,
-            r.request_note     AS requestNote,
-            u.phone            AS phone
-        FROM reservations r
-        JOIN accommodations a ON a.accommodation_id = r.accommodation_id
-        JOIN rooms rm ON rm.room_id = r.room_id
-        JOIN users u ON u.user_id = r.guest_id
-        WHERE a.host_id = #{hostId}
-          AND r.status IN ('CONFIRMED', 'CHECKIN')
-          AND (r.check_in = #{date} OR r.check_out = #{date})
-        ORDER BY type ASC, time ASC
+        'CHECKIN' AS type,
+        CAST('15:00:00' AS TIME) AS time,
+        r.reservation_id AS reservationId,
+        a.accommodations_name AS accommodationName,
+        NULL AS roomName,
+        r.reserver_name AS guestName,
+        NULL AS requestNote,
+        r.reserver_phone AS phone
+        FROM reservation r
+        JOIN accommodation a ON a.accommodations_id = r.accommodations_id
+        WHERE a.user_id = #{hostId}
+        AND r.reservation_status IN (2, 3)
+        AND r.checkin &gt;= #{dateStart}
+        AND r.checkin &lt; #{dateEnd}
+
+        UNION ALL
+
+        /* (2) 오늘 체크아웃 일정 */
+        SELECT
+        'CHECKOUT' AS type,
+        CAST('11:00:00' AS TIME) AS time,
+        r.reservation_id AS reservationId,
+        a.accommodations_name AS accommodationName,
+        NULL AS roomName,
+        r.reserver_name AS guestName,
+        NULL AS requestNote,
+        r.reserver_phone AS phone
+        FROM reservation r
+        JOIN accommodation a ON a.accommodations_id = r.accommodations_id
+        WHERE a.user_id = #{hostId}
+        AND r.reservation_status IN (2, 3)
+        AND r.checkout &gt;= #{dateStart}
+        AND r.checkout &lt; #{dateEnd}
+        ) t
+        ORDER BY
+        CASE WHEN t.type = 'CHECKIN' THEN 0 ELSE 1 END ASC,
+        t.time ASC
+
     </select>
 
 </mapper>

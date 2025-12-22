@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -19,6 +20,7 @@ public interface HostDashboardMapper {
 
     List<TodayScheduleItemResponse> selectTodaySchedule(
             @Param("hostId") Long hostId,
-            @Param("date") LocalDate date
+            @Param("dateStart") LocalDateTime dateStart,
+            @Param("dateEnd") LocalDateTime dateEnd
     );
 }

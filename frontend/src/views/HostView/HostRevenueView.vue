@@ -1,61 +1,106 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { exportCSV, exportXLSX } from '../../utils/reportExport'
+import { fetchHostRevenueDetails, fetchHostRevenueSummary, fetchHostRevenueTrend } from '@/api/hostRevenue'
 
 const selectedYear = ref(2025)
 const years = [2024, 2025]
 
-// Mock Data
-const monthlyRevenue = {
-  2024: [
-    { month: 1, amount: 3200000 },
-    { month: 2, amount: 2800000 },
-    { month: 3, amount: 3500000 },
-    { month: 4, amount: 4100000 },
-    { month: 5, amount: 4800000 },
-    { month: 6, amount: 5200000 },
-    { month: 7, amount: 6800000 },
-    { month: 8, amount: 7500000 },
-    { month: 9, amount: 5900000 },
-    { month: 10, amount: 4500000 },
-    { month: 11, amount: 3800000 },
-    { month: 12, amount: 4200000 }
-  ],
-  2025: [
-    { month: 1, amount: 4500000 },
-    { month: 2, amount: 3900000 },
-    { month: 3, amount: 4800000 },
-    { month: 4, amount: 5100000 },
-    { month: 5, amount: 5500000 },
-    { month: 6, amount: 5800000 },
-    { month: 7, amount: 7200000 },
-    { month: 8, amount: 8100000 },
-    { month: 9, amount: 6200000 },
-    { month: 10, amount: 5200000 },
-    { month: 11, amount: 4800000 },
-    { month: 12, amount: 5200000 } // Projected for demo
-  ]
-}
+const revenueSummary = ref({
+  year: selectedYear.value,
+  month: 1,
+  totalRevenue: 0,
+  expectedNextMonthRevenue: 0,
+  platformFeeRate: 0.04,
+  platformFeeAmount: 0,
+  reservationCount: 0
+})
+const revenueTrend = ref([])
+const revenueDetails = ref([])
+const isLoading = ref(false)
 
-const currentYearData = computed(() => monthlyRevenue[selectedYear.value])
+const currentYearSummary = computed(() => revenueSummary.value)
+const currentYearTrend = computed(() => revenueTrend.value)
+const currentYearDetails = computed(() => revenueDetails.value)
 
 const maxRevenue = computed(() => {
-  return Math.max(...currentYearData.value.map(d => d.amount))
-})
-
-// Summary Calculations (Mock for "This Month" - assuming Dec for demo)
-const thisMonthRevenue = computed(() => {
-  const data = currentYearData.value
-  return data[data.length - 1].amount // Last month in data
+  const values = currentYearTrend.value.map(d => d.revenue)
+  return values.length ? Math.max(...values) : 0
 })
 
 const formatPrice = (price) => {
-  return price.toLocaleString()
+  return (price ?? 0).toLocaleString()
 }
 
-const getBarHeight = (amount) => {
-  const percentage = (amount / maxRevenue.value) * 100
+const getBarHeight = (revenue) => {
+  if (!maxRevenue.value) return '0%'
+  const percentage = (revenue / maxRevenue.value) * 100
   return `${percentage}%`
 }
+
+const downloadReport = (format) => {
+  const today = new Date().toISOString().slice(0, 10)
+  const rows = currentYearTrend.value.map((item) => ({
+    year: selectedYear.value,
+    month: `${item.month}월`,
+    revenue: item.revenue
+  }))
+  const sheets = [
+    {
+      name: '매출 리포트',
+      columns: [
+        { key: 'year', label: '연도' },
+        { key: 'month', label: '월' },
+        { key: 'revenue', label: '매출액' }
+      ],
+      rows
+    }
+  ]
+
+  if (format === 'xlsx') {
+    exportXLSX({ filename: `host-revenue-${today}.xlsx`, sheets })
+    return
+  }
+  exportCSV({ filename: `host-revenue-${today}.csv`, sheets })
+}
+
+const loadRevenue = async (year) => {
+  isLoading.value = true
+  const now = new Date()
+  const currentMonth = now.getMonth() + 1
+  const summaryMonth = year === now.getFullYear() ? currentMonth : 12
+
+  const [summaryRes, trendRes, detailsRes] = await Promise.all([
+    fetchHostRevenueSummary({ year, month: summaryMonth }),
+    fetchHostRevenueTrend({ year }),
+    fetchHostRevenueDetails({ from: `${year}-01-01`, to: `${year}-12-31` })
+  ])
+
+  if (summaryRes.ok && summaryRes.data) {
+    revenueSummary.value = summaryRes.data
+  }
+
+  if (trendRes.ok && Array.isArray(trendRes.data)) {
+    revenueTrend.value = trendRes.data
+  }
+
+  if (detailsRes.ok && Array.isArray(detailsRes.data)) {
+    revenueDetails.value = detailsRes.data
+  } else if (trendRes.ok && Array.isArray(trendRes.data)) {
+    revenueDetails.value = trendRes.data.map((item) => ({
+      period: `${year}-${String(item.month).padStart(2, '0')}`,
+      revenue: item.revenue,
+      occupancyRate: item.occupancyRate
+    }))
+  }
+
+  isLoading.value = false
+}
+
+onMounted(() => loadRevenue(selectedYear.value))
+watch(selectedYear, (year) => {
+  loadRevenue(year)
+})
 </script>
 
 <template>
@@ -65,9 +110,22 @@ const getBarHeight = (amount) => {
         <h2>매출 리포트</h2>
         <p class="subtitle">{{ selectedYear }}년 재무 현황</p>
       </div>
-      <select v-model="selectedYear" class="year-select">
-        <option v-for="year in years" :key="year" :value="year">{{ year }}년</option>
-      </select>
+      <div class="header-actions">
+        <select v-model="selectedYear" class="year-select">
+          <option v-for="year in years" :key="year" :value="year">{{ year }}년</option>
+        </select>
+        <details class="admin-dropdown">
+          <summary class="admin-btn admin-btn--ghost">다운로드</summary>
+          <div class="admin-dropdown__menu">
+            <button class="admin-btn admin-btn--ghost admin-dropdown__item" type="button" @click="downloadReport('csv')">
+              CSV
+            </button>
+            <button class="admin-btn admin-btn--primary admin-dropdown__item" type="button" @click="downloadReport('xlsx')">
+              XLSX
+            </button>
+          </div>
+        </details>
+      </div>
     </div>
 
     <!-- Summary Cards -->
@@ -77,7 +135,7 @@ const getBarHeight = (amount) => {
         <div class="card-icon green-bg">💲</div>
         <div class="trend-icon up">↗</div>
         <p class="card-label">이번 달 총 매출</p>
-        <h3 class="card-value">₩{{ formatPrice(thisMonthRevenue) }}</h3>
+        <h3 class="card-value">₩{{ formatPrice(currentYearSummary?.totalRevenue) }}</h3>
         <p class="card-trend positive">전월 대비 +15.3%</p>
       </div>
 
@@ -86,8 +144,8 @@ const getBarHeight = (amount) => {
         <div class="card-icon blue-bg">📅</div>
         <div class="trend-icon up">↗</div>
         <p class="card-label">예상 다음 달 매출</p>
-        <h3 class="card-value">₩{{ formatPrice(thisMonthRevenue * 1.1) }}</h3>
-        <p class="card-sub">예약 35건 기준</p>
+        <h3 class="card-value">₩{{ formatPrice(currentYearSummary?.expectedNextMonthRevenue) }}</h3>
+        <p class="card-sub">예약 {{ currentYearSummary?.reservationCount ?? 0 }}건 기준</p>
       </div>
 
       <!-- Platform Fee -->
@@ -95,7 +153,7 @@ const getBarHeight = (amount) => {
         <div class="card-icon orange-bg">📉</div>
         <div class="trend-icon down">↘</div>
         <p class="card-label">플랫폼 수수료</p>
-        <h3 class="card-value">₩{{ formatPrice(thisMonthRevenue * 0.1) }}</h3>
+        <h3 class="card-value">₩{{ formatPrice(currentYearSummary?.platformFeeAmount) }}</h3>
       </div>
     </div>
 
@@ -104,13 +162,13 @@ const getBarHeight = (amount) => {
       <h3>월별 매출 추이</h3>
       <div class="bar-chart">
         <div
-            v-for="data in currentYearData"
+            v-for="data in currentYearTrend"
             :key="data.month"
             class="bar-column"
         >
           <div class="bar-container">
-            <div class="bar" :style="{ height: getBarHeight(data.amount) }">
-              <span class="tooltip">₩{{ formatPrice(data.amount) }}</span>
+            <div class="bar" :style="{ height: getBarHeight(data.revenue) }">
+              <span class="tooltip">₩{{ formatPrice(data.revenue) }}</span>
             </div>
           </div>
           <span class="month-label">{{ data.month }}월</span>
@@ -126,10 +184,10 @@ const getBarHeight = (amount) => {
         <span>매출액</span>
         <span>점유율 (예시)</span>
       </div>
-      <div v-for="data in currentYearData.slice().reverse()" :key="data.month" class="list-item">
-        <span class="month-col">{{ selectedYear }}년 {{ data.month }}월</span>
-        <span class="amount-col">₩{{ formatPrice(data.amount) }}</span>
-        <span class="occupancy-col">{{ Math.floor(Math.random() * 30 + 70) }}%</span>
+      <div v-for="data in currentYearDetails.slice().reverse()" :key="data.period" class="list-item">
+        <span class="month-col">{{ data.period }}</span>
+        <span class="amount-col">₩{{ formatPrice(data.revenue) }}</span>
+        <span class="occupancy-col">{{ data.occupancyRate.toFixed(1) }}%</span>
       </div>
     </div>
   </div>
@@ -173,6 +231,13 @@ const getBarHeight = (amount) => {
   color: #0f172a;
   outline: none;
   background: white;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
 }
 
 /* Summary Cards (모바일: 세로, 태블릿+: 3열) */
