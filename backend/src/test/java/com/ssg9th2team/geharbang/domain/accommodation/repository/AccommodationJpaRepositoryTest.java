@@ -31,12 +31,12 @@ class AccommodationJpaRepositoryTest {
         if (result.isPresent()) {
             Accommodation accommodation = result.get();
             System.out.println("=== 조회된 숙소 정보 ===");
-            System.out.println("ID: " + accommodation.getId());
-            System.out.println("이름: " + accommodation.getName());
+            System.out.println("ID: " + accommodation.getAccommodationsId());
+            System.out.println("이름: " + accommodation.getAccommodationsName());
             System.out.println("도시: " + accommodation.getCity());
-            System.out.println("설명: " + accommodation.getDescription());
+            System.out.println("설명: " + accommodation.getAccommodationsDescription());
 
-            assertThat(accommodation.getId()).isNotNull();
+            assertThat(accommodation.getAccommodationsId()).isNotNull();
         } else {
             System.out.println("DB에 숙소 데이터가 없습니다.");
         }

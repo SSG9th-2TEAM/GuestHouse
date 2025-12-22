@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS accommodation
     account_number_id            BIGINT                                 NOT NULL DEFAULT 1,
     user_id                      BIGINT                                 NOT NULL DEFAULT 1,
     accommodations_name          VARCHAR(100)                           NOT NULL,
-    accommodations_category      ENUM ('PENSION','GUESTHOUSE')          NOT NULL DEFAULT 'GUESTHOUSE',
+    accommodations_category      ENUM ('PENSION', 'GUESTHOUSE', 'HOTEL', 'MOTEL', 'RESORT', 'HANOK', 'CAMPING') NOT NULL DEFAULT 'GUESTHOUSE',
     accommodations_description   TEXT                                   NULL,
     short_description            VARCHAR(100)                           NULL,
     city                         VARCHAR(50)                            NULL,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS accommodation
     source_url                   VARCHAR(1000)                          NULL,
     source_platform              VARCHAR(50)                            NULL,
     business_registration_number VARCHAR(15)                            NULL,
-    business_registration_image  TEXT                                   NULL,
+    business_registration_image  LONGTEXT                               NULL,
     sns                          VARCHAR(1000)                          NULL,
     check_in_time                VARCHAR(50)                            NULL,
     check_out_time               VARCHAR(50)                            NULL,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS accommodation_image
 (
     image_id          BIGINT UNSIGNED          NOT NULL AUTO_INCREMENT,
     accommodations_id BIGINT                   NOT NULL,
-    image_url         VARCHAR(500)             NOT NULL,
+    image_url         LONGTEXT                 NOT NULL,
     image_type        ENUM ('banner','detail') NOT NULL DEFAULT 'banner',
     sort_order        INT                      NOT NULL DEFAULT 0,
     PRIMARY KEY (image_id),
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS room
     min_guests        INT             NOT NULL DEFAULT 2,
     max_guests        INT             NULL,
     room_description  TEXT            NULL,
-    main_image_url    VARCHAR(500)    NULL,
+    main_image_url    LONGTEXT        NULL,
     room_status       TINYINT(1)      NOT NULL DEFAULT 1,
     bathroom_count    INT             NULL,
     room_type         VARCHAR(50)     NULL,
@@ -543,3 +543,8 @@ CREATE TABLE IF NOT EXISTS user_social
 
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- 초기 더미 유저 (User ID 1) 생성 (Foreign Key 제약조건 만족 위함)
+INSERT INTO users (user_id, email, password, phone, role, marketing_agree, created_at, updated_at, host_approved)
+VALUES (1, 'host@test.com', 'password', '010-1234-5678', 'HOST', 1, NOW(), NOW(), 1)
+ON DUPLICATE KEY UPDATE user_id=user_id;
