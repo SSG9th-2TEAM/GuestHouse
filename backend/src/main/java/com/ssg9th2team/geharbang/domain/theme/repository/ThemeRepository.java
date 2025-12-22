@@ -1,6 +1,6 @@
-package com.ssg9th2team.geharbang.domain.auth.repository;
+package com.ssg9th2team.geharbang.domain.theme.repository;
 
-import com.ssg9th2team.geharbang.domain.auth.entity.Theme;
+import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -9,7 +9,6 @@ import java.util.Optional;
 
 @Repository
 public interface ThemeRepository extends JpaRepository<Theme, Long> {
-
     // 테마 이름으로 조회
     Optional<Theme> findByThemeName(String themeName);
 

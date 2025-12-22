@@ -14,6 +14,7 @@ const activeOverlays = ref([])
 const isFilterModalOpen = ref(false)
 const minPrice = ref(null)
 const maxPrice = ref(null)
+const selectedThemeIds = ref([])
 
 const updateMarkers = () => {
   if (!mapInstance.value) return
@@ -26,6 +27,11 @@ const updateMarkers = () => {
   const filteredItems = items.filter(item => {
     if (minPrice.value !== null && item.price < minPrice.value) return false
     if (maxPrice.value !== null && item.price > maxPrice.value) return false
+    if (selectedThemeIds.value.length) {
+      const themeIds = Array.isArray(item.themeIds) ? item.themeIds : Array.isArray(item.themes) ? item.themes : []
+      const hasMatch = themeIds.some(id => selectedThemeIds.value.includes(id))
+      if (!hasMatch) return false
+    }
     return true
   })
 
@@ -56,9 +62,10 @@ const updateMarkers = () => {
   })
 }
 
-const handleApplyFilter = ({ min, max }) => {
+const handleApplyFilter = ({ min, max, themeIds = [] }) => {
   minPrice.value = min
   maxPrice.value = max
+  selectedThemeIds.value = themeIds
   isFilterModalOpen.value = false
   updateMarkers()
 }
@@ -107,6 +114,7 @@ onMounted(() => {
       :is-open="isFilterModalOpen"
       :current-min="minPrice"
       :current-max="maxPrice"
+      :current-themes="selectedThemeIds"
       @close="isFilterModalOpen = false"
       @apply="handleApplyFilter"
     />

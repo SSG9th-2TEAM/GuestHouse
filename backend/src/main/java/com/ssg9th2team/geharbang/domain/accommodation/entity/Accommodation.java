@@ -137,4 +137,5 @@ public class Accommodation {
         this.approvalStatus = status;
         this.rejectionReason = rejectionReason;
     }
+
 }

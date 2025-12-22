@@ -1,4 +1,4 @@
-package com.ssg9th2team.geharbang.domain.auth.entity;
+package com.ssg9th2team.geharbang.domain.theme.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;

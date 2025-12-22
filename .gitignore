@@ -158,3 +158,10 @@ Icon?
 *.orig
 *.old
 *~
+
+# logs
+*.log
+*.log.*
+*.gz
+logs/
+log/

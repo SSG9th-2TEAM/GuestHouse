@@ -1,9 +1,13 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { signup, checkEmailDuplicate } from '@/api/authClient'
 
 const router = useRouter()
 const currentStep = ref(1)
+const isLoading = ref(false)
+const isEmailChecked = ref(false)
+const emailCheckMessage = ref('')
 
 // Step 1: Terms Agreement
 const allAgreed = ref(false)
@@ -29,13 +33,12 @@ const requiredTermsAgreed = computed(() => {
 const email = ref('')
 const password = ref('')
 const passwordConfirm = ref('')
-const name = ref('')
 const phone = ref('')
 const showPassword = ref(false)
 const showPasswordConfirm = ref(false)
 
 const isStep2Valid = computed(() => {
-  return email.value && password.value && passwordConfirm.value && name.value && phone.value && password.value === passwordConfirm.value
+  return email.value && password.value && passwordConfirm.value && phone.value && password.value === passwordConfirm.value && isEmailChecked.value
 })
 
 // Step 3: Theme Selection
@@ -96,8 +99,10 @@ const goNext = () => {
       openModal('필수 약관에 동의해주세요.', 'error')
     }
   } else if (currentStep.value === 2) {
-    if (!email.value || !password.value || !passwordConfirm.value || !name.value || !phone.value) {
+    if (!email.value || !password.value || !passwordConfirm.value || !phone.value) {
       openModal('모든 필수 항목을 입력해주세요.', 'error')
+    } else if (!isEmailChecked.value) {
+      openModal('이메일 중복 확인을 해주세요.', 'error')
     } else if (password.value !== passwordConfirm.value) {
       openModal('비밀번호가 일치하지 않습니다.', 'error')
     } else {
@@ -106,12 +111,140 @@ const goNext = () => {
   }
 }
 
-const handleComplete = () => {
-  openModal('회원가입이 완료되었습니다!', 'success', () => router.push('/login'))
+// 이메일 중복 확인
+const handleEmailCheck = async () => {
+  if (!email.value) {
+    openModal('이메일을 입력해주세요.', 'error')
+    return
+  }
+
+  try {
+    const response = await checkEmailDuplicate(email.value)
+
+    console.log('이메일 중복 확인 응답:', response)
+    console.log('response.ok:', response.ok)
+    console.log('response.data:', response.data)
+
+    if (response.ok) {
+      // response.data가 true면 중복, false면 중복 아님
+      if (response.data === true) {
+        // 중복됨
+        isEmailChecked.value = false
+        emailCheckMessage.value = '이미 사용 중인 이메일입니다.'
+        openModal('이미 사용 중인 이메일입니다.', 'error')
+      } else if (response.data === false) {
+        // 중복 아님
+        isEmailChecked.value = true
+        emailCheckMessage.value = '사용 가능한 이메일입니다.'
+        openModal('사용 가능한 이메일입니다.', 'success')
+      } else {
+        // 예상치 못한 응답
+        console.error('예상치 못한 응답:', response.data)
+        openModal('이메일 중복 확인 중 오류가 발생했습니다.', 'error')
+      }
+    } else {
+      openModal('이메일 중복 확인 중 오류가 발생했습니다.', 'error')
+    }
+  } catch (error) {
+    console.error('이메일 중복 확인 에러:', error)
+    openModal('이메일 중복 확인 중 오류가 발생했습니다.', 'error')
+  }
 }
 
-const handleSkip = () => {
-  openModal('회원가입이 완료되었습니다!', 'success', () => router.push('/login'))
+const handleComplete = async () => {
+  if (!isEmailChecked.value) {
+    openModal('이메일 중복 확인을 해주세요.', 'error')
+    return
+  }
+
+  isLoading.value = true
+
+  try {
+    // 선택된 테마 ID 추출
+    const selectedThemeIds = themes.value
+      .filter(theme => theme.selected)
+      .map(theme => theme.id)
+
+    // 마케팅 동의 확인
+    const marketingTerm = terms.value.find(t => t.id === 3)
+    const marketingAgreed = marketingTerm ? marketingTerm.checked : false
+
+    // 회원가입 데이터 생성
+    const signupData = {
+      email: email.value,
+      password: password.value,
+      phone: phone.value,
+      themeIds: selectedThemeIds.length > 0 ? selectedThemeIds : null,
+      marketingAgreed: marketingAgreed
+    }
+
+    console.log('회원가입 데이터:', signupData)
+
+    // API 호출
+    const response = await signup(signupData)
+
+    console.log('회원가입 응답:', response)
+    console.log('response.ok:', response.ok)
+    console.log('response.status:', response.status)
+    console.log('response.data:', response.data)
+
+    if (response.ok && response.data) {
+      // 회원가입 성공
+      console.log('회원가입 성공!')
+      openModal('회원가입이 완료되었습니다!', 'success', () => router.push('/login'))
+    } else {
+      // 회원가입 실패
+      console.error('회원가입 실패:', response)
+      openModal('회원가입에 실패했습니다.\n잠시 후 다시 시도해주세요.', 'error')
+    }
+  } catch (error) {
+    console.error('회원가입 에러:', error)
+    openModal('회원가입 중 오류가 발생했습니다.', 'error')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleSkip = async () => {
+  if (!isEmailChecked.value) {
+    openModal('이메일 중복 확인을 해주세요.', 'error')
+    return
+  }
+
+  isLoading.value = true
+
+  try {
+    // 테마 선택 없이 회원가입
+    const marketingTerm = terms.value.find(t => t.id === 3)
+    const marketingAgreed = marketingTerm ? marketingTerm.checked : false
+
+    const signupData = {
+      email: email.value,
+      password: password.value,
+      phone: phone.value,
+      themeIds: null,
+      marketingAgreed: marketingAgreed
+    }
+
+    console.log('회원가입 데이터 (건너뛰기):', signupData)
+
+    const response = await signup(signupData)
+
+    console.log('회원가입 응답 (건너뛰기):', response)
+
+    if (response.ok && response.data) {
+      console.log('회원가입 성공 (건너뛰기)!')
+      openModal('회원가입이 완료되었습니다!', 'success', () => router.push('/login'))
+    } else {
+      console.error('회원가입 실패 (건너뛰기):', response)
+      openModal('회원가입에 실패했습니다.\n잠시 후 다시 시도해주세요.', 'error')
+    }
+  } catch (error) {
+    console.error('회원가입 에러:', error)
+    openModal('회원가입 중 오류가 발생했습니다.', 'error')
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
@@ -173,15 +306,20 @@ const handleSkip = () => {
           <div class="input-group">
             <label>이메일 *</label>
             <div class="input-row">
-              <input type="email" v-model="email" placeholder="example@email.com" />
-              <button class="check-btn">중복확인</button>
+              <input type="email" v-model="email" placeholder="example@email.com" @input="isEmailChecked = false" />
+              <button class="check-btn" @click="handleEmailCheck" :class="{ checked: isEmailChecked }">
+                {{ isEmailChecked ? '확인완료' : '중복확인' }}
+              </button>
             </div>
+            <span v-if="emailCheckMessage" class="email-check-message" :class="{ success: isEmailChecked, error: !isEmailChecked }">
+              {{ emailCheckMessage }}
+            </span>
           </div>
 
           <div class="input-group">
             <label>비밀번호 *</label>
             <div class="input-wrapper">
-              <input :type="showPassword ? 'text' : 'password'" v-model="password" placeholder="8자 이상, 영문/숫자/특수문자 포함" />
+              <input :type="showPassword ? 'text' : 'password'" v-model="password" placeholder="비밀번호를 입력하세요 (4자 이상)" />
               <button class="toggle-btn" @click="showPassword = !showPassword">{{ showPassword ? '숨김' : '보기' }}</button>
             </div>
           </div>
@@ -195,13 +333,8 @@ const handleSkip = () => {
           </div>
 
           <div class="input-group">
-            <label>이름 *</label>
-            <input type="text" v-model="name" placeholder="이름을 입력하세요" />
-          </div>
-
-          <div class="input-group">
             <label>전화번호 *</label>
-            <input type="tel" v-model="phone" placeholder="010-1234-5678" />
+            <input type="tel" v-model="phone" placeholder="전화번호를 입력하세요" />
           </div>
         </div>
 
@@ -228,8 +361,12 @@ const handleSkip = () => {
         </div>
 
         <div class="final-actions">
-          <button class="complete-btn" @click="handleComplete">완료</button>
-          <button class="skip-btn" @click="handleSkip">건너뛰기</button>
+          <button class="complete-btn" @click="handleComplete" :disabled="isLoading">
+            {{ isLoading ? '처리 중...' : '완료' }}
+          </button>
+          <button class="skip-btn" @click="handleSkip" :disabled="isLoading">
+            {{ isLoading ? '처리 중...' : '건너뛰기' }}
+          </button>
         </div>
       </template>
     </div>
@@ -446,6 +583,26 @@ const handleSkip = () => {
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.check-btn.checked {
+  background: #00796b;
+  cursor: default;
+}
+
+.email-check-message {
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  display: block;
+}
+
+.email-check-message.success {
+  color: #2e7d32;
+}
+
+.email-check-message.error {
+  color: #dc2626;
 }
 
 .input-wrapper {
@@ -550,6 +707,12 @@ const handleSkip = () => {
   cursor: pointer;
 }
 
+.complete-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .skip-btn {
   width: 100%;
   padding: 1rem;
@@ -559,6 +722,13 @@ const handleSkip = () => {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.skip-btn:disabled {
+  background: #f5f5f5;
+  color: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 /* Modal */
