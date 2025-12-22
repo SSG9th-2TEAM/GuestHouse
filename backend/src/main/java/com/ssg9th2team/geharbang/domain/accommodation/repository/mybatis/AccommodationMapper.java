@@ -43,4 +43,9 @@ public interface AccommodationMapper {
     // ===== 정산계좌 =====
 
     void insertAccountNumber(AccountNumberDto accountNumberDto);
+
+
+    // ===== 최소 가격 업데이트 =====
+
+    void updateMinPrice(@Param("accommodationsId") Long accommodationsId);
 }
