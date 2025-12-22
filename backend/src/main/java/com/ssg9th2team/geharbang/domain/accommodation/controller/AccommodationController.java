@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationCreateReq
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationUpdateRequestDto;
 import com.ssg9th2team.geharbang.domain.accommodation.service.AccommodationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
 import org.springframework.http.HttpStatus;
@@ -19,7 +20,7 @@ public class AccommodationController {
 
     // 숙소 등록
     @PostMapping
-    public ResponseEntity<?> createAccommodation(@RequestBody AccommodationCreateRequestDto requestDto) {
+    public ResponseEntity<?> createAccommodation(@Valid @RequestBody AccommodationCreateRequestDto requestDto) {
         try {
             Long userId = 1L; // 나중에 유저 api가져오기
             Long accommodationsId = accommodationService.createAccommodation(userId, requestDto);

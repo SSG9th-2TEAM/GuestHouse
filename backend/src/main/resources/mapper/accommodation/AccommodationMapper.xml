@@ -6,11 +6,12 @@
 <mapper namespace="com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper">
 
 
-    <!-- 테마, 편의시설 -->
+    <!-- 테마, 편의시설, 객실 -->
     <resultMap id="AccommodationDetailMap" type="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto" autoMapping="true">
         <id property="accommodationsId" column="accommodationsId"/>
         <collection property="amenities" column="accommodationsId" select="selectAmenitiesByAccommodationId"/>
         <collection property="themes" column="accommodationsId" select="selectThemesByAccommodationId"/>
+        <collection property="rooms" column="accommodationsId" select="selectRoomsByAccommodationId"/>
     </resultMap>
 
 
@@ -184,8 +185,6 @@
 
 
 
-
-
     <!-- 편의시설 조회 (Nested Select) -->
     <select id="selectAmenitiesByAccommodationId" resultType="string">
         SELECT am.amenity_name
@@ -201,5 +200,33 @@
         JOIN theme t ON at.theme_id = t.theme_id
         WHERE at.accommodations_id = #{accommodationsId}
     </select>
+
+    <!-- 객실 리스트 조회 (Nested Select) -->
+    <select id="selectRoomsByAccommodationId" resultType="com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto">
+        SELECT
+            room_name AS roomName,
+            room_description AS roomDescription,
+            max_guests AS maxGuests,
+            price,
+            weekend_price AS weekendPrice,
+            main_image_url AS mainImageUrl
+        FROM room
+        WHERE accommodations_id = #{accommodationsId}
+          AND room_status = 1
+        ORDER BY room_id
+    </select>
+
+
+    <!-- 숙소 최소 가격 업데이트 (해당 숙소의 객실 중 최저 가격으로 업데이트) -->
+    <update id="updateMinPrice">
+        UPDATE accommodation
+        SET min_price = (
+            SELECT MIN(price)
+            FROM room
+            WHERE accommodations_id = #{accommodationsId}
+              AND room_status = 1
+        )
+        WHERE accommodations_id = #{accommodationsId}
+    </update>
 
 </mapper>

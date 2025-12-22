@@ -94,6 +94,9 @@ public class Accommodation {
     @Column(name = "check_out_time", length = 10, nullable = false)
     private String checkOutTime;
 
+    @Column(name = "min_price")
+    private Integer minPrice;
+
     // 생성 시 기본값 세팅
     @PrePersist
     public void prePersist() {
