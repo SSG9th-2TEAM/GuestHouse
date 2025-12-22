@@ -80,7 +80,7 @@ const goToBooking = () => {
   const guestCount = searchStore.guestCount || 1
   
   router.push({
-    path: '/booking/1',
+    path: '/booking/2',
     query: {
       hotelName: guesthouse.name,
       rating: guesthouse.rating,

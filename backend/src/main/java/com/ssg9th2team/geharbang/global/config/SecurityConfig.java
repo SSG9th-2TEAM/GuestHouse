@@ -38,32 +38,18 @@ public class SecurityConfig {
 
                 // 요청 권한 설정
                 .authorizeHttpRequests(auth -> auth
-<<<<<<< HEAD
                         // 인증 없이 접근 가능한 경로
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/public/**",
+                                "/api/host/**",
+                                "/api/themes",
                                 "/error",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**")
                         .permitAll()
                         // 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated())
-=======
-                    // 인증 없이 접근 가능한 경로
-                    .requestMatchers(
-                        "/api/auth/**",
-                        "/api/public/**",
-                        "/api/host/**",
-                        "/api/themes",
-                        "/error",
-                        "/swagger-ui/**",
-                        "/v3/api-docs/**"
-                    ).permitAll()
-                    // 그 외 모든 요청은 인증 필요
-                    .anyRequest().authenticated()
-                )
->>>>>>> develop
 
                 // JWT 인증 필터 추가
                 .addFilterBefore(

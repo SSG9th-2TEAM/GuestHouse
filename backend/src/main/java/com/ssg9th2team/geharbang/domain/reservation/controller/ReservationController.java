@@ -23,10 +23,17 @@ public class ReservationController {
     @PostMapping
     public ResponseEntity<ReservationResponseDto> createReservation(
             @RequestBody ReservationRequestDto requestDto) {
-        ReservationResponseDto response = reservationService.createReservation(requestDto);
-        return ResponseEntity
-                .created(URI.create("/api/reservations/" + response.reservationId()))
-                .body(response);
+        try {
+            System.out.println("DEBUG: Received reservation request: " + requestDto);
+            ReservationResponseDto response = reservationService.createReservation(requestDto);
+            return ResponseEntity
+                    .created(URI.create("/api/reservations/" + response.reservationId()))
+                    .body(response);
+        } catch (Exception e) {
+            System.err.println("ERROR: Reservation creation failed!");
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     /**

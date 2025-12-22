@@ -89,8 +89,8 @@ const booking = computed(() => {
   const stayNights = calculateStayNights(checkin, checkout)
   
   return {
-    accommodationsId: parseInt(route.params.id) || 1,
-    roomId: parseInt(route.query.roomId) || 1, // Defaulting to 1 if missing, or handle as null
+    accommodationsId: parseInt(route.params.id) || 2,
+    roomId: parseInt(route.query.roomId) || 2, // Defaulting to 2 if missing, or handle as null
     hotelName: route.query.hotelName || '그랜드 호텔 서울',
     rating: parseFloat(route.query.rating) || 4.8,
     reviewCount: parseInt(route.query.reviewCount) || 219,
@@ -150,7 +150,7 @@ const handlePayment = async () => {
     const reservationData = {
       accommodationsId: booking.value.accommodationsId,
       roomId: booking.value.roomId,
-      userId: null, // null이면 백엔드에서 기본값(1L) 사용
+      // userId는 백엔드에서 JWT 토큰으로부터 추출
       checkin: checkinDate.toISOString(),
       checkout: checkoutDate.toISOString(),
       guestCount: booking.value.guestCount,
