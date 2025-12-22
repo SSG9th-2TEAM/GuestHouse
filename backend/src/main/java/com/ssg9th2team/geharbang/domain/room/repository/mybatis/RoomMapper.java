@@ -11,11 +11,11 @@ import java.util.List;
 @Mapper
 public interface RoomMapper {
 
-    void insertRooms(@Param("accommodationsId") Long accommodationsId,  // 객실 등록
+    void insertRoom(@Param("room") Room room);  // 단일 객실 등록 -> 객실 추가시 사용
+
+    void insertRooms(@Param("accommodationsId") Long accommodationsId,  // 다중 객실 등록 -> 숙소 등록할때 사용
                      @Param("rooms") List<RoomCreateDto> rooms);
 
-    RoomResponseDto selectRoomById(@Param("accommodationsId") Long accommodationsId,  // 조회
-                                   @Param("roomId") Long roomId);
 
     void updateRoom(@Param("accommodationsId") Long accommodationsId,  // 수정
                     @Param("roomId") Long roomId,

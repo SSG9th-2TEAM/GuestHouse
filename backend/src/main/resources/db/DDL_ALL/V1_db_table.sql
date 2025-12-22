@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS accommodation
     check_in_time                VARCHAR(50)                            NULL,
     check_out_time               VARCHAR(50)                            NULL,
     rating                       DOUBLE                                 NULL,
-    review_count                 INT                                    NULL
+    review_count                 INT                                    NULL,
+    min_price                    INT                                    NULL
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 DROP TABLE IF EXISTS accommodation_amenity;
