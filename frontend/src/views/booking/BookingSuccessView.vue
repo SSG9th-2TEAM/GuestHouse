@@ -1,38 +1,74 @@
 <script setup>
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { onMounted, ref } from 'vue'
+import { getReservation } from '@/api/reservationApi'
 
 const router = useRouter()
+const route = useRoute()
 
 // Default fallback data if accessed directly
 const info = ref({
-  bookingNumber: 'BK' + Math.floor(Math.random() * 100000000),
-  hotelName: '그랜드 호텔 서울',
-  location: '서울 강남구 테헤란로 123',
-  dates: '2025-12-08 ~ 2025-12-11',
-  nights: 3,
-  guests: '성인 2명',
-  basePrice: 450000,
+  bookingNumber: '',
+  hotelName: '',
+  location: '',
+  dates: '',
+  nights: 0,
+  guests: '',
+  basePrice: 0,
   fees: 0,
-  totalPrice: 450000,
-  paymentDate: new Date().toLocaleString()
+  totalPrice: 0,
+  paymentDate: '',
+  reserverName: '',
+  reserverPhone: ''
 })
 
-onMounted(() => {
-  const state = history.state
-  if (state && state.bookingData) {
-    const data = state.bookingData
-    info.value = {
-      ...info.value,
-      hotelName: data.hotelName,
-      location: '서울 종로구 삼청로 45', // Mock location as it wasn't in booking obj explicitly
-      dates: data.dates,
-      guests: data.guests,
-      basePrice: data.basePrice, 
-      totalPrice: data.totalPrice,
-      paymentDate: new Date().toLocaleString()
+onMounted(async () => {
+    // 1. state에서 데이터 확인 (booking-success 라우트로 이동 시 전달됨)
+    const state = history.state
+    
+    // 2. 예약 ID 확인 (query 파라미터 우선, 없으면 state에서 확인)
+    // view_file 결과를 보면 route가 정의되지 않았으므로 script setup 상단에 추가해야 함. 
+    // 이미 추가했음 (const route = useRoute())
+    const reservationId = route.query.reservationId || (state && state.bookingData ? state.bookingData.reservationId : null)
+
+    if (reservationId) {
+        try {
+            const res = await getReservation(reservationId)
+            
+            // 날짜 포맷팅
+            const checkin = new Date(res.checkin).toLocaleDateString()
+            const checkout = new Date(res.checkout).toLocaleDateString()
+            
+            info.value = {
+                bookingNumber: 'BK' + res.reservationId,
+                hotelName: res.accommodationName,
+                location: res.accommodationAddress,
+                dates: `${checkin} ~ ${checkout}`,
+                nights: res.stayNights,
+                guests: `성인 ${res.guestCount}명`, // 상세 구분은 API에 없으므로 총 인원 표시
+                basePrice: res.finalPaymentAmount, // 숙박 요금 (할인 후 최종 금액을 표시하거나, 원가를 표시하고 할인을 따로 표시할 수 있음. 여기선 최종 금액 사용)
+                fees: 0, // 수수료 없음
+                totalPrice: res.finalPaymentAmount,
+                paymentDate: new Date(res.createdAt).toLocaleString(),
+                reserverName: res.reserverName,
+                reserverPhone: res.reserverPhone
+            }
+        } catch (error) {
+            console.error('예약 정보 조회 실패:', error)
+        }
+    } else if (state && state.bookingData) {
+        // 백엔드 연동 전 fallback (기존 로직 유지하되 일부 필드 매핑)
+        const data = state.bookingData
+        info.value = {
+            ...info.value,
+            hotelName: data.hotelName,
+            dates: data.dates,
+            guests: data.guests,
+            basePrice: data.basePrice,
+            totalPrice: data.totalPrice,
+            paymentDate: new Date().toLocaleString()
+        }
     }
-  }
 })
 
 const goHome = () => router.push('/')
@@ -78,7 +114,7 @@ const goHistory = () => router.push('/reservations')
           <div class="text">
             <span class="label">체크인 / 체크아웃</span>
             <span class="value">{{ info.dates }}</span>
-            <span class="sub-text">{{ info.nights || '1' }}박</span>
+            <span class="sub-text">{{ info.nights }}박</span>
           </div>
         </div>
 
@@ -88,6 +124,21 @@ const goHistory = () => router.push('/reservations')
             <span class="value">{{ info.guests }}</span>
           </div>
         </div>
+
+        <!-- Added: Applicant Info -->
+        <div class="info-item" v-if="info.reserverName">
+            <div class="text">
+              <span class="label">예약자명</span>
+              <span class="value">{{ info.reserverName }}</span>
+            </div>
+        </div>
+        <div class="info-item" v-if="info.reserverPhone">
+            <div class="text">
+              <span class="label">연락처</span>
+              <span class="value">{{ info.reserverPhone }}</span>
+            </div>
+        </div>
+
       </div>
 
       <!-- Payment Info -->
@@ -99,10 +150,8 @@ const goHistory = () => router.push('/reservations')
           <span>숙박 요금</span>
           <span>{{ info.basePrice?.toLocaleString() }}원</span>
         </div>
-        <div class="row">
-          <span>수수료</span>
-          <span>{{ info.fees }}원</span>
-        </div>
+        <!-- Commission Removed as requested -->
+        
         <hr class="divider-light"/>
         <div class="row total">
           <span>총 결제 금액</span>
