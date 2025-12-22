@@ -1,16 +1,19 @@
 <script setup>
 import { ref, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useHostAccommodationsStore } from '@/stores/hostAccommodations'
 
 const router = useRouter()
 const emit = defineEmits(['cancel', 'submit'])
-const accommodationStore = useHostAccommodationsStore()
+
+// API Base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
 
 // ========== Business License Verification ==========
 const isVerified = ref(false)
 const businessLicenseImage = ref(null)
+const businessLicenseFile = ref(null)
 const businessLicensePreview = ref(null)
+const businessRegistrationNumber = ref('')
 const extractedText = ref('')
 const isExtracting = ref(false)
 const isVerifying = ref(false)
@@ -18,37 +21,91 @@ const isVerifying = ref(false)
 const handleLicenseUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
+    businessLicenseFile.value = file
     businessLicenseImage.value = file
     businessLicensePreview.value = URL.createObjectURL(file)
   }
 }
 
-const extractText = () => {
-  if (!businessLicenseImage.value) {
-    openModal('사업자등록증 이미지를 먼저 선택해주세요.')
-    return
+// 사업자번호 유효성 검증 (체크섬 알고리즘)
+const validateBusinessNumber = (bizNum) => {
+  const numbers = bizNum.replace(/[^0-9]/g, '')
+  if (numbers.length !== 10) return false
+
+  const checkSum = [1, 3, 7, 1, 3, 7, 1, 3, 5]
+  let sum = 0
+
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(numbers[i]) * checkSum[i]
   }
-  isExtracting.value = true
-  // Mock OCR process
-  setTimeout(() => {
-    extractedText.value = '사업자번호: 123-45-67890\n상호: 테스트 게스트하우스\n대표자: 홍길동'
-    isExtracting.value = false
-    openModal('텍스트 추출이 완료되었습니다.')
-  }, 1000)
+  sum += Math.floor((parseInt(numbers[8]) * 5) / 10)
+
+  const remainder = (10 - (sum % 10)) % 10
+  return remainder === parseInt(numbers[9])
 }
 
-const verifyBusinessNumber = () => {
+// OCR로 사업자등록증 이미지에서 사업자번호 추출 및 검증
+const verifyBusinessNumber = async () => {
   if (!businessLicenseImage.value) {
     openModal('사업자등록증 이미지를 먼저 선택해주세요.')
     return
   }
+
   isVerifying.value = true
-  // Mock verification
-  setTimeout(() => {
+
+  try {
+    // 이미지를 Base64로 변환
+    const reader = new FileReader()
+
+    const base64Image = await new Promise((resolve, reject) => {
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = reject
+      reader.readAsDataURL(businessLicenseFile.value)
+    })
+
+    // 백엔드 OCR API 호출 (Google Cloud Vision)
+    const response = await fetch(`${API_BASE_URL}/ocr/business-license`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: base64Image
+      })
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+
+      if (data.success && data.businessNumber) {
+        // OCR 성공 - 사업자번호 추출됨
+        businessRegistrationNumber.value = data.businessNumber
+        isVerified.value = true
+
+        let message = '사업자등록증이 확인되었습니다.'
+        if (data.businessName) {
+          message += `\n상호: ${data.businessName}`
+        }
+        if (data.representative) {
+          message += `\n대표자: ${data.representative}`
+        }
+        message += '\n\n이제 숙소를 등록할 수 있습니다.'
+        openModal(message)
+      } else {
+        // OCR 실패 - 에러 메시지 표시
+        const errorMsg = data.errorMessage || '사업자번호를 인식할 수 없습니다.'
+        openModal(`사업자등록 실패: ${errorMsg}`)
+      }
+    } else {
+      // HTTP 오류
+      openModal('사업자등록 실패: 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
+    }
+  } catch (error) {
+    console.error('사업자등록증 확인 오류:', error)
+    openModal('사업자등록 실패: 네트워크 오류가 발생했습니다.')
+  } finally {
     isVerifying.value = false
-    isVerified.value = true
-    openModal('사업자번호가 확인되었습니다. 이제 숙소를 등록할 수 있습니다.')
-  }, 1000)
+  }
 }
 
 // 카카오맵 관련
@@ -56,6 +113,17 @@ const mapContainer = ref(null)
 const map = ref(null)
 const marker = ref(null)
 const geocoder = ref(null)
+
+// 숙소 유형 매핑 (프론트엔드 표시명 -> 백엔드 ENUM)
+const accommodationCategoryMap = {
+  '게스트하우스': 'GUESTHOUSE',
+  '펜션': 'PENSION',
+  '호텔': 'HOTEL',
+  '모텔': 'MOTEL',
+  '리조트': 'RESORT',
+  '한옥': 'HANOK',
+  '캠핑/글램핑': 'CAMPING'
+}
 
 // Form data
 const form = ref({
@@ -65,9 +133,11 @@ const form = ref({
   description: '',
   phone: '',
   email: '',
+  sns: '',
   // 위치정보
   city: '',
   district: '',
+  township: '',
   address: '',
   latitude: null,
   longitude: null,
@@ -85,7 +155,9 @@ const form = ref({
   amenities: [],
   // 이미지
   bannerImage: null,
+  bannerImageFile: null,
   detailImages: [],
+  detailImageFiles: [],
   // 검색 최적화
   shortDescription: '',
   // 테마
@@ -97,6 +169,293 @@ const form = ref({
   // 상태
   isActive: true
 })
+
+// ========== 유효성 검사 ==========
+const errors = ref({})
+
+// 이메일 형식 검증
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
+
+// 전화번호 형식 검증
+const isValidPhone = (phone) => {
+  const phoneRegex = /^[\d\-]+$/
+  return phone.length >= 9 && phoneRegex.test(phone)
+}
+
+// 숫자만 입력되도록 필터링
+const filterNumberInput = (event) => {
+  const value = event.target.value
+  event.target.value = value.replace(/[^0-9]/g, '')
+}
+
+// 필드별 유효성 검사
+const validateField = (fieldName, value) => {
+  switch (fieldName) {
+    case 'name':
+      if (!value || !value.trim()) {
+        errors.value.name = '숙소명을 입력해주세요.'
+      } else {
+        delete errors.value.name
+      }
+      break
+    case 'type':
+      if (!value) {
+        errors.value.type = '숙소유형을 선택해주세요.'
+      } else {
+        delete errors.value.type
+      }
+      break
+    case 'description':
+      if (!value || !value.trim()) {
+        errors.value.description = '숙소 소개를 입력해주세요.'
+      } else {
+        delete errors.value.description
+      }
+      break
+    case 'phone':
+      if (!value || !value.trim()) {
+        errors.value.phone = '연락처를 입력해주세요.'
+      } else if (!isValidPhone(value)) {
+        errors.value.phone = '올바른 연락처 형식이 아닙니다.'
+      } else {
+        delete errors.value.phone
+      }
+      break
+    case 'email':
+      if (!value || !value.trim()) {
+        errors.value.email = '이메일을 입력해주세요.'
+      } else if (!isValidEmail(value)) {
+        errors.value.email = '올바른 이메일 형식이 아닙니다.'
+      } else {
+        delete errors.value.email
+      }
+      break
+    case 'city':
+      if (!value || !value.trim()) {
+        errors.value.city = '시/도를 입력해주세요.'
+      } else {
+        delete errors.value.city
+      }
+      break
+    case 'district':
+      if (!value || !value.trim()) {
+        errors.value.district = '구/군을 입력해주세요.'
+      } else {
+        delete errors.value.district
+      }
+      break
+    case 'address':
+      if (!value || !value.trim()) {
+        errors.value.address = '상세주소를 입력해주세요.'
+      } else {
+        delete errors.value.address
+      }
+      break
+    case 'bankName':
+      if (!value) {
+        errors.value.bankName = '은행을 선택해주세요.'
+      } else {
+        delete errors.value.bankName
+      }
+      break
+    case 'accountHolder':
+      if (!value || !value.trim()) {
+        errors.value.accountHolder = '예금주를 입력해주세요.'
+      } else {
+        delete errors.value.accountHolder
+      }
+      break
+    case 'accountNumber':
+      if (!value || !value.trim()) {
+        errors.value.accountNumber = '계좌번호를 입력해주세요.'
+      } else if (!/^\d+$/.test(value)) {
+        errors.value.accountNumber = '숫자만 입력해주세요.'
+      } else {
+        delete errors.value.accountNumber
+      }
+      break
+  }
+}
+
+// 전체 폼 유효성 검사
+const validateForm = () => {
+  errors.value = {}
+  let isValid = true
+  const errorMessages = []
+
+  // 기본정보 검사
+  if (!form.value.name?.trim()) {
+    errors.value.name = '숙소명을 입력해주세요.'
+    errorMessages.push('숙소명')
+    isValid = false
+  }
+  if (!form.value.type) {
+    errors.value.type = '숙소유형을 선택해주세요.'
+    errorMessages.push('숙소유형')
+    isValid = false
+  }
+  if (!form.value.description?.trim()) {
+    errors.value.description = '숙소 소개를 입력해주세요.'
+    errorMessages.push('숙소 소개')
+    isValid = false
+  }
+  if (!form.value.phone?.trim()) {
+    errors.value.phone = '연락처를 입력해주세요.'
+    errorMessages.push('연락처')
+    isValid = false
+  } else if (!isValidPhone(form.value.phone)) {
+    errors.value.phone = '올바른 연락처 형식이 아닙니다.'
+    errorMessages.push('연락처 형식')
+    isValid = false
+  }
+  if (!form.value.email?.trim()) {
+    errors.value.email = '이메일을 입력해주세요.'
+    errorMessages.push('이메일')
+    isValid = false
+  } else if (!isValidEmail(form.value.email)) {
+    errors.value.email = '올바른 이메일 형식이 아닙니다.'
+    errorMessages.push('이메일 형식')
+    isValid = false
+  }
+
+  // 위치정보 검사
+  if (!form.value.city?.trim()) {
+    errors.value.city = '시/도를 입력해주세요.'
+    errorMessages.push('시/도')
+    isValid = false
+  }
+  if (!form.value.district?.trim()) {
+    errors.value.district = '구/군을 입력해주세요.'
+    errorMessages.push('구/군')
+    isValid = false
+  }
+  if (!form.value.address?.trim()) {
+    errors.value.address = '상세주소를 입력해주세요.'
+    errorMessages.push('상세주소')
+    isValid = false
+  }
+  if (!form.value.latitude || !form.value.longitude) {
+    errors.value.location = '위치 확인 버튼을 클릭하여 위치를 확인해주세요.'
+    errorMessages.push('위치 확인')
+    isValid = false
+  }
+
+  // 이미지 검사
+  if (!form.value.bannerImageFile) {
+    errors.value.bannerImage = '배너 이미지를 등록해주세요.'
+    errorMessages.push('배너 이미지')
+    isValid = false
+  }
+
+  // 객실 검사
+  if (rooms.value.length === 0) {
+    errors.value.rooms = '최소 1개의 객실을 등록해야 합니다.'
+    errorMessages.push('객실')
+    isValid = false
+  }
+
+  // 정산 계좌 검사
+  if (!form.value.bankName) {
+    errors.value.bankName = '은행을 선택해주세요.'
+    errorMessages.push('은행명')
+    isValid = false
+  }
+  if (!form.value.accountHolder?.trim()) {
+    errors.value.accountHolder = '예금주를 입력해주세요.'
+    errorMessages.push('예금주')
+    isValid = false
+  }
+  if (!form.value.accountNumber?.trim()) {
+    errors.value.accountNumber = '계좌번호를 입력해주세요.'
+    errorMessages.push('계좌번호')
+    isValid = false
+  } else if (!/^\d+$/.test(form.value.accountNumber)) {
+    errors.value.accountNumber = '계좌번호는 숫자만 입력해주세요.'
+    errorMessages.push('계좌번호 형식')
+    isValid = false
+  }
+
+  return { isValid, errorMessages }
+}
+
+// 객실 폼 유효성 검사
+const roomErrors = ref({})
+
+const validateRoomForm = () => {
+  roomErrors.value = {}
+  let isValid = true
+
+  // 객실명 검사
+  if (!roomForm.value.name?.trim()) {
+    roomErrors.value.name = '객실명을 입력해주세요.'
+    isValid = false
+  }
+
+  // 주중 요금 검사
+  if (!roomForm.value.weekdayPrice && roomForm.value.weekdayPrice !== 0) {
+    roomErrors.value.weekdayPrice = '주중 요금을 입력해주세요.'
+    isValid = false
+  } else if (isNaN(parseInt(roomForm.value.weekdayPrice)) || parseInt(roomForm.value.weekdayPrice) <= 0) {
+    roomErrors.value.weekdayPrice = '0보다 큰 숫자를 입력해주세요.'
+    isValid = false
+  }
+
+  // 주말 요금 검사
+  if (!roomForm.value.weekendPrice && roomForm.value.weekendPrice !== 0) {
+    roomErrors.value.weekendPrice = '주말 요금을 입력해주세요.'
+    isValid = false
+  } else if (isNaN(parseInt(roomForm.value.weekendPrice)) || parseInt(roomForm.value.weekendPrice) <= 0) {
+    roomErrors.value.weekendPrice = '0보다 큰 숫자를 입력해주세요.'
+    isValid = false
+  }
+
+  // 대표 이미지 검사
+  if (!roomForm.value.representativeImage) {
+    roomErrors.value.representativeImage = '객실 대표 이미지를 등록해주세요.'
+    isValid = false
+  }
+
+  // 인원 검사
+  const minGuests = parseInt(roomForm.value.minGuests) || 0
+  const maxGuests = parseInt(roomForm.value.maxGuests) || 0
+
+  if (roomForm.value.minGuests && minGuests <= 0) {
+    roomErrors.value.minGuests = '1명 이상 입력해주세요.'
+    isValid = false
+  }
+
+  if (roomForm.value.maxGuests && maxGuests <= 0) {
+    roomErrors.value.maxGuests = '1명 이상 입력해주세요.'
+    isValid = false
+  }
+
+  if (minGuests > 0 && maxGuests > 0 && minGuests > maxGuests) {
+    roomErrors.value.maxGuests = '최대 인원은 최소 인원보다 크거나 같아야 합니다.'
+    roomErrors.value.minGuests = '최소 인원은 최대 인원보다 작거나 같아야 합니다.'
+    isValid = false
+  }
+
+  // 침대, 욕실 개수 검사 (음수 방지)
+  if (roomForm.value.bedCount && parseInt(roomForm.value.bedCount) < 0) {
+    roomErrors.value.bedCount = '0 이상의 숫자를 입력해주세요.'
+    isValid = false
+  }
+
+  if (roomForm.value.bathroomCount && parseInt(roomForm.value.bathroomCount) < 0) {
+    roomErrors.value.bathroomCount = '0 이상의 숫자를 입력해주세요.'
+    isValid = false
+  }
+
+  return isValid
+}
+
+// 객실 폼 에러 초기화
+const resetRoomErrors = () => {
+  roomErrors.value = {}
+}
 
 // 은행 목록
 const bankList = ['국민은행', '신한은행', '우리은행', '하나은행', '농협', '카카오뱅크', '토스뱅크', '기업은행']
@@ -163,17 +522,24 @@ const handleBannerUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
     form.value.bannerImage = URL.createObjectURL(file)
+    form.value.bannerImageFile = file
   }
 }
 
 const handleDetailImagesUpload = (event) => {
   const files = Array.from(event.target.files)
-  const newImages = files.map(file => URL.createObjectURL(file))
-  form.value.detailImages = [...form.value.detailImages, ...newImages].slice(0, 5)
+  const remainingSlots = 5 - form.value.detailImages.length
+  const filesToAdd = files.slice(0, remainingSlots)
+
+  filesToAdd.forEach(file => {
+    form.value.detailImages.push(URL.createObjectURL(file))
+    form.value.detailImageFiles.push(file)
+  })
 }
 
 const removeDetailImage = (index) => {
   form.value.detailImages.splice(index, 1)
+  form.value.detailImageFiles.splice(index, 1)
 }
 
 // 모달 상태
@@ -263,12 +629,9 @@ const toggleRoomAmenity = (item) => {
 }
 
 const addRoom = () => {
-  if (!roomForm.value.name || !roomForm.value.weekdayPrice || !roomForm.value.weekendPrice) {
-    openModal('객실 이름, 주중/주말 요금은 필수입니다.')
-    return
-  }
-  if (!roomForm.value.representativeImage) {
-    openModal('객실 대표 이미지를 등록해주세요.')
+  if (!validateRoomForm()) {
+    const firstError = Object.values(roomErrors.value)[0]
+    openModal(firstError || '객실 정보를 확인해주세요.')
     return
   }
 
@@ -350,7 +713,15 @@ const initMap = async () => {
 
 // 주소로 좌표 검색
 const handleLocationCheck = () => {
-  const fullAddress = `${form.value.city} ${form.value.district} ${form.value.address}`.trim()
+  // 주소 조합: 시/도 + 구/군 + 읍면동 + 상세주소
+  const addressParts = [
+    form.value.city,
+    form.value.district,
+    form.value.township,
+    form.value.address
+  ].filter(part => part && part.trim())
+
+  const fullAddress = addressParts.join(' ').trim()
 
   if (!fullAddress || fullAddress.length < 5) {
     openModal('주소를 입력해주세요.')
@@ -399,44 +770,189 @@ watch(() => isVerified.value, async (newVal) => {
 
 
 const handleTempSave = () => {
+  // 로컬스토리지에 임시 저장
+  const tempData = {
+    form: form.value,
+    rooms: rooms.value,
+    businessRegistrationNumber: businessRegistrationNumber.value,
+    savedAt: new Date().toISOString()
+  }
+  localStorage.setItem('accommodationDraft', JSON.stringify(tempData))
   openModal('임시 저장되었습니다.')
 }
 
-const handleSubmit = () => {
-  if (!form.value.name || !form.value.type || !form.value.description) {
-    openModal('숙소 필수 정보를 모두 입력해주세요.')
+// 파일을 Base64로 변환하는 함수
+const fileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+// 편의시설 ID 매핑 (프론트 id -> 백엔드 amenityId)
+const amenityIdMap = {
+  'wifi': 1,
+  'aircon': 2,
+  'heating': 3,
+  'tv': 4
+}
+
+// 테마 ID 매핑 (프론트 name -> 백엔드 themeId)
+const themeIdMap = {
+  '불멍': 1, '포틀럭': 2, '러닝': 3, '서핑': 4,
+  '바닷가': 5, '공항 주변': 6, '노을 맛집(노을 명소)': 7,
+  '여성 전용': 8, '1인실': 9, '독서': 10, '스냅 촬영': 11,
+  '조식': 12, '오마카세': 13
+}
+
+const handleSubmit = async () => {
+  // 전체 폼 유효성 검사
+  const { isValid, errorMessages } = validateForm()
+
+  if (!isValid) {
+    if (errorMessages.length <= 3) {
+      openModal(`다음 항목을 확인해주세요:\n${errorMessages.join(', ')}`)
+    } else {
+      openModal(`입력되지 않은 필수 항목이 ${errorMessages.length}개 있습니다.\n빨간색으로 표시된 항목을 확인해주세요.`)
+    }
     return
   }
 
-  if (rooms.value.length === 0) {
-    openModal('최소 1개의 객실을 등록해야 합니다.')
-    return
+  try {
+    // 이미지 Base64 변환
+    const images = []
+
+    // 배너 이미지
+    if (form.value.bannerImageFile) {
+      images.push({
+        imageUrl: await fileToBase64(form.value.bannerImageFile),
+        imageType: 'banner',
+        sortOrder: 0
+      })
+    }
+
+    // 상세 이미지들
+    for (let i = 0; i < form.value.detailImageFiles.length; i++) {
+      images.push({
+        imageUrl: await fileToBase64(form.value.detailImageFiles[i]),
+        imageType: 'detail',
+        sortOrder: i + 1
+      })
+    }
+
+    // 사업자등록증 이미지 Base64 변환
+    let businessRegistrationImageBase64 = ''
+    if (businessLicenseFile.value) {
+      businessRegistrationImageBase64 = await fileToBase64(businessLicenseFile.value)
+    }
+
+    // 객실 데이터 변환 (프론트엔드 -> 백엔드 형식) - 이미지 Base64 변환 포함
+    const roomsData = await Promise.all(rooms.value.map(async (room) => {
+      let mainImageBase64 = ''
+      if (room.representativeImage) {
+        mainImageBase64 = await fileToBase64(room.representativeImage)
+      }
+      return {
+        roomName: room.name,
+        price: parseInt(room.weekdayPrice) || 0,
+        weekendPrice: parseInt(room.weekendPrice) || 0,
+        minGuests: parseInt(room.minGuests) || 1,
+        maxGuests: parseInt(room.maxGuests) || 2,
+        roomDescription: room.description || '',
+        mainImageUrl: mainImageBase64,
+        bathroomCount: parseInt(room.bathroomCount) || 1,
+        roomType: 'STANDARD',
+        bedCount: parseInt(room.bedCount) || 1
+      }
+    }))
+
+    // 편의시설 ID 변환
+    const amenityIds = form.value.amenities
+      .map(a => amenityIdMap[a])
+      .filter(id => id !== undefined)
+
+    // 테마 ID 변환
+    const themeIds = form.value.themes
+      .map(t => themeIdMap[t])
+      .filter(id => id !== undefined)
+
+    // 백엔드 API 요청 데이터 구성
+    const requestData = {
+      // 정산계좌 정보 (백엔드에서 계좌 등록 후 숙소와 연결)
+      bankName: form.value.bankName,
+      accountNumber: form.value.accountNumber,
+      accountHolder: form.value.accountHolder,
+      // 숙소 정보
+      accommodationsName: form.value.name,
+      accommodationsCategory: accommodationCategoryMap[form.value.type] || 'GUESTHOUSE',
+      accommodationsDescription: form.value.description,
+      shortDescription: form.value.shortDescription || '',
+      city: form.value.city,
+      district: form.value.district,
+      township: form.value.township || '',
+      addressDetail: form.value.address,
+      latitude: form.value.latitude,
+      longitude: form.value.longitude,
+      transportInfo: form.value.transportInfo || '',
+      businessRegistrationNumber: businessRegistrationNumber.value.replace(/[^0-9]/g, ''),
+      businessRegistrationImage: businessRegistrationImageBase64,
+      parkingInfo: form.value.parkingInfo || '',
+      sns: form.value.sns || '',
+      phone: form.value.phone,
+      checkInTime: form.value.checkInTime,
+      checkOutTime: form.value.checkOutTime,
+      // 편의시설 (IDs)
+      // 편의시설 (IDs)
+      amenityIds: form.value.amenities.map(name => amenityIdMap[name]).filter(id => id !== undefined),
+
+      // 테마 (IDs) - Convert name to ID
+      themeIds: form.value.themes.map(name => themeIdMap[name]).filter(id => id !== undefined),
+
+      rooms: roomsData,
+      images: images,  // 숙소 이미지 (배너, 디테일)
+
+      // Bank Info
+      bankName: form.value.bankName,
+      accountNumber: form.value.accountNumber,
+      accountHolder: form.value.accountHolder
+    }
+
+    console.log('Submitting to API:', requestData)
+
+    // API 호출
+    const response = await fetch(`${API_BASE_URL}/accommodations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData)
+    })
+
+    if (response.ok) {
+      const accommodationId = await response.json()
+      console.log('숙소 등록 완료, ID:', accommodationId)
+
+      // 임시 저장 데이터 삭제
+      localStorage.removeItem('accommodationDraft')
+
+      registrationSuccess.value = true
+      openModal('숙소가 성공적으로 등록되었습니다.')
+    } else {
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = await response.text(); // JSON 파싱 실패 시 텍스트로 읽기
+      }
+      console.error('숙소 등록 실패:', errorData)
+      openModal('숙소 등록에 실패했습니다: ' + (typeof errorData === 'object' ? JSON.stringify(errorData) : errorData))
+    }
+  } catch (error) {
+    console.error('숙소 등록 오류:', error)
+    openModal('숙소 등록 중 오류가 발생했습니다.')
   }
-  
-  // 실제 API 연동 시 여기에 저장 로직 추가
-  const prices = rooms.value
-    .flatMap((room) => [Number(room.weekdayPrice), Number(room.weekendPrice)])
-    .filter((price) => Number.isFinite(price) && price > 0)
-
-  const maxGuests = rooms.value
-    .map((room) => Number(room.maxGuests) || 0)
-    .reduce((acc, cur) => Math.max(acc, cur), 0)
-
-  const summary = {
-    name: form.value.name,
-    status: form.value.isActive ? 'active' : 'inactive',
-    location: [form.value.city, form.value.district].filter(Boolean).join(' '),
-    maxGuests,
-    roomCount: rooms.value.length,
-    price: prices.length ? Math.min(...prices) : 0,
-    images: [form.value.bannerImage, ...form.value.detailImages].filter(Boolean)
-  }
-
-  accommodationStore.addAccommodation(summary)
-  emit('submit', summary)
-  
-  registrationSuccess.value = true
-  openModal('숙소가 성공적으로 등록되었습니다.')
 }
 </script>
 
@@ -483,21 +999,21 @@ const handleSubmit = () => {
         <div class="license-upload-area">
           <div v-if="businessLicensePreview" class="license-preview">
             <img :src="businessLicensePreview" alt="사업자등록증" />
-            <button class="remove-btn" @click="businessLicensePreview = null; businessLicenseImage = null">&times;</button>
+            <button class="remove-btn" @click="businessLicensePreview = null; businessLicenseImage = null; businessLicenseFile = null">&times;</button>
           </div>
           <label v-else class="upload-box">
             <input type="file" accept="image/*" @change="handleLicenseUpload" hidden />
-            <span class="upload-text">이미지 파일 선택</span>
+            <span class="upload-text">사업자등록증 이미지 선택</span>
           </label>
         </div>
-        
+
         <div class="verification-actions">
-          <button 
-            class="btn-verify" 
+          <button
+            class="btn-verify"
             @click="verifyBusinessNumber"
             :disabled="isVerifying || !businessLicenseImage"
           >
-            {{ isVerifying ? '확인 중...' : '사업자번호 확인' }}
+            {{ isVerifying ? '확인 중...' : '사업자등록증 확인' }}
           </button>
         </div>
       </div>
@@ -514,47 +1030,73 @@ const handleSubmit = () => {
         
         <div class="form-group">
           <label>숙소명 <span class="required">*</span></label>
-          <input 
-            v-model="form.name" 
-            type="text" 
+          <input
+            v-model="form.name"
+            type="text"
             placeholder="숙소 이름을 입력하세요"
+            :class="{ 'input-error': errors.name }"
+            @blur="validateField('name', form.name)"
           />
+          <span v-if="errors.name" class="error-message">{{ errors.name }}</span>
         </div>
-        
+
         <div class="form-group">
           <label>숙소유형 <span class="required">*</span></label>
-          <select v-model="form.type">
+          <select
+            v-model="form.type"
+            :class="{ 'input-error': errors.type }"
+            @change="validateField('type', form.type)"
+          >
             <option value="" disabled>선택해주세요</option>
             <option v-for="type in accommodationTypes" :key="type" :value="type">
               {{ type }}
             </option>
           </select>
+          <span v-if="errors.type" class="error-message">{{ errors.type }}</span>
         </div>
-        
+
         <div class="form-group">
           <label>숙소 소개(상세설명) <span class="required">*</span></label>
-          <textarea 
-            v-model="form.description" 
+          <textarea
+            v-model="form.description"
             rows="5"
             placeholder="숙소의 매력 포인트, 주변 환경, 호스팅 스타일 등을 상세히 적어주세요."
+            :class="{ 'input-error': errors.description }"
+            @blur="validateField('description', form.description)"
           ></textarea>
+          <span v-if="errors.description" class="error-message">{{ errors.description }}</span>
         </div>
-        
+
         <div class="form-group">
           <label>대표 연락처 <span class="required">*</span></label>
-          <input 
-            v-model="form.phone" 
-            type="tel" 
+          <input
+            v-model="form.phone"
+            type="tel"
             placeholder="010-1234-5678"
+            :class="{ 'input-error': errors.phone }"
+            @blur="validateField('phone', form.phone)"
           />
+          <span v-if="errors.phone" class="error-message">{{ errors.phone }}</span>
         </div>
-        
+
         <div class="form-group">
           <label>이메일 주소 <span class="required">*</span></label>
-          <input 
-            v-model="form.email" 
-            type="email" 
+          <input
+            v-model="form.email"
+            type="email"
             placeholder="example@email.com"
+            :class="{ 'input-error': errors.email }"
+            @blur="validateField('email', form.email)"
+          />
+          <span v-if="errors.email" class="error-message">{{ errors.email }}</span>
+        </div>
+
+        <div class="form-group">
+          <label>SNS</label>
+          <input
+            v-model="form.sns"
+            type="text"
+            placeholder="예: @guesthouse_official (인스타그램, 블로그 등)"
           />
         </div>
       </section>
@@ -562,35 +1104,54 @@ const handleSubmit = () => {
       <!-- Section: 위치 정보 -->
       <section class="form-section">
         <h3 class="subsection-title">위치 정보</h3>
-        
+
         <div class="form-group">
           <label>시/도 <span class="required">*</span></label>
-          <input 
-            v-model="form.city" 
-            type="text" 
-            placeholder="예: 서울시"
+          <input
+            v-model="form.city"
+            type="text"
+            placeholder="예: 서울특별시"
+            :class="{ 'input-error': errors.city }"
+            @blur="validateField('city', form.city)"
           />
+          <span v-if="errors.city" class="error-message">{{ errors.city }}</span>
         </div>
-        
+
         <div class="form-group">
           <label>구/군 <span class="required">*</span></label>
-          <input 
-            v-model="form.district" 
-            type="text" 
+          <input
+            v-model="form.district"
+            type="text"
             placeholder="예: 강남구"
+            :class="{ 'input-error': errors.district }"
+            @blur="validateField('district', form.district)"
           />
+          <span v-if="errors.district" class="error-message">{{ errors.district }}</span>
         </div>
-        
+
         <div class="form-group">
-          <label>상세주소(동, 호수) <span class="required">*</span></label>
-          <input 
-            v-model="form.address" 
-            type="text" 
-            placeholder="예: 테헤란로 123, 456호"
+          <label>읍/면/동</label>
+          <input
+            v-model="form.township"
+            type="text"
+            placeholder="예: 역삼동"
           />
         </div>
-        
+
+        <div class="form-group">
+          <label>상세주소 <span class="required">*</span></label>
+          <input
+            v-model="form.address"
+            type="text"
+            placeholder="예: 테헤란로 123, 456호"
+            :class="{ 'input-error': errors.address }"
+            @blur="validateField('address', form.address)"
+          />
+          <span v-if="errors.address" class="error-message">{{ errors.address }}</span>
+        </div>
+
         <button class="btn-location" @click="handleLocationCheck">위치 확인</button>
+        <span v-if="errors.location" class="error-message">{{ errors.location }}</span>
       </section>
 
       <!-- Section: 지도 -->
@@ -694,7 +1255,7 @@ const handleSubmit = () => {
 
         <div class="form-group">
           <label>배너 이미지 <span class="required">*</span></label>
-          <div class="upload-box">
+          <div class="upload-box" :class="{ 'upload-error': errors.bannerImage }">
             <div class="upload-placeholder" v-if="!form.bannerImage">
               <span class="upload-text">드래그하거나 클릭해 배너 이미지 추가</span>
               <span class="upload-info">JPG, PNG, HEIC / 최대 20MB</span>
@@ -703,6 +1264,7 @@ const handleSubmit = () => {
             <img v-else :src="form.bannerImage" class="banner-preview" />
             <input type="file" accept="image/*" @change="handleBannerUpload" />
           </div>
+          <span v-if="errors.bannerImage" class="error-message">{{ errors.bannerImage }}</span>
         </div>
         
         <div class="form-group">
@@ -770,33 +1332,45 @@ const handleSubmit = () => {
       <!-- Section: 정산 계좌 -->
       <section class="form-section">
         <h3 class="subsection-title">정산 계좌</h3>
-        
+
         <div class="form-group">
           <label>은행명 <span class="required">*</span></label>
-          <select v-model="form.bankName">
+          <select
+            v-model="form.bankName"
+            :class="{ 'input-error': errors.bankName }"
+            @change="validateField('bankName', form.bankName)"
+          >
             <option value="" disabled>선택해주세요</option>
             <option v-for="bank in bankList" :key="bank" :value="bank">
               {{ bank }}
             </option>
           </select>
+          <span v-if="errors.bankName" class="error-message">{{ errors.bankName }}</span>
         </div>
-        
+
         <div class="form-group">
           <label>예금주 <span class="required">*</span></label>
-          <input 
-            v-model="form.accountHolder" 
-            type="text" 
+          <input
+            v-model="form.accountHolder"
+            type="text"
             placeholder="예금주명을 입력해주세요"
+            :class="{ 'input-error': errors.accountHolder }"
+            @blur="validateField('accountHolder', form.accountHolder)"
           />
+          <span v-if="errors.accountHolder" class="error-message">{{ errors.accountHolder }}</span>
         </div>
-        
+
         <div class="form-group">
           <label>계좌번호 <span class="required">*</span></label>
-          <input 
-            v-model="form.accountNumber" 
-            type="text" 
+          <input
+            v-model="form.accountNumber"
+            type="text"
             placeholder="'-' 없이 숫자만 입력"
+            :class="{ 'input-error': errors.accountNumber }"
+            @input="filterNumberInput"
+            @blur="validateField('accountNumber', form.accountNumber)"
           />
+          <span v-if="errors.accountNumber" class="error-message">{{ errors.accountNumber }}</span>
         </div>
       </section>
 
@@ -844,10 +1418,13 @@ const handleSubmit = () => {
           </div>
         </div>
         
-        <p v-else class="no-rooms">등록된 객실이 없습니다.</p>
+        <p v-else class="no-rooms" :class="{ 'no-rooms-error': errors.rooms }">
+          등록된 객실이 없습니다.
+          <span v-if="errors.rooms" class="error-message">{{ errors.rooms }}</span>
+        </p>
         
         <!-- 객실 추가 버튼 -->
-        <button class="add-room-btn" @click="showRoomForm = true" v-if="!showRoomForm">
+        <button class="add-room-btn" @click="showRoomForm = true; resetRoomErrors()" v-if="!showRoomForm">
           + 객실 추가하기
         </button>
         
@@ -861,12 +1438,14 @@ const handleSubmit = () => {
               v-model="roomForm.name"
               type="text"
               placeholder="예: 스탠다드 더블룸"
+              :class="{ 'input-error': roomErrors.name }"
             />
+            <span v-if="roomErrors.name" class="error-message">{{ roomErrors.name }}</span>
           </div>
 
           <div class="form-group">
             <label>객실 대표 이미지 <span class="required">*</span></label>
-            <div class="room-image-upload-area">
+            <div class="room-image-upload-area" :class="{ 'upload-error': roomErrors.representativeImage }">
               <div v-if="roomForm.representativeImagePreview" class="room-image-preview">
                 <img :src="roomForm.representativeImagePreview" alt="객실 대표 이미지" />
                 <button type="button" class="room-remove-image-btn" @click="removeRoomImage">
@@ -887,6 +1466,7 @@ const handleSubmit = () => {
                 </div>
               </label>
             </div>
+            <span v-if="roomErrors.representativeImage" class="error-message">{{ roomErrors.representativeImage }}</span>
           </div>
 
           <div class="form-row two-col">
@@ -897,9 +1477,13 @@ const handleSubmit = () => {
                   v-model="roomForm.weekdayPrice"
                   type="number"
                   placeholder="50000"
+                  :class="{ 'input-error': roomErrors.weekdayPrice }"
+                  @input="filterNumberInput"
+                  min="0"
                 />
                 <span class="unit">원</span>
               </div>
+              <span v-if="roomErrors.weekdayPrice" class="error-message">{{ roomErrors.weekdayPrice }}</span>
             </div>
             <div class="form-group">
               <label>주말 요금 (금~토) <span class="required">*</span></label>
@@ -908,12 +1492,16 @@ const handleSubmit = () => {
                   v-model="roomForm.weekendPrice"
                   type="number"
                   placeholder="70000"
+                  :class="{ 'input-error': roomErrors.weekendPrice }"
+                  @input="filterNumberInput"
+                  min="0"
                 />
                 <span class="unit">원</span>
               </div>
+              <span v-if="roomErrors.weekendPrice" class="error-message">{{ roomErrors.weekendPrice }}</span>
             </div>
           </div>
-          
+
           <div class="form-row two-col">
             <div class="form-group">
               <label>최소 인원</label>
@@ -921,7 +1509,11 @@ const handleSubmit = () => {
                 v-model="roomForm.minGuests"
                 type="number"
                 placeholder="명"
+                :class="{ 'input-error': roomErrors.minGuests }"
+                @input="filterNumberInput"
+                min="1"
               />
+              <span v-if="roomErrors.minGuests" class="error-message">{{ roomErrors.minGuests }}</span>
             </div>
             <div class="form-group">
               <label>최대 인원</label>
@@ -929,7 +1521,11 @@ const handleSubmit = () => {
                 v-model="roomForm.maxGuests"
                 type="number"
                 placeholder="명"
+                :class="{ 'input-error': roomErrors.maxGuests }"
+                @input="filterNumberInput"
+                min="1"
               />
+              <span v-if="roomErrors.maxGuests" class="error-message">{{ roomErrors.maxGuests }}</span>
             </div>
           </div>
 
@@ -940,7 +1536,11 @@ const handleSubmit = () => {
                 v-model="roomForm.bedCount"
                 type="number"
                 placeholder="개"
+                :class="{ 'input-error': roomErrors.bedCount }"
+                @input="filterNumberInput"
+                min="0"
               />
+              <span v-if="roomErrors.bedCount" class="error-message">{{ roomErrors.bedCount }}</span>
             </div>
             <div class="form-group">
               <label>욕실 개수</label>
@@ -948,14 +1548,18 @@ const handleSubmit = () => {
                 v-model="roomForm.bathroomCount"
                 type="number"
                 placeholder="개"
+                :class="{ 'input-error': roomErrors.bathroomCount }"
+                @input="filterNumberInput"
+                min="0"
               />
+              <span v-if="roomErrors.bathroomCount" class="error-message">{{ roomErrors.bathroomCount }}</span>
             </div>
           </div>
-          
+
           <div class="form-group">
-            <label>객실 설명 <span class="required">*</span></label>
-            <textarea 
-              v-model="roomForm.description" 
+            <label>객실 설명</label>
+            <textarea
+              v-model="roomForm.description"
               rows="3"
               placeholder="객실의 특징, 편의시설, 전망 등을 상세히 입력해 주세요."
             ></textarea>
@@ -986,7 +1590,7 @@ const handleSubmit = () => {
           </div>
           
           <div class="room-form-actions">
-            <button class="btn-outline" @click="showRoomForm = false">취소</button>
+            <button class="btn-outline" @click="showRoomForm = false; resetRoomErrors()">취소</button>
             <button class="btn-primary" @click="addRoom">등록</button>
           </div>
         </div>
@@ -2062,4 +2666,57 @@ input[type="number"]:focus {
 .room-remove-image-btn:hover {
   background: rgba(0, 0, 0, 0.8);
 }
+
+/* ========== 유효성 검사 에러 스타일 ========== */
+.error-message {
+  display: block;
+  color: #e53935;
+  font-size: 0.8rem;
+  margin-top: 0.4rem;
+  padding-left: 0.2rem;
+}
+
+.input-error {
+  border-color: #e53935 !important;
+  background-color: #fff5f5 !important;
+}
+
+.input-error:focus {
+  border-color: #e53935 !important;
+  box-shadow: 0 0 0 2px rgba(229, 57, 53, 0.2);
+}
+
+.upload-error {
+  border-color: #e53935 !important;
+  background-color: #fff5f5 !important;
+}
+
+.no-rooms-error {
+  color: #e53935;
+  border: 1px dashed #e53935;
+  border-radius: 8px;
+  background-color: #fff5f5;
+}
+
+/* 객실 폼 에러 스타일 */
+.room-form .input-error {
+  border-color: #e53935 !important;
+}
+
+.room-form .error-message {
+  display: block;
+  margin-top: 0.3rem;
+}
+
+/* 입력 필드 에러 시 흔들림 애니메이션 */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.input-error {
+  animation: shake 0.3s ease-in-out;
+}
 </style>
+
