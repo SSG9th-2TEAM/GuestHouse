@@ -1,13 +1,14 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { login, saveUserInfo } from '@/api/authClient'
 
 const router = useRouter()
 
-const userId = ref('')
 const email = ref('')
 const password = ref('')
 const showPassword = ref(false)
+const isLoading = ref(false)
 
 // Modal State
 const showModal = ref(false)
@@ -34,18 +35,45 @@ const togglePassword = () => {
   showPassword.value = !showPassword.value
 }
 
-const handleLogin = () => {
-  if (userId.value && email.value && password.value) {
-    openModal('로그인 성공!', 'success', () => router.push('/'))
-  } else {
-    openModal('모든 필드를 입력해주세요.', 'error')
+const handleLogin = async () => {
+  // 입력 검증
+  if (!email.value || !password.value) {
+    openModal('이메일과 비밀번호를 입력해주세요.', 'error')
+    return
+  }
+
+  isLoading.value = true
+
+  try {
+    // 백엔드 API 호출
+    const response = await login(email.value, password.value)
+
+    if (response.ok && response.data) {
+      // 로그인 성공
+      // 사용자 정보 저장 (필요시)
+      saveUserInfo({
+        email: email.value
+      })
+
+      openModal('로그인 성공!', 'success', () => {
+        router.push('/')
+      })
+    } else {
+      // 로그인 실패
+      openModal('로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해주세요.', 'error')
+    }
+  } catch (error) {
+    console.error('로그인 에러:', error)
+    openModal('로그인 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.', 'error')
+  } finally {
+    isLoading.value = false
   }
 }
 
 const socialLogin = (provider) => {
   // 실제 구현 시 각 provider의 OAuth URL로 리다이렉트
   const urls = {
-    Google: 'https://accounts.google.com/o/oauth2/v2/auth', // 예시 URL
+    Google: 'https://accounts.google.com/o/oauth2/v2/auth', // 예시 URL 추가해야됨
     Kakao: 'https://kauth.kakao.com/oauth/authorize', // 예시 URL
     Naver: 'https://nid.naver.com/oauth2.0/authorize' // 예시 URL
   }
@@ -78,17 +106,7 @@ const goToSignup = () => {
                 type="email"
                 v-model="email"
                 placeholder="이메일을 입력하세요"
-            />
-          </div>
-        </div>
-
-        <div class="input-group">
-          <label>아이디</label>
-          <div class="input-wrapper">
-            <input
-                type="text"
-                v-model="userId"
-                placeholder="아이디를 입력하세요"
+                @keyup.enter="handleLogin"
             />
           </div>
         </div>
@@ -100,6 +118,7 @@ const goToSignup = () => {
                 :type="showPassword ? 'text' : 'password'"
                 v-model="password"
                 placeholder="비밀번호를 입력하세요"
+                @keyup.enter="handleLogin"
             />
             <button class="toggle-btn" @click="togglePassword">
               {{ showPassword ? '숨김' : '보기' }}
@@ -107,7 +126,9 @@ const goToSignup = () => {
           </div>
         </div>
 
-        <button class="login-btn" @click="handleLogin">로그인</button>
+        <button class="login-btn" @click="handleLogin" :disabled="isLoading">
+          {{ isLoading ? '로그인 중...' : '로그인' }}
+        </button>
       </div>
 
       <div class="divider">
@@ -254,8 +275,14 @@ const goToSignup = () => {
   transition: opacity 0.2s;
 }
 
-.login-btn:hover {
+.login-btn:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.login-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .divider {
