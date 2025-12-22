@@ -23,7 +23,7 @@ public class AdminInitializer implements CommandLineRunner {
         String adminEmail = "admin@admin.com"; //유효성 검사
 
         // 1. DB에 "admin@admin.com"이라는 이름을 가진 관리자가 이미 있는지 확인해봄
-        // (기존 "admin"에서 "admin@admin.com"으로 수정하여 중복 저장을 방지함)
+
         if (!adminRepository.existsByUsername(adminEmail)) {
 
             // 2. 없다면, "admin"이라는 비밀번호를 복잡하게 암호화
