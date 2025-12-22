@@ -903,20 +903,11 @@ const handleSubmit = async () => {
       phone: form.value.phone,
       checkInTime: form.value.checkInTime,
       checkOutTime: form.value.checkOutTime,
-      // 편의시설 (IDs)
-      // 편의시설 (IDs)
-      amenityIds: form.value.amenities.map(name => amenityIdMap[name]).filter(id => id !== undefined),
-
-      // 테마 (IDs) - Convert name to ID
-      themeIds: form.value.themes.map(name => themeIdMap[name]).filter(id => id !== undefined),
-
+      // 편의시설/테마 (IDs)
+      amenityIds,
+      themeIds,
       rooms: roomsData,
-      images: images,  // 숙소 이미지 (배너, 디테일)
-
-      // Bank Info
-      bankName: form.value.bankName,
-      accountNumber: form.value.accountNumber,
-      accountHolder: form.value.accountHolder
+      images: images  // 숙소 이미지 (배너, 디테일)
     }
 
     console.log('Submitting to API:', requestData)
@@ -2719,4 +2710,3 @@ input[type="number"]:focus {
   animation: shake 0.3s ease-in-out;
 }
 </style>
-

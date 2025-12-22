@@ -1,59 +1,13 @@
 <script setup>
-import {ref, computed} from 'vue'
+import { ref, computed } from 'vue'
 import HostAccommodationRegister from './HostAccommodationRegister.vue'
+import { useHostAccommodationsStore } from '@/stores/hostAccommodations'
 
 const viewMode = ref('list')
+const accommodationStore = useHostAccommodationsStore()
 
-const hostAccommodations = ref([
-  {
-    id: 1,
-    name: '제주도 감성 숙소',
-    status: 'active',
-    location: '제주시 애월읍',
-    maxGuests: 4,
-    roomCount: 2,
-    price: 120000,
-    images: [
-      'https://picsum.photos/id/49/400/300',
-      'https://picsum.photos/id/50/400/300',
-      'https://picsum.photos/id/51/400/300',
-      'https://picsum.photos/id/52/400/300'
-    ]
-  },
-  {
-    id: 2,
-    name: '강릉 오션뷰 펜션',
-    status: 'active',
-    location: '강원도 강릉시',
-    maxGuests: 6,
-    roomCount: 3,
-    price: 180000,
-    images: [
-      'https://picsum.photos/id/53/400/300',
-      'https://picsum.photos/id/54/400/300',
-      'https://picsum.photos/id/55/400/300',
-      'https://picsum.photos/id/56/400/300'
-    ]
-  },
-  {
-    id: 3,
-    name: '한옥 게스트하우스',
-    status: 'inactive',
-    location: '전주시 완산구',
-    maxGuests: 8,
-    roomCount: 4,
-    price: 95000,
-    images: [
-      'https://picsum.photos/id/57/400/300',
-      'https://picsum.photos/id/58/400/300',
-      'https://picsum.photos/id/59/400/300',
-      'https://picsum.photos/id/60/400/300'
-    ]
-  }
-])
-
-const accommodationCount = computed(() => hostAccommodations.value.length)
-const hasAccommodations = computed(() => hostAccommodations.value.length > 0)
+const accommodationCount = computed(() => accommodationStore.accommodations.length)
+const hasAccommodations = computed(() => accommodationStore.accommodations.length > 0)
 
 const formatPrice = (price) => new Intl.NumberFormat('ko-KR').format(price)
 const getStatusLabel = (status) => (status === 'active' ? '운영중' : '운영중지')
@@ -61,14 +15,13 @@ const getStatusLabel = (status) => (status === 'active' ? '운영중' : '운영�
 const handleRegisterCancel = () => (viewMode.value = 'list')
 
 const handleRegisterSubmit = (formData) => {
-  const newId = Math.max(...hostAccommodations.value.map(a => a.id), 0) + 1
-  hostAccommodations.value.unshift({id: newId, ...formData, status: 'active'})
+  accommodationStore.addAccommodation(formData)
   viewMode.value = 'list'
 }
 
 const handleDelete = (id) => {
   if (confirm('정말 이 숙소를 삭제하시겠습니까?')) {
-    hostAccommodations.value = hostAccommodations.value.filter(acc => acc.id !== id)
+    accommodationStore.removeAccommodation(id)
   }
 }
 </script>
@@ -96,7 +49,7 @@ const handleDelete = (id) => {
 
       <div v-if="hasAccommodations" class="accommodation-list">
         <article
-            v-for="accommodation in hostAccommodations"
+            v-for="accommodation in accommodationStore.accommodations"
             :key="accommodation.id"
             class="accommodation-card"
         >

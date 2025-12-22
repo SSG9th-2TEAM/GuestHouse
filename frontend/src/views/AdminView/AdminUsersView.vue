@@ -1,12 +1,16 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import AdminStatCard from '../../components/admin/AdminStatCard.vue'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
 import { adminUsers, usersStats } from '../../mocks/adminMockData'
+import { exportCSV, exportXLSX } from '../../utils/reportExport'
 
 const stats = ref([])
 const users = ref([])
+const searchQuery = ref('')
+const statusFilter = ref('all')
+const typeFilter = ref('all')
 
 const loadUsers = () => {
   stats.value = [
@@ -22,7 +26,56 @@ onMounted(loadUsers)
 const statusVariant = (status) => {
   if (status === '활성') return 'success'
   if (status === '휴면') return 'warning'
+  if (status === '정지') return 'danger'
   return 'neutral'
+}
+
+const riskVariant = (risk) => {
+  if (risk === '높음') return 'danger'
+  if (risk === '중간') return 'warning'
+  return 'success'
+}
+
+const filteredUsers = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  return users.value.filter((user) => {
+    const matchesQuery = !query ||
+      user.name.toLowerCase().includes(query) ||
+      user.email.toLowerCase().includes(query) ||
+      user.phone.includes(query) ||
+      user.id.toLowerCase().includes(query)
+    const matchesStatus = statusFilter.value === 'all' || user.status === statusFilter.value
+    const matchesType = typeFilter.value === 'all' || user.type === typeFilter.value
+    return matchesQuery && matchesStatus && matchesType
+  })
+})
+
+const downloadReport = (format) => {
+  const today = new Date().toISOString().slice(0, 10)
+  const sheets = [
+    {
+      name: '회원 목록',
+      columns: [
+        { key: 'id', label: 'ID' },
+        { key: 'name', label: '이름' },
+        { key: 'email', label: '이메일' },
+        { key: 'phone', label: '연락처' },
+        { key: 'type', label: '유형' },
+        { key: 'joinedAt', label: '가입일' },
+        { key: 'lastLogin', label: '최근 접속' },
+        { key: 'activity', label: '활동' },
+        { key: 'risk', label: '리스크' },
+        { key: 'status', label: '상태' }
+      ],
+      rows: filteredUsers.value
+    }
+  ]
+
+  if (format === 'xlsx') {
+    exportXLSX({ filename: `admin-users-${today}.xlsx`, sheets })
+    return
+  }
+  exportCSV({ filename: `admin-users-${today}.csv`, sheets })
 }
 </script>
 
@@ -46,38 +99,101 @@ const statusVariant = (status) => {
       />
     </div>
 
+    <div class="admin-filter-bar">
+      <div class="admin-filter-group">
+        <span class="admin-chip">검색</span>
+        <input
+          v-model="searchQuery"
+          class="admin-input"
+          type="search"
+          placeholder="이름, 이메일, 연락처, ID"
+        />
+      </div>
+      <div class="admin-filter-group">
+        <span class="admin-chip">필터</span>
+        <select v-model="typeFilter" class="admin-select">
+          <option value="all">전체 유형</option>
+          <option value="게스트">게스트</option>
+          <option value="호스트">호스트</option>
+        </select>
+        <select v-model="statusFilter" class="admin-select">
+          <option value="all">전체 상태</option>
+          <option value="활성">활성</option>
+          <option value="휴면">휴면</option>
+          <option value="정지">정지</option>
+        </select>
+      </div>
+      <div class="admin-filter-group">
+        <details class="admin-dropdown">
+          <summary class="admin-btn admin-btn--ghost">다운로드</summary>
+          <div class="admin-dropdown__menu">
+            <button class="admin-btn admin-btn--ghost admin-dropdown__item" type="button" @click="downloadReport('csv')">
+              CSV
+            </button>
+            <button class="admin-btn admin-btn--primary admin-dropdown__item" type="button" @click="downloadReport('xlsx')">
+              XLSX
+            </button>
+          </div>
+        </details>
+      </div>
+    </div>
+
     <AdminTableCard title="회원 목록">
-      <table>
+      <table class="admin-table--nowrap admin-table--tight">
         <thead>
           <tr>
+            <th>ID</th>
             <th>사용자</th>
+            <th>연락처</th>
             <th>이메일</th>
             <th>유형</th>
             <th>가입일</th>
+            <th>최근 접속</th>
             <th>활동</th>
+            <th>리스크</th>
             <th>상태</th>
             <th>관리</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in users" :key="user.email">
+          <tr v-for="user in filteredUsers" :key="user.id">
+            <td class="admin-strong">{{ user.id }}</td>
             <td>
               <div class="admin-user">
                 <div class="admin-avatar">{{ user.name.slice(0, 1) }}</div>
-                <span class="admin-strong">{{ user.name }}</span>
+                <span class="admin-strong">{{ user.name }} · {{ user.email }}</span>
               </div>
             </td>
+            <td>{{ user.phone }}</td>
             <td>{{ user.email }}</td>
             <td>{{ user.type }}</td>
             <td>{{ user.joinedAt }}</td>
+            <td>{{ user.lastLogin }}</td>
             <td>{{ user.activity }}</td>
+            <td>
+              <AdminBadge :text="user.risk" :variant="riskVariant(user.risk)" />
+            </td>
             <td>
               <AdminBadge :text="user.status" :variant="statusVariant(user.status)" />
             </td>
             <td>
-              <button class="admin-btn-ghost" type="button" @click="console.log('open user', user.email)">
-                상세
-              </button>
+              <div class="admin-inline-actions admin-inline-actions--nowrap">
+                <button class="admin-btn admin-btn--ghost" type="button">상세</button>
+                <button
+                  v-if="user.status === '정지'"
+                  class="admin-btn admin-btn--primary"
+                  type="button"
+                >
+                  복구
+                </button>
+                <button
+                  v-else
+                  class="admin-btn admin-btn--danger"
+                  type="button"
+                >
+                  정지
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -29,6 +30,8 @@ public class HostDashboardServiceImpl implements HostDashboardService {
 
     @Override
     public List<TodayScheduleItemResponse> getTodaySchedule(Long hostId, LocalDate date) {
-        return hostDashboardMapper.selectTodaySchedule(hostId, date);
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = start.plusDays(1);
+        return hostDashboardMapper.selectTodaySchedule(hostId, start, end);
     }
 }
