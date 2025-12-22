@@ -4,13 +4,11 @@ import com.ssg9th2team.geharbang.domain.auth.dto.LoginRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.SignupRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.TokenResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.UserResponse;
-import com.ssg9th2team.geharbang.domain.auth.entity.Theme;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
-import com.ssg9th2team.geharbang.domain.auth.entity.UserTheme;
-import com.ssg9th2team.geharbang.domain.auth.repository.ThemeRepository;
+
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
-import com.ssg9th2team.geharbang.domain.auth.repository.UserThemeRepository;
+
 import com.ssg9th2team.geharbang.global.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
-import java.util.List;
 
 @Slf4j
 @Service
@@ -30,8 +27,6 @@ import java.util.List;
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
-    private final ThemeRepository themeRepository;
-    private final UserThemeRepository userThemeRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -58,17 +53,7 @@ public class AuthServiceImpl implements AuthService {
 
         User savedUser = userRepository.save(user);
 
-        // 4. 관심 테마 저장
-        if (signupRequest.getThemeIds() != null && !signupRequest.getThemeIds().isEmpty()) {
-            List<Theme> themes = themeRepository.findAllById(signupRequest.getThemeIds());
-            for (Theme theme : themes) {
-                UserTheme userTheme = UserTheme.builder()
-                        .user(savedUser)
-                        .theme(theme)
-                        .build();
-                userThemeRepository.save(userTheme);
-            }
-        }
+        // 관심 테마 다시 구현 예정
 
         log.info("회원가입 완료: {}", savedUser.getEmail());
         return UserResponse.from(savedUser);

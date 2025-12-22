@@ -7,65 +7,73 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-<<<<<<< Updated upstream
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-=======
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
->>>>>>> Stashed changes
 
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-<<<<<<< Updated upstream
-        @Bean
-        public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-                http
-                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                                .csrf(csrf -> csrf.disable())
-                                .sessionManagement(session -> session
-                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                                .authorizeHttpRequests(auth -> auth
-                                                .anyRequest().permitAll());
-=======
     private final JwtTokenProvider jwtTokenProvider;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        // 모든 요청 허용 (테스트용)
-                        .anyRequest().permitAll()
+                // CSRF 비활성화 (JWT 사용)
+                .csrf(AbstractHttpConfigurer::disable)
+
+                // CORS 설정
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+                // 세션 사용 안 함 (JWT 사용)
+                .sessionManagement(session ->
+                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                // JWT 필터 추가
-                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),
-                        UsernamePasswordAuthenticationFilter.class);
->>>>>>> Stashed changes
 
-                return http.build();
-        }
+                // 요청 권한 설정
+                .authorizeHttpRequests(auth -> auth
+                    // 인증 없이 접근 가능한 경로
+                    .requestMatchers(
+                        "/api/auth/**",
+                        "/api/public/**",
+                        "/error",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**"
+                    ).permitAll()
+                    // 그 외 모든 요청은 인증 필요
+                    .anyRequest().authenticated()
+                )
 
-        @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
-                CorsConfiguration configuration = new CorsConfiguration();
-                configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://localhost:5174",
-                                "http://localhost:8080"));
-                configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-                configuration.setAllowedHeaders(Arrays.asList("*"));
-                configuration.setAllowCredentials(true);
+                // JWT 인증 필터 추가
+                .addFilterBefore(
+                    new JwtAuthenticationFilter(jwtTokenProvider),
+                    UsernamePasswordAuthenticationFilter.class
+                );
 
-                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-                source.registerCorsConfiguration("/**", configuration);
-                return source;
-        }
+        return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
+    }
 }
