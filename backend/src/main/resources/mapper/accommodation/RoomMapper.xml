@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper">
+
+    
+    <insert id="insertRooms" parameterType="com.ssg9th2team.geharbang.domain.room.dto.RoomCreateDto"
+            useGeneratedKeys="true" keyProperty="roomId">
+        INSERT INTO room(
+                         accommodations_id,
+                         room_name,
+                         price,
+                         weekend_price,
+                         min_guests,
+                         max_guests,
+                         room_description,
+                         main_image_url,
+                         room_status,
+                         bathroom_count,
+                         room_type,
+                         bed_count
+        ) values (
+                  #{accommodationsId},
+                  #{roomName},
+                  #{price},
+                  #{weekendPrice},
+                  #{minGuests},
+                  #{maxGuests},
+                  #{roomDescription},
+                  #{mainImageUrl},
+                  #{roomStatus},
+                  #{bathroomCount},
+                  #{roomType},
+                  #{bedCount}
+                         )
+    </insert>
+</mapper>

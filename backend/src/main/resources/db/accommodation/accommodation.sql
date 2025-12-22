@@ -103,3 +103,14 @@ CREATE TABLE IF NOT EXISTS room
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 
+
+
+ALTER TABLE accommodation MODIFY business_registration_image LONGTEXT NULL;
+
+ALTER TABLE accommodation_image MODIFY image_url LONGTEXT NOT NULL;
+ALTER TABLE room MODIFY main_image_url LONGTEXT NULL;
+
+ALTER TABLE accommodation MODIFY accommodations_category ENUM('PENSION', 'GUESTHOUSE', 'HOTEL', 'MOTEL', 'RESORT', 'HANOK', 'CAMPING') NOT NULL DEFAULT 'GUESTHOUSE';
+
+INSERT IGNORE INTO users (user_id, email, password, phone, role, marketing_agree, created_at, updated_at, host_approved)
+VALUES (1, 'host@test.com', 'password', '010-1234-5678', 'HOST', 1, NOW(), NOW(), 1);
