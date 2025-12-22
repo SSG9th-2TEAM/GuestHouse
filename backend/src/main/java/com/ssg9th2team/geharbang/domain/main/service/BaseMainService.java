@@ -16,7 +16,8 @@ public class BaseMainService implements MainService {
 
     @Override
     public List<ListDto> findByTheme() {
-        return mainRepository.findAll().stream().map(Accommodation::toRead).toList();
+//        return mainRepository.findAll().stream().map(Accommodation::toRead).toList();
+        return mainRepository.findAll().stream().toList();
     }
 
 
