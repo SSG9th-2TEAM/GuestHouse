@@ -1,22 +1,29 @@
 <script setup>
-import {computed, ref} from 'vue'
-import {useRouter} from 'vue-router'
+import { computed, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { fetchHostDashboardSummary, fetchHostTodaySchedule } from '@/api/hostDashboard'
 
 const router = useRouter()
 
 const kpis = ref([
-  {label: '이번 달 예상 수익', value: 5200000, unit: '₩', trend: '+12%', tone: 'positive', target: '/host/revenue'},
-  {label: '이번 달 예약 확정', value: 34, unit: '건', trend: '+4건', tone: 'positive', target: '/host/booking'},
-  {label: '평균 평점', value: 4.8, unit: '/5.0', trend: '최근 30일', tone: 'neutral', target: '/host/review'},
-  {label: '숙소 운영 현황', value: '5/6', unit: ' 운영중', trend: '1건 점검중', tone: 'warning', target: '/host/accommodation'}
+  { label: '이번 달 예상 수익', value: 0, unit: '₩', trend: '집계 중', tone: 'positive', target: '/host/revenue' },
+  { label: '이번 달 예약 확정', value: 0, unit: '건', trend: '집계 중', tone: 'positive', target: '/host/booking' },
+  { label: '평균 평점', value: 0, unit: '/5.0', trend: '최근 30일', tone: 'neutral', target: '/host/review' },
+  { label: '숙소 운영 현황', value: '0/0', unit: ' 운영중', trend: '집계 중', tone: 'warning', target: '/host/accommodation' }
 ])
 
-const todayLabel = '2025년 12월 16일 (화)'
-const tasks = ref([
-  {id: 1, type: 'checkin', time: '15:00', accommodation: '강남 모던 게스트하우스 201호', guest: '김민수', phone: '010-1234-5678', email: 'minsu@example.com', memo: '바베큐 숯 추가 요청'},
-  {id: 2, type: 'checkout', time: '11:00', accommodation: '제주 감성 숙소 별채', guest: '이서연', phone: '010-2345-6789', email: 'seoyeon@example.com', memo: '침구 교체 필요'},
-  {id: 3, type: 'checkin', time: '18:00', accommodation: '해운대 오션뷰 802호', guest: '박지성', phone: '010-9876-5432', email: 'park@example.com', memo: ''}
-])
+const todayLabel = ref('')
+const tasks = ref([])
+const isLoading = ref(false)
+
+const formatDateLabel = (date) => {
+  const weekDays = ['일', '월', '화', '수', '목', '금', '토']
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  const weekday = weekDays[date.getDay()]
+  return `${year}년 ${month}월 ${day}일 (${weekday})`
+}
 
 const formatKpiValue = (value, unit) => {
   if (typeof value === 'number') {
@@ -41,6 +48,74 @@ const closeTask = () => {
   selectedTask.value = null
   showTaskModal.value = false
 }
+
+const loadDashboard = async () => {
+  isLoading.value = true
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = today.getMonth() + 1
+  todayLabel.value = formatDateLabel(today)
+
+  const [summaryRes, scheduleRes] = await Promise.all([
+    fetchHostDashboardSummary({ year, month }),
+    fetchHostTodaySchedule({ date: today.toISOString().slice(0, 10) })
+  ])
+
+  if (summaryRes.ok && summaryRes.data) {
+    const summary = summaryRes.data
+    kpis.value = [
+      {
+        label: '이번 달 예상 수익',
+        value: summary.expectedRevenue ?? 0,
+        unit: '₩',
+        trend: '이번 달 기준',
+        tone: 'positive',
+        target: '/host/revenue'
+      },
+      {
+        label: '이번 달 예약 확정',
+        value: summary.confirmedReservations ?? 0,
+        unit: '건',
+        trend: '이번 달 기준',
+        tone: 'positive',
+        target: '/host/booking'
+      },
+      {
+        label: '평균 평점',
+        value: summary.avgRating ?? 0,
+        unit: '/5.0',
+        trend: '최근 30일',
+        tone: 'neutral',
+        target: '/host/review'
+      },
+      {
+        label: '숙소 운영 현황',
+        value: summary.operatingAccommodations ?? 0,
+        unit: '개 운영중',
+        trend: '운영 중 숙소',
+        tone: 'warning',
+        target: '/host/accommodation'
+      }
+    ]
+  }
+
+  if (scheduleRes.ok && Array.isArray(scheduleRes.data)) {
+    tasks.value = scheduleRes.data.map((item) => ({
+      id: item.reservationId ?? `${item.accommodationName}-${item.time}`,
+      type: item.type === 'CHECKOUT' ? 'checkout' : 'checkin',
+      time: item.time || '',
+      accommodation: `${item.accommodationName}${item.roomName ? ` ${item.roomName}` : ''}`,
+      guest: item.guestName || '',
+      phone: item.phone || '',
+      email: '',
+      memo: item.requestNote || ''
+    }))
+  }
+
+  isLoading.value = false
+}
+
+onMounted(loadDashboard)
 </script>
 
 <template>
@@ -76,10 +151,10 @@ const closeTask = () => {
       <div class="task-head">
         <div>
           <h3>오늘 일정</h3>
-          <p class="task-date">{{ todayLabel }}</p>
-        </div>
-        <span class="task-chip">체크인/아웃 {{ tasks.length }}건</span>
+        <p class="task-date">{{ todayLabel }}</p>
       </div>
+      <span class="task-chip">체크인/아웃 {{ tasks.length }}건</span>
+    </div>
 
       <div class="task-list">
         <div v-for="task in tasks" :key="task.id" class="task-card" role="button" tabindex="0" @click="openTask(task)" @keypress.enter="openTask(task)">
@@ -95,7 +170,8 @@ const closeTask = () => {
         </div>
       </div>
 
-      <p v-if="!tasks.length" class="empty">오늘 예정된 일정이 없습니다.</p>
+      <p v-if="!tasks.length && !isLoading" class="empty">오늘 예정된 일정이 없습니다.</p>
+      <p v-else-if="isLoading" class="empty">일정을 불러오는 중입니다.</p>
       <p v-else-if="hasMemo" class="footnote">메모가 있는 일정은 📝 로 표시됩니다.</p>
     </section>
 

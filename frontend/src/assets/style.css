@@ -199,6 +199,117 @@ button {
     opacity: 0.6;
 }
 
+.admin-shell.is-dark {
+    --bg-body: #0b0f14;
+    --bg-white: #111820;
+    --border: #1f2a33;
+    --text-main: #e6eef3;
+    --text-sub: #9fb0bb;
+}
+
+.admin-shell.is-dark .admin-topbar {
+    background: #0f151c;
+    color: #e6eef3;
+    box-shadow: 0 10px 24px rgba(6, 10, 14, 0.55);
+}
+
+.admin-shell.is-dark .admin-logo-dot {
+    background: #BFE7DF;
+    box-shadow: 0 0 0 6px rgba(191, 231, 223, 0.2);
+}
+
+.admin-shell.is-dark .admin-nav__link {
+    color: #c8d6dd;
+}
+
+.admin-shell.is-dark .admin-nav__link.is-active {
+    background: rgba(191, 231, 223, 0.18);
+    color: #e9f7f4;
+    border: 1px solid rgba(191, 231, 223, 0.35);
+}
+
+.admin-shell.is-dark .admin-title,
+.admin-shell.is-dark .admin-strong {
+    color: #f4fbff;
+}
+
+.admin-shell.is-dark .admin-subtitle,
+.admin-shell.is-dark .admin-sub {
+    color: #9fb0bb;
+}
+
+.admin-shell.is-dark .admin-card,
+.admin-shell.is-dark .admin-table-card {
+    background: #111820;
+    border-color: #1f2a33;
+    box-shadow: 0 14px 28px rgba(6, 10, 14, 0.45);
+}
+
+.admin-shell.is-dark table th {
+    background: #0f151c;
+    color: #b9c7cf;
+}
+
+.admin-shell.is-dark table td {
+    color: #e6eef3;
+}
+
+.admin-shell.is-dark .admin-btn--primary {
+    background: #BFE7DF;
+    color: #0b3b32;
+}
+
+.admin-shell.is-dark .admin-btn--ghost {
+    color: #BFE7DF;
+    border-color: #2a3a44;
+}
+
+.admin-shell.is-dark .admin-btn--muted {
+    border-color: #2a3a44;
+    background: #0f151c;
+    color: #c8d6dd;
+}
+
+.admin-shell.is-dark .admin-filter-bar,
+.admin-shell.is-dark .admin-table--tight {
+    background: #0f151c;
+    border-color: #1f2a33;
+}
+
+.admin-shell.is-dark .admin-input,
+.admin-shell.is-dark .admin-select {
+    background: #0b1117;
+    border-color: #24323a;
+    color: #e6eef3;
+}
+
+.admin-shell.is-dark .admin-chip {
+    background: rgba(191, 231, 223, 0.12);
+    border-color: rgba(191, 231, 223, 0.28);
+    color: #dff3ee;
+}
+
+.admin-shell.is-dark .admin-alert-item,
+.admin-shell.is-dark .admin-highlight-item {
+    background: #0f151c;
+    border-color: #1f2a33;
+}
+
+.admin-shell.is-dark .admin-chart-bar {
+    background: rgba(191, 231, 223, 0.22);
+}
+
+.admin-shell.is-dark .admin-chart-bar__label {
+    color: #b9c7cf;
+}
+
+.admin-shell.is-dark .admin-highlight-sub {
+    color: #9fb0bb;
+}
+
+.admin-shell.is-dark .admin-card__eyebrow {
+    color: #b9c7cf;
+}
 .admin-inline-actions {
     display: flex;
     flex-wrap: wrap;
