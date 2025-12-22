@@ -6,11 +6,12 @@
 <mapper namespace="com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper">
 
 
-    <!-- 테마, 편의시설 -->
+    <!-- 테마, 편의시설, 객실 -->
     <resultMap id="AccommodationDetailMap" type="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto" autoMapping="true">
         <id property="accommodationsId" column="accommodationsId"/>
         <collection property="amenities" column="accommodationsId" select="selectAmenitiesByAccommodationId"/>
         <collection property="themes" column="accommodationsId" select="selectThemesByAccommodationId"/>
+        <collection property="rooms" column="accommodationsId" select="selectRoomsByAccommodationId"/>
     </resultMap>
 
 
@@ -184,8 +185,6 @@
 
 
 
-
-
     <!-- 편의시설 조회 (Nested Select) -->
     <select id="selectAmenitiesByAccommodationId" resultType="string">
         SELECT am.amenity_name
@@ -202,81 +201,32 @@
         WHERE at.accommodations_id = #{accommodationsId}
     </select>
 
-    <!-- Host accommodation list -->
-    <select id="selectHostAccommodations"
-            resultType="com.ssg9th2team.geharbang.domain.accommodation.dto.HostAccommodationSummaryResponse">
+    <!-- 객실 리스트 조회 (Nested Select) -->
+    <select id="selectRoomsByAccommodationId" resultType="com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto">
         SELECT
-            a.accommodations_id AS accommodationsId,
-            a.accommodations_name AS accommodationsName,
-            CASE
-                WHEN a.approval_status = 'PENDING' THEN 'inspection'
-                WHEN a.accommodation_status = 1 AND a.approval_status = 'APPROVED' THEN 'active'
-                ELSE 'inactive'
-            END AS status,
-            a.city,
-            a.district,
-            a.township,
-            a.address_detail AS addressDetail,
-            COALESCE(MAX(r.max_guests), 0) AS maxGuests,
-            COALESCE(COUNT(DISTINCT r.room_id), 0) AS roomCount,
-            COALESCE(MIN(r.price), 0) AS pricePerNight,
-            MAX(ai.image_url) AS imageUrl
-        FROM accommodation a
-        LEFT JOIN room r
-            ON r.accommodations_id = a.accommodations_id
-            AND r.room_status = 1
-        LEFT JOIN accommodation_image ai
-            ON ai.accommodations_id = a.accommodations_id
-            AND ai.image_type = 'banner'
-        WHERE a.user_id = #{hostId}
-        GROUP BY
-            a.accommodations_id,
-            a.accommodations_name,
-            a.approval_status,
-            a.accommodation_status,
-            a.city,
-            a.district,
-            a.township,
-            a.address_detail
-        ORDER BY a.created_at DESC
+            room_name AS roomName,
+            room_description AS roomDescription,
+            max_guests AS maxGuests,
+            price,
+            weekend_price AS weekendPrice,
+            main_image_url AS mainImageUrl
+        FROM room
+        WHERE accommodations_id = #{accommodationsId}
+          AND room_status = 1
+        ORDER BY room_id
     </select>
 
-    <select id="selectHostAccommodationById"
-            resultType="com.ssg9th2team.geharbang.domain.accommodation.dto.HostAccommodationSummaryResponse">
-        SELECT
-            a.accommodations_id AS accommodationsId,
-            a.accommodations_name AS accommodationsName,
-            CASE
-                WHEN a.approval_status = 'PENDING' THEN 'inspection'
-                WHEN a.accommodation_status = 1 AND a.approval_status = 'APPROVED' THEN 'active'
-                ELSE 'inactive'
-            END AS status,
-            a.city,
-            a.district,
-            a.township,
-            a.address_detail AS addressDetail,
-            COALESCE(MAX(r.max_guests), 0) AS maxGuests,
-            COALESCE(COUNT(DISTINCT r.room_id), 0) AS roomCount,
-            COALESCE(MIN(r.price), 0) AS pricePerNight,
-            MAX(ai.image_url) AS imageUrl
-        FROM accommodation a
-        LEFT JOIN room r
-            ON r.accommodations_id = a.accommodations_id
-            AND r.room_status = 1
-        LEFT JOIN accommodation_image ai
-            ON ai.accommodations_id = a.accommodations_id
-            AND ai.image_type = 'banner'
-        WHERE a.user_id = #{hostId}
-          AND a.accommodations_id = #{accommodationsId}
-        GROUP BY
-            a.accommodations_id,
-            a.accommodations_name,
-            a.approval_status,
-            a.accommodation_status,
-            a.city,
-            a.district,
-            a.township,
-            a.address_detail
-    </select>
+
+    <!-- 숙소 최소 가격 업데이트 (해당 숙소의 객실 중 최저 가격으로 업데이트) -->
+    <update id="updateMinPrice">
+        UPDATE accommodation
+        SET min_price = (
+            SELECT MIN(price)
+            FROM room
+            WHERE accommodations_id = #{accommodationsId}
+              AND room_status = 1
+        )
+        WHERE accommodations_id = #{accommodationsId}
+    </update>
 
 </mapper>

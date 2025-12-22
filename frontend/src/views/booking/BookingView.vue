@@ -1,23 +1,111 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { createReservation } from '@/api/reservationApi'
 
 const router = useRouter()
 const route = useRoute()
 
+// guests 텍스트에서 총 인원수 추출 (예: "성인 2명, 아동 1명" -> 3)
+const parseGuestCount = (guestsText) => {
+  if (!guestsText) return 1
+  const matches = guestsText.match(/(\d+)/g)
+  if (matches) {
+    return matches.reduce((sum, num) => sum + parseInt(num), 0)
+  }
+  return 1
+}
+
+// 숙박 일수 계산
+const calculateStayNights = (checkin, checkout) => {
+  if (!checkin || !checkout) return 1
+  const checkinDate = new Date(checkin)
+  const checkoutDate = new Date(checkout)
+  const diffTime = checkoutDate.getTime() - checkinDate.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  return diffDays > 0 ? diffDays : 1
+}
+
+// dates 텍스트에서 체크인/체크아웃 파싱 (예: "2025년 12월 24일 ~ 2025년 12월 26일")
+const parseDatesText = (datesText) => {
+  if (!datesText) return { checkin: null, checkout: null }
+  
+  // 패턴: "YYYY년 MM월 DD일 ~ YYYY년 MM월 DD일" 또는 "MM월 DD일 ~ MM월 DD일"
+  const regex = /(\d{4})년?\s*(\d{1,2})월\s*(\d{1,2})일/g
+  const matches = [...datesText.matchAll(regex)]
+  
+  if (matches.length >= 2) {
+    const year1 = matches[0][1]
+    const month1 = matches[0][2].padStart(2, '0')
+    const day1 = matches[0][3].padStart(2, '0')
+    
+    const year2 = matches[1][1]
+    const month2 = matches[1][2].padStart(2, '0')
+    const day2 = matches[1][3].padStart(2, '0')
+    
+    return {
+      checkin: `${year1}-${month1}-${day1}`,
+      checkout: `${year2}-${month2}-${day2}`
+    }
+  }
+  
+  // 년도 없는 패턴: "12월 24일 ~ 12월 26일"
+  const regexNoYear = /(\d{1,2})월\s*(\d{1,2})일/g
+  const matchesNoYear = [...datesText.matchAll(regexNoYear)]
+  
+  if (matchesNoYear.length >= 2) {
+    const currentYear = new Date().getFullYear()
+    const month1 = matchesNoYear[0][1].padStart(2, '0')
+    const day1 = matchesNoYear[0][2].padStart(2, '0')
+    const month2 = matchesNoYear[1][1].padStart(2, '0')
+    const day2 = matchesNoYear[1][2].padStart(2, '0')
+    
+    return {
+      checkin: `${currentYear}-${month1}-${day1}`,
+      checkout: `${currentYear}-${month2}-${day2}`
+    }
+  }
+  
+  return { checkin: null, checkout: null }
+}
+
 // Get data from query params
-const booking = computed(() => ({
-  hotelName: route.query.hotelName || '그랜드 호텔 서울',
-  rating: parseFloat(route.query.rating) || 4.8,
-  reviewCount: parseInt(route.query.reviewCount) || 219,
-  image: route.query.image || 'https://picsum.photos/id/11/800/400',
-  roomName: route.query.roomName || '스탠다드 룸',
-  dates: route.query.dates || '날짜를 선택하세요',
-  guests: route.query.guests || '성인 1명',
-  price: parseInt(route.query.roomPrice) || 150000,
-  currency: 'KRW',
-  alertMessage: '본 숙소 앞으로 기차나 기숙이 속으로 보는 예약이 가능 차 있습니다'
-}))
+const booking = computed(() => {
+  const guestsText = route.query.guests || '성인 1명'
+  const guestCountFromQuery = parseInt(route.query.guestCount)
+  const guestCount = !isNaN(guestCountFromQuery) ? guestCountFromQuery : parseGuestCount(guestsText)
+  
+  // checkin/checkout 쿼리 파라미터가 없으면 dates 텍스트에서 파싱
+  const datesText = route.query.dates || '날짜를 선택하세요'
+  let checkin = route.query.checkin || route.query.checkIn || null
+  let checkout = route.query.checkout || route.query.checkOut || null
+  
+  if (!checkin || !checkout) {
+    const parsedDates = parseDatesText(datesText)
+    checkin = checkin || parsedDates.checkin
+    checkout = checkout || parsedDates.checkout
+  }
+  
+  const stayNights = calculateStayNights(checkin, checkout)
+  
+  return {
+    accommodationsId: parseInt(route.params.id) || 1,
+    hotelName: route.query.hotelName || '그랜드 호텔 서울',
+    rating: parseFloat(route.query.rating) || 4.8,
+    reviewCount: parseInt(route.query.reviewCount) || 219,
+    image: route.query.image || 'https://picsum.photos/id/11/800/400',
+    roomName: route.query.roomName || '스탠다드 룸',
+    dates: datesText,
+    checkin: checkin,
+    checkout: checkout,
+    stayNights: stayNights,
+    guests: guestsText,
+    guestCount: guestCount,
+    price: parseInt(route.query.roomPrice) || 150000,
+    currency: 'KRW',
+    alertMessage: '본 숙소 앞으로 기차나 기숙이 속으로 보는 예약이 가능 차 있습니다'
+  }
+})
 
 const coupons = [
   { id: 1, name: '신규 가입 환영 쿠폰', discount: 10000 },
@@ -25,6 +113,8 @@ const coupons = [
 ]
 
 const selectedCoupon = ref(null)
+const isLoading = ref(false)
+const errorMessage = ref('')
 
 const finalPrice = computed(() => {
   const discount = selectedCoupon.value ? selectedCoupon.value.discount : 0
@@ -32,6 +122,57 @@ const finalPrice = computed(() => {
 })
 
 const goBack = () => router.back()
+
+// 예약 생성 및 결제 페이지로 이동
+const handlePayment = async () => {
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    // 체크인/체크아웃 날짜 파싱 (없으면 기본값 사용)
+    const now = new Date()
+    const checkinDate = booking.value.checkin 
+      ? new Date(booking.value.checkin) 
+      : new Date(now.getTime() + 24 * 60 * 60 * 1000) // 내일
+    const checkoutDate = booking.value.checkout 
+      ? new Date(booking.value.checkout) 
+      : new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000) // 모레
+
+    console.log('예약 생성 데이터:', {
+      checkin: booking.value.checkin,
+      checkout: booking.value.checkout,
+      guestCount: booking.value.guestCount,
+      stayNights: booking.value.stayNights,
+      guests: booking.value.guests
+    })
+
+    const reservationData = {
+      accommodationsId: booking.value.accommodationsId,
+      userId: null, // null이면 백엔드에서 기본값(1L) 사용
+      checkin: checkinDate.toISOString(),
+      checkout: checkoutDate.toISOString(),
+      guestCount: booking.value.guestCount,
+      totalAmount: booking.value.price,
+      couponId: selectedCoupon.value?.id || null,
+      couponDiscountAmount: selectedCoupon.value?.discount || 0,
+      reserverName: '홍길동', // TODO: 실제 사용자 정보로 대체
+      reserverPhone: '010-1234-5678' // TODO: 실제 사용자 정보로 대체
+    }
+
+    const response = await createReservation(reservationData)
+
+    // 예약 성공 시 결제 페이지로 이동
+    router.push({
+      name: 'payment',
+      params: { reservationId: response.reservationId }
+    })
+  } catch (error) {
+    console.error('예약 생성 실패:', error)
+    errorMessage.value = '예약 처리 중 오류가 발생했습니다. 다시 시도해주세요.'
+  } finally {
+    isLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -125,16 +266,14 @@ const goBack = () => router.back()
 
     <!-- Bottom Action -->
     <div class="bottom-action">
-      <button class="pay-btn" @click="router.push({ 
-        name: 'booking-success', 
-        state: { 
-          bookingData: {
-            ...booking, 
-            totalPrice: finalPrice,
-            basePrice: booking.price
-          } 
-        } 
-      })">결제하기</button>
+      <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+      <button 
+        class="pay-btn" 
+        :disabled="isLoading"
+        @click="handlePayment"
+      >
+        {{ isLoading ? '처리 중...' : '결제하기' }}
+      </button>
     </div>
   </div>
 </template>
@@ -346,5 +485,21 @@ const goBack = () => router.back()
   font-size: 1.1rem;
   font-weight: bold;
   box-sizing: border-box;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.pay-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  width: 100%;
+  max-width: 600px;
+  color: #e11d48;
+  font-size: 0.9rem;
+  text-align: center;
+  margin-bottom: 0.5rem;
 }
 </style>

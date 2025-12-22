@@ -1,33 +1,86 @@
 package com.ssg9th2team.geharbang.domain.room.service;
 
+import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomCreateDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomUpdateDto;
+import com.ssg9th2team.geharbang.domain.room.entity.Room;
+import com.ssg9th2team.geharbang.domain.room.repository.mybatis.RoomMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class RoomServiceImpl implements RoomService {
 
+    private final RoomMapper roomMapper;
+    private final AccommodationMapper accommodationMapper;
+
+    // 추가 객실 등록
     @Override
-    public Long createRoom(Long accommodationsId, RoomCreateDto createDto) {
-        return null;
+    @Transactional
+    public Long createRoom(Long accommodationsId, RoomCreateDto roomCreateDto) {
+        Room room = Room.builder()
+                .accommodationsId(accommodationsId)
+                .roomName(roomCreateDto.getRoomName())
+                .price(roomCreateDto.getPrice())
+                .weekendPrice(roomCreateDto.getWeekendPrice())
+                .minGuests(roomCreateDto.getMinGuests())
+                .maxGuests(roomCreateDto.getMaxGuests())
+                .roomDescription(roomCreateDto.getRoomDescription())
+                .mainImageUrl(roomCreateDto.getMainImageUrl())
+                .roomStatus(1)
+                .bathroomCount(roomCreateDto.getBathroomCount())
+                .roomType(roomCreateDto.getRoomType())
+                .bedCount(roomCreateDto.getBedCount())
+                .build();
+
+        roomMapper.insertRoom(room);
+
+        // 객실 등록 후 숙소의 최소 가격 업데이트
+        accommodationMapper.updateMinPrice(accommodationsId);
+
+        return room.getRoomId();
     }
 
+
+    // 객실 수정
     @Override
-    public RoomResponseDto getRoom(Long accommodationsId, Long roomId) {
-        return null;
+    @Transactional
+    public void updateRoom(Long accommodationsId, Long roomId, RoomUpdateDto roomUpdateDto) {
+        Room room = Room.builder()
+                .roomName(roomUpdateDto.getRoomName())
+                .price(roomUpdateDto.getPrice())
+                .weekendPrice(roomUpdateDto.getWeekendPrice())
+                .minGuests(roomUpdateDto.getMinGuests())
+                .maxGuests(roomUpdateDto.getMaxGuests())
+                .roomDescription(roomUpdateDto.getRoomDescription())
+                .mainImageUrl(roomUpdateDto.getMainImageUrl())
+                .bathroomCount(roomUpdateDto.getBathroomCount())
+                .roomType(roomUpdateDto.getRoomType())
+                .bedCount(roomUpdateDto.getBedCount())
+                .build();
+
+        roomMapper.updateRoom(accommodationsId, roomId, room);
+
+        // 객실 수정 후 숙소의 최소 가격 업데이트
+        accommodationMapper.updateMinPrice(accommodationsId);
     }
 
-    @Override
-    public void updateRoom(Long accommodationsId, Long roomId, RoomUpdateDto updateDto) {
 
-    }
-
+    // 객실 삭제
     @Override
+    @Transactional
     public void deleteRoom(Long accommodationsId, Long roomId) {
+        roomMapper.deleteRoom(accommodationsId, roomId);
 
+        // 예약된 객실이 있다면 삭제 불가
+
+        // 객실 삭제 후 숙소의 최소 가격 업데이트
+        accommodationMapper.updateMinPrice(accommodationsId);
     }
 }
    
