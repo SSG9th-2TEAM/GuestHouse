@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
+import { isAuthenticated, logout } from '@/api/authClient'
 
 const router = useRouter()
 const searchStore = useSearchStore()
@@ -11,6 +12,7 @@ const isSearchExpanded = ref(false)
 const isHostMode = ref(localStorage.getItem('isHostMode') === 'true')
 const isCalendarOpen = ref(false)
 const isGuestOpen = ref(false)
+const isLoggedIn = ref(isAuthenticated())
 
 // Toggle host mode and persist to localStorage
 const toggleHostMode = () => {
@@ -21,6 +23,22 @@ const toggleHostMode = () => {
   } else {
     router.push('/')
   }
+  isMenuOpen.value = false
+}
+
+// 로그인 페이지로 이동
+const handleLogin = () => {
+  router.push('/login')
+  isMenuOpen.value = false
+}
+
+// 로그아웃
+const handleLogout = () => {
+  logout()
+  isLoggedIn.value = false
+  isHostMode.value = false
+  localStorage.setItem('isHostMode', 'false')
+  router.push('/')
   isMenuOpen.value = false
 }
 
@@ -178,16 +196,14 @@ const handleResize = () => {
   }
 }
 
-const handleLogout = () => {
-  // Mock logout
-  alert('로그아웃 되었습니다.')
-  isMenuOpen.value = false
-  router.push('/')
-}
-
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('resize', handleResize)
+
+  // 페이지 이동 후 로그인 상태 업데이트
+  router.afterEach(() => {
+    isLoggedIn.value = isAuthenticated()
+  })
 })
 
 onUnmounted(() => {
@@ -220,14 +236,12 @@ onUnmounted(() => {
                 <button class="close-btn" @click="isMenuOpen = false">×</button>
               </div>
 
-              <div class="host-toggle-card">
+              <div class="host-toggle-card" @click="toggleHostMode">
                 <div class="toggle-info">
                   <div class="toggle-title">호스트 모드 전환</div>
                   <div class="toggle-status">현재: {{ isHostMode ? '호스트 모드' : '게스트 모드' }}</div>
                 </div>
-                <div class="toggle-switch" :class="{ active: isHostMode }" @click="toggleHostMode">
-                  <div class="toggle-slider"></div>
-                </div>
+                <div class="toggle-icon">›</div>
               </div>
 
               <ul class="menu-list">
@@ -239,7 +253,8 @@ onUnmounted(() => {
               </ul>
 
               <div class="menu-footer">
-                <button class="logout-btn" @click="handleLogout">로그아웃</button>
+                <button v-if="isLoggedIn" class="logout-btn" @click="handleLogout">로그아웃</button>
+                <button v-else class="login-btn" @click="handleLogin">로그인</button>
               </div>
             </div>
           </div>
@@ -726,6 +741,17 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.host-toggle-card:hover {
+  background: #DBEAFE;
+  transform: translateX(4px);
+}
+
+.host-toggle-card:active {
+  transform: translateX(2px);
 }
 
 .toggle-title {
@@ -740,34 +766,16 @@ onUnmounted(() => {
   color: #6B7280;
 }
 
-.toggle-switch {
-  width: 44px;
-  height: 24px;
-  background: #D1D5DB;
-  border-radius: 12px;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.3s;
+.toggle-icon {
+  font-size: 24px;
+  color: #6B7280;
+  font-weight: bold;
+  transition: transform 0.2s;
 }
 
-.toggle-switch.active {
-  background: #6DC3BB;
-}
-
-.toggle-slider {
-  width: 20px;
-  height: 20px;
-  background: white;
-  border-radius: 50%;
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  transition: left 0.3s;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-}
-
-.toggle-switch.active .toggle-slider {
-  left: 22px;
+.host-toggle-card:hover .toggle-icon {
+  transform: translateX(4px);
+  color: #00796b;
 }
 
 /* Menu List */
@@ -818,6 +826,21 @@ onUnmounted(() => {
 }
 
 .logout-btn:hover {
+  text-decoration: underline;
+}
+
+.login-btn {
+  background: none;
+  border: none;
+  color: #00796b; /* Teal */
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.login-btn:hover {
   text-decoration: underline;
 }
 
