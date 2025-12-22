@@ -3,6 +3,7 @@ package com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccountNumberDto;
+import com.ssg9th2team.geharbang.domain.accommodation.dto.HostAccommodationSummaryResponse;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -43,4 +44,13 @@ public interface AccommodationMapper {
     // ===== 정산계좌 =====
 
     void insertAccountNumber(AccountNumberDto accountNumberDto);
+
+    // ===== Host dashboard list =====
+
+    List<HostAccommodationSummaryResponse> selectHostAccommodations(@Param("hostId") Long hostId);
+
+    HostAccommodationSummaryResponse selectHostAccommodationById(
+            @Param("hostId") Long hostId,
+            @Param("accommodationsId") Long accommodationsId
+    );
 }

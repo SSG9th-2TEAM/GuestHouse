@@ -1,29 +1,94 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import HostAccommodationRegister from './HostAccommodationRegister.vue'
-import { useHostAccommodationsStore } from '@/stores/hostAccommodations'
+import { fetchHostAccommodations, deleteHostAccommodation } from '@/api/hostAccommodation'
 
 const viewMode = ref('list')
-const accommodationStore = useHostAccommodationsStore()
+const accommodations = ref([])
+const isLoading = ref(false)
+const loadError = ref('')
 
-const accommodationCount = computed(() => accommodationStore.accommodations.length)
-const hasAccommodations = computed(() => accommodationStore.accommodations.length > 0)
+const accommodationCount = computed(() => accommodations.value.length)
+const hasAccommodations = computed(() => accommodations.value.length > 0)
 
 const formatPrice = (price) => new Intl.NumberFormat('ko-KR').format(price)
-const getStatusLabel = (status) => (status === 'active' ? '운영중' : '운영중지')
+const getStatusLabel = (status) => {
+  if (status === 'active') return '운영중'
+  if (status === 'inspection') return '검수중'
+  return '운영중지'
+}
 
 const handleRegisterCancel = () => (viewMode.value = 'list')
 
 const handleRegisterSubmit = (formData) => {
-  accommodationStore.addAccommodation(formData)
+  accommodations.value.unshift({
+    id: formData.id ?? Date.now(),
+    status: formData.status ?? 'active',
+    ...formData
+  })
   viewMode.value = 'list'
 }
 
-const handleDelete = (id) => {
+const handleDelete = async (id) => {
   if (confirm('정말 이 숙소를 삭제하시겠습니까?')) {
-    accommodationStore.removeAccommodation(id)
+    const response = await deleteHostAccommodation(id)
+    if (response.ok) {
+      accommodations.value = accommodations.value.filter((item) => item.id !== id)
+    } else {
+      alert('숙소 삭제에 실패했습니다.')
+    }
   }
 }
+
+const normalizeStatus = (status) => {
+  if (!status) return 'inactive'
+  const value = String(status).toLowerCase()
+  if (value === 'active') return 'active'
+  if (value === 'inactive') return 'inactive'
+  if (value === 'inspection') return 'inspection'
+  return value
+}
+
+const normalizeAccommodation = (item) => {
+  const id = item.accommodationsId ?? item.accommodationId ?? item.id
+  const name = item.accommodationsName ?? item.name ?? ''
+  const status = normalizeStatus(item.status ?? item.accommodationStatus ?? item.approvalStatus)
+  const location = [item.city, item.district, item.township, item.address]
+    .filter(Boolean)
+    .join(' ')
+  const maxGuests = item.maxGuests ?? item.max_guests ?? item.maxGuestCount ?? 0
+  const roomCount = item.roomCount ?? item.roomsCount ?? item.totalRooms ?? 0
+  const price = item.pricePerNight ?? item.price ?? item.roomPrice ?? 0
+  const images = item.images ?? item.imageUrls ?? item.imageUrl ?? []
+  return {
+    id,
+    name,
+    status,
+    location,
+    maxGuests,
+    roomCount,
+    price,
+    images: Array.isArray(images) ? images : [images].filter(Boolean)
+  }
+}
+
+const loadAccommodations = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  const response = await fetchHostAccommodations()
+  if (response.ok) {
+    const payload = response.data
+    const list = Array.isArray(payload)
+      ? payload
+      : payload?.items ?? payload?.content ?? payload?.data ?? []
+    accommodations.value = list.map(normalizeAccommodation)
+  } else {
+    loadError.value = '숙소 목록을 불러오지 못했습니다.'
+  }
+  isLoading.value = false
+}
+
+onMounted(loadAccommodations)
 </script>
 
 <template>
@@ -49,7 +114,7 @@ const handleDelete = (id) => {
 
       <div v-if="hasAccommodations" class="accommodation-list">
         <article
-            v-for="accommodation in accommodationStore.accommodations"
+            v-for="accommodation in accommodations"
             :key="accommodation.id"
             class="accommodation-card"
         >
@@ -90,11 +155,14 @@ const handleDelete = (id) => {
         </article>
       </div>
 
-      <div v-else class="empty-state">
+      <div v-else-if="!isLoading && !loadError" class="empty-state">
         <div class="empty-icon">🏠</div>
         <h2>등록된 숙소가 없습니다</h2>
         <p>새 숙소를 등록하여 게스트를 맞이해보세요!</p>
       </div>
+
+      <p v-else-if="isLoading" class="empty-state">숙소 목록을 불러오는 중입니다.</p>
+      <p v-else-if="loadError" class="empty-state">{{ loadError }}</p>
     </div>
   </div>
 </template>
