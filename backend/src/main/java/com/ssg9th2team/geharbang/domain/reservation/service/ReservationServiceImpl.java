@@ -18,10 +18,21 @@ public class ReservationServiceImpl implements ReservationService {
 
         private final ReservationJpaRepository reservationRepository;
         private final com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository accommodationRepository;
+        private final com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository roomRepository;
 
         @Override
         @Transactional
         public ReservationResponseDto createReservation(ReservationRequestDto requestDto) {
+                // Room 재고(maxGuests) 차감 (동시성 제어)
+                // roomId가 없으면 에러 혹은 로직에 따라 처리해야 하나, 요구사항에 따라 필수라고 가정
+                if (requestDto.roomId() == null) {
+                        throw new IllegalArgumentException("Room ID is required for reservation.");
+                }
+                int updatedRows = roomRepository.decreaseMaxGuests(requestDto.roomId(), requestDto.guestCount());
+                if (updatedRows == 0) {
+                        throw new IllegalStateException("객실 정원이 초과되어 예약할 수 없습니다.");
+                }
+
                 // userId가 null이면 기본값 1L 사용
                 Long userId = requestDto.getUserIdOrDefault();
 

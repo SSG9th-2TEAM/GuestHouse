@@ -4,12 +4,12 @@ import java.time.LocalDateTime;
 
 public record ReservationRequestDto(
         Long accommodationsId,
+        Long roomId,
         Long userId,
         LocalDateTime checkin,
         LocalDateTime checkout,
         Integer guestCount,
         Integer totalAmount,
-        Long couponId,
         Integer couponDiscountAmount,
         String reserverName,
         String reserverPhone) {
