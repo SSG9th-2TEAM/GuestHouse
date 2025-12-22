@@ -8,12 +8,15 @@ import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.AccommodationsCategory;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
+import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
+import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.mybatis.RoomMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -146,6 +149,65 @@ public class AccommodationServiceImpl implements AccommodationService {
             if (!updateRequestDto.getThemeIds().isEmpty()) {
                 accommodationMapper.insertAccommodationThemes(accommodationsId, updateRequestDto.getThemeIds());
             }
+        }
+        
+        // -----------------------------------------------------------
+        // 객실 삭제 로직 (프론트에서 삭제된 객실 DB 반영)
+        // 1. 현재 DB에 저장된 객실 목록 조회
+        List<RoomResponseListDto> currentRooms =
+                accommodationMapper.selectRoomsByAccommodationId(accommodationsId);
+        
+        // 2. 요청된 객실 ID 목록 추출 (null 제외)
+        List<Long> requestedRoomIds = new java.util.ArrayList<>();
+        if (updateRequestDto.getRooms() != null) {
+            for (AccommodationUpdateRequestDto.RoomData r : updateRequestDto.getRooms()) {
+                if (r.getRoomId() != null) {
+                    requestedRoomIds.add(r.getRoomId());
+                }
+            }
+        }
+        
+        // 3. DB에는 있는데 요청에는 없는 ID 찾아서 삭제
+        for (RoomResponseListDto currentRoom : currentRooms) {
+            Long currentId = currentRoom.getRoomId();
+            if (!requestedRoomIds.contains(currentId)) {
+                roomMapper.deleteRoom(accommodationsId, currentId);
+            }
+        }
+        // -----------------------------------------------------------
+
+
+        // 객실 정보 insert , update 둘다
+        // 숙소 수정 요청 DTO에 객실 정보가 포함되어 있는지 확인
+        if (updateRequestDto.getRooms() != null) {
+            for (AccommodationUpdateRequestDto.RoomData roomDto : updateRequestDto.getRooms()) {
+                
+                // Room Entity 생성
+                Room room = Room.builder()
+                        .accommodationsId(accommodationsId)
+                        .roomName(roomDto.getRoomName())
+                        .price(roomDto.getPrice())
+                        .weekendPrice(roomDto.getWeekendPrice())
+                        .minGuests(roomDto.getMinGuests())
+                        .maxGuests(roomDto.getMaxGuests())
+                        .roomDescription(roomDto.getRoomDescription())
+                        .mainImageUrl(roomDto.getMainImageUrl())
+                        .bathroomCount(roomDto.getBathroomCount())
+                        .roomType(roomDto.getRoomType())
+                        .bedCount(roomDto.getBedCount())
+                        .roomStatus(roomDto.getRoomStatus() != null ? roomDto.getRoomStatus() : 1)
+                        .build();
+
+                if (roomDto.getRoomId() != null) {
+                    // ID가 있으면 수정
+                    roomMapper.updateRoom(accommodationsId, roomDto.getRoomId(), room);
+                } else {
+                    // ID가 없으면 추가 (단일 객실 등록)
+                    roomMapper.insertRoom(room);
+                }
+            }
+            // 객실 변동 후 최저가 갱신
+            accommodationMapper.updateMinPrice(accommodationsId);
         }
     }
 

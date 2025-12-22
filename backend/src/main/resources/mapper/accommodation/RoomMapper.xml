@@ -66,6 +66,7 @@
             max_guests = #{room.maxGuests},
             room_description = #{room.roomDescription},
             main_image_url = #{room.mainImageUrl},
+            room_status = #{room.roomStatus},
             bathroom_count = #{room.bathroomCount},
             room_type = #{room.roomType},
             bed_count = #{room.bedCount},

@@ -8,10 +8,15 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RoomResponseListDto {
+    private Long roomId;
     private String roomName;
     private String roomDescription;
     private int maxGuests;
+    private int minGuests; // Added
     private int price;
     private int weekendPrice;
     private String mainImageUrl;
+    private int bathroomCount; // Added
+    private int bedCount; // Added
+    private int roomStatus; // Added
 }

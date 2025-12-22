@@ -9,6 +9,7 @@ import java.util.List;
 @NoArgsConstructor
 public class AccommodationUpdateRequestDto {
     // 숙소 업데이트용 DTO
+    private Long roomId;
     private String accommodationsDescription;  // 숙소 상세설명
     private String shortDescription;           // 한줄소개
     private String transportInfo;              // 주변교통정보
@@ -27,4 +28,27 @@ public class AccommodationUpdateRequestDto {
     // 편의시설 및 테마 (1:N 조인)
     private List<Long> amenityIds;
     private List<Long> themeIds;
+
+    // 객실 수정/추가 리스트
+    private List<RoomData> rooms;
+
+
+
+
+    @Getter
+    @NoArgsConstructor
+    public static class RoomData {
+        private Long roomId; // 있으면 수정, 없으면 추가
+        private String roomName;
+        private Integer price;
+        private Integer weekendPrice;
+        private Integer minGuests;
+        private Integer maxGuests;
+        private String roomDescription;
+        private String mainImageUrl;
+        private Integer bathroomCount;
+        private String roomType;
+        private Integer bedCount;
+        private Integer roomStatus;
+    }
 }

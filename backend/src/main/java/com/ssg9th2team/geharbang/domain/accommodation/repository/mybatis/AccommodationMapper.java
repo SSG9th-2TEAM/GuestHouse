@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccountNumberDto;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
+import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -23,6 +24,8 @@ public interface AccommodationMapper {
 
     void deleteAccommodation(@Param("accommodationsId") Long accommodationsId);  // 숙소 삭제
 
+    // 객실 목록 조회 (서비스 로직용)
+    List<RoomResponseListDto> selectRoomsByAccommodationId(@Param("accommodationsId") Long accommodationsId);
 
     // ===== 연관 테이블 (이미지, 편의시설, 테마) =====
 
