@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.accommodation.entity;
 
+import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -134,4 +135,5 @@ public class Accommodation {
         this.approvalStatus = status;
         this.rejectionReason = rejectionReason;
     }
+
 }

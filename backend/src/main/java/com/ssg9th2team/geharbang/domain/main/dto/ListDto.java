@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 @Getter
 @Builder
 public class ListDto {
-    private String accomodationsId;
+    private Long accomodationsId;
     private String accomodationsName;
     private String shortDescription;
     private String city;
@@ -18,4 +18,21 @@ public class ListDto {
     private Long minPrice;
     private BigDecimal rating;
     private Long reviewCount;
+    private String imageUrl;
+
+    /*
+    // 나중에 Accommodation.java로 이동
+    public ListDto toRead() {
+        return ListDto.builder()
+                .accomodationsId(accommodationsId)
+                .accomodationsName(accommodationsName)
+                .shortDescription(shortDescription)
+                .city(city)
+                .district(district)
+                .township(township)
+//                .minPrice(minPrice)
+//                .rating(rating)
+                .build();
+    }
+    */
 }
