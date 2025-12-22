@@ -217,8 +217,8 @@ onUnmounted(() => {
     <div class="header-container">
       <div class="header-content">
         <div class="header-top">
-          <!-- Logo linked to home or host dashboard -->
-          <router-link :to="isHostMode ? '/host' : '/'">
+          <!-- Logo linked to home -->
+          <router-link to="/">
             <img src="@/assets/logo.png" alt="Logo" class="logo" />
           </router-link>
 
@@ -263,7 +263,6 @@ onUnmounted(() => {
         <div
           class="search-bar"
           :class="{ expanded: isSearchExpanded }"
-          v-if="!isHostMode"
         >
           <!-- Collapsed Mobile View - Click to expand -->
           <div class="search-bar-collapsed" @click="toggleSearch" v-if="!isSearchExpanded">

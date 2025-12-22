@@ -15,4 +15,5 @@ public class TokenResponse {
     private String accessToken;
     private String refreshToken;
     private Long accessTokenExpiresIn;
+    private String role;
 }

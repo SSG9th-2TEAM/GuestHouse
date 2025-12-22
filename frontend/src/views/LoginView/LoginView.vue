@@ -50,13 +50,14 @@ const handleLogin = async () => {
 
     if (response.ok && response.data) {
       // 로그인 성공
-      // 사용자 정보 저장 (필요시)
-      saveUserInfo({
-        email: email.value
-      })
+      const userRole = response.data.role
 
       openModal('로그인 성공!', 'success', () => {
-        router.push('/')
+        if (userRole === 'ADMIN') {
+          router.push('/admin')
+        } else {
+          router.push('/')
+        }
       })
     } else {
       // 로그인 실패
