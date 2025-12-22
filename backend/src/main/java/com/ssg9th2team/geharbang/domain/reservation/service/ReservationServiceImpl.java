@@ -23,6 +23,7 @@ public class ReservationServiceImpl implements ReservationService {
         @Override
         @Transactional
         public ReservationResponseDto createReservation(ReservationRequestDto requestDto) {
+                System.out.println("DEBUG: createReservation called with: " + requestDto);
                 // Room 재고(maxGuests) 차감 (동시성 제어)
                 // roomId가 없으면 에러 혹은 로직에 따라 처리해야 하나, 요구사항에 따라 필수라고 가정
                 if (requestDto.roomId() == null) {

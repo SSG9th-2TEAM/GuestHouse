@@ -160,6 +160,8 @@ const handlePayment = async () => {
       reserverName: '홍길동', // TODO: 실제 사용자 정보로 대체
       reserverPhone: '010-1234-5678' // TODO: 실제 사용자 정보로 대체
     }
+    
+    console.log('Final Reservation Data Payload:', JSON.stringify(reservationData, null, 2))
 
     const response = await createReservation(reservationData)
 

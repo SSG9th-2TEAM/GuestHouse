@@ -34,29 +34,25 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
                 // 세션 사용 안 함 (JWT 사용)
-                .sessionManagement(session ->
-                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 // 요청 권한 설정
                 .authorizeHttpRequests(auth -> auth
-                    // 인증 없이 접근 가능한 경로
-                    .requestMatchers(
-                        "/api/auth/**",
-                        "/api/public/**",
-                        "/error",
-                        "/swagger-ui/**",
-                        "/v3/api-docs/**"
-                    ).permitAll()
-                    // 그 외 모든 요청은 인증 필요
-                    .anyRequest().authenticated()
-                )
+                        // 인증 없이 접근 가능한 경로
+                        .requestMatchers(
+                                "/api/auth/**",
+                                "/api/public/**",
+                                "/error",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**")
+                        .permitAll()
+                        // 그 외 모든 요청은 인증 필요
+                        .anyRequest().authenticated())
 
                 // JWT 인증 필터 추가
                 .addFilterBefore(
-                    new JwtAuthenticationFilter(jwtTokenProvider),
-                    UsernamePasswordAuthenticationFilter.class
-                );
+                        new JwtAuthenticationFilter(jwtTokenProvider),
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
