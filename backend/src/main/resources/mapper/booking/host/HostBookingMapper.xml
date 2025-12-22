@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ssg9th2team.geharbang.domain.booking.host.repository.mybatis.HostBookingMapper">
+
+    <select id="selectHostBookings"
+            resultType="com.ssg9th2team.geharbang.domain.booking.host.dto.HostBookingResponse">
+        SELECT
+            r.reservation_id AS reservationId,
+            r.reserver_name AS reserverName,
+            r.reserver_phone AS reserverPhone,
+            a.accommodations_name AS accommodationName,
+            r.checkin AS checkin,
+            r.checkout AS checkout,
+            r.guest_count AS guestCount,
+            r.final_payment_amount AS finalPaymentAmount,
+            r.reservation_status AS reservationStatus
+        FROM reservation r
+        JOIN accommodation a ON a.accommodations_id = r.accommodations_id
+        WHERE a.user_id = #{hostId}
+        ORDER BY r.created_at DESC
+    </select>
+
+    <select id="selectHostBookingsByRange"
+            resultType="com.ssg9th2team.geharbang.domain.booking.host.dto.HostBookingResponse">
+        SELECT
+            r.reservation_id AS reservationId,
+            r.reserver_name AS reserverName,
+            r.reserver_phone AS reserverPhone,
+            a.accommodations_name AS accommodationName,
+            r.checkin AS checkin,
+            r.checkout AS checkout,
+            r.guest_count AS guestCount,
+            r.final_payment_amount AS finalPaymentAmount,
+            r.reservation_status AS reservationStatus
+        FROM reservation r
+        JOIN accommodation a ON a.accommodations_id = r.accommodations_id
+        WHERE a.user_id = #{hostId}
+          AND r.checkin &lt; #{end}
+          AND r.checkout &gt;= #{start}
+        ORDER BY r.checkin ASC, r.checkout ASC
+    </select>
+
+    <select id="selectHostBookingById"
+            resultType="com.ssg9th2team.geharbang.domain.booking.host.dto.HostBookingResponse">
+        SELECT
+            r.reservation_id AS reservationId,
+            r.reserver_name AS reserverName,
+            r.reserver_phone AS reserverPhone,
+            a.accommodations_name AS accommodationName,
+            r.checkin AS checkin,
+            r.checkout AS checkout,
+            r.guest_count AS guestCount,
+            r.final_payment_amount AS finalPaymentAmount,
+            r.reservation_status AS reservationStatus
+        FROM reservation r
+        JOIN accommodation a ON a.accommodations_id = r.accommodations_id
+        WHERE a.user_id = #{hostId}
+          AND r.reservation_id = #{reservationId}
+    </select>
+
+</mapper>

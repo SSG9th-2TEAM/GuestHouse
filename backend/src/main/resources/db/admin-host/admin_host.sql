@@ -19,9 +19,8 @@ CREATE TABLE IF NOT EXISTS platform_daily_stats
 
 CREATE TABLE IF NOT EXISTS host_daily_stats
 (
-    host_id           INT           NOT NULL COMMENT '호스트 ID',
+    user_id           BIGINT        NOT NULL COMMENT '호스트 회원 PK',
     stat_date         DATE          NOT NULL COMMENT '기준 일자',
-    user_id           BIGINT        NOT NULL COMMENT '회원 PK',
     reservation_count INT           NOT NULL COMMENT '예약 건수',
     reserved_nights   INT           NOT NULL COMMENT '총 숙박 박수',
     total_guests      INT           NOT NULL COMMENT '총 투숙 인원',
@@ -33,7 +32,7 @@ CREATE TABLE IF NOT EXISTS host_daily_stats
     occupancy_rate    DECIMAL(5, 2) NULL COMMENT '객실 점유율 %',
     created_at        DATETIME      NOT NULL COMMENT '생성 시각',
     updated_at        DATETIME      NOT NULL COMMENT '갱신 시각',
-    CONSTRAINT PK_HOST_DAILY_STATS PRIMARY KEY (host_id, stat_date)
+    CONSTRAINT PK_HOST_DAILY_STATS PRIMARY KEY (user_id, stat_date)
     ) ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4;
 
