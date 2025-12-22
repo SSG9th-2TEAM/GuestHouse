@@ -39,6 +39,21 @@ const router = createRouter({
             component: () => import('../views/booking/BookingSuccessView.vue')
         },
         {
+            path: '/payment/:reservationId',
+            name: 'payment',
+            component: () => import('../views/payment/PaymentView.vue')
+        },
+        {
+            path: '/payment/success',
+            name: 'payment-success',
+            component: () => import('../views/payment/PaymentSuccessView.vue')
+        },
+        {
+            path: '/payment/fail',
+            name: 'payment-fail',
+            component: () => import('../views/payment/PaymentFailView.vue')
+        },
+        {
             path: '/reservations',
             name: 'reservations',
             component: () => import('../views/mypage/ReservationHistoryView.vue')
