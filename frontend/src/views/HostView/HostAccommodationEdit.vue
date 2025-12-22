@@ -418,8 +418,10 @@ const handleUpdate = async () => {
                 imagePayload = await fileToBase64(room.representativeImage)
             }
             
+            // DB ID (Long) vs Temporary ID (Timestamp > 10000000000)
+            const isTempId = typeof room.id === 'number' && room.id > 10000000000;
             return {
-                roomId: room.id, 
+                roomId: isTempId ? null : room.id,  
                 roomName: room.name,
                 price: parseInt(room.weekdayPrice),
                 weekendPrice: parseInt(room.weekendPrice),
@@ -434,6 +436,23 @@ const handleUpdate = async () => {
             }
         }))
 
+        // 이미지 데이터 구성
+        const imageList = []
+        if (form.value.bannerImage) {
+            imageList.push({
+                imageUrl: form.value.bannerImage,
+                imageType: 'banner',
+                sortOrder: 1
+            })
+        }
+        form.value.detailImages.forEach((url, index) => {
+            imageList.push({
+                imageUrl: url,
+                imageType: 'detail',
+                sortOrder: index + 2
+            })
+        })
+
         const requestData = {
             accommodationsName: form.value.name, // Add name if backend allows update (even if readonly in UI)
             accommodationsCategory: accommodationTypeReverseMap[form.value.type] || form.value.type,
@@ -447,6 +466,7 @@ const handleUpdate = async () => {
             checkInTime: form.value.checkInTime,
             checkOutTime: form.value.checkOutTime,
             rooms: roomsData,
+            images: imageList, // Added images
             amenityIds: form.value.amenities,
             themeIds: form.value.themes.map(name => themeIdMap[name]).filter(id => id !== undefined)
         }
@@ -630,7 +650,7 @@ const resetRoomForm = () => {
     roomForm.value = {
         name: '', weekdayPrice: '', weekendPrice: '', minGuests: '', maxGuests: '',
         bedCount: '', bathroomCount: '', description: '', amenities: [],
-        representativeImage: null, representativeImagePreview: '', isActive: true
+        representativeImage: null, representativeImagePreview: '', isActive: true // Default to active
     }
     roomErrors.value = {}
 }

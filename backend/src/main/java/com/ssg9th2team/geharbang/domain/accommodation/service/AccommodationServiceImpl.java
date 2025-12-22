@@ -116,10 +116,13 @@ public class AccommodationServiceImpl implements AccommodationService {
     }
 
 
+
+
     // 숙소 수정
     @Override
     @Transactional
     public void updateAccommodation(Long accommodationsId, AccommodationUpdateRequestDto updateRequestDto) {
+        // 1. 숙소 기본 정보 업데이트
         Accommodation accommodation = Accommodation.builder()
                 .accommodationsId(accommodationsId)
                 .accommodationsDescription(updateRequestDto.getAccommodationsDescription())
@@ -135,7 +138,9 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         accommodationMapper.updateAccommodation(accommodationsId, accommodation);
 
-        // 편의시설 업데이트 (기존 삭제 후 재등록)
+        // 2. 연관 데이터 업데이트 (삭제 후 재등록)
+        
+        // 편의시설
         if (updateRequestDto.getAmenityIds() != null) {
             accommodationMapper.deleteAccommodationAmenities(accommodationsId);
             if (!updateRequestDto.getAmenityIds().isEmpty()) {
@@ -143,21 +148,28 @@ public class AccommodationServiceImpl implements AccommodationService {
             }
         }
 
-        // 테마 업데이트 (기존 삭제 후 재등록)
+        // 테마
         if (updateRequestDto.getThemeIds() != null) {
             accommodationMapper.deleteAccommodationThemes(accommodationsId);
             if (!updateRequestDto.getThemeIds().isEmpty()) {
                 accommodationMapper.insertAccommodationThemes(accommodationsId, updateRequestDto.getThemeIds());
             }
         }
+
+        // 이미지
+        if (updateRequestDto.getImages() != null) {
+            accommodationMapper.deleteAccommodationImages(accommodationsId);
+            if (!updateRequestDto.getImages().isEmpty()) {
+                accommodationMapper.insertAccommodationImages(accommodationsId, updateRequestDto.getImages());
+            }
+        }
+
+        // 3. 객실 동기화 (삭제 및 추가/수정)
         
-        // -----------------------------------------------------------
-        // 객실 삭제 로직 (프론트에서 삭제된 객실 DB 반영)
-        // 1. 현재 DB에 저장된 객실 목록 조회
-        List<RoomResponseListDto> currentRooms =
-                accommodationMapper.selectRoomsByAccommodationId(accommodationsId);
+        // 3-1. 현재 DB에 저장된 객실 목록 조회 (삭제 대상 식별용)
+        List<RoomResponseListDto> currentRooms = accommodationMapper.selectRoomsByAccommodationId(accommodationsId);
         
-        // 2. 요청된 객실 ID 목록 추출 (null 제외)
+        // 3-2. 요청된 객실 ID 목록 추출
         List<Long> requestedRoomIds = new java.util.ArrayList<>();
         if (updateRequestDto.getRooms() != null) {
             for (AccommodationUpdateRequestDto.RoomData r : updateRequestDto.getRooms()) {
@@ -166,23 +178,17 @@ public class AccommodationServiceImpl implements AccommodationService {
                 }
             }
         }
-        
-        // 3. DB에는 있는데 요청에는 없는 ID 찾아서 삭제
+
+        // 3-3. DB에는 있는데 요청에는 없는 ID 삭제
         for (RoomResponseListDto currentRoom : currentRooms) {
-            Long currentId = currentRoom.getRoomId();
-            if (!requestedRoomIds.contains(currentId)) {
-                roomMapper.deleteRoom(accommodationsId, currentId);
+            if (!requestedRoomIds.contains(currentRoom.getRoomId())) {
+                roomMapper.deleteRoom(accommodationsId, currentRoom.getRoomId());
             }
         }
-        // -----------------------------------------------------------
 
-
-        // 객실 정보 insert , update 둘다
-        // 숙소 수정 요청 DTO에 객실 정보가 포함되어 있는지 확인
+        // 3-4. 객실 추가/수정
         if (updateRequestDto.getRooms() != null) {
             for (AccommodationUpdateRequestDto.RoomData roomDto : updateRequestDto.getRooms()) {
-                
-                // Room Entity 생성
                 Room room = Room.builder()
                         .accommodationsId(accommodationsId)
                         .roomName(roomDto.getRoomName())
@@ -199,14 +205,12 @@ public class AccommodationServiceImpl implements AccommodationService {
                         .build();
 
                 if (roomDto.getRoomId() != null) {
-                    // ID가 있으면 수정
                     roomMapper.updateRoom(accommodationsId, roomDto.getRoomId(), room);
                 } else {
-                    // ID가 없으면 추가 (단일 객실 등록)
                     roomMapper.insertRoom(room);
                 }
             }
-            // 객실 변동 후 최저가 갱신
+            // 최저가 갱신
             accommodationMapper.updateMinPrice(accommodationsId);
         }
     }

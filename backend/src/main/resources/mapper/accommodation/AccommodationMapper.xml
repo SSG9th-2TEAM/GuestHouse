@@ -145,6 +145,11 @@
         WHERE accommodations_id = #{accommodationsId}
     </delete>
 
+    <delete id="deleteAccommodationImages">
+        DELETE FROM accommodation_image
+        WHERE accommodations_id = #{accommodationsId}
+    </delete>
+
     <delete id="deleteAccommodationThemes">
         DELETE FROM accommodation_theme
         WHERE accommodations_id = #{accommodationsId}

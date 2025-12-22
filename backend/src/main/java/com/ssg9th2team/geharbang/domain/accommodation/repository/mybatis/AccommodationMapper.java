@@ -30,6 +30,8 @@ public interface AccommodationMapper {
 
     // ===== 연관 테이블 (이미지, 편의시설, 테마) =====
 
+    void deleteAccommodationImages(@Param("accommodationsId") Long accommodationsId); // 이미지 삭제
+
     void insertAccommodationImages(@Param("accommodationsId") Long accommodationsId,      // 이미지 등록
                                    @Param("images") List<AccommodationImageDto> images);
 

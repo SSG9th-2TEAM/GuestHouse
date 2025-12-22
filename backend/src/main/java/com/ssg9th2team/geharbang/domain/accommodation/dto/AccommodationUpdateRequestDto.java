@@ -28,6 +28,7 @@ public class AccommodationUpdateRequestDto {
     // 편의시설 및 테마 (1:N 조인)
     private List<Long> amenityIds;
     private List<Long> themeIds;
+    private List<AccommodationImageDto> images;
 
     // 객실 수정/추가 리스트
     private List<RoomData> rooms;
