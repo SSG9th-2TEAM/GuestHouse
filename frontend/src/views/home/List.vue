@@ -1,0 +1,164 @@
+<script setup>
+import GuesthouseCard from '../../components/GuesthouseCard.vue'
+import FilterModal from '../../components/FilterModal.vue'
+import { useRouter } from 'vue-router'
+import { guesthouses } from '../../data/guesthouses'
+import { ref, computed } from 'vue'
+
+const router = useRouter()
+const items = guesthouses
+
+// Filter State
+const isFilterModalOpen = ref(false)
+const minPrice = ref(null)
+const maxPrice = ref(null)
+
+// Computed Items
+const filteredItems = computed(() => {
+  return items.filter(item => {
+    if (minPrice.value !== null && item.price < minPrice.value) return false
+    if (maxPrice.value !== null && item.price > maxPrice.value) return false
+    return true
+  })
+})
+
+const handleApplyFilter = ({ min, max }) => {
+  minPrice.value = min
+  maxPrice.value = max
+  isFilterModalOpen.value = false
+}
+</script>
+
+<template>
+  <main class="container main-content">
+    <div class="header">
+      <h1>숙소 목록</h1>
+      <button class="filter-btn" @click="isFilterModalOpen = true">
+        🔍 필터
+      </button>
+    </div>
+
+    <div class="list-container">
+      <GuesthouseCard 
+        v-for="item in filteredItems" 
+        :key="item.id"
+        :title="item.title"
+        :location="item.location"
+        :price="item.price"
+        :image-url="item.imageUrl"
+        @click="router.push(`/room/${item.id}`)"
+        class="list-item"
+      />
+    </div>
+
+    <!-- Floating Map Button -->
+    <div class="map-btn-wrapper">
+      <button class="map-floating-btn" @click="router.push('/map')">
+        <span class="icon">🗺️</span>
+        <span class="text">지도에서 보기</span>
+      </button>
+    </div>
+
+    <!-- Filter Modal -->
+    <FilterModal 
+      :is-open="isFilterModalOpen"
+      :current-min="minPrice"
+      :current-max="maxPrice"
+      @close="isFilterModalOpen = false"
+      @apply="handleApplyFilter"
+    />
+  </main>
+</template>
+
+<style scoped>
+.main-content {
+  padding-top: 2rem;
+  padding-bottom: 6rem; /* Extra padding for floating button */
+  max-width: 1200px; 
+  margin: 0 auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.header {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.filter-btn {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  background: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-btn:hover {
+  background-color: #f5f5f5;
+}
+
+.list-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+  gap: 2rem;
+}
+
+.list-item {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.list-item:hover {
+  transform: translateY(-5px);
+}
+
+/* Floating Button Styles */
+.map-btn-wrapper {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+}
+
+.map-floating-btn {
+  background-color: #222;
+  color: white;
+  border: none;
+  border-radius: 24px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  cursor: pointer;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.map-floating-btn:hover {
+  background-color: #000;
+  transform: scale(1.05);
+}
+
+.map-floating-btn .icon {
+  font-size: 1.1rem;
+}
+</style>
