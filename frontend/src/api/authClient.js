@@ -98,9 +98,10 @@ export async function login(email, password) {
     skipAuth: true
   })
 
-  // 로그인 성공 시 토큰 저장
+  // 로그인 성공 시 토큰 및 사용자 정보 저장
   if (response.ok && response.data) {
     saveTokens(response.data.accessToken, response.data.refreshToken)
+    saveUserInfo({ email: email, role: response.data.role })
   }
 
   return response

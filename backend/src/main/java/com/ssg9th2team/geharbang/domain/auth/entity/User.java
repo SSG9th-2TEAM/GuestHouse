@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.auth.entity;
 
+import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -10,6 +11,8 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "users")
@@ -50,14 +53,23 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "user_theme",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "theme_id")
+    )
+    private Set<Theme> themes = new HashSet<>();
+
     @Builder
-    public User(String email, String password, String phone, UserRole role, Boolean marketingAgreed, Boolean hostApproved) {
+    public User(String email, String password, String phone, UserRole role, Boolean marketingAgreed, Boolean hostApproved, Set<Theme> themes) {
         this.email = email;
         this.password = password;
         this.phone = phone;
         this.role = role != null ? role : UserRole.USER;
         this.marketingAgreed = marketingAgreed != null ? marketingAgreed : false;
         this.hostApproved = hostApproved;
+        this.themes = themes;
     }
 
     // 비밀번호 업데이트
