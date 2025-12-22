@@ -1,19 +1,20 @@
 <script setup>
-import { computed, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { fetchHostDashboardSummary, fetchHostTodaySchedule } from '@/api/hostDashboard'
+import {computed, ref, onMounted} from 'vue'
+import {useRouter} from 'vue-router'
+import {fetchHostDashboardSummary, fetchHostTodaySchedule} from '@/api/hostDashboard'
 
 const router = useRouter()
 
-const kpis = ref([
-  { label: '이번 달 예상 수익', value: 0, unit: '₩', trend: '집계 중', tone: 'positive', target: '/host/revenue' },
-  { label: '이번 달 예약 확정', value: 0, unit: '건', trend: '집계 중', tone: 'positive', target: '/host/booking' },
-  { label: '평균 평점', value: 0, unit: '/5.0', trend: '최근 30일', tone: 'neutral', target: '/host/review' },
-  { label: '숙소 운영 현황', value: '0/0', unit: ' 운영중', trend: '집계 중', tone: 'warning', target: '/host/accommodation' }
-])
+const dashboardSummary = ref({
+  expectedRevenue: 0,
+  confirmedReservations: 0,
+  avgRating: 0,
+  operatingAccommodations: 0
+})
+
+const todaySchedule = ref([])
 
 const todayLabel = ref('')
-const tasks = ref([])
 const isLoading = ref(false)
 
 const formatDateLabel = (date) => {
@@ -31,6 +32,52 @@ const formatKpiValue = (value, unit) => {
   }
   return `${value}${unit ?? ''}`
 }
+
+const kpis = computed(() => ([
+  {
+    label: '이번 달 예상 수익',
+    value: dashboardSummary.value.expectedRevenue ?? 0,
+    unit: '₩',
+    trend: '이번 달 기준',
+    tone: 'positive',
+    target: '/host/revenue'
+  },
+  {
+    label: '이번 달 예약 확정',
+    value: dashboardSummary.value.confirmedReservations ?? 0,
+    unit: '건',
+    trend: '이번 달 기준',
+    tone: 'positive',
+    target: '/host/booking'
+  },
+  {
+    label: '평균 평점',
+    value: dashboardSummary.value.avgRating ?? 0,
+    unit: '/5.0',
+    trend: '최근 30일',
+    tone: 'neutral',
+    target: '/host/review'
+  },
+  {
+    label: '숙소 운영 현황',
+    value: dashboardSummary.value.operatingAccommodations ?? 0,
+    unit: '개 운영중',
+    trend: '운영 중 숙소',
+    tone: 'warning',
+    target: '/host/accommodation'
+  }
+]))
+
+const tasks = computed(() => todaySchedule.value.map((item) => ({
+  id: item.reservationId ?? `${item.accommodationName}-${item.time}`,
+  type: item.type === 'CHECKOUT' ? 'checkout' : 'checkin',
+  time: item.time || '',
+  accommodation: `${item.accommodationName}${item.roomName ? ` ${item.roomName}` : ''}`,
+  guest: item.guestName || '',
+  phone: item.phone || '',
+  email: '',
+  memo: item.requestNote || ''
+})))
 
 const hasMemo = computed(() => tasks.value.some(t => t.memo))
 
@@ -57,59 +104,16 @@ const loadDashboard = async () => {
   todayLabel.value = formatDateLabel(today)
 
   const [summaryRes, scheduleRes] = await Promise.all([
-    fetchHostDashboardSummary({ year, month }),
-    fetchHostTodaySchedule({ date: today.toISOString().slice(0, 10) })
+    fetchHostDashboardSummary({year, month}),
+    fetchHostTodaySchedule({date: today.toISOString().slice(0, 10)})
   ])
 
   if (summaryRes.ok && summaryRes.data) {
-    const summary = summaryRes.data
-    kpis.value = [
-      {
-        label: '이번 달 예상 수익',
-        value: summary.expectedRevenue ?? 0,
-        unit: '₩',
-        trend: '이번 달 기준',
-        tone: 'positive',
-        target: '/host/revenue'
-      },
-      {
-        label: '이번 달 예약 확정',
-        value: summary.confirmedReservations ?? 0,
-        unit: '건',
-        trend: '이번 달 기준',
-        tone: 'positive',
-        target: '/host/booking'
-      },
-      {
-        label: '평균 평점',
-        value: summary.avgRating ?? 0,
-        unit: '/5.0',
-        trend: '최근 30일',
-        tone: 'neutral',
-        target: '/host/review'
-      },
-      {
-        label: '숙소 운영 현황',
-        value: summary.operatingAccommodations ?? 0,
-        unit: '개 운영중',
-        trend: '운영 중 숙소',
-        tone: 'warning',
-        target: '/host/accommodation'
-      }
-    ]
+    dashboardSummary.value = summaryRes.data
   }
 
   if (scheduleRes.ok && Array.isArray(scheduleRes.data)) {
-    tasks.value = scheduleRes.data.map((item) => ({
-      id: item.reservationId ?? `${item.accommodationName}-${item.time}`,
-      type: item.type === 'CHECKOUT' ? 'checkout' : 'checkin',
-      time: item.time || '',
-      accommodation: `${item.accommodationName}${item.roomName ? ` ${item.roomName}` : ''}`,
-      guest: item.guestName || '',
-      phone: item.phone || '',
-      email: '',
-      memo: item.requestNote || ''
-    }))
+    todaySchedule.value = scheduleRes.data
   }
 
   isLoading.value = false
@@ -151,13 +155,14 @@ onMounted(loadDashboard)
       <div class="task-head">
         <div>
           <h3>오늘 일정</h3>
-        <p class="task-date">{{ todayLabel }}</p>
+          <p class="task-date">{{ todayLabel }}</p>
+        </div>
+        <span class="task-chip">체크인/아웃 {{ tasks.length }}건</span>
       </div>
-      <span class="task-chip">체크인/아웃 {{ tasks.length }}건</span>
-    </div>
 
       <div class="task-list">
-        <div v-for="task in tasks" :key="task.id" class="task-card" role="button" tabindex="0" @click="openTask(task)" @keypress.enter="openTask(task)">
+        <div v-for="task in tasks" :key="task.id" class="task-card" role="button" tabindex="0" @click="openTask(task)"
+             @keypress.enter="openTask(task)">
           <div class="task-row">
             <span class="pill" :class="task.type === 'checkin' ? 'pill-green' : 'pill-gray'">
               {{ task.type === 'checkin' ? '체크인' : '체크아웃' }}
@@ -185,7 +190,8 @@ onMounted(loadDashboard)
           <button class="close-btn" @click="closeTask">×</button>
         </header>
         <div class="modal-body">
-          <div class="modal-row"><span>유형</span><strong>{{ selectedTask.type === 'checkin' ? '체크인' : '체크아웃' }}</strong></div>
+          <div class="modal-row"><span>유형</span><strong>{{ selectedTask.type === 'checkin' ? '체크인' : '체크아웃' }}</strong>
+          </div>
           <div class="modal-row"><span>시간</span><strong>{{ selectedTask.time }}</strong></div>
           <div class="modal-row"><span>게스트</span><strong>{{ selectedTask.guest }}</strong></div>
           <div class="modal-row"><span>연락처</span><strong>{{ selectedTask.phone || '미입력' }}</strong></div>
