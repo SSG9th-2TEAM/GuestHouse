@@ -1,6 +1,8 @@
 -- V003__refactor_host_daily_stats.sql
 -- host_daily_stats를 "user_id + stat_date 복합 PK" 구조로 재생성 (구현 초기 단계용)
 
+use guesthouse;
+
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS host_daily_stats;
