@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper">
+
+
+    <!-- 테마, 편의시설 -->
+    <resultMap id="AccommodationDetailMap" type="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto" autoMapping="true">
+        <id property="accommodationsId" column="accommodationsId"/>
+        <collection property="amenities" column="accommodationsId" select="selectAmenitiesByAccommodationId"/>
+        <collection property="themes" column="accommodationsId" select="selectThemesByAccommodationId"/>
+    </resultMap>
+
+
+
+    <!-- 정산계좌 등록 -->
+    <insert id="insertAccountNumber" parameterType="com.ssg9th2team.geharbang.domain.accommodation.dto.AccountNumberDto"
+            useGeneratedKeys="true" keyProperty="accountNumberId">
+        INSERT INTO account_number (bank_name, account_number, account_holder)
+        VALUES (#{bankName}, #{accountNumber}, #{accountHolder})
+    </insert>
+
+
+
+    <!-- 숙소 등록 -->
+    <insert id="insertAccommodation" parameterType="com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation"
+            useGeneratedKeys="true" keyProperty="accommodationsId">
+        INSERT INTO accommodation(
+            account_number_id,
+            user_id,
+            accommodations_name,
+            accommodations_category,
+            accommodations_description,
+            short_description,
+            city,
+            district,
+            township,
+            address_detail,
+            latitude,
+            longitude,
+            transport_info,
+            accommodation_status,
+            approval_status,
+            created_at,
+            phone,
+            business_registration_number,
+            business_registration_image,
+            parking_info,
+            sns,
+            check_in_time,
+            check_out_time
+        ) VALUES (
+            #{accountNumberId},
+            #{userId},
+            #{accommodationsName},
+            #{accommodationsCategory},
+            #{accommodationsDescription},
+            #{shortDescription},
+            #{city},
+            #{district},
+            #{township},
+            #{addressDetail},
+            #{latitude},
+            #{longitude},
+            #{transportInfo},
+            #{accommodationStatus},
+            #{approvalStatus},
+            #{createdAt},
+            #{phone},
+            #{businessRegistrationNumber},
+            #{businessRegistrationImage},
+            #{parkingInfo},
+            #{sns},
+            #{checkInTime},
+            #{checkOutTime}
+        )
+    </insert>
+
+    <!-- 숙소 상세조회 -->
+    <select id="selectAccommodationById" resultMap="AccommodationDetailMap">
+        SELECT
+            a.accommodations_id AS accommodationsId,
+            a.account_number_id AS accountNumberId,
+            a.user_id AS userId,
+            a.accommodations_name AS accommodationsName,
+            a.accommodations_category AS accommodationsCategory,
+            a.accommodations_description AS accommodationsDescription,
+            a.short_description AS shortDescription,
+            a.city,
+            a.district,
+            a.township,
+            a.address_detail AS addressDetail,
+            a.latitude,
+            a.longitude,
+            a.transport_info AS transportInfo,
+            a.accommodation_status AS accommodationStatus,
+            a.approval_status AS approvalStatus,
+            a.created_at AS createdAt,
+            a.phone,
+            a.business_registration_number AS businessRegistrationNumber,
+            a.business_registration_image AS businessRegistrationImage,
+            a.parking_info AS parkingInfo,
+            a.sns,
+            a.check_in_time AS checkInTime,
+            a.check_out_time AS checkOutTime,
+            a.rejection_reason AS rejectionReason,
+            an.bank_name AS bankName,
+            an.account_number AS accountNumber,
+            an.account_holder AS accountHolder
+        FROM accommodation a
+        LEFT JOIN users u ON a.user_id = u.user_id
+        LEFT JOIN account_number an ON a.account_number_id = an.account_number_id
+        WHERE a.accommodations_id = #{accommodationsId}
+    </select>
+
+
+    <!-- 숙소 수정 -->
+    <update id="updateAccommodation" parameterType="com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation">
+        UPDATE accommodation
+        SET
+            accommodations_description = #{accommodationsDescription},
+            short_description = #{shortDescription},
+            transport_info = #{transportInfo},
+            accommodation_status = #{accommodationStatus},
+            parking_info = #{parkingInfo},
+            sns = #{sns},
+            phone = #{phone},
+            check_in_time = #{checkInTime},
+            check_out_time = #{checkOutTime}
+        WHERE accommodations_id = #{accommodationsId}
+    </update>
+
+
+    <!-- 숙소 삭제 -->
+    <delete id="deleteAccommodation">
+        DELETE FROM accommodation
+        WHERE accommodations_id = #{accommodationsId}
+    </delete>
+
+    <delete id="deleteAccommodationAmenities">
+        DELETE FROM accommodation_amenity
+        WHERE accommodations_id = #{accommodationsId}
+    </delete>
+
+    <delete id="deleteAccommodationThemes">
+        DELETE FROM accommodation_theme
+        WHERE accommodations_id = #{accommodationsId}
+    </delete>
+
+
+
+
+
+    <!-- ===== 연관 테이블 ===== -->
+
+    <!-- 숙소 이미지 등록 -->
+    <insert id="insertAccommodationImages">
+        INSERT INTO accommodation_image (accommodations_id, image_url, image_type, sort_order)
+        VALUES
+        <foreach collection="images" item="image" separator=",">
+            (#{accommodationsId}, #{image.imageUrl}, #{image.imageType}, #{image.sortOrder})
+        </foreach>
+    </insert>
+
+    <!-- 숙소 편의시설 등록 -->
+    <insert id="insertAccommodationAmenities">
+        INSERT INTO accommodation_amenity (accommodations_id, amenity_id)
+        VALUES
+        <foreach collection="amenityIds" item="amenityId" separator=",">
+            (#{accommodationsId}, #{amenityId})
+        </foreach>
+    </insert>
+
+    <!-- 숙소 테마 등록 -->
+    <insert id="insertAccommodationThemes">
+        INSERT INTO accommodation_theme (accommodations_id, theme_id)
+        VALUES
+        <foreach collection="themeIds" item="themeId" separator=",">
+             (#{accommodationsId}, #{themeId})
+        </foreach>
+    </insert>
+
+    <!-- 객실 등록 -->
+    <insert id="insertRooms">
+        INSERT INTO room (
+            accommodations_id, room_name, price, weekend_price,
+            min_guests, max_guests, room_description, main_image_url,
+            room_status, bathroom_count, room_type, bed_count
+        )
+        VALUES
+        <foreach collection="rooms" item="room" separator=",">
+            (#{accommodationsId}, #{room.roomName}, #{room.price}, #{room.weekendPrice},
+             #{room.minGuests}, #{room.maxGuests}, #{room.roomDescription}, #{room.mainImageUrl},
+             1, #{room.bathroomCount}, #{room.roomType}, #{room.bedCount})
+        </foreach>
+    </insert>
+
+
+
+
+
+    <!-- 편의시설 조회 (Nested Select) -->
+    <select id="selectAmenitiesByAccommodationId" resultType="string">
+        SELECT am.amenity_name
+        FROM accommodation_amenity aa
+        JOIN amenity am ON aa.amenity_id = am.amenity_id
+        WHERE aa.accommodations_id = #{accommodationsId}
+    </select>
+
+    <!-- 테마 조회 (Nested Select) -->
+    <select id="selectThemesByAccommodationId" resultType="string">
+        SELECT t.theme_name
+        FROM accommodation_theme at
+        JOIN theme t ON at.theme_id = t.theme_id
+        WHERE at.accommodations_id = #{accommodationsId}
+    </select>
+
+</mapper>
