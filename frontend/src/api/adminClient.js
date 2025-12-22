@@ -35,3 +35,38 @@ export async function adminGet(path, params = {}) {
   const fullPath = query ? `${path}?${query}` : path
   return adminRequest(fullPath, { method: 'GET' })
 }
+
+// Host API client (shares same fetch wrapper style)
+const hostBaseURL = (import.meta.env.VITE_HOST_API_BASE_URL || '/api').replace(/\/$/, '')
+
+let hostAuthToken = ''
+
+export function setHostAuthToken(token) {
+  hostAuthToken = token || ''
+}
+
+export async function hostRequest(path, options = {}) {
+  const url = `${hostBaseURL}${path.startsWith('/') ? path : `/${path}`}`
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  }
+
+  if (hostAuthToken) {
+    headers.Authorization = `Bearer ${hostAuthToken}`
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers
+  })
+
+  const data = await response.json().catch(() => null)
+  return { ok: response.ok, status: response.status, data }
+}
+
+export async function hostGet(path, params = {}) {
+  const query = new URLSearchParams(params).toString()
+  const fullPath = query ? `${path}?${query}` : path
+  return hostRequest(fullPath, { method: 'GET' })
+}
