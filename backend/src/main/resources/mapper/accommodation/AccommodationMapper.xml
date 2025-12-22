@@ -118,7 +118,7 @@
 
 
     <!-- 숙소 수정 -->
-    <update id="updateAccommodation" parameterType="com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation">
+    <update id="updateAccommodation">
         UPDATE accommodation
         SET
             accommodations_description = #{Accommodation.accommodationsDescription},
@@ -261,7 +261,9 @@
             a.district,
             a.township,
             a.address_detail,
-            a.min_price
+            a.address_detail,
+            a.min_price,
+            a.created_at
         ORDER BY a.created_at DESC
     </select>
 
