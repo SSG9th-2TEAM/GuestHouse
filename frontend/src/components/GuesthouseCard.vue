@@ -1,27 +1,36 @@
-<script setup>
+﻿<script setup>
 defineProps({
   title: String,
+  description: String,
   location: String,
+  rating: [Number, String],
   price: Number,
   imageUrl: String
 })
+
+const formatRating = (value) => {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return '-'
+  return numeric.toFixed(1)
+}
 </script>
 
 <template>
   <article class="card">
     <div class="image-container">
       <img :src="imageUrl" :alt="title" class="card-image" />
-      <button class="favorite-btn">♡</button>
+      <button class="favorite-btn">&#9825;</button>
     </div>
     <div class="card-content">
       <div class="header-row">
         <h3 class="title">{{ title }}</h3>
-        <span class="rating">★ 4.8</span>
+        <span class="rating">&#9733; {{ formatRating(rating) }}</span>
       </div>
+      <p v-if="description" class="description">{{ description }}</p>
       <p class="location">{{ location }}</p>
       <div class="footer-row">
         <span class="price">
-          <strong>₩{{ price.toLocaleString() }}</strong> / 박
+          <strong>&#8361;{{ price.toLocaleString() }}</strong> / 박
         </span>
         <button class="book-btn">예약하기</button>
       </div>
@@ -49,12 +58,16 @@ defineProps({
   aspect-ratio: 1 / 1;
   background: #e5e7eb;
   position: relative;
+  overflow: hidden;
+  width: 100%;
 }
 
 .card-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+  display: block;
 }
 
 .favorite-btn {
@@ -85,6 +98,7 @@ defineProps({
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 0.5rem;
 }
 
 .title {
@@ -92,6 +106,20 @@ defineProps({
   font-weight: 600;
   color: var(--text-main);
   margin-bottom: 0.1rem;
+  flex: 1;
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.rating {
+  flex-shrink: 0;
+}
+
+.description {
+  font-size: 0.82rem;
+  color: var(--text-sub);
+  line-height: 1.3;
 }
 
 .location {

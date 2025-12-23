@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { onMounted, ref } from 'vue'
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import { useRouter } from 'vue-router'
@@ -15,10 +15,12 @@ const MAX_ITEMS_PER_ROW = MAX_ROW_CARDS - 1
 const normalizeItem = (item) => {
   const id = item.accomodationsId ?? item.accommodationsId ?? item.id
   const title = item.accomodationsName ?? item.accommodationsName ?? item.title ?? ''
+  const description = item.shortDescription ?? item.description ?? ''
+  const rating = item.rating ?? null
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
   const price = Number(item.minPrice ?? item.price ?? 0)
   const imageUrl = item.imageUrl || 'https://via.placeholder.com/400x300'
-  return { id, title, location, price, imageUrl }
+  return { id, title, description, rating, location, price, imageUrl }
 }
 
 const visibleItems = (items) => items.slice(0, MAX_ITEMS_PER_ROW)
@@ -37,7 +39,7 @@ const loadSections = async () => {
   try {
     const themeResponse = await fetchThemes()
     if (!themeResponse.ok || !Array.isArray(themeResponse.data)) {
-      loadError.value = '해당 테마의 게스트하우스가 없습니다.'
+      loadError.value = '테마 목록을 불러오지 못했습니다.'
       return
     }
 
@@ -60,7 +62,7 @@ const loadSections = async () => {
     sections.value = results.filter((section) => section.items.length)
   } catch (error) {
     console.error('Failed to load sections', error)
-    loadError.value = 'Failed to load sections'
+    loadError.value = '테마 목록을 불러오지 못했습니다.'
   } finally {
     isLoading.value = false
   }
@@ -75,7 +77,7 @@ onMounted(loadSections)
       <h1>여행지에서 느끼는<br />특별한 하루</h1>
     </div>
 
-    <div v-if="isLoading" class="empty-state">ë¡œë”© ì¤‘ìž…?ˆë‹¤.</div>
+    <div v-if="isLoading" class="empty-state">로딩 중입니다.</div>
     <div v-else-if="loadError" class="empty-state">{{ loadError }}</div>
     <section v-else v-for="section in sections" :key="section.id" class="theme-section">
       <div class="section-header">
@@ -88,7 +90,7 @@ onMounted(loadSections)
           @keydown.space.prevent="goToThemeList(section.id)"
         >
           <span>{{ getMoreLabel(section.name) }}</span>
-          <span class="theme-title-arrow">→</span>
+          <span class="theme-title-arrow">&#8594;</span>
         </h2>
       </div>
       <div v-if="section.items.length" class="row-scroll">
@@ -96,6 +98,8 @@ onMounted(loadSections)
           v-for="item in visibleItems(section.items)" 
           :key="item.id"
           :title="item.title"
+          :description="item.description"
+          :rating="item.rating"
           :location="item.location"
           :price="item.price"
           :image-url="item.imageUrl"
@@ -118,9 +122,7 @@ onMounted(loadSections)
             class="more-arrow"
             :aria-label="getMoreLabel(section.name)"
             @click="goToThemeList(section.id)"
-          >
-            →
-          </button>
+          >&#8594;</button>
         </div>
       </div>
     </section>
@@ -207,7 +209,7 @@ onMounted(loadSections)
 }
 
 .row-card {
-  flex: 0 0 280px;
+  flex: 0 0 var(--card-width, 280px);
   scroll-snap-align: start;
   cursor: pointer;
 }

@@ -17,6 +17,8 @@
 
     --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 
+    --card-width: 280px;
+
     --host-accent: #0f766e;
     --host-title: #0b3b32;
 }

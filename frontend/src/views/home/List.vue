@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import FilterModal from '../../components/FilterModal.vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -18,10 +18,12 @@ const selectedThemeIds = ref([])
 const normalizeItem = (item) => {
   const id = item.accomodationsId ?? item.accommodationsId ?? item.id
   const title = item.accomodationsName ?? item.accommodationsName ?? item.title ?? ''
+  const description = item.shortDescription ?? item.description ?? ''
+  const rating = item.rating ?? null
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
   const price = Number(item.minPrice ?? item.price ?? 0)
   const imageUrl = item.imageUrl || 'https://via.placeholder.com/400x300'
-  return { id, title, location, price, imageUrl }
+  return { id, title, description, rating, location, price, imageUrl }
 }
 
 const loadList = async (themeIds = []) => {
@@ -82,9 +84,7 @@ onMounted(() => {
   <main class="container main-content">
     <div class="header">
       <h1>숙소 목록</h1>
-      <button class="filter-btn" @click="isFilterModalOpen = true">
-        🔍 필터
-      </button>
+      <button class="filter-btn" @click="isFilterModalOpen = true"><span class="icon">🔍</span>필터</button>
     </div>
 
     <div class="list-container">
@@ -92,6 +92,8 @@ onMounted(() => {
         v-for="item in filteredItems" 
         :key="item.id"
         :title="item.title"
+        :description="item.description"
+        :rating="item.rating"
         :location="item.location"
         :price="item.price"
         :image-url="item.imageUrl"
@@ -103,7 +105,6 @@ onMounted(() => {
     <!-- Floating Map Button -->
     <div class="map-btn-wrapper">
       <button class="map-floating-btn" @click="router.push('/map')">
-        <span class="icon">🗺️</span>
         <span class="text">지도에서 보기</span>
       </button>
     </div>
@@ -124,7 +125,7 @@ onMounted(() => {
 .main-content {
   padding-top: 2rem;
   padding-bottom: 6rem; /* Extra padding for floating button */
-  max-width: 1200px; 
+  max-width: 1280px; 
   margin: 0 auto;
   padding-left: 1rem;
   padding-right: 1rem;
@@ -165,8 +166,9 @@ onMounted(() => {
 
 .list-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 280px), var(--card-width, 280px))); 
   gap: 2rem;
+  justify-content: start;
 }
 
 .list-item {
