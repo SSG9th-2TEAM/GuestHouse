@@ -1,10 +1,74 @@
-<script setup>
+﻿<script setup>
+import { onMounted, ref } from 'vue'
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import { useRouter } from 'vue-router'
-import { guesthouses } from '../../data/guesthouses'
+import { fetchThemes } from '@/api/theme'
+import { fetchList } from '@/api/list'
 
 const router = useRouter()
-const items = guesthouses
+const sections = ref([])
+const isLoading = ref(false)
+const loadError = ref('')
+const MAX_ROW_CARDS = 12
+const MAX_ITEMS_PER_ROW = MAX_ROW_CARDS - 1
+
+const normalizeItem = (item) => {
+  const id = item.accomodationsId ?? item.accommodationsId ?? item.id
+  const title = item.accomodationsName ?? item.accommodationsName ?? item.title ?? ''
+  const description = item.shortDescription ?? item.description ?? ''
+  const rating = item.rating ?? null
+  const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
+  const price = Number(item.minPrice ?? item.price ?? 0)
+  const imageUrl = item.imageUrl || 'https://via.placeholder.com/400x300'
+  return { id, title, description, rating, location, price, imageUrl }
+}
+
+const visibleItems = (items) => items.slice(0, MAX_ITEMS_PER_ROW)
+const shouldShowMore = (items) => items.length > MAX_ITEMS_PER_ROW
+const getMoreLabel = (name) => {
+  if (!name) return '더 많은 게스트하우스 보러가기'
+  return `${name} 게스트하우스 보러가기`
+}
+const goToThemeList = (themeId) => {
+  router.push({ path: '/list', query: { themeIds: String(themeId) } })
+}
+
+const loadSections = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const themeResponse = await fetchThemes()
+    if (!themeResponse.ok || !Array.isArray(themeResponse.data)) {
+      loadError.value = '테마 목록을 불러오지 못했습니다.'
+      return
+    }
+
+    const themeList = themeResponse.data
+    const results = await Promise.all(
+      themeList.map(async (theme) => {
+        const response = await fetchList([theme.id])
+        const payload = response.ok ? response.data : []
+        const list = Array.isArray(payload)
+          ? payload
+          : payload?.items ?? payload?.content ?? payload?.data ?? []
+        return {
+          id: theme.id,
+          name: theme.themeName,
+          items: list.map(normalizeItem)
+        }
+      })
+    )
+
+    sections.value = results.filter((section) => section.items.length)
+  } catch (error) {
+    console.error('Failed to load sections', error)
+    loadError.value = '테마 목록을 불러오지 못했습니다.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(loadSections)
 </script>
 
 <template>
@@ -13,18 +77,55 @@ const items = guesthouses
       <h1>여행지에서 느끼는<br />특별한 하루</h1>
     </div>
 
-    <div class="card-grid">
-      <GuesthouseCard 
-        v-for="item in items" 
-        :key="item.id"
-        :title="item.title"
-        :location="item.location"
-        :price="item.price"
-        :image-url="item.imageUrl"
-        @click="router.push(`/room/${item.id}`)"
-        style="cursor: pointer;"
-      />
-    </div>
+    <div v-if="isLoading" class="empty-state">로딩 중입니다.</div>
+    <div v-else-if="loadError" class="empty-state">{{ loadError }}</div>
+    <section v-else v-for="section in sections" :key="section.id" class="theme-section">
+      <div class="section-header">
+        <h2
+          class="section-title theme-title"
+          role="button"
+          tabindex="0"
+          @click="goToThemeList(section.id)"
+          @keydown.enter.prevent="goToThemeList(section.id)"
+          @keydown.space.prevent="goToThemeList(section.id)"
+        >
+          <span>{{ getMoreLabel(section.name) }}</span>
+          <span class="theme-title-arrow">&#8594;</span>
+        </h2>
+      </div>
+      <div v-if="section.items.length" class="row-scroll">
+        <GuesthouseCard 
+          v-for="item in visibleItems(section.items)" 
+          :key="item.id"
+          :title="item.title"
+          :description="item.description"
+          :rating="item.rating"
+          :location="item.location"
+          :price="item.price"
+          :image-url="item.imageUrl"
+          @click="router.push(`/room/${item.id}`)"
+          class="row-card"
+        />
+        <div
+          v-if="shouldShowMore(section.items)"
+          class="row-card more-card"
+        >
+          <button
+            type="button"
+            class="more-text"
+            @click="goToThemeList(section.id)"
+          >
+            {{ getMoreLabel(section.name) }}
+          </button>
+          <button
+            type="button"
+            class="more-arrow"
+            :aria-label="getMoreLabel(section.name)"
+            @click="goToThemeList(section.id)"
+          >&#8594;</button>
+        </div>
+      </div>
+    </section>
   </main>
 </template>
 
@@ -49,5 +150,132 @@ const items = guesthouses
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 2rem;
+}
+
+.theme-section {
+  margin-bottom: 2.5rem;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.theme-title {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.theme-title:hover {
+  background-color: #e5e7eb;
+}
+
+.theme-title:focus-visible,
+.theme-title:active {
+  background-color: #e5e7eb;
+}
+
+@media (hover: none) {
+  .theme-title:active {
+    background-color: #e5e7eb;
+  }
+}
+
+.theme-title-arrow {
+  font-size: 1.1rem;
+  line-height: 1;
+  transform: translateY(1px);
+}
+
+.row-scroll {
+  display: flex;
+  gap: 1.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scroll-snap-type: x mandatory;
+}
+
+.row-card {
+  flex: 0 0 var(--card-width, 280px);
+  scroll-snap-align: start;
+  cursor: pointer;
+}
+
+.more-card {
+  border: 1px dashed #cbd5f5;
+  background: #f8fafc;
+  color: #1f2937;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  min-height: 360px;
+  border-radius: 16px;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.more-card:hover,
+.more-card:focus-within {
+  background: #eef2f7;
+  transform: translateY(-2px);
+}
+
+.more-text {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+  word-break: keep-all;
+  line-height: 1.3;
+}
+
+.more-arrow {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid #cbd5f5;
+  background: white;
+  color: #111827;
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.more-arrow:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  transform: translateX(2px);
+}
+
+.empty-state {
+  padding: 1.5rem 0;
+  color: var(--text-sub, #6b7280);
+  font-weight: 600;
 }
 </style>
