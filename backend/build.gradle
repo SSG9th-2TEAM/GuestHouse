@@ -31,6 +31,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.5'
 
+	// Mail
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
+
 	// Google Cloud Vision OCR
 	implementation platform('com.google.cloud:libraries-bom:26.32.0')
 	implementation 'com.google.cloud:google-cloud-vision'
