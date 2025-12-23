@@ -1,10 +1,15 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
 import { fetchHostRevenueDetails, fetchHostRevenueSummary, fetchHostRevenueTrend } from '@/api/hostRevenue'
+import { formatCurrency, formatNumber, formatDate } from '@/utils/formatters'
 
-const selectedYear = ref(2025)
-const years = [2024, 2025]
+const now = new Date()
+const currentYear = now.getFullYear()
+const selectedYear = ref(currentYear)
+const selectedMonth = ref('all')
+const years = computed(() => Array.from({ length: 6 }, (_, idx) => currentYear - idx))
+const months = ['all', ...Array.from({ length: 12 }, (_, idx) => String(idx + 1))]
 
 const revenueSummary = ref({
   year: selectedYear.value,
@@ -18,19 +23,37 @@ const revenueSummary = ref({
 const revenueTrend = ref([])
 const revenueDetails = ref([])
 const isLoading = ref(false)
+const loadError = ref('')
+const prefersReducedMotion = ref(false)
+const animateCharts = ref(false)
 
 const currentYearSummary = computed(() => revenueSummary.value)
 const currentYearTrend = computed(() => revenueTrend.value)
 const currentYearDetails = computed(() => revenueDetails.value)
 
+const isDailyView = computed(() => selectedMonth.value !== 'all')
+
+const chartSeries = computed(() => {
+  if (isDailyView.value) {
+    return currentYearDetails.value.map((item) => ({
+      label: Number(item.period.split('-')[2]),
+      revenue: item.revenue
+    }))
+  }
+
+  const byMonth = new Map(currentYearTrend.value.map((item) => [item.month, item.revenue]))
+  return Array.from({ length: 12 }, (_, idx) => {
+    const month = idx + 1
+    return { label: month, revenue: byMonth.get(month) ?? 0 }
+  })
+})
+
 const maxRevenue = computed(() => {
-  const values = currentYearTrend.value.map(d => d.revenue)
+  const values = chartSeries.value.map(d => d.revenue)
   return values.length ? Math.max(...values) : 0
 })
 
-const formatPrice = (price) => {
-  return (price ?? 0).toLocaleString()
-}
+const formatPrice = (price) => formatNumber(price)
 
 const getBarHeight = (revenue) => {
   if (!maxRevenue.value) return '0%'
@@ -64,24 +87,34 @@ const downloadReport = (format) => {
   exportCSV({ filename: `host-revenue-${today}.csv`, sheets })
 }
 
-const loadRevenue = async (year) => {
+const loadRevenue = async (year, month) => {
   isLoading.value = true
-  const now = new Date()
-  const currentMonth = now.getMonth() + 1
-  const summaryMonth = year === now.getFullYear() ? currentMonth : 12
+  loadError.value = ''
+  const currentMonthValue = now.getMonth() + 1
+  const summaryMonth = year === now.getFullYear() ? currentMonthValue : 12
+  const monthValue = month === 'all' ? null : Number(month)
+  const detailFrom = monthValue ? `${year}-${String(monthValue).padStart(2, '0')}-01` : `${year}-01-01`
+  const detailTo = monthValue
+    ? `${year}-${String(monthValue).padStart(2, '0')}-${String(new Date(year, monthValue, 0).getDate()).padStart(2, '0')}`
+    : `${year}-12-31`
+  const detailGranularity = monthValue ? 'day' : 'month'
 
   const [summaryRes, trendRes, detailsRes] = await Promise.all([
     fetchHostRevenueSummary({ year, month: summaryMonth }),
     fetchHostRevenueTrend({ year }),
-    fetchHostRevenueDetails({ from: `${year}-01-01`, to: `${year}-12-31` })
+    fetchHostRevenueDetails({ from: detailFrom, to: detailTo, granularity: detailGranularity })
   ])
 
   if (summaryRes.ok && summaryRes.data) {
     revenueSummary.value = summaryRes.data
+  } else {
+    loadError.value = '데이터를 불러오지 못했어요.'
   }
 
   if (trendRes.ok && Array.isArray(trendRes.data)) {
     revenueTrend.value = trendRes.data
+  } else {
+    loadError.value = '데이터를 불러오지 못했어요.'
   }
 
   if (detailsRes.ok && Array.isArray(detailsRes.data)) {
@@ -95,12 +128,99 @@ const loadRevenue = async (year) => {
   }
 
   isLoading.value = false
+  if (!prefersReducedMotion.value) {
+    animateCharts.value = false
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        animateCharts.value = true
+      })
+    })
+  }
 }
 
-onMounted(() => loadRevenue(selectedYear.value))
-watch(selectedYear, (year) => {
-  loadRevenue(year)
+onMounted(() => loadRevenue(selectedYear.value, selectedMonth.value))
+watch([selectedYear, selectedMonth], ([year, month]) => {
+  loadRevenue(year, month)
 })
+
+const netRevenue = computed(() => {
+  return (currentYearSummary.value?.totalRevenue ?? 0) - (currentYearSummary.value?.platformFeeAmount ?? 0)
+})
+
+const animatedSummary = ref({
+  totalRevenue: 0,
+  platformFeeAmount: 0,
+  netRevenue: 0,
+  expectedNextMonthRevenue: 0
+})
+
+const animateValue = (key, target, duration = 420) => {
+  const start = animatedSummary.value[key] ?? 0
+  if (prefersReducedMotion.value) {
+    animatedSummary.value[key] = target
+    return
+  }
+  const startTime = performance.now()
+  const step = (now) => {
+    const progress = Math.min((now - startTime) / duration, 1)
+    const value = start + (target - start) * progress
+    animatedSummary.value[key] = Math.round(value)
+    if (progress < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
+watch(
+  () => [currentYearSummary.value, netRevenue.value],
+  () => {
+    animateValue('totalRevenue', currentYearSummary.value?.totalRevenue ?? 0)
+    animateValue('platformFeeAmount', currentYearSummary.value?.platformFeeAmount ?? 0)
+    animateValue('netRevenue', netRevenue.value ?? 0)
+    animateValue('expectedNextMonthRevenue', currentYearSummary.value?.expectedNextMonthRevenue ?? 0)
+  },
+  { immediate: true }
+)
+
+onMounted(() => {
+  prefersReducedMotion.value = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+})
+
+const summaryCards = computed(() => ([
+  {
+    label: '이번 달 확정 매출',
+    value: animatedSummary.value.totalRevenue ?? 0,
+    tone: 'green',
+    note: null
+  },
+  {
+    label: '플랫폼 수수료',
+    value: animatedSummary.value.platformFeeAmount ?? 0,
+    tone: 'orange',
+    note: null
+  },
+  {
+    label: '순매출',
+    value: animatedSummary.value.netRevenue ?? 0,
+    tone: 'blue',
+    note: null
+  },
+  {
+    label: '다음 달 예상 매출',
+    value: animatedSummary.value.expectedNextMonthRevenue ?? 0,
+    tone: 'green',
+    note: `예약 ${currentYearSummary.value?.reservationCount ?? 0}건 기준`
+  }
+]))
+
+const hasRevenueData = computed(() => {
+  return chartSeries.value.some((item) => item.revenue > 0)
+})
+
+const formatPeriodLabel = (period) => {
+  if (!period) return ''
+  const normalized = period.length === 7 ? `${period}-01` : period
+  return formatDate(normalized, true)
+}
 </script>
 
 <template>
@@ -110,83 +230,93 @@ watch(selectedYear, (year) => {
         <h2>매출 리포트</h2>
         <p class="subtitle">{{ selectedYear }}년 재무 현황</p>
       </div>
-      <div class="header-actions">
-        <select v-model="selectedYear" class="year-select">
-          <option v-for="year in years" :key="year" :value="year">{{ year }}년</option>
-        </select>
-        <details class="admin-dropdown">
-          <summary class="admin-btn admin-btn--ghost">다운로드</summary>
-          <div class="admin-dropdown__menu">
-            <button class="admin-btn admin-btn--ghost admin-dropdown__item" type="button" @click="downloadReport('csv')">
-              CSV
-            </button>
-            <button class="admin-btn admin-btn--primary admin-dropdown__item" type="button" @click="downloadReport('xlsx')">
-              XLSX
-            </button>
-          </div>
-        </details>
-      </div>
+    </div>
+
+    <div class="header-actions">
+      <select v-model="selectedYear" class="year-select">
+        <option v-for="year in years" :key="year" :value="year">{{ year }}년</option>
+      </select>
+      <select v-model="selectedMonth" class="year-select">
+        <option value="all">전체</option>
+        <option v-for="month in months.slice(1)" :key="month" :value="month">{{ Number(month) }}월</option>
+      </select>
+      <details class="admin-dropdown">
+        <summary class="admin-btn admin-btn--ghost">다운로드</summary>
+        <div class="admin-dropdown__menu">
+          <button class="admin-btn admin-btn--ghost admin-dropdown__item" type="button" @click="downloadReport('csv')">
+            CSV
+          </button>
+          <button class="admin-btn admin-btn--primary admin-dropdown__item" type="button" @click="downloadReport('xlsx')">
+            XLSX
+          </button>
+        </div>
+      </details>
     </div>
 
     <!-- Summary Cards -->
-    <div class="summary-cards">
-      <!-- This Month -->
-      <div class="summary-card">
-        <div class="card-icon green-bg">💲</div>
-        <div class="trend-icon up">↗</div>
-        <p class="card-label">이번 달 총 매출</p>
-        <h3 class="card-value">₩{{ formatPrice(currentYearSummary?.totalRevenue) }}</h3>
-        <p class="card-trend positive">전월 대비 +15.3%</p>
+    <div class="summary-cards" :class="{ 'fade-section': !isLoading }">
+      <div v-if="isLoading" class="summary-skeleton">
+        <div v-for="i in 3" :key="i" class="skeleton-card" />
       </div>
-
-      <!-- Next Month Expected -->
-      <div class="summary-card">
-        <div class="card-icon blue-bg">📅</div>
-        <div class="trend-icon up">↗</div>
-        <p class="card-label">예상 다음 달 매출</p>
-        <h3 class="card-value">₩{{ formatPrice(currentYearSummary?.expectedNextMonthRevenue) }}</h3>
-        <p class="card-sub">예약 {{ currentYearSummary?.reservationCount ?? 0 }}건 기준</p>
+      <div v-else-if="loadError" class="status-card">
+        <p>데이터를 불러오지 못했어요.</p>
+        <button class="ghost-btn" type="button" @click="loadRevenue(selectedYear, selectedMonth)">다시 시도</button>
       </div>
-
-      <!-- Platform Fee -->
-      <div class="summary-card">
-        <div class="card-icon orange-bg">📉</div>
-        <div class="trend-icon down">↘</div>
-        <p class="card-label">플랫폼 수수료</p>
-        <h3 class="card-value">₩{{ formatPrice(currentYearSummary?.platformFeeAmount) }}</h3>
+      <div v-for="(card, index) in summaryCards" :key="card.label" class="summary-card" :class="{ 'fade-item': !isLoading }"
+           :style="{ animationDelay: `${Math.min(index, 5) * 70}ms` }">
+        <div class="card-icon" :class="`${card.tone}-bg`">💲</div>
+        <p class="card-label">{{ card.label }}</p>
+        <h3 class="card-value">{{ formatCurrency(card.value) }}</h3>
+        <p v-if="card.note" class="card-sub">{{ card.note }}</p>
       </div>
     </div>
 
     <!-- Monthly Revenue Chart -->
-    <div class="chart-section">
-      <h3>월별 매출 추이</h3>
-      <div class="bar-chart">
+    <div class="chart-section" :class="{ 'fade-section': !isLoading }">
+      <h3>{{ isDailyView ? `${selectedMonth}월 일별 매출` : '월별 매출 추이' }}</h3>
+      <div v-if="isLoading" class="chart-skeleton" />
+      <div v-else-if="!hasRevenueData" class="status-card">
+        <p>선택한 기간에 확정 매출이 없습니다.</p>
+        <button class="ghost-btn" type="button" @click="selectedMonth = 'all'">기간 변경</button>
+      </div>
+      <div v-else class="bar-chart" :class="[isDailyView ? 'daily' : 'monthly', { animate: animateCharts }]">
         <div
-            v-for="data in currentYearTrend"
-            :key="data.month"
+            v-for="data in chartSeries"
+            :key="data.label"
             class="bar-column"
         >
           <div class="bar-container">
             <div class="bar" :style="{ height: getBarHeight(data.revenue) }">
-              <span class="tooltip">₩{{ formatPrice(data.revenue) }}</span>
+              <span class="tooltip">{{ formatCurrency(data.revenue) }}</span>
             </div>
           </div>
-          <span class="month-label">{{ data.month }}월</span>
+          <span class="month-label">{{ data.label }}</span>
         </div>
       </div>
     </div>
 
     <!-- Detailed Stats List -->
-    <div class="stats-list">
-      <h3>상세 내역</h3>
-      <div class="list-item header">
+    <div class="stats-list" :class="{ 'fade-section': !isLoading }">
+      <h3>{{ isDailyView ? '일별 상세' : '상세 내역' }}</h3>
+      <div v-if="isLoading" class="list-skeleton">
+        <div v-for="i in 5" :key="i" class="skeleton-row" />
+      </div>
+      <div v-else-if="loadError" class="status-card">
+        <p>데이터를 불러오지 못했어요.</p>
+        <button class="ghost-btn" type="button" @click="loadRevenue(selectedYear, selectedMonth)">다시 시도</button>
+      </div>
+      <div v-else-if="!currentYearDetails.length" class="status-card">
+        <p>선택한 기간에 확정 매출이 없습니다.</p>
+        <button class="ghost-btn" type="button" @click="selectedMonth = 'all'">기간 변경</button>
+      </div>
+      <div v-else class="list-item header">
         <span>기간</span>
         <span>매출액</span>
         <span>점유율 (예시)</span>
       </div>
-      <div v-for="data in currentYearDetails.slice().reverse()" :key="data.period" class="list-item">
-        <span class="month-col">{{ data.period }}</span>
-        <span class="amount-col">₩{{ formatPrice(data.revenue) }}</span>
+      <div v-for="data in currentYearDetails.slice().reverse()" :key="data.period" class="list-item" :class="{ 'fade-item': !isLoading }">
+        <span class="month-col">{{ formatPeriodLabel(data.period) }}</span>
+        <span class="amount-col">{{ formatCurrency(data.revenue) }}</span>
         <span class="occupancy-col">{{ data.occupancyRate.toFixed(1) }}%</span>
       </div>
     </div>
@@ -195,7 +325,7 @@ watch(selectedYear, (year) => {
 
 <style scoped>
 .revenue-view {
-  padding-bottom: 2rem;
+  padding-bottom: calc(2rem + var(--bn-h, 0px) + (var(--bn-pad, 0px) * 2) + env(safe-area-inset-bottom));
 }
 
 /* ✅ 대시보드 톤: 헤더 선명/굵게 + 모바일 퍼스트 스택 */
@@ -204,7 +334,7 @@ watch(selectedYear, (year) => {
   flex-direction: column;
   align-items: stretch;
   gap: 0.75rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.5rem;
 }
 
 .view-header h2 {
@@ -238,14 +368,73 @@ watch(selectedYear, (year) => {
   flex-wrap: wrap;
   gap: 0.6rem;
   align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: #f5f5f5;
+  padding: 0.6rem 0;
+}
+
+.status-card {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px dashed #e5e7eb;
+  background: #f8fafc;
+  text-align: center;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.status-card p {
+  margin: 0;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.ghost-btn {
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #0f766e;
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 800;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.fade-section {
+  animation: fadeUp 240ms ease both;
+}
+
+.fade-item {
+  animation: fadeUp 240ms ease both;
 }
 
 /* Summary Cards (모바일: 세로, 태블릿+: 3열) */
 .summary-cards {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
+  display: flex;
+  gap: 0.75rem;
   margin-bottom: 1.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 0.25rem;
+  position: relative;
+}
+
+.summary-skeleton {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.skeleton-card {
+  flex: 0 0 78%;
+  height: 140px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.1s ease infinite;
 }
 
 .summary-card {
@@ -255,6 +444,8 @@ watch(selectedYear, (year) => {
   position: relative;
   border: 1px solid #e5e7eb;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  flex: 0 0 78%;
+  scroll-snap-align: start;
 }
 
 .card-icon {
@@ -330,13 +521,21 @@ watch(selectedYear, (year) => {
 
 /* ✅ 모바일에서 12개월 막대가 답답해서: 가로 스크롤 허용(템플릿 변경 없이 CSS만) */
 .bar-chart {
-  display: flex;
   align-items: flex-end;
   height: 210px;
   padding-top: 2rem; /* tooltip 공간 */
+}
+
+.bar-chart.monthly {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.bar-chart.daily {
+  display: flex;
   overflow-x: auto;
-  gap: 0.7rem;
-  justify-content: flex-start;
+  gap: 0.5rem;
 }
 
 .bar-column {
@@ -344,7 +543,10 @@ watch(selectedYear, (year) => {
   flex-direction: column;
   align-items: center;
   height: 100%;
-  flex: 0 0 44px; /* 모바일에서 한 칸 폭 고정 → 스크롤 자연스러움 */
+}
+
+.bar-chart.daily .bar-column {
+  flex: 0 0 36px;
 }
 
 .bar-container {
@@ -363,6 +565,19 @@ watch(selectedYear, (year) => {
   transition: height 0.3s ease, background 0.2s;
   position: relative;
   cursor: pointer;
+  transform-origin: bottom;
+}
+
+.chart-skeleton {
+  height: 210px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.1s ease infinite;
+}
+
+.bar-chart.animate .bar {
+  animation: barGrow 480ms ease;
 }
 
 .bar:hover {
@@ -405,6 +620,20 @@ watch(selectedYear, (year) => {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
 
+.list-skeleton {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.skeleton-row {
+  height: 18px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.1s ease infinite;
+}
+
 .stats-list h3 {
   font-size: 1.1rem;
   font-weight: 900;
@@ -444,12 +673,29 @@ watch(selectedYear, (year) => {
     justify-content: space-between;
   }
 
+  .header-actions {
+    position: static;
+    background: transparent;
+    padding: 0;
+  }
+
   .year-select {
     width: auto;
   }
 
   .summary-cards {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: grid;
+    overflow: visible;
+  }
+
+  .summary-card {
+    flex: 1;
+  }
+
+  .summary-skeleton,
+  .skeleton-card {
+    flex: 1;
   }
 
   .bar-chart {
@@ -464,6 +710,45 @@ watch(selectedYear, (year) => {
 
   .bar {
     width: 60%;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes barGrow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-section,
+  .fade-item,
+  .bar-chart.animate .bar,
+  .skeleton-card,
+  .skeleton-row {
+    animation: none !important;
   }
 }
 </style>

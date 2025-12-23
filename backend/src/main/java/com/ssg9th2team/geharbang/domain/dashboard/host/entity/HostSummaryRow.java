@@ -4,8 +4,9 @@ import lombok.Getter;
 
 @Getter
 public class HostSummaryRow {
-    private long expectedRevenue;
+    private long confirmedRevenue;
     private int confirmedReservations;
     private double avgRating;
     private int operatingAccommodations;
+    private int totalAccommodations;
 }
