@@ -4,9 +4,12 @@ import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import { useRouter } from 'vue-router'
 import { fetchThemes } from '@/api/theme'
 import { fetchList } from '@/api/list'
+import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
+import { isAuthenticated } from '@/api/authClient'
 
 const router = useRouter()
 const sections = ref([])
+const wishlistIds = ref(new Set())
 const isLoading = ref(false)
 const loadError = ref('')
 const MAX_ROW_CARDS = 12
@@ -31,6 +34,45 @@ const getMoreLabel = (name) => {
 }
 const goToThemeList = (themeId) => {
   router.push({ path: '/list', query: { themeIds: String(themeId) } })
+}
+
+const loadWishlist = async () => {
+  try {
+    const res = await fetchWishlistIds()
+    if (res.status === 200 && Array.isArray(res.data)) {
+      wishlistIds.value = new Set(res.data)
+    }
+  } catch (e) {
+    console.error('Failed to load wishlist', e)
+  }
+}
+
+const toggleWishlist = async (id) => {
+  if (!isAuthenticated()) {
+    if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
+      router.push('/login')
+    }
+    return
+  }
+
+  const isAdded = wishlistIds.value.has(id)
+  if (isAdded) {
+    wishlistIds.value.delete(id)
+    try {
+      await removeWishlist(id)
+    } catch (e) {
+      wishlistIds.value.add(id)
+      console.error(e)
+    }
+  } else {
+    wishlistIds.value.add(id)
+    try {
+      await addWishlist(id)
+    } catch (e) {
+      wishlistIds.value.delete(id)
+      console.error(e)
+    }
+  }
 }
 
 const loadSections = async () => {
@@ -68,7 +110,10 @@ const loadSections = async () => {
   }
 }
 
-onMounted(loadSections)
+onMounted(() => {
+  loadSections()
+  loadWishlist()
+})
 </script>
 
 <template>
@@ -97,12 +142,15 @@ onMounted(loadSections)
         <GuesthouseCard 
           v-for="item in visibleItems(section.items)" 
           :key="item.id"
+          :id="item.id"
           :title="item.title"
           :description="item.description"
           :rating="item.rating"
           :location="item.location"
           :price="item.price"
           :image-url="item.imageUrl"
+          :is-favorite="wishlistIds.has(item.id)"
+          @toggle-favorite="toggleWishlist"
           @click="router.push(`/room/${item.id}`)"
           class="row-card"
         />

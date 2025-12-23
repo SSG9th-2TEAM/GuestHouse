@@ -20,9 +20,9 @@ public class AccommodationController {
 
     // 숙소 등록
     @PostMapping
-    public ResponseEntity<?> createAccommodation(@Valid @RequestBody AccommodationCreateRequestDto requestDto) {
+    public ResponseEntity<?> createAccommodation(@Valid @RequestBody AccommodationCreateRequestDto requestDto, org.springframework.security.core.Authentication authentication) {
         try {
-            Long userId = 1L; // 나중에 유저 api가져오기
+            Long userId = Long.parseLong(authentication.getName());
             Long accommodationsId = accommodationService.createAccommodation(userId, requestDto);
             return ResponseEntity.status(HttpStatus.CREATED).body(accommodationsId);
         } catch (Exception e) {

@@ -1,11 +1,13 @@
 ﻿<script setup>
 defineProps({
+  id: [Number, String],
   title: String,
   description: String,
   location: String,
   rating: [Number, String],
   price: Number,
-  imageUrl: String
+  imageUrl: String,
+  isFavorite: Boolean
 })
 
 const formatRating = (value) => {
@@ -13,13 +15,22 @@ const formatRating = (value) => {
   if (!Number.isFinite(numeric)) return '-'
   return numeric.toFixed(2)
 }
+
+const emit = defineEmits(['toggle-favorite'])
 </script>
 
 <template>
   <article class="card">
     <div class="image-container">
       <img :src="imageUrl" :alt="title" class="card-image" />
-      <button class="favorite-btn">&#9825;</button>
+      <button 
+        class="favorite-btn" 
+        :class="{ active: isFavorite }"
+        @click.stop="$emit('toggle-favorite', id)"
+      >
+        <span v-if="isFavorite">&#9829;</span>
+        <span v-else>&#9825;</span>
+      </button>
     </div>
     <div class="card-content">
       <div class="header-row">
@@ -36,6 +47,10 @@ const formatRating = (value) => {
     </div>
   </article>
 </template>
+
+<style scoped>
+/* ... existing styles ... */
+</style>
 
 <style scoped>
 .card {
@@ -83,6 +98,15 @@ const formatRating = (value) => {
   font-size: 1.2rem;
   cursor: pointer;
   border: none;
+  transition: color 0.2s, transform 0.1s;
+}
+
+.favorite-btn.active {
+  color: #ef4444; /* Red Heart */
+}
+
+.favorite-btn:active {
+  transform: scale(0.9);
 }
 
 .card-content {
