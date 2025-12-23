@@ -49,7 +49,7 @@ public class AccommodationResponseDto {
     private Double rating;
     private Integer reviewCount;
 
-    private Double rating;
+
     
     // 대표 이미지 URL (리스트 조회용)
     private String mainImageUrl;
