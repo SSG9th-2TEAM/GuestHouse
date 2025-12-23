@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { signup, checkEmailDuplicate } from '@/api/authClient'
+import { signup, checkEmailDuplicate, sendVerificationEmail, verifyEmailCode } from '@/api/authClient'
 
 const router = useRouter()
 const currentStep = ref(1)
@@ -261,16 +261,27 @@ const goBack = () => {
   }
 }
 
-const handleConfirmCode = () => {
-  // TODO: Replace with actual API call to verify code
-  if (verificationCode.value === '123456') { // Simulate successful verification
-    isCodeVerified.value = true
-    stopTimer()
-    emailCheckMessage.value = '이메일 인증이 완료되었습니다.'
-    openModal('인증에 성공했습니다.', 'success')
-  } else {
-    isCodeVerified.value = false
-    openModal('인증번호가 올바르지 않습니다.', 'error')
+const handleConfirmCode = async () => {
+  if (!verificationCode.value) {
+    openModal('인증번호를 입력해주세요.', 'error')
+    return
+  }
+
+  try {
+    const response = await verifyEmailCode(email.value, verificationCode.value)
+    if (response.ok && response.data === true) { // 백엔드에서 true/false 반환
+      isCodeVerified.value = true
+      stopTimer()
+      emailCheckMessage.value = '이메일 인증이 완료되었습니다.'
+      openModal('인증에 성공했습니다.', 'success')
+    } else {
+      isCodeVerified.value = false
+      // 백엔드에서 전달된 에러 메시지 활용
+      openModal(response.data?.message || '인증번호가 올바르지 않거나 만료되었습니다.', 'error')
+    }
+  } catch (error) {
+    console.error('인증번호 확인 에러:', error)
+    openModal('인증번호 확인 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.', 'error')
   }
 }
 
@@ -335,26 +346,35 @@ const handleSendCode = async () => {
   isEmailChecked.value = false;
   isCodeSent.value = false;
   isCodeVerified.value = false;
+  stopTimer(); // 이전 타이머가 있다면 중지
 
   try {
-    const response = await checkEmailDuplicate(email.value)
-    if (response.data === true) {
+    // 1. 이메일 중복 확인
+    const duplicateCheckResponse = await checkEmailDuplicate(email.value)
+    if (duplicateCheckResponse.ok && duplicateCheckResponse.data === true) {
       emailCheckMessage.value = '이미 사용 중인 이메일입니다.'
       openModal('이미 사용 중인 이메일입니다.', 'error')
-    } else if (response.data === false) {
+      return;
+    } else if (!duplicateCheckResponse.ok) {
+      openModal(duplicateCheckResponse.data?.message || '이메일 중복 확인 중 오류가 발생했습니다.', 'error')
+      return;
+    }
+
+    // 2. 인증 코드 전송 요청
+    const sendCodeResponse = await sendVerificationEmail(email.value)
+    if (sendCodeResponse.ok) {
       isEmailChecked.value = true;
       emailCheckMessage.value = '인증번호가 발송되었습니다.'
-      // Simulate sending code
-      // TODO: Replace with actual API call to send verification code
       isCodeSent.value = true
       startTimer()
       openModal('인증번호가 발송되었습니다. 이메일을 확인해주세요.', 'success')
     } else {
-      openModal('이메일 중복 확인 중 오류가 발생했습니다.', 'error')
+      // 백엔드에서 전달된 에러 메시지 활용
+      openModal(sendCodeResponse.data?.message || '인증번호 전송 중 오류가 발생했습니다.', 'error')
     }
   } catch (error) {
-    console.error('이메일 중복 확인 에러:', error)
-    openModal('이메일 중복 확인 중 오류가 발생했습니다.', 'error')
+    console.error('이메일 인증코드 전송 에러:', error)
+    openModal('이메일 인증코드 전송 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.', 'error')
   }
 }
 
