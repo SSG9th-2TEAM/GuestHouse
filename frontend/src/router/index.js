@@ -40,7 +40,14 @@ const router = createRouter({
         {
             path: '/booking/:id',
             name: 'booking',
-            component: () => import('../views/booking/BookingView.vue')
+            component: () => import('../views/booking/BookingView.vue'),
+            props: (route) => ({
+                accommodationsId: route.params.id || null,
+                roomId: route.query.roomId || null,
+                guestCount: route.query.guestCount || null,
+                checkin: route.query.checkin || null,
+                checkout: route.query.checkout || null
+            })
         },
         {
             path: '/booking/success',

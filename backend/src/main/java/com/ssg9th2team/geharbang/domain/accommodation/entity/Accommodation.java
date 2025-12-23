@@ -97,7 +97,7 @@ public class Accommodation {
     private Integer minPrice;
 
     @Column(name = "rating")
-    private Integer rating;
+    private Double rating;
 
     @Column(name = "review_count")
     private Integer reviewCount;
