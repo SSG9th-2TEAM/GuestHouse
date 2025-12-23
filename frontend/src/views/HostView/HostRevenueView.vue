@@ -1,15 +1,15 @@
 <script setup>
-import { ref, computed, nextTick, onMounted, watch } from 'vue'
-import { exportCSV, exportXLSX } from '../../utils/reportExport'
-import { fetchHostRevenueDetails, fetchHostRevenueSummary, fetchHostRevenueTrend } from '@/api/hostRevenue'
-import { formatCurrency, formatNumber, formatDate } from '@/utils/formatters'
+import {ref, computed, nextTick, onMounted, watch} from 'vue'
+import {exportCSV, exportXLSX} from '../../utils/reportExport'
+import {fetchHostRevenueDetails, fetchHostRevenueSummary, fetchHostRevenueTrend} from '@/api/hostRevenue'
+import {formatCurrency, formatDate} from '@/utils/formatters'
 
 const now = new Date()
 const currentYear = now.getFullYear()
 const selectedYear = ref(currentYear)
 const selectedMonth = ref('all')
-const years = computed(() => Array.from({ length: 6 }, (_, idx) => currentYear - idx))
-const months = ['all', ...Array.from({ length: 12 }, (_, idx) => String(idx + 1))]
+const years = computed(() => Array.from({length: 6}, (_, idx) => currentYear - idx))
+const months = ['all', ...Array.from({length: 12}, (_, idx) => String(idx + 1))]
 
 const revenueSummary = ref({
   year: selectedYear.value,
@@ -26,6 +26,7 @@ const isLoading = ref(false)
 const loadError = ref('')
 const prefersReducedMotion = ref(false)
 const animateCharts = ref(false)
+const includeZero = ref(false)
 
 const currentYearSummary = computed(() => revenueSummary.value)
 const currentYearTrend = computed(() => revenueTrend.value)
@@ -42,9 +43,9 @@ const chartSeries = computed(() => {
   }
 
   const byMonth = new Map(currentYearTrend.value.map((item) => [item.month, item.revenue]))
-  return Array.from({ length: 12 }, (_, idx) => {
+  return Array.from({length: 12}, (_, idx) => {
     const month = idx + 1
-    return { label: month, revenue: byMonth.get(month) ?? 0 }
+    return {label: month, revenue: byMonth.get(month) ?? 0}
   })
 })
 
@@ -53,7 +54,19 @@ const maxRevenue = computed(() => {
   return values.length ? Math.max(...values) : 0
 })
 
-const formatPrice = (price) => formatNumber(price)
+const formatPercent = (value, withSign = true) => {
+  const amount = Number(value ?? 0)
+  if (!Number.isFinite(amount)) return '0.0%'
+  const label = amount.toFixed(1)
+  if (!withSign) return `${label}%`
+  if (amount > 0) return `+${label}%`
+  return `${label}%`
+}
+
+const monthLabel = (year, month) => {
+  const padded = String(month).padStart(2, '0')
+  return `${year}.${padded}`
+}
 
 const getBarHeight = (revenue) => {
   if (!maxRevenue.value) return '0%'
@@ -72,19 +85,19 @@ const downloadReport = (format) => {
     {
       name: '매출 리포트',
       columns: [
-        { key: 'year', label: '연도' },
-        { key: 'month', label: '월' },
-        { key: 'revenue', label: '매출액' }
+        {key: 'year', label: '연도'},
+        {key: 'month', label: '월'},
+        {key: 'revenue', label: '매출액'}
       ],
       rows
     }
   ]
 
   if (format === 'xlsx') {
-    exportXLSX({ filename: `host-revenue-${today}.xlsx`, sheets })
+    exportXLSX({filename: `host-revenue-${today}.xlsx`, sheets})
     return
   }
-  exportCSV({ filename: `host-revenue-${today}.csv`, sheets })
+  exportCSV({filename: `host-revenue-${today}.csv`, sheets})
 }
 
 const loadRevenue = async (year, month) => {
@@ -95,14 +108,14 @@ const loadRevenue = async (year, month) => {
   const monthValue = month === 'all' ? null : Number(month)
   const detailFrom = monthValue ? `${year}-${String(monthValue).padStart(2, '0')}-01` : `${year}-01-01`
   const detailTo = monthValue
-    ? `${year}-${String(monthValue).padStart(2, '0')}-${String(new Date(year, monthValue, 0).getDate()).padStart(2, '0')}`
-    : `${year}-12-31`
+      ? `${year}-${String(monthValue).padStart(2, '0')}-${String(new Date(year, monthValue, 0).getDate()).padStart(2, '0')}`
+      : `${year}-12-31`
   const detailGranularity = monthValue ? 'day' : 'month'
 
   const [summaryRes, trendRes, detailsRes] = await Promise.all([
-    fetchHostRevenueSummary({ year, month: summaryMonth }),
-    fetchHostRevenueTrend({ year }),
-    fetchHostRevenueDetails({ from: detailFrom, to: detailTo, granularity: detailGranularity })
+    fetchHostRevenueSummary({year, month: summaryMonth}),
+    fetchHostRevenueTrend({year}),
+    fetchHostRevenueDetails({from: detailFrom, to: detailTo, granularity: detailGranularity})
   ])
 
   if (summaryRes.ok && summaryRes.data) {
@@ -150,8 +163,7 @@ const netRevenue = computed(() => {
 const animatedSummary = ref({
   totalRevenue: 0,
   platformFeeAmount: 0,
-  netRevenue: 0,
-  expectedNextMonthRevenue: 0
+  netRevenue: 0
 })
 
 const animateValue = (key, target, duration = 420) => {
@@ -171,14 +183,13 @@ const animateValue = (key, target, duration = 420) => {
 }
 
 watch(
-  () => [currentYearSummary.value, netRevenue.value],
-  () => {
-    animateValue('totalRevenue', currentYearSummary.value?.totalRevenue ?? 0)
-    animateValue('platformFeeAmount', currentYearSummary.value?.platformFeeAmount ?? 0)
-    animateValue('netRevenue', netRevenue.value ?? 0)
-    animateValue('expectedNextMonthRevenue', currentYearSummary.value?.expectedNextMonthRevenue ?? 0)
-  },
-  { immediate: true }
+    () => [currentYearSummary.value, netRevenue.value],
+    () => {
+      animateValue('totalRevenue', currentYearSummary.value?.totalRevenue ?? 0)
+      animateValue('platformFeeAmount', currentYearSummary.value?.platformFeeAmount ?? 0)
+      animateValue('netRevenue', netRevenue.value ?? 0)
+    },
+    {immediate: true}
 )
 
 onMounted(() => {
@@ -203,12 +214,6 @@ const summaryCards = computed(() => ([
     value: animatedSummary.value.netRevenue ?? 0,
     tone: 'blue',
     note: null
-  },
-  {
-    label: '다음 달 예상 매출',
-    value: animatedSummary.value.expectedNextMonthRevenue ?? 0,
-    tone: 'green',
-    note: `예약 ${currentYearSummary.value?.reservationCount ?? 0}건 기준`
   }
 ]))
 
@@ -216,10 +221,166 @@ const hasRevenueData = computed(() => {
   return chartSeries.value.some((item) => item.revenue > 0)
 })
 
-const formatPeriodLabel = (period) => {
-  if (!period) return ''
-  const normalized = period.length === 7 ? `${period}-01` : period
-  return formatDate(normalized, true)
+const monthlyItems = computed(() => {
+  const year = Number(selectedYear.value)
+  const byMonth = new Map(currentYearTrend.value.map((item) => [Number(item.month), Number(item.revenue ?? 0)]))
+
+  const months = Array.from({length: 12}, (_, idx) => {
+    const month = idx + 1
+    const amount = byMonth.get(month) ?? 0
+    const prev = idx > 0 ? (byMonth.get(month - 1) ?? 0) : 0
+    return {year, month, amount, prev}
+  })
+
+  const yearTotal = months.reduce((sum, item) => sum + item.amount, 0)
+  const platformRate = Number(currentYearSummary.value?.platformFeeRate ?? 0)
+
+  const items = months.map((item) => {
+    const momValue = item.prev > 0
+        ? ((item.amount - item.prev) / item.prev) * 100
+        : null
+
+    const momText = momValue !== null
+        ? `전월 대비 ${formatPercent(momValue, true)}`
+        : '전월 데이터 없음'
+
+    const shareValue = yearTotal > 0 ? (item.amount / yearTotal) * 100 : 0
+    const shareValueText = formatPercent(shareValue, false)
+
+    const feeAmount = item.amount * platformRate
+
+    return {
+      ...item,
+      yearTotal,
+      label: monthLabel(year, item.month),
+
+      // ✅ 카드용(라벨 포함) - 모바일에서 사용
+      momText,
+      shareText: `연간 비중 ${shareValueText}`,
+
+      // ✅ PC 테이블용(값만) - 헤더와 중복 라벨 제거
+      momTableText: momValue !== null ? formatPercent(momValue, true) : '-',
+      shareTableText: shareValueText,
+
+      feeAmount,
+      netAmount: item.amount - feeAmount
+    }
+  })
+
+  const filtered = includeZero.value ? items : items.filter((item) => item.amount > 0)
+  return filtered.slice().reverse()
+})
+
+const dailyItemsAll = computed(() => {
+  if (selectedMonth.value === 'all') return []
+  const year = Number(selectedYear.value)
+  const month = Number(selectedMonth.value)
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const amountByDay = new Map()
+  currentYearDetails.value.forEach((item) => {
+    if (!item?.period) return
+    const parts = String(item.period).split('-')
+    const day = Number(parts[2])
+    if (!Number.isFinite(day)) return
+    amountByDay.set(day, Number(item.revenue ?? 0))
+  })
+  const items = Array.from({length: daysInMonth}, (_, idx) => {
+    const day = idx + 1
+    const amount = amountByDay.get(day) ?? 0
+    const prevAmount = day > 1 ? (amountByDay.get(day - 1) ?? 0) : 0
+    const dodText = prevAmount > 0
+        ? `전일 대비 ${formatPercent(((amount - prevAmount) / prevAmount) * 100, true)}`
+        : '전일 데이터 없음'
+    const date = new Date(year, month - 1, day)
+    return {
+      day,
+      amount,
+      date,
+      label: formatDate(date),
+      dodText,
+      anchorId: `day-${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    }
+  })
+  return items
+})
+
+const dailyItems = computed(() => {
+  const items = includeZero.value ? dailyItemsAll.value : dailyItemsAll.value.filter((item) => item.amount > 0)
+  return items.slice().reverse()
+})
+
+const dailyStats = computed(() => {
+  const items = dailyItemsAll.value
+  if (!items.length) {
+    return {monthTotal: 0, peakLabel: '-', avgDaily: 0, peakAmount: 0}
+  }
+  const monthTotal = items.reduce((sum, item) => sum + item.amount, 0)
+  const peakAmount = items.reduce((max, item) => Math.max(max, item.amount), 0)
+  const peakItem = [...items].reverse().find((item) => item.amount === peakAmount && peakAmount > 0)
+  const daysWithRevenue = items.filter((item) => item.amount > 0)
+  const avgDaily = daysWithRevenue.length
+      ? Math.round(daysWithRevenue.reduce((sum, item) => sum + item.amount, 0) / daysWithRevenue.length)
+      : 0
+  return {
+    monthTotal,
+    peakLabel: peakItem ? peakItem.label : '-',
+    avgDaily,
+    peakAmount
+  }
+})
+
+const weeklyItems = computed(() => {
+  if (selectedMonth.value === 'all') return []
+  const year = Number(selectedYear.value)
+  const month = Number(selectedMonth.value)
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const firstDate = new Date(year, month - 1, 1)
+  const lastDate = new Date(year, month - 1, daysInMonth)
+  const weekStartDay = 1
+  const weekMap = new Map()
+  dailyItemsAll.value.forEach((item) => {
+    const date = new Date(item.date)
+    const day = date.getDay()
+    const diff = (day - weekStartDay + 7) % 7
+    const start = new Date(date)
+    start.setDate(date.getDate() - diff)
+    const key = start.toISOString().slice(0, 10)
+    const entry = weekMap.get(key) ?? {start, amount: 0, firstPositiveDay: null}
+    entry.amount += item.amount
+    if (item.amount > 0 && entry.firstPositiveDay === null) {
+      entry.firstPositiveDay = item.day
+    }
+    weekMap.set(key, entry)
+  })
+  const weeks = Array.from(weekMap.values()).map((entry) => {
+    const rangeStart = new Date(Math.max(entry.start.getTime(), firstDate.getTime()))
+    const rangeEnd = new Date(entry.start)
+    rangeEnd.setDate(rangeEnd.getDate() + 6)
+    const clippedEnd = new Date(Math.min(rangeEnd.getTime(), lastDate.getTime()))
+    const label = `${String(rangeStart.getMonth() + 1).padStart(2, '0')}/${String(rangeStart.getDate()).padStart(2, '0')}~${String(clippedEnd.getMonth() + 1).padStart(2, '0')}/${String(clippedEnd.getDate()).padStart(2, '0')}`
+    const anchorDay = includeZero.value
+        ? rangeStart.getDate()
+        : (entry.firstPositiveDay ?? rangeStart.getDate())
+    const anchorId = `day-${year}-${String(month).padStart(2, '0')}-${String(anchorDay).padStart(2, '0')}`
+    return {...entry, rangeStart, rangeEnd: clippedEnd, label, anchorId}
+  })
+  const filtered = includeZero.value ? weeks : weeks.filter((week) => week.amount > 0)
+  return filtered.sort((a, b) => b.rangeStart - a.rangeStart)
+})
+
+const isEmptyDetails = computed(() => {
+  if (selectedMonth.value === 'all') {
+    return monthlyItems.value.length === 0
+  }
+  return dailyItems.value.length === 0
+})
+
+const scrollToAnchor = (anchorId) => {
+  if (!anchorId) return
+  nextTick(() => {
+    const target = document.getElementById(anchorId)
+    target?.scrollIntoView({behavior: 'smooth', block: 'start'})
+  })
 }
 </script>
 
@@ -246,7 +407,8 @@ const formatPeriodLabel = (period) => {
           <button class="admin-btn admin-btn--ghost admin-dropdown__item" type="button" @click="downloadReport('csv')">
             CSV
           </button>
-          <button class="admin-btn admin-btn--primary admin-dropdown__item" type="button" @click="downloadReport('xlsx')">
+          <button class="admin-btn admin-btn--primary admin-dropdown__item" type="button"
+                  @click="downloadReport('xlsx')">
             XLSX
           </button>
         </div>
@@ -256,13 +418,14 @@ const formatPeriodLabel = (period) => {
     <!-- Summary Cards -->
     <div class="summary-cards" :class="{ 'fade-section': !isLoading }">
       <div v-if="isLoading" class="summary-skeleton">
-        <div v-for="i in 3" :key="i" class="skeleton-card" />
+        <div v-for="i in 3" :key="i" class="skeleton-card"/>
       </div>
       <div v-else-if="loadError" class="status-card">
         <p>데이터를 불러오지 못했어요.</p>
         <button class="ghost-btn" type="button" @click="loadRevenue(selectedYear, selectedMonth)">다시 시도</button>
       </div>
-      <div v-for="(card, index) in summaryCards" :key="card.label" class="summary-card" :class="{ 'fade-item': !isLoading }"
+      <div v-for="(card, index) in summaryCards" :key="card.label" class="summary-card"
+           :class="{ 'fade-item': !isLoading }"
            :style="{ animationDelay: `${Math.min(index, 5) * 70}ms` }">
         <div class="card-icon" :class="`${card.tone}-bg`">💲</div>
         <p class="card-label">{{ card.label }}</p>
@@ -274,7 +437,7 @@ const formatPeriodLabel = (period) => {
     <!-- Monthly Revenue Chart -->
     <div class="chart-section" :class="{ 'fade-section': !isLoading }">
       <h3>{{ isDailyView ? `${selectedMonth}월 일별 매출` : '월별 매출 추이' }}</h3>
-      <div v-if="isLoading" class="chart-skeleton" />
+      <div v-if="isLoading" class="chart-skeleton"/>
       <div v-else-if="!hasRevenueData" class="status-card">
         <p>선택한 기간에 확정 매출이 없습니다.</p>
         <button class="ghost-btn" type="button" @click="selectedMonth = 'all'">기간 변경</button>
@@ -297,27 +460,161 @@ const formatPeriodLabel = (period) => {
 
     <!-- Detailed Stats List -->
     <div class="stats-list" :class="{ 'fade-section': !isLoading }">
-      <h3>{{ isDailyView ? '일별 상세' : '상세 내역' }}</h3>
+      <div class="stats-header">
+        <h3>{{ isDailyView ? '일별 상세 내역' : '월별 상세 내역' }}</h3>
+        <label class="zero-toggle">
+          <input v-model="includeZero" type="checkbox"/>
+          <span>0원 포함</span>
+        </label>
+      </div>
+
+      <div v-if="isDailyView" class="daily-summary-bar">
+        <div class="summary-item">
+          <span class="summary-label">이번 달 확정 매출</span>
+          <span class="summary-value">{{ formatCurrency(dailyStats.monthTotal) }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">최고 매출일</span>
+          <span class="summary-value">{{ dailyStats.peakLabel }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">평균 일매출(매출 발생일 기준)</span>
+          <span class="summary-value">{{ formatCurrency(dailyStats.avgDaily) }}</span>
+        </div>
+      </div>
+
+      <div v-if="isDailyView && !isLoading && !loadError && weeklyItems.length" class="weekly-summary">
+        <div class="weekly-header">
+          <h4>주간 합계</h4>
+        </div>
+        <div class="week-cards">
+          <button
+              v-for="week in weeklyItems"
+              :key="week.label"
+              class="week-card"
+              type="button"
+              @click="scrollToAnchor(week.anchorId)"
+          >
+            <span class="week-range">{{ week.label }}</span>
+            <span class="week-amount">{{ formatCurrency(week.amount) }}</span>
+          </button>
+        </div>
+      </div>
+
       <div v-if="isLoading" class="list-skeleton">
-        <div v-for="i in 5" :key="i" class="skeleton-row" />
+        <div v-for="i in 5" :key="i" class="skeleton-row"/>
       </div>
       <div v-else-if="loadError" class="status-card">
         <p>데이터를 불러오지 못했어요.</p>
         <button class="ghost-btn" type="button" @click="loadRevenue(selectedYear, selectedMonth)">다시 시도</button>
       </div>
-      <div v-else-if="!currentYearDetails.length" class="status-card">
+      <div v-else-if="isEmptyDetails" class="status-card">
         <p>선택한 기간에 확정 매출이 없습니다.</p>
-        <button class="ghost-btn" type="button" @click="selectedMonth = 'all'">기간 변경</button>
+        <button class="ghost-btn" type="button" @click="includeZero = true">0원 포함 보기</button>
       </div>
-      <div v-else class="list-item header">
-        <span>기간</span>
-        <span>매출액</span>
-        <span>점유율 (예시)</span>
-      </div>
-      <div v-for="data in currentYearDetails.slice().reverse()" :key="data.period" class="list-item" :class="{ 'fade-item': !isLoading }">
-        <span class="month-col">{{ formatPeriodLabel(data.period) }}</span>
-        <span class="amount-col">{{ formatCurrency(data.revenue) }}</span>
-        <span class="occupancy-col">{{ data.occupancyRate.toFixed(1) }}%</span>
+      <div v-else class="details-content">
+        <div class="mobile-only">
+          <div v-if="!isDailyView" class="detail-cards">
+            <div v-for="item in monthlyItems" :key="item.label" class="detail-card">
+              <div class="card-row">
+                <span class="card-title">{{ item.label }}</span>
+                <span class="card-amount">{{ formatCurrency(item.amount) }}</span>
+              </div>
+              <div class="card-row sub">
+                <span>{{ item.momText }}</span>
+                <span class="card-sub-right">{{ item.shareText }}</span>
+              </div>
+              <details class="card-accordion">
+                <summary>상세</summary>
+                <div class="accordion-row">
+                  <span>플랫폼 수수료</span>
+                  <span class="card-amount">{{ formatCurrency(item.feeAmount) }}</span>
+                </div>
+                <div class="accordion-row">
+                  <span>순매출</span>
+                  <span class="card-amount">{{ formatCurrency(item.netAmount) }}</span>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <div v-else class="detail-cards">
+            <div
+                v-for="item in dailyItems"
+                :id="item.anchorId"
+                :key="item.anchorId"
+                class="detail-card"
+                :class="{ peak: item.amount === dailyStats.peakAmount && item.amount > 0 }"
+            >
+              <div class="card-row">
+                <div class="card-title-group">
+                  <span class="card-title">{{ item.label }}</span>
+                  <span v-if="item.amount === dailyStats.peakAmount && item.amount > 0" class="peak-badge">최고</span>
+                </div>
+                <span class="card-amount">{{ formatCurrency(item.amount) }}</span>
+              </div>
+              <div class="card-row sub">
+                <span>{{ item.dodText }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="desktop-only">
+          <table v-if="!isDailyView" class="detail-table">
+            <colgroup>
+              <col class="col-period" style="width:120px"/>
+              <col class="col-amount" style="width:220px"/>
+              <col class="col-mom" style="width:200px"/>
+              <col class="col-share" style="width:160px"/>
+            </colgroup>
+
+            <thead>
+            <tr>
+              <th>기간</th>
+              <th class="align-right">매출액</th>
+              <th class="align-right">전월 대비</th>
+              <th class="align-right">연간 비중</th>
+            </tr>
+            </thead>
+
+            <tbody>
+            <tr v-for="item in monthlyItems" :key="item.label">
+              <td>{{ item.label }}</td>
+              <td class="align-right">{{ formatCurrency(item.amount) }}</td>
+              <td class="align-right">{{ item.momTableText }}</td>
+              <td class="align-right">{{ item.shareTableText }}</td>
+            </tr>
+            </tbody>
+          </table>
+
+
+          <table v-else class="detail-table">
+            <colgroup>
+              <col style="width:120px"/>
+              <col style="width:220px"/>
+              <col style="width:200px"/>
+            </colgroup>
+            <thead>
+            <tr>
+              <th>날짜</th>
+              <th class="align-right">매출액</th>
+              <th class="align-right">전일 대비</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr
+                v-for="item in dailyItems"
+                :key="item.anchorId"
+                :class="{ peak: item.amount === dailyStats.peakAmount && item.amount > 0 }"
+            >
+              <td>{{ item.label }}</td>
+              <td class="align-right">{{ formatCurrency(item.amount) }}</td>
+              <td class="align-right">{{ item.dodText }}</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -459,9 +756,20 @@ const formatPeriodLabel = (period) => {
   margin-bottom: 0.9rem;
 }
 
-.green-bg { background: #E0F2F1; color: #0f766e; }
-.blue-bg { background: #E3F2FD; color: #1565C0; }
-.orange-bg { background: #FFF3E0; color: #B45309; }
+.green-bg {
+  background: #E0F2F1;
+  color: #0f766e;
+}
+
+.blue-bg {
+  background: #E3F2FD;
+  color: #1565C0;
+}
+
+.orange-bg {
+  background: #FFF3E0;
+  color: #B45309;
+}
 
 .trend-icon {
   position: absolute;
@@ -470,8 +778,13 @@ const formatPeriodLabel = (period) => {
   font-weight: 900;
 }
 
-.trend-icon.up { color: #0f766e; }
-.trend-icon.down { color: #b45309; }
+.trend-icon.up {
+  color: #0f766e;
+}
+
+.trend-icon.down {
+  color: #b45309;
+}
 
 .card-label {
   font-size: 0.92rem;
@@ -493,7 +806,9 @@ const formatPeriodLabel = (period) => {
   margin: 0;
 }
 
-.card-trend.positive { color: #0f766e; }
+.card-trend.positive {
+  color: #0f766e;
+}
 
 .card-sub {
   font-size: 0.86rem;
@@ -522,7 +837,7 @@ const formatPeriodLabel = (period) => {
 /* ✅ 모바일에서 12개월 막대가 답답해서: 가로 스크롤 허용(템플릿 변경 없이 CSS만) */
 .bar-chart {
   align-items: flex-end;
-  height: 210px;
+  height: 260px;
   padding-top: 2rem; /* tooltip 공간 */
 }
 
@@ -569,7 +884,7 @@ const formatPeriodLabel = (period) => {
 }
 
 .chart-skeleton {
-  height: 210px;
+  height: 260px;
   border-radius: 16px;
   background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
   background-size: 200% 100%;
@@ -620,6 +935,232 @@ const formatPeriodLabel = (period) => {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
 
+.stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.stats-header h3 {
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0;
+}
+
+.zero-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.zero-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #0f766e;
+}
+
+.daily-summary-bar {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  margin-bottom: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-weight: 800;
+  font-size: 0.92rem;
+}
+
+.summary-label {
+  color: #64748b;
+}
+
+.summary-value {
+  color: #0f172a;
+  text-align: right;
+}
+
+.weekly-summary {
+  margin-bottom: 1rem;
+}
+
+.weekly-header h4 {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0 0 0.6rem;
+}
+
+.week-cards {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.week-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: left;
+}
+
+.week-range {
+  color: #0f172a;
+}
+
+.week-amount {
+  color: #0f172a;
+  text-align: right;
+}
+
+.details-content {
+  display: grid;
+  gap: 1rem;
+}
+
+.detail-cards {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.detail-card {
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  padding: 0.9rem 1rem;
+  background: white;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.detail-card.peak {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
+}
+
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.card-row.sub {
+  font-size: 0.88rem;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.card-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.card-title {
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.card-amount {
+  font-weight: 900;
+  color: #0f172a;
+  text-align: right;
+}
+
+.card-sub-right {
+  text-align: right;
+}
+
+.peak-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #0f766e;
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.card-accordion {
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 0.6rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.card-accordion summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: #475569;
+  margin-bottom: 0.4rem;
+}
+
+.accordion-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  padding: 0.2rem 0;
+}
+
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.detail-table th,
+.detail-table td {
+  padding: 0.85rem 0.6rem;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.detail-table th {
+  text-align: left;
+  color: #475569;
+  font-weight: 900;
+  background: #f8fafc;
+}
+
+.detail-table tr.peak td {
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.align-right {
+  font-variant-numeric: tabular-nums;
+}
+
+.mobile-only {
+  display: block;
+}
+
+.desktop-only {
+  display: none;
+}
+
 .list-skeleton {
   display: grid;
   gap: 0.75rem;
@@ -634,36 +1175,62 @@ const formatPeriodLabel = (period) => {
   animation: shimmer 1.1s ease infinite;
 }
 
-.stats-list h3 {
-  font-size: 1.1rem;
-  font-weight: 900;
-  color: #0f172a;
-  margin: 0 0 0.75rem;
+@media (min-width: 768px) {
+  .daily-summary-bar {
+    position: static;
+  }
+
+  .weekly-summary {
+    margin-bottom: 1.25rem;
+  }
+
+  .week-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .mobile-only {
+    display: none;
+  }
+
+  .desktop-only {
+    display: block;
+  }
 }
 
-.list-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.95rem 0;
-  border-bottom: 1px solid #f1f5f9;
-  font-size: 0.95rem;
-}
+/* ✅ PC에서만 컬럼폭 고정 + 흔들림 제거 */
+@media (min-width: 768px) {
+  .detail-table {
+    table-layout: fixed;
+  }
 
-.list-item:last-child {
-  border-bottom: none;
-}
+  .detail-table th.align-right,
+  .detail-table td.align-right {
+    text-align: right !important;
+  }
 
-.list-item.header {
-  font-weight: 900;
-  color: #475569;
-  border-bottom: 2px solid #eef2f7;
-  font-size: 0.92rem;
-}
+  .detail-table .col-period {
+    width: 120px;
+  }
 
-.month-col { flex: 1; color: #0f172a; font-weight: 700; }
-.amount-col { flex: 1; text-align: right; font-weight: 900; color: #0f172a; }
-.occupancy-col { flex: 1; text-align: right; color: #6b7280; font-weight: 700; }
+  .detail-table .col-amount {
+    width: 220px;
+  }
+
+  .detail-table .col-mom {
+    width: 200px;
+  }
+
+  .detail-table .col-share {
+    width: 160px;
+  }
+
+  .detail-table th,
+  .detail-table td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
 
 /* 태블릿+에서는 헤더 가로, 카드 3열, 차트 스크롤 해제 */
 @media (min-width: 768px) {
@@ -702,6 +1269,7 @@ const formatPeriodLabel = (period) => {
     overflow-x: visible;
     justify-content: space-between;
     gap: 0;
+    height: 320px;
   }
 
   .bar-column {
