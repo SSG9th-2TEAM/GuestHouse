@@ -1,11 +1,15 @@
 package com.ssg9th2team.geharbang.domain.accommodation.dto;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Getter
+@Setter
 @NoArgsConstructor
 public class AccommodationUpdateRequestDto {
     // 숙소 업데이트용 DTO
@@ -20,6 +24,8 @@ public class AccommodationUpdateRequestDto {
     private String phone;                      // 전화번호
     private String checkInTime;                // 체크인시간
     private String checkOutTime;               // 체크아웃시간
+    private BigDecimal latitude;
+    private BigDecimal longitude;
 
     // 정산계좌 정보 (조인)
     private String bankName;
@@ -38,6 +44,7 @@ public class AccommodationUpdateRequestDto {
 
 
     @Getter
+    @Setter
     @NoArgsConstructor
     public static class RoomData {
         private Long roomId; // 있으면 수정, 없으면 추가

@@ -6,19 +6,19 @@
 <mapper namespace="com.ssg9th2team.geharbang.domain.room.repository.mybatis.RoomMapper">
 
 
-    <!--단일 객실 등록-->
+    <!--단일 객실 등록 (추가 객실 등록)-->
     <insert id="insertRoom" parameterType="com.ssg9th2team.geharbang.domain.room.entity.Room"
             useGeneratedKeys="true" keyProperty="room.roomId">
         INSERT INTO room(accommodations_id, room_name, price, weekend_price, min_guests, max_guests,
                          room_description, main_image_url, room_status, bathroom_count, room_type, bed_count)
         VALUES (#{room.accommodationsId}, #{room.roomName}, #{room.price}, #{room.weekendPrice},
                 #{room.minGuests}, #{room.maxGuests}, #{room.roomDescription}, #{room.mainImageUrl},
-                #{room.roomStatus}, #{room.bathroomCount}, #{room.roomType}, #{room.bedCount})
+                1, #{room.bathroomCount}, #{room.roomType}, #{room.bedCount})
 
     </insert>
 
 
-    <!--다중 객실 등록-->
+    <!--다중 객실 등록 (첫 숙소 등록시 객실 등록)-->
     <insert id="insertRooms">
         INSERT INTO room(accommodations_id, room_name, price, weekend_price, min_guests, max_guests,
         room_description, main_image_url, room_status, bathroom_count, room_type, bed_count)

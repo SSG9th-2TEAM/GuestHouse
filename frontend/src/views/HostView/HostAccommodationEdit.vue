@@ -25,10 +25,7 @@ const openModal = (message) => {
 const closeModal = () => {
   showModal.value = false
   if (updateSuccess.value) {
-    // Redirecting caused confusion ("Room list disappears"). 
-    // Instead, reload data to show updated state on the same page.
-    updateSuccess.value = false
-    loadAccommodation()
+    router.push('/host/accommodation')
   }
 }
 
@@ -212,7 +209,12 @@ const loadAccommodation = async () => {
   loadError.value = ''
 
   try {
-    const response = await fetch(`${API_BASE_URL}/accommodations/${accommodationId}`)
+    const token = localStorage.getItem('accessToken')
+    const response = await fetch(`${API_BASE_URL}/accommodations/${accommodationId}`, {
+         headers: {
+            'Authorization': `Bearer ${token}`
+         }
+    })
     if (!response.ok) throw new Error('숙소 정보를 불러올 수 없습니다.')
 
     const data = await response.json()
@@ -279,13 +281,16 @@ const loadAccommodation = async () => {
     // 체크인/체크아웃 시간 파싱 (HH:mm 형식)
     if (data.checkInTime) {
         const [hour, minute] = data.checkInTime.split(':')
-        checkInHour.value = hour || ''
-        checkInMinute.value = minute || '00'
+        checkInHour.value = hour ? hour.padStart(2, '0') : ''
+        checkInMinute.value = minute ? minute.padStart(2, '0') : '00'
+        // Ensure form model is also set
+        form.value.checkInTime = data.checkInTime
     }
     if (data.checkOutTime) {
         const [hour, minute] = data.checkOutTime.split(':')
-        checkOutHour.value = hour || ''
-        checkOutMinute.value = minute || '00'
+        checkOutHour.value = hour ? hour.padStart(2, '0') : ''
+        checkOutMinute.value = minute ? minute.padStart(2, '0') : '00'
+        form.value.checkOutTime = data.checkOutTime
     }
 
     // 객실 매핑
@@ -320,18 +325,51 @@ const loadAccommodation = async () => {
 
 // 카카오맵
 const initMap = () => {
-  if (!window.kakao || !window.kakao.maps || !mapContainer.value) return 
+    if (!window.kakao || !window.kakao.maps || !mapContainer.value) return
 
-  window.kakao.maps.load(() => {
-    const coords = new window.kakao.maps.LatLng(form.value.latitude, form.value.longitude)
+    window.kakao.maps.load(() => {
+    geocoder.value = new window.kakao.maps.services.Geocoder()
+    
+    // latitude/longitude가 없으면 주소로 좌표 검색 (Fallback)
+    const lat = parseFloat(form.value.latitude)
+    const lng = parseFloat(form.value.longitude)
+    
+    if (isNaN(lat) || isNaN(lng)) {
+        const fullAddress = `${form.value.city} ${form.value.district} ${form.value.township} ${form.value.address}`.trim()
+        console.warn('Invalid coordinates, attempting fallback with address:', fullAddress)
+        
+        if (fullAddress) {
+            geocoder.value.addressSearch(fullAddress, (result, status) => {
+                 if (status === window.kakao.maps.services.Status.OK) {
+                    const y = result[0].y
+                    const x = result[0].x
+                    
+                    form.value.latitude = y
+                    form.value.longitude = x
+                    
+                    const coords = new window.kakao.maps.LatLng(y, x)
+                    const options = { center: coords, level: 3 }
+                    map.value = new window.kakao.maps.Map(mapContainer.value, options)
+                    marker.value = new window.kakao.maps.Marker({
+                        position: coords,
+                        map: map.value
+                    })
+                 } else {
+                    console.error('Geocoding failed for address:', form.value.address)
+                 }
+            })
+        }
+        return
+    }
+
+    const coords = new window.kakao.maps.LatLng(lat, lng)
     const options = { center: coords, level: 3 }
-  
+
     map.value = new window.kakao.maps.Map(mapContainer.value, options)
     marker.value = new window.kakao.maps.Marker({
       position: coords,
       map: map.value
     })
-    geocoder.value = new window.kakao.maps.services.Geocoder()
   })
 }
 
@@ -459,16 +497,25 @@ const handleUpdate = async () => {
 
     try {
         const roomsData = await Promise.all(rooms.value.map(async (room) => {
-            let imagePayload = room.mainImageUrl
+            let imagePayload = null
+
+            // 1. 새로 업로드된 이미지가 있으면 Base64로 변환
             if (room.representativeImage instanceof File) {
-                // TODO: Upload image and get URL ideally, but if using Base64:
                 imagePayload = await fileToBase64(room.representativeImage)
             }
-            
+            // 2. representativeImagePreview가 http URL이면 (기존 이미지) URL 그대로 사용
+            else if (room.representativeImagePreview && room.representativeImagePreview.startsWith('http')) {
+                imagePayload = room.representativeImagePreview
+            }
+             // 3. 기존 이미지 URL이 있으면 유지 (fallback)
+            else if (room.mainImageUrl) {
+                imagePayload = room.mainImageUrl
+            }
+
             // DB ID (Long) vs Temporary ID (Timestamp > 10000000000)
             const isTempId = typeof room.id === 'number' && room.id > 10000000000;
             return {
-                roomId: isTempId ? null : room.id,  
+                roomId: isTempId ? null : room.id,
                 roomName: room.name,
                 price: parseInt(room.weekdayPrice),
                 weekendPrice: parseInt(room.weekendPrice),
@@ -479,7 +526,8 @@ const handleUpdate = async () => {
                 bathroomCount: parseInt(room.bathroomCount) || 0,
                 roomType: 'STANDARD',
                 bedCount: parseInt(room.bedCount) || 0,
-                roomStatus: room.isActive ? 1 : 0
+                roomStatus: room.isActive ? 1 : 0,
+                amenities: room.amenities || []
             }
         }))
 
@@ -534,7 +582,11 @@ const handleUpdate = async () => {
             sns: form.value.sns || '',
             phone: form.value.phone, 
             checkInTime: form.value.checkInTime,
+            phone: form.value.phone, 
+            checkInTime: form.value.checkInTime,
             checkOutTime: form.value.checkOutTime,
+            latitude: form.value.latitude,
+            longitude: form.value.longitude,
             
             // Bank Info Added
             bankName: form.value.bankName,
@@ -549,18 +601,26 @@ const handleUpdate = async () => {
 
         console.log('Update Request:', requestData) // Debug Log
 
+        const token = localStorage.getItem('accessToken')
         const response = await fetch(`${API_BASE_URL}/accommodations/${accommodationId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify(requestData)
         })
 
         if (response.ok) {
             updateSuccess.value = true
             openModal('숙소 정보가 수정되었습니다.')
+        } else if (response.status === 401) {
+            // Token Expired
+            alert('로그인 세션이 만료되었습니다. 다시 로그인해주세요.')
+            router.push('/login')
         } else {
             console.error('Update failed status:', response.status)
-            openModal('수정에 실패했습니다. (Server Error)')
+            openModal('수정에 실패했습니다. (Status: ' + response.status + ')')
         }
     } catch (e) {
         console.error('HandleUpdate Error:', e)
@@ -667,6 +727,15 @@ const saveRoom = () => {
         return
     }
 
+    // 기존 객실의 mainImageUrl 유지
+    let existingMainImageUrl = null
+    if (editingRoomId.value) {
+        const existingRoom = rooms.value.find(r => r.id === editingRoomId.value)
+        if (existingRoom) {
+            existingMainImageUrl = existingRoom.mainImageUrl
+        }
+    }
+
     const roomData = {
         id: editingRoomId.value || Date.now(),
         ...roomForm.value,
@@ -677,7 +746,11 @@ const saveRoom = () => {
         bedCount: parseInt(roomForm.value.bedCount) || 0,
         bathroomCount: parseInt(roomForm.value.bathroomCount) || 0,
         amenities: [...roomForm.value.amenities],
-        // Image handled implicitly
+        // 새 이미지가 없으면 기존 mainImageUrl 유지
+        mainImageUrl: roomForm.value.representativeImage ? null : existingMainImageUrl,
+        // **Fix: Persist local preview state**
+        representativeImage: roomForm.value.representativeImage,
+        representativeImagePreview: roomForm.value.representativeImagePreview
     }
 
     if (editingRoomId.value) {
@@ -697,7 +770,8 @@ const editRoom = (room) => {
     editingRoomId.value = room.id
     roomForm.value = { ...room }
     // Ensure image preview is set if it's a URL
-    if (typeof room.mainImageUrl === 'string' && room.mainImageUrl.startsWith('http')) {
+    // Ensure image preview is set if it's a URL
+    if (room.mainImageUrl) {
          roomForm.value.representativeImagePreview = room.mainImageUrl
     } else if (room.representativeImagePreview) {
          roomForm.value.representativeImagePreview = room.representativeImagePreview
@@ -783,18 +857,8 @@ const removeDetailImage = (idx) => {
   displayImages.value.splice(idx, 1)
 }
 
-// Room Amenity Options
-const roomAmenityOptions = {
-    bathroom: { label: '욕실', items: ['비누', '샤워', '개인 욕실'] },
-    bedroom: { label: '침실', items: ['간이/추가 침대 제공', '에어컨', '난방'] },
-    dining: { label: '식사 및 음료', items: ['공용 주방 이용', '전용 주방'] },
-    etc: { label: '기타', items: ['무료 WiFi', '금고', '다리미'] }
-}
-const toggleRoomAmenity = (item) => {
-    const idx = roomForm.value.amenities.indexOf(item)
-    if (idx > -1) roomForm.value.amenities.splice(idx, 1)
-    else roomForm.value.amenities.push(item)
-}
+
+
 
 onMounted(() => {
   loadAccommodation()
@@ -917,10 +981,7 @@ onMounted(() => {
       <section class="form-section">
         <h3 class="subsection-title">교통 및 주차 정보</h3>
         
-        <div class="form-group">
-          <label>주변 교통정보</label>
-          <textarea v-model="form.transportInfo" rows="3" placeholder="예: 강남역 1번 출구 도보 5분"></textarea>
-        </div>
+
 
         <div class="form-group">
           <label>주차정보</label>
@@ -1309,19 +1370,7 @@ onMounted(() => {
             <textarea v-model="roomForm.description" rows="3"></textarea>
           </div>
 
-          <!-- Room Amenities -->
-          <div class="room-amenities-section">
-             <h4 class="room-amenities-title">객실 편의시설</h4>
-             <div v-for="(cat, key) in roomAmenityOptions" :key="key" class="room-amenity-category">
-                <div class="room-amenity-label">{{ cat.label }}</div>
-                <div class="room-amenity-tags">
-                   <label v-for="item in cat.items" :key="item" class="room-amenity-tag" :class="{ selected: roomForm.amenities.includes(item) }">
-                      <input type="checkbox" :checked="roomForm.amenities.includes(item)" @change="toggleRoomAmenity(item)" />
-                      {{ item }}
-                   </label>
-                </div>
-             </div>
-          </div>
+
 
           <div class="room-form-actions">
             <button class="btn-outline" @click="showRoomForm = false">취소</button>
@@ -2004,6 +2053,19 @@ select {
   cursor: pointer;
 }
 
+.room-card-image {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.room-card-image img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
 .room-btn:hover {
   background: #f5f5f5;
 }
@@ -2653,6 +2715,14 @@ input[type="number"]:focus {
 .room-form-actions .btn-primary {
   flex: 1;
   padding: 0.75rem;
+}
+
+
+.kakao-map {
+  width: 100%;
+  height: 400px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
 }
 </style>
 

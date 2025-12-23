@@ -133,7 +133,9 @@
             sns = #{Accommodation.sns},
             phone = #{Accommodation.phone},
             check_in_time = #{Accommodation.checkInTime},
-            check_out_time = #{Accommodation.checkOutTime}
+            check_out_time = #{Accommodation.checkOutTime},
+            latitude = #{Accommodation.latitude},
+            longitude = #{Accommodation.longitude}
         WHERE accommodations_id = #{accommodationsId}
     </update>
 

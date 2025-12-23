@@ -136,6 +136,8 @@ public class AccommodationServiceImpl implements AccommodationService {
                 .phone(updateRequestDto.getPhone())
                 .checkInTime(updateRequestDto.getCheckInTime())
                 .checkOutTime(updateRequestDto.getCheckOutTime())
+                .latitude(updateRequestDto.getLatitude())
+                .longitude(updateRequestDto.getLongitude())
                 .build();
 
         accommodationMapper.updateAccommodation(accommodationsId, accommodation);

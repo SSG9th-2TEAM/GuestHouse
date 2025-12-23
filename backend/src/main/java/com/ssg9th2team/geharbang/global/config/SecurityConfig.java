@@ -48,10 +48,7 @@ public class SecurityConfig {
                         "/api/themes",
                         "/error",
                         "/swagger-ui/**",
-                        "/v3/api-docs/**",
-                            "/api/accommodations/**",
-                            "/api/rooms/**",
-                            "/api/host/**"
+                        "/v3/api-docs/**"
                     ).permitAll()
                     // 그 외 모든 요청은 인증 필요
                     .anyRequest().authenticated()
