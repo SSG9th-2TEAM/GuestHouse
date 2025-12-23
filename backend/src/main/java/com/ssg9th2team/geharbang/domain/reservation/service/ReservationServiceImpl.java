@@ -1,10 +1,14 @@
 package com.ssg9th2team.geharbang.domain.reservation.service;
 
+import com.ssg9th2team.geharbang.domain.auth.entity.User;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationRequestDto;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationResponseDto;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,17 +22,40 @@ public class ReservationServiceImpl implements ReservationService {
 
         private final ReservationJpaRepository reservationRepository;
         private final com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository accommodationRepository;
+        private final com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository roomRepository;
+        private final UserRepository userRepository;
 
         @Override
         @Transactional
         public ReservationResponseDto createReservation(ReservationRequestDto requestDto) {
-                // userId가 null이면 기본값 1L 사용
-                Long userId = requestDto.getUserIdOrDefault();
+                // JWT 토큰에서 인증된 사용자 정보 추출
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                String email = authentication.getName();
+                User user = userRepository.findByEmail(email)
+                                .orElseThrow(() -> new IllegalStateException("인증된 사용자를 찾을 수 없습니다: " + email));
+                Long userId = user.getId();
+
+                System.out.println("DEBUG: createReservation called for user: " + email + " (ID: " + userId + ")");
+
+                // Room 재고(maxGuests) 차감 (동시성 제어)
+                if (requestDto.roomId() == null) {
+                        throw new IllegalArgumentException("Room ID is required for reservation.");
+                }
+                int updatedRows = roomRepository.decreaseMaxGuests(requestDto.roomId(), requestDto.guestCount());
+                if (updatedRows == 0) {
+                        throw new IllegalStateException("객실 정원이 초과되어 예약할 수 없습니다.");
+                }
+
+                // Instant를 LocalDateTime으로 변환 (시스템 기본 시간대 사용)
+                java.time.LocalDateTime checkinDateTime = java.time.LocalDateTime.ofInstant(
+                                requestDto.checkin(), java.time.ZoneId.systemDefault());
+                java.time.LocalDateTime checkoutDateTime = java.time.LocalDateTime.ofInstant(
+                                requestDto.checkout(), java.time.ZoneId.systemDefault());
 
                 // 숙박 박수 계산
                 int stayNights = (int) ChronoUnit.DAYS.between(
-                                requestDto.checkin().toLocalDate(),
-                                requestDto.checkout().toLocalDate());
+                                checkinDateTime.toLocalDate(),
+                                checkoutDateTime.toLocalDate());
 
                 // 쿠폰 할인액 (요청에서 받거나 0)
                 int couponDiscount = requestDto.couponDiscountAmount() != null
@@ -41,8 +68,8 @@ public class ReservationServiceImpl implements ReservationService {
                 Reservation reservation = Reservation.builder()
                                 .accommodationsId(requestDto.accommodationsId())
                                 .userId(userId)
-                                .checkin(requestDto.checkin())
-                                .checkout(requestDto.checkout())
+                                .checkin(checkinDateTime)
+                                .checkout(checkoutDateTime)
                                 .stayNights(stayNights)
                                 .guestCount(requestDto.guestCount())
                                 .reservationStatus(0) // 0: 결제 대기
