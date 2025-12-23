@@ -1,14 +1,19 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { deleteSelf } from '@/api/userClient'
+import { logout } from '@/api/authClient'
 
 const router = useRouter()
 
 const currentStep = ref(1)
+const isLoading = ref(false)
 
 // Modal State
 const showModal = ref(false)
-const modalType = ref('confirm') // 'confirm' or 'success'
+const modalType = ref('confirm') // 'confirm', 'success', or 'error'
+const modalTitle = ref('')
+const modalMessage = ref('')
 
 // Step 1: Confirmation Checkboxes
 const confirmations = ref([
@@ -24,22 +29,22 @@ const allConfirmed = computed(() => {
 
 // Step 2: Reason Selection
 const reasons = ref([
-  { id: 1, label: '더 이상 서비스를 이용하지 않아요', selected: false },
-  { id: 2, label: '원하는 숙소를 찾기 어려워요', selected: false },
-  { id: 3, label: '다른 플랫폼이 더 좋아요', selected: false },
-  { id: 4, label: '가격이 비싸요', selected: false },
-  { id: 5, label: '개인정보 보호가 걱정돼요', selected: false },
-  { id: 6, label: '기타 (직접 입력)', selected: false }
+  { id: 1, label: '더 이상 서비스를 이용하지 않아요' },
+  { id: 2, label: '원하는 숙소를 찾기 어려워요' },
+  { id: 3, label: '다른 플랫폼이 더 좋아요' },
+  { id: 4, label: '가격이 비싸요' },
+  { id: 5, label: '개인정보 보호가 걱정돼요' },
+  { id: 6, label: '기타 (직접 입력)' }
 ])
+const selectedReasons = ref([])
+const otherReasonText = ref('')
+const isOtherReasonSelected = computed(() => selectedReasons.value.includes(6))
 
 const hasSelectedReason = computed(() => {
-  return reasons.value.some(r => r.selected)
+  if (selectedReasons.value.length === 0) return false
+  if (isOtherReasonSelected.value && !otherReasonText.value.trim()) return false
+  return true
 })
-
-const selectReason = (reason) => {
-  reasons.value.forEach(r => r.selected = false)
-  reason.selected = true
-}
 
 const goToStep2 = () => {
   if (allConfirmed.value) {
@@ -62,12 +67,37 @@ const openConfirmModal = () => {
   }
 }
 
-const confirmDelete = () => {
-  modalType.value = 'success'
+const confirmDelete = async () => {
+  isLoading.value = true
+  try {
+    const reasonLabels = selectedReasons.value.map(id => reasons.value.find(r => r.id === id).label);
+    const response = await deleteSelf(reasonLabels, otherReasonText.value);
+    
+    if (response.ok) {
+      modalType.value = 'success'
+    } else {
+      // Handle known errors from the backend
+      modalType.value = 'error';
+      modalTitle.value = '탈퇴 처리 실패';
+      modalMessage.value = response.data?.message || '알 수 없는 오류로 인해 탈퇴에 실패했습니다.';
+    }
+  } catch (error) {
+    modalType.value = 'error';
+    modalTitle.value = '요청 실패';
+    modalMessage.value = '서버와 통신하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+    console.error("Error deleting account:", error);
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const closeModal = () => {
+  showModal.value = false;
 }
 
 const closeModalAndRedirect = () => {
   showModal.value = false
+  logout() // Clear tokens
   router.push('/')
 }
 </script>
@@ -134,16 +164,19 @@ const closeModalAndRedirect = () => {
         
         <div class="reason-list">
           <label v-for="reason in reasons" :key="reason.id" class="reason-row">
-            <input type="checkbox" :checked="reason.selected" @change="selectReason(reason)" />
+            <input type="checkbox" :value="reason.id" v-model="selectedReasons" />
             <span>{{ reason.label }}</span>
           </label>
+        </div>
+
+        <div v-if="isOtherReasonSelected" class="other-reason-input">
+          <textarea v-model="otherReasonText" placeholder="탈퇴하시는 구체적인 이유를 알려주세요." rows="3"></textarea>
         </div>
       </div>
 
       <div class="info-box">
         <h4>💡 잠깐만요!</h4>
         <ul>
-          <li>계정 삭제 대신 일시적으로 계정을 비활성화할 수 있습니다</li>
           <li>고객센터를 통해 불편 사항을 개선할 수 있습니다</li>
           <li>재가입 시 기존 혜택을 다시 받기 어려울 수 있습니다</li>
         </ul>
@@ -156,7 +189,7 @@ const closeModalAndRedirect = () => {
     </template>
 
     <!-- Custom Modal -->
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
+    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
       <div class="modal-content">
         <!-- Confirm Modal -->
         <template v-if="modalType === 'confirm'">
@@ -164,8 +197,10 @@ const closeModalAndRedirect = () => {
           <h2>정말로 탈퇴하시겠습니까?</h2>
           <p>탈퇴 후에는 모든 데이터가 삭제되며<br>복구할 수 없습니다.</p>
           <div class="modal-actions">
-            <button class="btn outline" @click="showModal = false">취소</button>
-            <button class="btn danger" @click="confirmDelete">탈퇴하기</button>
+            <button class="btn outline" @click="closeModal">취소</button>
+            <button class="btn danger" @click="confirmDelete" :disabled="isLoading">
+              {{ isLoading ? '처리 중...' : '탈퇴하기' }}
+            </button>
           </div>
         </template>
 
@@ -176,6 +211,16 @@ const closeModalAndRedirect = () => {
           <p>그동안 이용해 주셔서 감사합니다.<br>더 좋은 서비스로 다시 만나뵙길 바랍니다.</p>
           <div class="modal-actions">
             <button class="btn primary full" @click="closeModalAndRedirect">홈으로 이동</button>
+          </div>
+        </template>
+
+        <!-- Error Modal -->
+        <template v-if="modalType === 'error'">
+          <div class="modal-icon error">!</div>
+          <h2>{{ modalTitle }}</h2>
+          <p>{{ modalMessage }}</p>
+          <div class="modal-actions">
+            <button class="btn primary full" @click="closeModal">확인</button>
           </div>
         </template>
       </div>
@@ -356,6 +401,25 @@ const closeModalAndRedirect = () => {
   accent-color: var(--primary);
 }
 
+.other-reason-input {
+  margin-top: 1rem;
+}
+
+.other-reason-input textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.other-reason-input textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+
 /* Info Box */
 .info-box {
   background: #f9fafb;
@@ -461,6 +525,21 @@ const closeModalAndRedirect = () => {
   margin: 0 auto 1rem;
   font-size: 1.5rem;
 }
+
+.modal-icon.error {
+  width: 60px;
+  height: 60px;
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
 
 .modal-content h2 {
   font-size: 1.2rem;
