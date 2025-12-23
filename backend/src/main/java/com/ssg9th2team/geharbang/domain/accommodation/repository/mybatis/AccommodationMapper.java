@@ -28,6 +28,8 @@ public interface AccommodationMapper {
     // 객실 목록 조회 (서비스 로직용)
     List<RoomResponseListDto> selectRoomsByAccommodationId(@Param("accommodationsId") Long accommodationsId);
 
+
+
     // ===== 연관 테이블 (이미지, 편의시설, 테마) =====
 
     void deleteAccommodationImages(@Param("accommodationsId") Long accommodationsId); // 이미지 삭제
@@ -50,7 +52,8 @@ public interface AccommodationMapper {
 
     void insertAccountNumber(AccountNumberDto accountNumberDto);
 
-    void updateAccountNumber(@Param("accountNumberId") Long accountNumberId, @Param("AccountNumberDto")AccountNumberDto accountNumberDto);
+    void updateAccountNumber(@Param("accountNumberId") Long accountNumberId,
+                             @Param("AccountNumberDto")AccountNumberDto accountNumberDto);
 
 
     // ===== 최소 가격 업데이트 =====
