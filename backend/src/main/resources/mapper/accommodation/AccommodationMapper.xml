@@ -266,6 +266,15 @@
         WHERE accommodations_id = #{accommodationsId}
     </select>
 
+    <!-- 숙소 대표 이미지 URL 조회 (sort_order = 0) -->
+    <select id="selectMainImageUrl" resultType="string">
+        SELECT image_url
+        FROM accommodation_image
+        WHERE accommodations_id = #{accommodationsId}
+        ORDER BY sort_order
+        LIMIT 1
+    </select>
+
     <!-- Host 숙소 목록 -->
     <select id="selectHostAccommodations"
             resultType="com.ssg9th2team.geharbang.domain.accommodation.dto.HostAccommodationSummaryResponse">

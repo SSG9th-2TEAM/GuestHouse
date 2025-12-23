@@ -28,6 +28,11 @@ public interface ReservationService {
     List<ReservationResponseDto> getReservationsByAccommodationId(Long accommodationsId);
 
     /**
+     * 현재 로그인된 사용자의 예약 목록 조회 (토큰 기반)
+     */
+    List<ReservationResponseDto> getMyReservations();
+
+    /**
      * 대기 상태 예약 삭제 (결제 취소 시)
      */
     void deletePendingReservation(Long reservationId);
