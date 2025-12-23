@@ -27,6 +27,7 @@ public class AccommodationServiceImpl implements AccommodationService {
     private final RoomMapper roomMapper;
 
 
+
     // 숙소 등록
     @Override
     @Transactional
@@ -125,6 +126,7 @@ public class AccommodationServiceImpl implements AccommodationService {
         // 1. 숙소 기본 정보 업데이트
         Accommodation accommodation = Accommodation.builder()
                 .accommodationsId(accommodationsId)
+                .accommodationsName(updateRequestDto.getAccommodationsName())
                 .accommodationsDescription(updateRequestDto.getAccommodationsDescription())
                 .shortDescription(updateRequestDto.getShortDescription())
                 .transportInfo(updateRequestDto.getTransportInfo())
@@ -163,6 +165,18 @@ public class AccommodationServiceImpl implements AccommodationService {
                 accommodationMapper.insertAccommodationImages(accommodationsId, updateRequestDto.getImages());
             }
         }
+
+        // 먼저 현재 숙소 정보를 조회하여 연결된 계좌 ID(accountNumberId)를 가져옵니다.
+        AccommodationResponseDto accountNumber = accommodationMapper.selectAccommodationById(accommodationsId);
+        Long accountNumberId = accountNumber.getAccountNumberId();
+
+        AccountNumberDto accountNumberDto = new AccountNumberDto();
+        accountNumberDto.setBankName(updateRequestDto.getBankName());
+        accountNumberDto.setAccountNumber(updateRequestDto.getAccountNumber());
+        accountNumberDto.setAccountHolder(updateRequestDto.getAccountHolder());
+
+        // 그 ID를 사용하여 정산 계좌 테이블을 업데이트합니다.
+        accommodationMapper.updateAccountNumber(accountNumberId, accountNumberDto);
 
         // 3. 객실 동기화 (삭제 및 추가/수정)
         

@@ -10,6 +10,7 @@ import java.util.List;
 public class AccommodationUpdateRequestDto {
     // 숙소 업데이트용 DTO
     private Long roomId;
+    private String accommodationsName;
     private String accommodationsDescription;  // 숙소 상세설명
     private String shortDescription;           // 한줄소개
     private String transportInfo;              // 주변교통정보

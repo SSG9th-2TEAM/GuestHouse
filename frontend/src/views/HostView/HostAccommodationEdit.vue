@@ -140,10 +140,37 @@ const form = ref({
 const rooms = ref([])
 
 // 이미지 관련
+// 이미지 관리 - 통합 State
+// { id: number | string, url: string, file: File | null, isNew: boolean }
+const displayImages = ref([])
+
+// 배너 이미지 관련
 const bannerFile = ref(null)
 const bannerPreview = ref('')
-const detailFiles = ref([])
-const detailImagePreviews = ref([])
+
+// 체크인/체크아웃 시간 선택 관련
+const checkInHour = ref('')
+const checkInMinute = ref('')
+const checkOutHour = ref('')
+const checkOutMinute = ref('')
+
+// 시간/분 옵션
+const hourOptions = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const minuteOptions = ['00', '30']
+
+// 체크인 시간 watch - 시/분 변경 시 form.checkInTime 업데이트
+watch([checkInHour, checkInMinute], ([hour, minute]) => {
+  if (hour && minute) {
+    form.value.checkInTime = `${hour}:${minute}`
+  }
+})
+
+// 체크아웃 시간 watch - 시/분 변경 시 form.checkOutTime 업데이트
+watch([checkOutHour, checkOutMinute], ([hour, minute]) => {
+  if (hour && minute) {
+    form.value.checkOutTime = `${hour}:${minute}`
+  }
+})
 
 // 편의시설 토글
 const toggleAmenity = (id) => {
@@ -210,8 +237,8 @@ const loadAccommodation = async () => {
       transportInfo: data.transportInfo,
       parkingInfo: data.parkingInfo,
       sns: data.sns,
-      checkInTime: data.checkInTime,
-      checkOutTime: data.checkOutTime,
+      checkInTime: data.checkInTime || '',
+      checkOutTime: data.checkOutTime || '',
       isActive: data.accommodationStatus === 1,
       
       amenities: data.amenityIds || [], // IDs
@@ -232,13 +259,33 @@ const loadAccommodation = async () => {
     // Images Mapping
     if (data.images) {
         const banner = data.images.find(img => img.imageType === 'banner')
-        if (banner) form.value.bannerImage = banner.imageUrl
+        if (banner) {
+             form.value.bannerImage = banner.imageUrl // URL
+        }
 
         const details = data.images
             .filter(img => img.imageType === 'detail')
-            .map(img => img.imageUrl)
-        form.value.detailImages = details
-        detailImagePreviews.value = [...details]  // 기존 이미지를 프리뷰에 설정
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+
+        // 기존 이미지 로드
+        displayImages.value = details.map((img, idx) => ({
+             id: img.id || idx, // DB ID unavailable in some DTOs so use index fallback if needed
+             url: img.imageUrl,
+             file: null,
+             isNew: false
+        }))
+    }
+
+    // 체크인/체크아웃 시간 파싱 (HH:mm 형식)
+    if (data.checkInTime) {
+        const [hour, minute] = data.checkInTime.split(':')
+        checkInHour.value = hour || ''
+        checkInMinute.value = minute || '00'
+    }
+    if (data.checkOutTime) {
+        const [hour, minute] = data.checkOutTime.split(':')
+        checkOutHour.value = hour || ''
+        checkOutMinute.value = minute || '00'
     }
 
     // 객실 매핑
@@ -436,25 +483,48 @@ const handleUpdate = async () => {
             }
         }))
 
-        // 이미지 데이터 구성
+        // 이미지 데이터 구성 (Base64 변환)
         const imageList = []
-        if (form.value.bannerImage) {
+        
+        // 1. Banner Image
+        if (bannerFile.value) {
+            // New Banner Uploaded
+            const base64 = await fileToBase64(bannerFile.value)
+            imageList.push({
+                imageUrl: base64,
+                imageType: 'banner',
+                sortOrder: 1
+            })
+        } else if (form.value.bannerImage) {
+            // Existing Banner (URL) - Send as is
             imageList.push({
                 imageUrl: form.value.bannerImage,
                 imageType: 'banner',
                 sortOrder: 1
             })
         }
-        form.value.detailImages.forEach((url, index) => {
-            imageList.push({
-                imageUrl: url,
-                imageType: 'detail',
-                sortOrder: index + 2
-            })
-        })
+
+        // 2. Detail Images
+        for (let i = 0; i < displayImages.value.length; i++) {
+            const item = displayImages.value[i]
+            if (item.isNew && item.file) {
+                 const base64 = await fileToBase64(item.file)
+                 imageList.push({
+                     imageUrl: base64,
+                     imageType: 'detail',
+                     sortOrder: i + 2
+                 })
+            } else {
+                 imageList.push({
+                     imageUrl: item.url,
+                     imageType: 'detail',
+                     sortOrder: i + 2
+                 })
+            }
+        }
 
         const requestData = {
-            accommodationsName: form.value.name, // Add name if backend allows update (even if readonly in UI)
+            accommodationsName: form.value.name,
             accommodationsCategory: accommodationTypeReverseMap[form.value.type] || form.value.type,
             accommodationsDescription: form.value.description,
             shortDescription: form.value.shortDescription || '',
@@ -465,8 +535,14 @@ const handleUpdate = async () => {
             phone: form.value.phone, 
             checkInTime: form.value.checkInTime,
             checkOutTime: form.value.checkOutTime,
+            
+            // Bank Info Added
+            bankName: form.value.bankName,
+            accountNumber: form.value.accountNumber,
+            accountHolder: form.value.accountHolder,
+
             rooms: roomsData,
-            images: imageList, // Added images
+            images: imageList,
             amenityIds: form.value.amenities,
             themeIds: form.value.themes.map(name => themeIdMap[name]).filter(id => id !== undefined)
         }
@@ -670,8 +746,13 @@ const handleBannerUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
     bannerFile.value = file
-    bannerPreview.value = URL.createObjectURL(file)
-    form.value.bannerImage = null // 기존 URL 제거
+    const url = URL.createObjectURL(file)
+    bannerPreview.value = url
+    // form.value.bannerImage acts as preview for banner in template? 
+    // Template uses form.bannerImage for existing and if null? 
+    // Wait, lets check template. 
+    // Template: <img v-if="!bannerPreview && form.bannerImage" :src="form.bannerImage">
+    //           <img v-if="bannerPreview" :src="bannerPreview">
   }
 }
 
@@ -685,18 +766,21 @@ const removeBannerImage = () => {
 // 상세 이미지 업로드
 const handleDetailImagesUpload = (event) => {
   const files = Array.from(event.target.files)
-  const remaining = 10 - detailImagePreviews.value.length
+  const remaining = 10 - displayImages.value.length
 
   files.slice(0, remaining).forEach(file => {
-    detailFiles.value.push(file)
-    detailImagePreviews.value.push(URL.createObjectURL(file))
+      displayImages.value.push({
+          id: Date.now() + Math.random(),
+          url: URL.createObjectURL(file), // Preview URL
+          file: file,
+          isNew: true
+      })
   })
 }
 
 // 상세 이미지 삭제
 const removeDetailImage = (idx) => {
-  detailFiles.value.splice(idx, 1)
-  detailImagePreviews.value.splice(idx, 1)
+  displayImages.value.splice(idx, 1)
 }
 
 // Room Amenity Options
@@ -851,16 +935,28 @@ onMounted(() => {
         <div class="form-row two-col">
           <div class="form-group">
             <label>체크인 시간 <span class="required">*</span></label>
-            <div class="time-input">
-              <input v-model="form.checkInTime" type="time" />
+            <div class="time-selector-group">
+                <select v-model="checkInHour" class="time-select">
+                    <option v-for="h in hourOptions" :key="h" :value="h">{{ h }}시</option>
+                </select>
+                <span class="time-separator">:</span>
+                <select v-model="checkInMinute" class="time-select">
+                    <option v-for="m in minuteOptions" :key="m" :value="m">{{ m }}분</option>
+                </select>
             </div>
             <span v-if="errors.checkInTime" class="error-message">{{ errors.checkInTime }}</span>
           </div>
           
           <div class="form-group">
             <label>체크아웃 시간 <span class="required">*</span></label>
-            <div class="time-input">
-              <input v-model="form.checkOutTime" type="time" />
+            <div class="time-selector-group">
+                <select v-model="checkOutHour" class="time-select">
+                    <option v-for="h in hourOptions" :key="h" :value="h">{{ h }}시</option>
+                </select>
+                <span class="time-separator">:</span>
+                <select v-model="checkOutMinute" class="time-select">
+                    <option v-for="m in minuteOptions" :key="m" :value="m">{{ m }}분</option>
+                </select>
             </div>
             <span v-if="errors.checkOutTime" class="error-message">{{ errors.checkOutTime }}</span>
           </div>
@@ -923,7 +1019,8 @@ onMounted(() => {
             <label>배너 이미지 <span class="required">*</span></label>
             <div class="banner-upload-area">
                <div v-if="bannerPreview || form.bannerImage" class="banner-preview-wrapper">
-                  <img :src="bannerPreview || form.bannerImage" class="banner-preview" />
+                  <!-- Priority: bannerPreview (New File) > form.bannerImage (Existing URL) -->
+                  <img :src="bannerPreview ? bannerPreview : form.bannerImage" class="banner-preview" />
                   <button type="button" class="remove-image-btn" @click="removeBannerImage">✕</button>
                </div>
                <label v-else class="upload-box">
@@ -942,11 +1039,11 @@ onMounted(() => {
             <label>상세 이미지 (최대 10장)</label>
             <div class="detail-images-container">
                <div class="detail-images-preview">
-                  <div v-for="(img, idx) in detailImagePreviews" :key="'preview-' + idx" class="detail-image-item">
-                     <img :src="img" />
+                  <div v-for="(img, idx) in displayImages" :key="img.id" class="detail-image-item">
+                     <img :src="img.url" />
                      <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
                   </div>
-                  <label v-if="detailImagePreviews.length < 10" class="add-detail-image">
+                  <label v-if="displayImages.length < 10" class="add-detail-image">
                      <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
                      <span>+</span>
                   </label>
@@ -1623,6 +1720,35 @@ select {
 .time-input input[type="time"]:focus {
   outline: none;
   border-color: #BFE7DF;
+}
+
+/* Time Selector */
+.time-selector-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.time-select {
+    flex: 1;
+    padding: 0.875rem 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: white;
+    font-size: 0.95rem;
+    cursor: pointer;
+    appearance: none; /* Custom arrow can be added if needed, but keeping simple for now */
+    text-align: center;
+}
+
+.time-select:focus {
+    outline: none;
+    border-color: #BFE7DF;
+}
+
+.time-separator {
+    font-weight: bold;
+    color: #333;
 }
 
 /* Amenities Grid */

@@ -50,6 +50,8 @@ public interface AccommodationMapper {
 
     void insertAccountNumber(AccountNumberDto accountNumberDto);
 
+    void updateAccountNumber(@Param("accountNumberId") Long accountNumberId, @Param("AccountNumberDto")AccountNumberDto accountNumberDto);
+
 
     // ===== 최소 가격 업데이트 =====
 
@@ -64,4 +66,6 @@ public interface AccommodationMapper {
             @Param("hostId") Long hostId,
             @Param("accommodationsId") Long accommodationsId
     );
+
+
 }
