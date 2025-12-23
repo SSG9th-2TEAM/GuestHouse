@@ -1,10 +1,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { fetchHostReviews, createHostReviewReply, reportHostReview } from '@/api/hostReview'
+import { formatDate } from '@/utils/formatters'
 
 const reviews = ref([])
 const isLoading = ref(false)
 const loadError = ref('')
+const router = useRouter()
 
 const averageRating = computed(() => {
   if (!reviews.value.length) return '0.0'
@@ -55,7 +58,7 @@ const normalizeReview = (item) => {
     userInitial: userName ? userName.slice(0, 1) : 'U',
     accommodationName: item.accommodationName ?? item.property ?? '',
     rating: item.rating ?? 0,
-    date: item.createdAt?.slice(0, 10) ?? item.date ?? '',
+    date: formatDate(item.createdAt ?? item.date, true),
     content: item.content ?? item.reviewContent ?? '',
     reply: item.reply ?? item.replyContent ?? '',
     showReplyForm: false,
@@ -104,6 +107,17 @@ onMounted(loadReviews)
     </div>
 
     <div class="review-list">
+      <div v-if="isLoading" class="review-skeleton">
+        <div v-for="i in 3" :key="i" class="skeleton-card" />
+      </div>
+      <div v-else-if="loadError" class="empty-box">
+        <p>데이터를 불러오지 못했어요.</p>
+        <button class="ghost-btn" @click="loadReviews">다시 시도</button>
+      </div>
+      <div v-else-if="!reviews.length" class="empty-box">
+        <p>아직 리뷰가 없습니다.</p>
+        <button class="ghost-btn" @click="router.push('/host/booking')">예약 확인하기</button>
+      </div>
       <div v-for="review in reviews" :key="review.id" class="review-card">
         <!-- User Header -->
         <div class="card-header">
@@ -171,9 +185,6 @@ onMounted(loadReviews)
       </div>
     </div>
 
-    <p v-if="isLoading" class="empty-box">리뷰를 불러오는 중입니다.</p>
-    <p v-else-if="loadError" class="empty-box">{{ loadError }}</p>
-    <p v-else-if="!reviews.length" class="empty-box">등록된 리뷰가 없습니다.</p>
   </div>
 </template>
 
@@ -215,7 +226,51 @@ onMounted(loadReviews)
 .empty-box {
   margin-top: 1rem;
   color: #6b7280;
-  font-weight: 600;
+  font-weight: 700;
+  text-align: center;
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+  padding: 0.5rem 0;
+}
+
+.ghost-btn {
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #0f766e;
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 800;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.review-skeleton {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.skeleton-card {
+  height: 140px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.1s ease infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-card {
+    animation: none !important;
+  }
 }
 
 .card-header {

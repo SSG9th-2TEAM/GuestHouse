@@ -23,7 +23,7 @@
         -->
         SELECT
             /* 1) 기간 내 매출 합 */
-            COALESCE(SUM(h.revenue), 0) AS expectedRevenue,
+            COALESCE(SUM(h.revenue), 0) AS confirmedRevenue,
 
             /* 2) 기간 내 예약 건수 */
             COALESCE(SUM(h.reservation_count), 0) AS confirmedReservations,
@@ -38,7 +38,14 @@
                 WHERE a2.user_id = #{hostId}
                   AND a2.accommodation_status = 1
                   AND a2.approval_status = 'APPROVED'
-            ) AS operatingAccommodations
+            ) AS operatingAccommodations,
+
+            /* 5) 전체 숙소 수 */
+            (
+                SELECT COUNT(*)
+                FROM accommodation a3
+                WHERE a3.user_id = #{hostId}
+            ) AS totalAccommodations
         FROM host_daily_stats h
         WHERE h.user_id = #{hostId}
           AND h.stat_date &gt;= #{start}

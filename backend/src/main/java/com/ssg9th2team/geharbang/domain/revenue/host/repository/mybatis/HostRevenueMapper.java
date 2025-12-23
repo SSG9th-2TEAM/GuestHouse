@@ -35,4 +35,10 @@ public interface HostRevenueMapper {
             @Param("start") LocalDate start,
             @Param("end") LocalDate end
     );
+
+    List<HostRevenueDetailResponse> selectRevenueDailyDetails(
+            @Param("hostId") Long hostId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end
+    );
 }

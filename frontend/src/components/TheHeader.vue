@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { isAuthenticated, logout } from '@/api/authClient'
 
 const router = useRouter()
+const route = useRoute()
 const searchStore = useSearchStore()
 
 const isMenuOpen = ref(false)
@@ -13,6 +14,7 @@ const isHostMode = ref(localStorage.getItem('isHostMode') === 'true')
 const isCalendarOpen = ref(false)
 const isGuestOpen = ref(false)
 const isLoggedIn = ref(isAuthenticated())
+const isHostRoute = computed(() => route.path.startsWith('/host'))
 
 // Toggle host mode and persist to localStorage
 const toggleHostMode = () => {
@@ -261,6 +263,7 @@ onUnmounted(() => {
         </div>
 
         <div
+          v-if="!isHostRoute"
           class="search-bar"
           :class="{ expanded: isSearchExpanded }"
         >
