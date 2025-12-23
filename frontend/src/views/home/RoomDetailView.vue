@@ -1,57 +1,314 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
+import { fetchAccommodationDetail } from '@/api/accommodation'
 
 const router = useRouter()
+const route = useRoute()
 const searchStore = useSearchStore()
 
-import { guesthouses } from '../../data/guesthouses'
+const DEFAULT_IMAGE = 'https://via.placeholder.com/800x600'
+const DEFAULT_HOST_IMAGE = 'https://picsum.photos/seed/host/100/100'
 
-const route = useRoute()
-const id = parseInt(route.params.id) || 1
-const basicInfo = guesthouses.find(item => item.id === id) || guesthouses[0]
-
-const guesthouse = {
-  id: basicInfo.id,
-  name: basicInfo.title,
-  rating: 4.7,
-  reviewCount: 89,
-  address: basicInfo.location,
-  description: '북촌 한옥마을 인근에 위치한 아늑한 게스트하우스입니다. 전통과 현대가 조화를 이루는 편안한 공간에서 특별한 경험을 제공합니다.',
-  host: {
-    name: '김민수',
-    joined: '2020년 1월 가입',
-    image: 'https://picsum.photos/id/64/100/100'
-  },
-  images: [
-    basicInfo.imageUrl,
-    'https://picsum.photos/id/15/400/300',
-    'https://picsum.photos/id/18/400/300',
-    'https://picsum.photos/id/29/400/300',
-    'https://picsum.photos/id/28/400/300'
-  ],
-  rooms: [
-    { id: 101, name: '스탠다드 더블룸', desc: '더블 침대가 있는 기본 객실', capacity: 2, price: basicInfo.price, available: true },
-    { id: 102, name: '디럭스 트윈룸', desc: '싱글 침대 2개가 있는 넓은 객실', capacity: 2, price: basicInfo.price + 15000, available: true },
-    { id: 103, name: '패밀리룸', desc: '더블 침대와 싱글 침대가 있는 가족 객실', capacity: 4, price: basicInfo.price + 70000, available: false }
-  ],
-  reviews: [
-    { id: 1, author: '김철수', date: '2024-11-15', rating: 5, content: '정말 깨끗하고 친절한 호스트입니다. 다시 방문하고 싶네요!', image: 'https://picsum.photos/id/101/100/100' },
-    { id: 2, author: '이순신', date: '2024-11-10', rating: 4, content: '위치가 좋고 편의시설이 잘 갖춰져 있습니다. 추천합니다.', image: 'https://picsum.photos/id/102/100/100' },
-    { id: 3, author: '박민지', date: '2024-11-05', rating: 5, content: '조용하고 쾌적한 환경에서 좋은 시간을 보냈습니다.', image: 'https://picsum.photos/id/103/100/100' }
-  ]
+const toNumber = (value, fallback = 0) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
 }
 
+const getAccommodationId = () => {
+  const parsed = Number(route.params.id)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const createEmptyGuesthouse = (id = null) => ({
+  id,
+  name: '',
+  rating: '-',
+  reviewCount: 0,
+  address: '',
+  description: '',
+  minPrice: null,
+  checkInTime: '',
+  checkOutTime: '',
+  transportInfo: '',
+  parkingInfo: '',
+  sns: '',
+  latitude: null,
+  longitude: null,
+  amenities: [],
+  themes: [],
+  host: {
+    name: '호스트',
+    joined: '',
+    image: DEFAULT_HOST_IMAGE
+  },
+  images: [DEFAULT_IMAGE],
+  rooms: [],
+  reviews: []
+})
+
+const buildAddress = (data) => {
+  return [data?.city, data?.district, data?.township, data?.addressDetail]
+    .filter(Boolean)
+    .join(' ')
+}
+
+const normalizeRooms = (rooms, fallbackPrice) => {
+  if (!Array.isArray(rooms)) return []
+  return rooms.map((room) => {
+    const price = toNumber(room?.price ?? room?.weekendPrice ?? fallbackPrice, fallbackPrice)
+    const roomStatus = room?.roomStatus
+    const available = roomStatus == null ? true : roomStatus === 1
+    return {
+      id: room?.roomId ?? room?.id,
+      name: room?.roomName ?? room?.name ?? '',
+      desc: room?.roomDescription ?? room?.description ?? '',
+      capacity: toNumber(room?.maxGuests ?? room?.capacity ?? 0, 0),
+      price,
+      available,
+      imageUrl: room?.mainImageUrl || DEFAULT_IMAGE
+    }
+  })
+}
+
+const normalizeDetail = (data) => {
+  const imageUrls = Array.isArray(data?.images)
+    ? data.images.map((image) => image?.imageUrl).filter(Boolean)
+    : []
+  const fallbackPrice = toNumber(data?.minPrice ?? 0, 0)
+  const ratingValue = Number(data?.rating)
+  return {
+    id: data?.accommodationsId ?? null,
+    name: data?.accommodationsName ?? '',
+    rating: Number.isFinite(ratingValue) ? ratingValue.toFixed(1) : '-',
+    reviewCount: toNumber(data?.reviewCount, 0),
+    address: buildAddress(data),
+    description: data?.accommodationsDescription ?? data?.shortDescription ?? '',
+    minPrice: data?.minPrice ?? null,
+    checkInTime: data?.checkInTime ?? '',
+    checkOutTime: data?.checkOutTime ?? '',
+    transportInfo: data?.transportInfo ?? '',
+    parkingInfo: data?.parkingInfo ?? '',
+    sns: data?.sns ?? '',
+    latitude: data?.latitude ?? null,
+    longitude: data?.longitude ?? null,
+    amenities: Array.isArray(data?.amenities) ? data.amenities : [],
+    themes: Array.isArray(data?.themes) ? data.themes : [],
+    host: {
+      name: '호스트',
+      joined: '',
+      image: DEFAULT_HOST_IMAGE
+    },
+    images: imageUrls.length ? imageUrls : [DEFAULT_IMAGE],
+    rooms: normalizeRooms(data?.rooms, fallbackPrice),
+    reviews: []
+  }
+}
+
+const guesthouse = ref(createEmptyGuesthouse(getAccommodationId()))
 const selectedRoom = ref(null)
+const isCalendarOpen = ref(false)
+const showFullDescription = ref(false)
+const currentDate = ref(new Date())
+const datePickerRef = ref(null)
+
+const canBook = computed(() => {
+  return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
+})
+
+const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
+const weekDays = ['일', '월', '화', '수', '목', '금', '토']
+
+const currentYear = computed(() => currentDate.value.getFullYear())
+const currentMonth = computed(() => currentDate.value.getMonth())
+const nextMonthDate = computed(() => new Date(currentYear.value, currentMonth.value + 1, 1))
+const nextMonthYear = computed(() => nextMonthDate.value.getFullYear())
+const nextMonthMonth = computed(() => nextMonthDate.value.getMonth())
+
+const isDescriptionLong = computed(() => {
+  return (guesthouse.value.description || '').length > 120
+})
+
+const isSameDay = (date1, date2) => {
+  return date1.getFullYear() === date2.getFullYear()
+    && date1.getMonth() === date2.getMonth()
+    && date1.getDate() === date2.getDate()
+}
+
+const isDateInRange = (date) => {
+  if (!searchStore.startDate || !searchStore.endDate) return false
+  const time = date.getTime()
+  return time > searchStore.startDate.getTime() && time < searchStore.endDate.getTime()
+}
+
+const getCalendarDays = (year, month) => {
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const daysInMonth = lastDay.getDate()
+  const startingDay = firstDay.getDay()
+
+  const days = []
+  for (let i = 0; i < startingDay; i += 1) {
+    days.push({ day: '', isEmpty: true })
+  }
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const date = new Date(year, month, day)
+    const isStartDate = searchStore.startDate && isSameDay(date, searchStore.startDate)
+    const isEndDate = searchStore.endDate && isSameDay(date, searchStore.endDate)
+    const isInRange = isDateInRange(date)
+    const hasEndDate = searchStore.endDate !== null
+
+    days.push({
+      day,
+      isEmpty: false,
+      date,
+      isToday: isSameDay(date, new Date()),
+      isStartDate,
+      isEndDate,
+      isInRange,
+      hasEndDate
+    })
+  }
+  return days
+}
+
+const calendarDays = computed(() => getCalendarDays(currentYear.value, currentMonth.value))
+const nextMonthDays = computed(() => getCalendarDays(nextMonthYear.value, nextMonthMonth.value))
+
+const toggleCalendar = () => {
+  isCalendarOpen.value = !isCalendarOpen.value
+}
+
+const prevMonth = () => {
+  currentDate.value = new Date(currentYear.value, currentMonth.value - 1, 1)
+}
+
+const nextMonth = () => {
+  currentDate.value = new Date(currentYear.value, currentMonth.value + 1, 1)
+}
+
+const selectDate = (dayObj) => {
+  if (dayObj.isEmpty) return
+
+  const clickedDate = dayObj.date
+  if (!searchStore.startDate || (searchStore.startDate && searchStore.endDate)) {
+    searchStore.setStartDate(clickedDate)
+    searchStore.setEndDate(null)
+    return
+  }
+
+  if (clickedDate.getTime() < searchStore.startDate.getTime()) {
+    searchStore.setEndDate(searchStore.startDate)
+    searchStore.setStartDate(clickedDate)
+    isCalendarOpen.value = false
+    return
+  }
+
+  searchStore.setEndDate(clickedDate)
+  isCalendarOpen.value = false
+}
+
+const loadAccommodation = async () => {
+  const accommodationsId = getAccommodationId()
+  if (!accommodationsId) {
+    guesthouse.value = createEmptyGuesthouse()
+    return
+  }
+
+  selectedRoom.value = null
+  showFullDescription.value = false
+  guesthouse.value = createEmptyGuesthouse(accommodationsId)
+
+  try {
+    const response = await fetchAccommodationDetail(accommodationsId)
+    if (!response.ok || !response.data) {
+      guesthouse.value = createEmptyGuesthouse(accommodationsId)
+      return
+    }
+    guesthouse.value = normalizeDetail(response.data)
+  } catch (error) {
+    console.error('Failed to load accommodation detail', error)
+    guesthouse.value = createEmptyGuesthouse(accommodationsId)
+  }
+}
 
 const selectRoom = (room) => {
+  if (selectedRoom.value?.id === room?.id) {
+    selectedRoom.value = null
+    return
+  }
   selectedRoom.value = room
 }
 
 const formatPrice = (price) => {
-  return price.toLocaleString()
+  if (price == null) return '-'
+  const parsed = Number(price)
+  if (!Number.isFinite(parsed)) return '-'
+  return parsed.toLocaleString()
 }
+
+const formatDateParam = (date) => {
+  if (!date) return null
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const formatCoordinate = (value) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return '-'
+  return parsed.toFixed(6)
+}
+
+const getSnsType = (line, url) => {
+  const lower = line.toLowerCase()
+  const target = `${lower} ${String(url).toLowerCase()}`
+  if (target.includes('instagram') || target.includes('insta') || line.includes('인스타')) return 'instagram'
+  if (target.includes('blog') || line.includes('블로그') || target.includes('naver')) return 'blog'
+  if (target.includes('youtube') || line.includes('유튜브')) return 'youtube'
+  if (target.includes('facebook') || line.includes('페이스북')) return 'facebook'
+  return 'link'
+}
+
+const getSnsLabel = (type, url) => {
+  if (type === 'instagram') return 'Instagram'
+  if (type === 'blog') return 'Blog'
+  if (type === 'youtube') return 'YouTube'
+  if (type === 'facebook') return 'Facebook'
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '')
+    return host || '링크'
+  } catch (error) {
+    return '링크'
+  }
+}
+
+const buildSnsLinks = (sns) => {
+  if (!sns) return []
+  const lines = String(sns)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const results = []
+  const seen = new Set()
+
+  lines.forEach((line) => {
+    const match = line.match(/https?:\/\/[^\s]+/i)
+    if (!match) return
+    const url = match[0]
+    if (seen.has(url)) return
+    seen.add(url)
+    const type = getSnsType(line, url)
+    results.push({ url, type, label: getSnsLabel(type, url) })
+  })
+
+  return results
+}
+
+const snsLinks = computed(() => buildSnsLinks(guesthouse.value.sns))
 
 const increaseGuest = () => {
   searchStore.increaseGuest()
@@ -63,8 +320,11 @@ const decreaseGuest = () => {
 
 // Navigate to booking with all data
 const goToBooking = () => {
-  if (!selectedRoom.value) return
-  
+  if (!canBook.value) return
+
+  const accommodationsId = guesthouse.value.id ?? getAccommodationId()
+  if (!accommodationsId) return
+
   // Format dates for display
   let dateDisplay = '날짜를 선택하세요'
   if (searchStore.startDate && searchStore.endDate) {
@@ -76,23 +336,42 @@ const goToBooking = () => {
     }
     dateDisplay = `${formatDate(searchStore.startDate)} ~ ${formatDate(searchStore.endDate)}`
   }
-  
+
   const guestCount = searchStore.guestCount || 1
-  
+
   router.push({
-    path: '/booking/2',
+    path: `/booking/${accommodationsId}`,
     query: {
-      hotelName: guesthouse.name,
-      rating: guesthouse.rating,
-      reviewCount: guesthouse.reviewCount,
-      image: guesthouse.images[0],
-      roomName: selectedRoom.value.name,
-      roomPrice: selectedRoom.value.price,
-      dates: dateDisplay,
-      guests: `성인 ${guestCount}명`
+      roomId: selectedRoom.value.id,
+      guestCount,
+      checkin: formatDateParam(searchStore.startDate),
+      checkout: formatDateParam(searchStore.endDate)
     }
   })
 }
+
+const openCalendarFromHint = (event) => {
+  event.stopPropagation()
+  if (datePickerRef.value?.scrollIntoView) {
+    datePickerRef.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+  isCalendarOpen.value = true
+}
+
+const handleClickOutside = (event) => {
+  if (event.target.closest('.date-picker-wrapper')) return
+  if (event.target.closest('.booking-hint')) return
+  isCalendarOpen.value = false
+}
+
+onMounted(loadAccommodation)
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
+watch(() => route.params.id, loadAccommodation)
 </script>
 
 <template>
@@ -118,7 +397,24 @@ const goToBooking = () => {
         <span class="rating">★ {{ guesthouse.rating }} (후기 {{ guesthouse.reviewCount }}개)</span>
         <span class="location">{{ guesthouse.address }}</span>
       </div>
-      <p class="description">{{ guesthouse.description }}</p>
+      <p class="description" :class="{ 'description-clamped': !showFullDescription }">
+        {{ guesthouse.description }}
+      </p>
+      <button
+        v-if="isDescriptionLong"
+        type="button"
+        class="more-btn"
+        @click="showFullDescription = !showFullDescription"
+      >
+        {{ showFullDescription ? '접기' : '더보기' }}
+      </button>
+      <div class="detail-meta">
+        <span class="meta-item">위치 {{ guesthouse.address || '-' }}</span>
+      </div>
+      <div class="transport-info" v-if="guesthouse.transportInfo">
+        <h3>교통 정보</h3>
+        <p>{{ guesthouse.transportInfo }}</p>
+      </div>
     </section>
 
     <hr />
@@ -134,6 +430,83 @@ const goToBooking = () => {
 
     <hr />
 
+    <section class="section amenity-section">
+      <h2>편의시설</h2>
+      <div class="tag-list">
+        <span v-for="amenity in guesthouse.amenities" :key="amenity" class="tag">{{ amenity }}</span>
+        <span v-if="!guesthouse.amenities.length" class="tag empty">등록된 정보 없음</span>
+      </div>
+      <h2>테마</h2>
+      <div class="tag-list">
+        <span v-for="theme in guesthouse.themes" :key="theme" class="tag">{{ theme }}</span>
+        <span v-if="!guesthouse.themes.length" class="tag empty">등록된 정보 없음</span>
+      </div>
+    </section>
+
+    <hr />
+
+    <section class="section extra-info-section">
+      <h2>추가 정보</h2>
+      <dl class="info-list">
+        <div class="info-row">
+          <dt>체크인</dt>
+          <dd>{{ guesthouse.checkInTime || '정보 없음' }}</dd>
+        </div>
+        <div class="info-row">
+          <dt>체크아웃</dt>
+          <dd>{{ guesthouse.checkOutTime || '정보 없음' }}</dd>
+        </div>
+        <div class="info-row">
+          <dt>주차</dt>
+          <dd>{{ guesthouse.parkingInfo || '정보 없음' }}</dd>
+        </div>
+        <div class="info-row">
+          <dt>SNS</dt>
+          <dd>
+            <template v-if="snsLinks.length">
+              <a
+                v-for="link in snsLinks"
+                :key="link.url"
+                :href="link.url"
+                class="sns-link"
+                target="_blank"
+                rel="noopener noreferrer"
+                :aria-label="link.label"
+              >
+                <svg v-if="link.type === 'instagram'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="2" />
+                  <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2" />
+                  <circle cx="17.5" cy="6.5" r="1" fill="currentColor" />
+                </svg>
+                <svg v-else-if="link.type === 'youtube'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
+                  <rect x="3" y="6" width="18" height="12" rx="3" ry="3" fill="none" stroke="currentColor" stroke-width="2" />
+                  <path d="M10 9l5 3-5 3z" fill="currentColor" />
+                </svg>
+                <svg v-else-if="link.type === 'blog'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
+                  <path d="M6 3h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" />
+                  <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="2" />
+                  <path d="M8 13h8M8 17h6" fill="none" stroke="currentColor" stroke-width="2" />
+                </svg>
+                <svg v-else-if="link.type === 'facebook'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
+                  <path d="M15 8h3V5h-3c-2 0-4 2-4 4v3H8v3h3v6h3v-6h3l1-3h-4V9c0-.6.4-1 1-1z" fill="currentColor" />
+                </svg>
+                <svg v-else viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
+                  <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="sns-text">
+                  {{ link.type === 'blog' && link.label.toLowerCase().includes('naver') ? '네이버 블로그 바로가기' : `${link.label} 바로가기` }}
+                </span>
+              </a>
+            </template>
+            <span v-else>{{ guesthouse.sns || '정보 없음' }}</span>
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <hr />
+
     <!-- Room Selection -->
     <section class="section room-selection">
       <h2>객실 선택</h2>
@@ -141,15 +514,84 @@ const goToBooking = () => {
       <!-- Date & Guest Picker Mock -->
       <div class="picker-box">
         <div class="picker-row">
-          <div class="picker-field">
+          <div ref="datePickerRef" class="picker-field date-picker-wrapper" @click.stop>
             <label>체크인 / 체크아웃</label>
-            <div class="date-display">{{ searchStore.checkInOutText }}</div>
+            <button
+              type="button"
+              class="date-display"
+              :aria-expanded="isCalendarOpen"
+              @click="toggleCalendar"
+            >
+              {{ searchStore.checkInOutText }}
+            </button>
+
+            <div class="calendar-popup" v-if="isCalendarOpen">
+              <div class="calendar-container">
+                <button class="calendar-nav-btn nav-prev" type="button" @click="prevMonth">
+                  ‹
+                </button>
+
+                <div class="calendar-month">
+                  <div class="calendar-month-title">{{ currentYear }}년 {{ monthNames[currentMonth] }}</div>
+                  <div class="calendar-weekdays">
+                    <span v-for="day in weekDays" :key="'current-' + day" class="weekday">{{ day }}</span>
+                  </div>
+                  <div class="calendar-days">
+                    <span
+                      v-for="(dayObj, index) in calendarDays"
+                      :key="'current-day-' + index"
+                      class="calendar-day"
+                      :class="{
+                        empty: dayObj.isEmpty,
+                        today: dayObj.isToday,
+                        'range-start': dayObj.isStartDate,
+                        'range-end': dayObj.isEndDate,
+                        'in-range': dayObj.isInRange,
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                      }"
+                      @click="selectDate(dayObj)"
+                    >
+                      {{ dayObj.day }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="calendar-month">
+                  <div class="calendar-month-title">{{ nextMonthYear }}년 {{ monthNames[nextMonthMonth] }}</div>
+                  <div class="calendar-weekdays">
+                    <span v-for="day in weekDays" :key="'next-' + day" class="weekday">{{ day }}</span>
+                  </div>
+                  <div class="calendar-days">
+                    <span
+                      v-for="(dayObj, index) in nextMonthDays"
+                      :key="'next-day-' + index"
+                      class="calendar-day"
+                      :class="{
+                        empty: dayObj.isEmpty,
+                        today: dayObj.isToday,
+                        'range-start': dayObj.isStartDate,
+                        'range-end': dayObj.isEndDate,
+                        'in-range': dayObj.isInRange,
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                      }"
+                      @click="selectDate(dayObj)"
+                    >
+                      {{ dayObj.day }}
+                    </span>
+                  </div>
+                </div>
+
+                <button class="calendar-nav-btn nav-next" type="button" @click="nextMonth">
+                  ›
+                </button>
+              </div>
+            </div>
           </div>
           <div class="picker-field">
             <label>투숙 인원</label>
             <div class="guest-control">
               <button @click="decreaseGuest" :disabled="searchStore.guestCount <= 1">-</button>
-              <span>성인 {{ searchStore.guestCount || 1 }}</span>
+              <span>게스트 {{ searchStore.guestCount || 1 }}명</span>
               <button @click="increaseGuest">+</button>
             </div>
           </div>
@@ -162,16 +604,21 @@ const goToBooking = () => {
              class="room-card" 
              :class="{ selected: selectedRoom?.id === room.id }"
              @click="selectRoom(room)">
-          <div class="room-info">
-            <h3>{{ room.name }}</h3>
-            <p>{{ room.desc }}</p>
-            <span class="capacity">최대 {{ room.capacity }}명</span>
+          <div class="room-media">
+            <img :src="room.imageUrl" :alt="room.name" loading="lazy" />
           </div>
-          <div class="room-action">
-            <div class="price">₩{{ formatPrice(room.price) }}</div>
-            <button class="select-btn" :class="{ active: selectedRoom?.id === room.id }">
-              {{ selectedRoom?.id === room.id ? '선택됨' : '객실' }}
-            </button>
+          <div class="room-content">
+            <div class="room-info">
+              <h3>{{ room.name }}</h3>
+              <p>{{ room.desc }}</p>
+              <span class="capacity">최대 {{ room.capacity }}명</span>
+            </div>
+            <div class="room-action">
+              <div class="price">₩{{ formatPrice(room.price) }}</div>
+              <button class="select-btn" :class="{ active: selectedRoom?.id === room.id }">
+                {{ selectedRoom?.id === room.id ? '선택됨' : '객실' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -206,9 +653,9 @@ const goToBooking = () => {
     <section class="section map-section">
       <h2>숙소 위치</h2>
       <div class="map-placeholder">
-        [지도] {{ guesthouse.address }}
+        <div class="map-coordinates">위도 {{ formatCoordinate(guesthouse.latitude) }} / 경도 {{ formatCoordinate(guesthouse.longitude) }}</div>
       </div>
-      <p class="mt-2">북촌 한옥마을에서 도보 5분, 가까운 지하철역: 안국역(3호선)</p>
+      <p class="mt-2">{{ guesthouse.transportInfo || '교통 정보가 없습니다.' }}</p>
     </section>
 
     <!-- Rules -->
@@ -224,8 +671,8 @@ const goToBooking = () => {
       <div class="rule-box mt-4">
         <h3>이용 규칙</h3>
         <ul>
-          <li>체크인: 오후 3시 이후</li>
-          <li>체크아웃: 오전 11시까지</li>
+          <li>체크인: {{ guesthouse.checkInTime || '정보 없음' }}</li>
+          <li>체크아웃: {{ guesthouse.checkOutTime || '정보 없음' }}</li>
           <li>흡연 금지</li>
           <li>반려동물 동반 불가</li>
         </ul>
@@ -242,7 +689,13 @@ const goToBooking = () => {
         <span v-else>객실을 선택해주세요</span>
         <div class="total-price" v-if="selectedRoom">₩{{ formatPrice(selectedRoom.price) }}</div>
       </div>
-      <button class="book-btn" :disabled="!selectedRoom" @click="goToBooking">예약하기</button>
+      <button class="book-btn" :disabled="!canBook" @click="goToBooking">예약하기</button>
+    </div>
+    <div v-if="selectedRoom && !canBook" class="booking-hint">
+      날짜를 선택해주세요.
+      <button type="button" class="booking-hint-btn" @click="openCalendarFromHint">
+        날짜 선택하기
+      </button>
     </div>
 
   </div>
@@ -322,8 +775,50 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   color: var(--text-sub);
   margin-bottom: 1rem;
   font-size: 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 .description { line-height: 1.6; }
+.description-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.more-btn {
+  margin-top: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-main);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  color: var(--text-sub);
+  font-size: 0.9rem;
+}
+.meta-item {
+  background: #f3f4f6;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+}
+.transport-info {
+  margin-top: 1rem;
+}
+.transport-info h3 {
+  margin-bottom: 0.4rem;
+}
+.transport-info p {
+  margin: 0;
+  color: var(--text-sub);
+  line-height: 1.5;
+}
 
 /* Host */
 .host-section {
@@ -336,6 +831,79 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   height: 60px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+/* Amenities */
+.amenity-section h2 {
+  margin-bottom: 0.6rem;
+}
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.tag {
+  background: #f3f4f6;
+  color: var(--text-main);
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+.tag.empty {
+  color: var(--text-sub);
+}
+
+/* Extra info */
+.extra-info-section h2 {
+  margin-bottom: 0.8rem;
+}
+.info-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+.info-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+.info-row dt {
+  font-weight: 600;
+  color: var(--text-main);
+}
+.info-row dd {
+  margin: 0;
+  color: var(--text-sub);
+  word-break: break-word;
+}
+.sns-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: var(--text-main);
+  text-decoration: none;
+  margin-right: 0.6rem;
+  transition: background 0.2s ease;
+}
+.sns-link:last-child {
+  margin-right: 0;
+}
+.sns-link:hover {
+  background: #e5e7eb;
+}
+.sns-icon {
+  width: 18px;
+  height: 18px;
+}
+.sns-text {
+  font-size: 0.85rem;
+  color: var(--text-main);
+  white-space: nowrap;
 }
 
 /* Room Selection */
@@ -359,6 +927,15 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   align-items: center;
   justify-content: space-between;
 }
+.date-picker-wrapper {
+  position: relative;
+}
+.date-display {
+  width: 100%;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+}
 .guest-control button {
   width: 30px;
   height: 30px;
@@ -367,19 +944,110 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   background: white;
 }
 
+.calendar-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  padding: 1rem;
+  width: 100%;
+}
+.calendar-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.calendar-month {
+  width: 220px;
+}
+.calendar-month-title {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  font-size: 0.75rem;
+  color: var(--text-sub);
+  margin-bottom: 0.25rem;
+}
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.calendar-day {
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  text-align: center;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.calendar-day.empty {
+  visibility: hidden;
+  cursor: default;
+}
+.calendar-day.today {
+  border: 1px solid var(--primary);
+}
+.calendar-day.in-range {
+  background: #e6f4f1;
+}
+.calendar-day.range-start,
+.calendar-day.range-end {
+  background: var(--primary);
+  color: #000;
+  font-weight: 600;
+}
+.calendar-nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.4rem;
+  padding: 0.25rem 0.5rem;
+  color: var(--text-main);
+}
+
 /* Room Card */
 .room-card {
-  border: 1px solid #ddd;
+  border: 2px solid #ddd;
   border-radius: var(--radius-md);
   padding: 1.5rem;
   margin-bottom: 1rem;
   display: flex;
-  justify-content: space-between;
+  gap: 1.5rem;
+  align-items: stretch;
   cursor: pointer;
   transition: border-color 0.2s;
 }
 .room-card:hover { border-color: var(--primary); }
-.room-card.selected { border: 2px solid var(--primary); background-color: #f9fdfc; }
+.room-card.selected { border-color: var(--primary); background-color: #f9fdfc; }
+.room-media {
+  flex: 1 1 0;
+  max-width: calc(50% - 0.75rem);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e5e7eb;
+}
+.room-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.room-content {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex: 1 1 0;
+  max-width: calc(50% - 0.75rem);
+}
 .room-info h3 { margin-bottom: 0.3rem; }
 .room-info p { color: var(--text-sub); font-size: 0.9rem; margin-bottom: 0.5rem; }
 .capacity { font-size: 0.8rem; background: #eee; padding: 2px 6px; border-radius: 4px; }
@@ -391,6 +1059,9 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   border-radius: 8px;
   border: none;
   cursor: pointer;
+  white-space: nowrap;
+  min-width: 72px;
+  text-align: center;
 }
 .select-btn.active {
   background: var(--primary);
@@ -417,9 +1088,21 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   height: 200px;
   border-radius: var(--radius-md);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   color: #888;
+  padding: 0 1rem;
+  text-align: center;
+}
+.map-text {
+  color: var(--text-main);
+  font-weight: 600;
+}
+.map-coordinates {
+  font-size: 0.85rem;
+  color: var(--text-sub);
 }
 
 /* Rules */
@@ -454,10 +1137,42 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   font-size: 1rem;
   border: none;
   cursor: pointer;
+  min-width: 140px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .book-btn:disabled {
   background: #ccc;
   cursor: not-allowed;
+  opacity: 1;
+}
+.booking-hint {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  z-index: 101;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.booking-hint-btn {
+  background: var(--primary);
+  color: #004d40;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 @media (max-width: 768px) {
@@ -498,6 +1213,61 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   
   .picker-row {
     flex-direction: column;
+  }
+
+  .calendar-container {
+    flex-direction: column;
+  }
+
+  .calendar-month {
+    width: 100%;
+  }
+  .room-card {
+    flex-direction: column;
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+
+  .room-media {
+    width: 100%;
+    height: 180px;
+    max-width: 100%;
+    flex: none;
+  }
+
+  .room-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    max-width: 100%;
+  }
+
+  .room-info h3 {
+    margin: 0;
+  }
+
+  .room-info p {
+    margin: 0;
+    line-height: 1.25;
+  }
+
+  .capacity {
+    padding: 1px 5px;
+    margin-top: 0.15rem;
+  }
+
+  .room-action {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.15rem;
+  }
+  .booking-hint {
+    width: calc(100% - 32px);
+    left: 16px;
+    transform: none;
+    justify-content: space-between;
   }
 }
 </style>

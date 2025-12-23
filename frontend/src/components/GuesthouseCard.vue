@@ -11,7 +11,7 @@ defineProps({
 const formatRating = (value) => {
   const numeric = Number(value)
   if (!Number.isFinite(numeric)) return '-'
-  return numeric.toFixed(1)
+  return numeric.toFixed(2)
 }
 </script>
 
@@ -156,3 +156,4 @@ const formatRating = (value) => {
   opacity: 0.9;
 }
 </style>
+

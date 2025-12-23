@@ -43,6 +43,9 @@ public class AccommodationResponseDto {
     private String checkInTime;
     private String checkOutTime;
     private String rejectionReason;
+    private Integer minPrice;
+    private Double rating;
+    private Integer reviewCount;
 
     // 정산계좌 정보 (조인)
     private String bankName;
