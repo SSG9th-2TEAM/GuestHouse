@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, nextTick, watch } from 'vue'
+import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -64,10 +64,12 @@ const verifyBusinessNumber = async () => {
     })
 
     // 백엔드 OCR API 호출 (Google Cloud Vision)
+    const token = localStorage.getItem('accessToken')
     const response = await fetch(`${API_BASE_URL}/ocr/business-license`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
         image: base64Image
@@ -168,6 +170,42 @@ const form = ref({
   accountNumber: '',
   // 상태
   isActive: true
+})
+
+// Time Picker Logic
+const hourOptions = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const minuteOptions = ['00', '30']
+
+const checkInHour = computed({
+  get: () => form.value.checkInTime ? form.value.checkInTime.split(':')[0] : '15',
+  set: (val) => {
+    const min = checkInMinute.value
+    form.value.checkInTime = `${val}:${min}`
+  }
+})
+
+const checkInMinute = computed({
+  get: () => form.value.checkInTime ? form.value.checkInTime.split(':')[1] : '00',
+  set: (val) => {
+    const hour = checkInHour.value
+    form.value.checkInTime = `${hour}:${val}`
+  }
+})
+
+const checkOutHour = computed({
+  get: () => form.value.checkOutTime ? form.value.checkOutTime.split(':')[0] : '11',
+  set: (val) => {
+    const min = checkOutMinute.value
+    form.value.checkOutTime = `${val}:${min}`
+  }
+})
+
+const checkOutMinute = computed({
+  get: () => form.value.checkOutTime ? form.value.checkOutTime.split(':')[1] : '00',
+  set: (val) => {
+    const hour = checkOutHour.value
+    form.value.checkOutTime = `${hour}:${val}`
+  }
 })
 
 // ========== 유효성 검사 ==========
@@ -599,34 +637,7 @@ const removeRoomImage = () => {
   roomForm.value.representativeImagePreview = ''
 }
 
-// 객실 편의시설 옵션 (일부만)
-const roomAmenityOptions = {
-  bathroom: {
-    label: '욕실',
-    items: ['비누', '샤워', '개인 욕실']
-  },
-  bedroom: {
-    label: '침실',
-    items: ['간이/추가 침대 제공', '에어컨', '난방']
-  },
-  dining: {
-    label: '식사 및 음료',
-    items: ['공용 주방 이용', '전용 주방']
-  },
-  etc: {
-    label: '기타',
-    items: ['무료 WiFi', '금고', '다리미']
-  }
-}
 
-const toggleRoomAmenity = (item) => {
-  const index = roomForm.value.amenities.indexOf(item)
-  if (index > -1) {
-    roomForm.value.amenities.splice(index, 1)
-  } else {
-    roomForm.value.amenities.push(item)
-  }
-}
 
 const addRoom = () => {
   if (!validateRoomForm()) {
@@ -913,10 +924,12 @@ const handleSubmit = async () => {
     console.log('Submitting to API:', requestData)
 
     // API 호출
+    const token = localStorage.getItem('accessToken')
     const response = await fetch(`${API_BASE_URL}/accommodations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify(requestData)
     })
@@ -930,6 +943,9 @@ const handleSubmit = async () => {
 
       registrationSuccess.value = true
       openModal('숙소가 성공적으로 등록되었습니다.')
+    } else if (response.status === 401) {
+      alert('로그인 세션이 만료되었습니다. 다시 로그인해주세요.')
+      router.push('/login')
     } else {
       let errorData;
       try {
@@ -1172,21 +1188,27 @@ const handleSubmit = async () => {
         
         <div class="form-group">
           <label>체크인 시간 <span class="required">*</span></label>
-          <div class="time-input">
-            <input 
-              v-model="form.checkInTime" 
-              type="time"
-            />
+          <div class="time-selector-group">
+             <select v-model="checkInHour" class="time-select">
+                <option v-for="h in hourOptions" :key="h" :value="h">{{ h }}시</option>
+             </select>
+             <span class="time-separator">:</span>
+             <select v-model="checkInMinute" class="time-select">
+                <option v-for="m in minuteOptions" :key="m" :value="m">{{ m }}분</option>
+             </select>
           </div>
         </div>
         
         <div class="form-group">
           <label>체크아웃 시간 <span class="required">*</span></label>
-          <div class="time-input">
-            <input 
-              v-model="form.checkOutTime" 
-              type="time"
-            />
+          <div class="time-selector-group">
+             <select v-model="checkOutHour" class="time-select">
+                <option v-for="h in hourOptions" :key="h" :value="h">{{ h }}시</option>
+             </select>
+             <span class="time-separator">:</span>
+             <select v-model="checkOutMinute" class="time-select">
+                <option v-for="m in minuteOptions" :key="m" :value="m">{{ m }}분</option>
+             </select>
           </div>
         </div>
       </section>
@@ -1557,28 +1579,6 @@ const handleSubmit = async () => {
           </div>
           
           <!-- 객실 편의시설 -->
-          <div class="room-amenities-section">
-            <h4 class="room-amenities-title">객실 편의시설</h4>
-            
-            <div v-for="(category, key) in roomAmenityOptions" :key="key" class="room-amenity-category">
-              <div class="room-amenity-label">{{ category.label }}</div>
-              <div class="room-amenity-tags">
-                <label 
-                  v-for="item in category.items" 
-                  :key="item" 
-                  class="room-amenity-tag"
-                  :class="{ selected: roomForm.amenities.includes(item) }"
-                >
-                  <input 
-                    type="checkbox" 
-                    :checked="roomForm.amenities.includes(item)"
-                    @change="toggleRoomAmenity(item)"
-                  />
-                  {{ item }}
-                </label>
-              </div>
-            </div>
-          </div>
           
           <div class="room-form-actions">
             <button class="btn-outline" @click="showRoomForm = false; resetRoomErrors()">취소</button>
@@ -2708,5 +2708,34 @@ input[type="number"]:focus {
 
 .input-error {
   animation: shake 0.3s ease-in-out;
+}
+
+/* Time Selector */
+.time-selector-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.time-select {
+    flex: 1;
+    padding: 0.875rem 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: white;
+    font-size: 0.95rem;
+    cursor: pointer;
+    appearance: none; 
+    text-align: center;
+}
+
+.time-select:focus {
+    outline: none;
+    border-color: #BFE7DF;
+}
+
+.time-separator {
+    font-weight: bold;
+    color: #333;
 }
 </style>

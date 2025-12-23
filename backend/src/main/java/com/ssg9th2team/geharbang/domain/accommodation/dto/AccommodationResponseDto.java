@@ -56,4 +56,11 @@ public class AccommodationResponseDto {
     // 숙소 상세보기 -> 객실 리스트
     private List<RoomResponseListDto> rooms;
 
+    // 숙소 이미지 (1:N 조인)
+    private List<AccommodationImageDto> images;
+
+    // 편의시설/테마 ID 목록 (수정 페이지용)
+    private List<Long> amenityIds;
+    private List<Long> themeIds;
+
 }

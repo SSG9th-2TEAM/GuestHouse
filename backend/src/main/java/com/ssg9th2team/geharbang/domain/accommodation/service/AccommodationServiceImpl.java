@@ -8,12 +8,15 @@ import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.AccommodationsCategory;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
+import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
+import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.mybatis.RoomMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +25,7 @@ public class AccommodationServiceImpl implements AccommodationService {
     //  DTO → Entity 변환
     private final AccommodationMapper accommodationMapper;
     private final RoomMapper roomMapper;
+
 
 
     // 숙소 등록
@@ -113,12 +117,16 @@ public class AccommodationServiceImpl implements AccommodationService {
     }
 
 
+
+
     // 숙소 수정
     @Override
     @Transactional
     public void updateAccommodation(Long accommodationsId, AccommodationUpdateRequestDto updateRequestDto) {
+        // 1. 숙소 기본 정보 업데이트
         Accommodation accommodation = Accommodation.builder()
                 .accommodationsId(accommodationsId)
+                .accommodationsName(updateRequestDto.getAccommodationsName())
                 .accommodationsDescription(updateRequestDto.getAccommodationsDescription())
                 .shortDescription(updateRequestDto.getShortDescription())
                 .transportInfo(updateRequestDto.getTransportInfo())
@@ -128,11 +136,15 @@ public class AccommodationServiceImpl implements AccommodationService {
                 .phone(updateRequestDto.getPhone())
                 .checkInTime(updateRequestDto.getCheckInTime())
                 .checkOutTime(updateRequestDto.getCheckOutTime())
+                .latitude(updateRequestDto.getLatitude())
+                .longitude(updateRequestDto.getLongitude())
                 .build();
 
         accommodationMapper.updateAccommodation(accommodationsId, accommodation);
 
-        // 편의시설 업데이트 (기존 삭제 후 재등록)
+        // 2. 연관 데이터 업데이트 (삭제 후 재등록)
+        
+        // 편의시설
         if (updateRequestDto.getAmenityIds() != null) {
             accommodationMapper.deleteAccommodationAmenities(accommodationsId);
             if (!updateRequestDto.getAmenityIds().isEmpty()) {
@@ -140,12 +152,82 @@ public class AccommodationServiceImpl implements AccommodationService {
             }
         }
 
-        // 테마 업데이트 (기존 삭제 후 재등록)
+        // 테마
         if (updateRequestDto.getThemeIds() != null) {
             accommodationMapper.deleteAccommodationThemes(accommodationsId);
             if (!updateRequestDto.getThemeIds().isEmpty()) {
                 accommodationMapper.insertAccommodationThemes(accommodationsId, updateRequestDto.getThemeIds());
             }
+        }
+
+        // 이미지
+        if (updateRequestDto.getImages() != null) {
+            accommodationMapper.deleteAccommodationImages(accommodationsId);
+            if (!updateRequestDto.getImages().isEmpty()) {
+                accommodationMapper.insertAccommodationImages(accommodationsId, updateRequestDto.getImages());
+            }
+        }
+
+        // 먼저 현재 숙소 정보를 조회하여 연결된 계좌 ID(accountNumberId)를 가져옵니다.
+        AccommodationResponseDto accountNumber = accommodationMapper.selectAccommodationById(accommodationsId);
+        Long accountNumberId = accountNumber.getAccountNumberId();
+
+        AccountNumberDto accountNumberDto = new AccountNumberDto();
+        accountNumberDto.setBankName(updateRequestDto.getBankName());
+        accountNumberDto.setAccountNumber(updateRequestDto.getAccountNumber());
+        accountNumberDto.setAccountHolder(updateRequestDto.getAccountHolder());
+
+        // 그 ID를 사용하여 정산 계좌 테이블을 업데이트합니다.
+        accommodationMapper.updateAccountNumber(accountNumberId, accountNumberDto);
+
+        // 3. 객실 동기화 (삭제 및 추가/수정)
+        
+        // 3-1. 현재 DB에 저장된 객실 목록 조회 (삭제 대상 식별용)
+        List<RoomResponseListDto> currentRooms = accommodationMapper.selectRoomsByAccommodationId(accommodationsId);
+        
+        // 3-2. 요청된 객실 ID 목록 추출
+        List<Long> requestedRoomIds = new java.util.ArrayList<>();
+        if (updateRequestDto.getRooms() != null) {
+            for (AccommodationUpdateRequestDto.RoomData r : updateRequestDto.getRooms()) {
+                if (r.getRoomId() != null) {
+                    requestedRoomIds.add(r.getRoomId());
+                }
+            }
+        }
+
+        // 3-3. DB에는 있는데 요청에는 없는 ID 삭제
+        for (RoomResponseListDto currentRoom : currentRooms) {
+            if (!requestedRoomIds.contains(currentRoom.getRoomId())) {
+                roomMapper.deleteRoom(accommodationsId, currentRoom.getRoomId());
+            }
+        }
+
+        // 3-4. 객실 추가/수정
+        if (updateRequestDto.getRooms() != null) {
+            for (AccommodationUpdateRequestDto.RoomData roomDto : updateRequestDto.getRooms()) {
+                Room room = Room.builder()
+                        .accommodationsId(accommodationsId)
+                        .roomName(roomDto.getRoomName())
+                        .price(roomDto.getPrice())
+                        .weekendPrice(roomDto.getWeekendPrice())
+                        .minGuests(roomDto.getMinGuests())
+                        .maxGuests(roomDto.getMaxGuests())
+                        .roomDescription(roomDto.getRoomDescription())
+                        .mainImageUrl(roomDto.getMainImageUrl())
+                        .bathroomCount(roomDto.getBathroomCount())
+                        .roomType(roomDto.getRoomType())
+                        .bedCount(roomDto.getBedCount())
+                        .roomStatus(roomDto.getRoomStatus() != null ? roomDto.getRoomStatus() : 1)
+                        .build();
+
+                if (roomDto.getRoomId() != null) {
+                    roomMapper.updateRoom(accommodationsId, roomDto.getRoomId(), room);
+                } else {
+                    roomMapper.insertRoom(room);
+                }
+            }
+            // 최저가 갱신
+            accommodationMapper.updateMinPrice(accommodationsId);
         }
     }
 
