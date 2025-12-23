@@ -407,7 +407,7 @@ const scrollToAnchor = (anchorId) => {
           <button class="admin-btn admin-btn--ghost admin-dropdown__item" type="button" @click="downloadReport('csv')">
             CSV
           </button>
-          <button class="admin-btn admin-btn--primary admin-dropdown__item" type="button"
+          <button class="admin-btn host-btn--primary admin-dropdown__item" type="button"
                   @click="downloadReport('xlsx')">
             XLSX
           </button>
@@ -637,7 +637,7 @@ const scrollToAnchor = (anchorId) => {
 .view-header h2 {
   font-size: 1.7rem;
   font-weight: 800;
-  color: #0b3b32;
+  color: var(--brand-accent);
   margin: 0.15rem 0 0.2rem;
   letter-spacing: -0.01em;
 }
@@ -651,7 +651,7 @@ const scrollToAnchor = (anchorId) => {
 
 .year-select {
   padding: 0.65rem 0.9rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   border-radius: 12px;
   font-size: 0.95rem;
   font-weight: 800;
@@ -668,7 +668,7 @@ const scrollToAnchor = (anchorId) => {
   position: sticky;
   top: 0;
   z-index: 6;
-  background: #f5f5f5;
+  background: var(--brand-bg);
   padding: 0.6rem 0;
 }
 
@@ -676,8 +676,8 @@ const scrollToAnchor = (anchorId) => {
   width: 100%;
   padding: 1rem;
   border-radius: 12px;
-  border: 1px dashed #e5e7eb;
-  background: #f8fafc;
+  border: 1px dashed var(--brand-border);
+  background: var(--brand-bg);
   text-align: center;
   display: grid;
   gap: 0.5rem;
@@ -690,9 +690,9 @@ const scrollToAnchor = (anchorId) => {
 }
 
 .ghost-btn {
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--brand-border);
   background: white;
-  color: #0f766e;
+  color: var(--brand-accent);
   border-radius: 10px;
   padding: 0.55rem 0.9rem;
   font-weight: 800;
@@ -739,7 +739,7 @@ const scrollToAnchor = (anchorId) => {
   border-radius: 16px;
   padding: 1.25rem 1.25rem 1.2rem;
   position: relative;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
   flex: 0 0 78%;
   scroll-snap-align: start;
@@ -757,8 +757,8 @@ const scrollToAnchor = (anchorId) => {
 }
 
 .green-bg {
-  background: #E0F2F1;
-  color: #0f766e;
+  background: var(--brand-primary);
+  color: var(--brand-accent);
 }
 
 .blue-bg {
@@ -779,7 +779,7 @@ const scrollToAnchor = (anchorId) => {
 }
 
 .trend-icon.up {
-  color: #0f766e;
+  color: var(--brand-accent);
 }
 
 .trend-icon.down {
@@ -807,7 +807,7 @@ const scrollToAnchor = (anchorId) => {
 }
 
 .card-trend.positive {
-  color: #0f766e;
+  color: var(--brand-accent);
 }
 
 .card-sub {
@@ -823,7 +823,7 @@ const scrollToAnchor = (anchorId) => {
   padding: 1.25rem;
   border-radius: 16px;
   margin-bottom: 1.5rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
 
@@ -875,7 +875,7 @@ const scrollToAnchor = (anchorId) => {
 
 .bar {
   width: 100%;
-  background: #BFE7DF;
+  background: var(--brand-primary);
   border-radius: 6px 6px 0 0;
   transition: height 0.3s ease, background 0.2s;
   position: relative;
@@ -896,7 +896,7 @@ const scrollToAnchor = (anchorId) => {
 }
 
 .bar:hover {
-  background: #0f766e;
+  background: var(--brand-primary-strong);
 }
 
 .tooltip {
@@ -931,7 +931,7 @@ const scrollToAnchor = (anchorId) => {
   background: white;
   padding: 1.25rem;
   border-radius: 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
 
@@ -962,7 +962,7 @@ const scrollToAnchor = (anchorId) => {
 .zero-toggle input {
   width: 18px;
   height: 18px;
-  accent-color: #0f766e;
+  accent-color: var(--brand-primary-strong);
 }
 
 .daily-summary-bar {
@@ -970,8 +970,8 @@ const scrollToAnchor = (anchorId) => {
   gap: 0.6rem;
   padding: 0.85rem 1rem;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid var(--brand-border);
+  background: var(--brand-bg);
   margin-bottom: 1rem;
   position: sticky;
   top: 0;
@@ -1019,7 +1019,7 @@ const scrollToAnchor = (anchorId) => {
   width: 100%;
   padding: 0.85rem 1rem;
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   background: white;
   font-weight: 800;
   cursor: pointer;
@@ -1047,7 +1047,7 @@ const scrollToAnchor = (anchorId) => {
 
 .detail-card {
   border-radius: 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   padding: 0.9rem 1rem;
   background: white;
   display: grid;
@@ -1055,8 +1055,8 @@ const scrollToAnchor = (anchorId) => {
 }
 
 .detail-card.peak {
-  border-color: #0f766e;
-  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
+  border-color: var(--brand-primary-strong);
+  box-shadow: 0 0 0 2px var(--brand-primary-strong);
 }
 
 .card-row {
@@ -1098,8 +1098,8 @@ const scrollToAnchor = (anchorId) => {
   align-items: center;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  background: #0f766e;
-  color: white;
+  background: var(--brand-primary-strong);
+  color: var(--brand-on-primary);
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -1146,7 +1146,7 @@ const scrollToAnchor = (anchorId) => {
 }
 
 .detail-table tr.peak td {
-  background: rgba(15, 118, 110, 0.08);
+  background: var(--brand-primary);
 }
 
 .align-right {

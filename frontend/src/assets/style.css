@@ -2,6 +2,18 @@
     --primary: #BFE7DF;
     --primary-hover: #A0D1C8;
 
+    --brand-primary: #BFE7DF;
+    --brand-primary-strong: #6DC3BB;
+    --brand-accent: #0f766e;
+    --brand-on-primary: #0f172a;
+    --brand-border: #e5e7eb;
+    --brand-bg: #f8f9fa;
+    --brand-200: #BFE7DF;
+    --brand-600: #0f766e;
+    --text-default: #0f172a;
+    --text-strong: #0f172a;
+    --surface: #ffffff;
+
     --text-main: #111827;
     --text-sub: #6b7280;
 
@@ -19,8 +31,8 @@
 
     --card-width: 280px;
 
-    --host-accent: #0f766e;
-    --host-title: #0b3b32;
+    --host-accent: var(--brand-accent);
+    --host-title: var(--brand-accent);
 }
 
 /* ✅ 전역 reset은 최소만 (다른 화면 안 깨지게) */
@@ -44,6 +56,11 @@ body {
 button {
     font-family: inherit;
     cursor: pointer;
+}
+
+:focus-visible {
+    outline: 2px solid var(--brand-primary-strong);
+    outline-offset: 2px;
 }
 
 /* ✅ border는 건드리지 않음 */
@@ -119,6 +136,80 @@ button {
 
 .btn-primary:hover {
     background: var(--primary-hover);
+}
+
+/* Host theme utilities */
+.host-active {
+    background: var(--brand-primary);
+    color: var(--brand-accent);
+    border-color: var(--brand-primary-strong);
+}
+
+.host-chip {
+    border: 1px solid var(--brand-border);
+    background: var(--surface);
+    color: var(--text-default);
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.host-chip--active {
+    background: var(--brand-primary);
+    color: var(--brand-accent);
+    border-color: var(--brand-primary-strong);
+}
+
+.chip {
+    border: 1px solid var(--brand-border);
+    background: var(--surface);
+    color: var(--text-default);
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.chip--active {
+    background: var(--brand-primary);
+    color: var(--brand-accent);
+    border-color: var(--brand-primary-strong);
+}
+
+.tab {
+    background: transparent;
+    color: var(--text-default);
+}
+
+.tab--active {
+    background: var(--brand-primary);
+    color: var(--brand-accent);
+}
+
+.host-nav-item--active {
+    background: var(--brand-primary);
+    color: var(--brand-accent);
+    border-color: var(--brand-primary-strong);
+}
+
+.host-btn--primary {
+    background: var(--brand-primary);
+    color: var(--brand-accent);
+    border: 1px solid var(--brand-primary-strong);
+    font-weight: 800;
+}
+
+.host-btn--primary:hover {
+    background: var(--brand-primary-strong);
+}
+
+.host-chip:hover,
+.host-chip:focus-visible {
+    border-color: var(--brand-primary-strong);
+    background: var(--brand-primary);
+    color: var(--brand-accent);
+}
+
+.host-nav-item--active:focus-visible,
+.host-btn--primary:focus-visible {
+    outline-color: var(--brand-primary-strong);
 }
 
 /* Admin common UI */
