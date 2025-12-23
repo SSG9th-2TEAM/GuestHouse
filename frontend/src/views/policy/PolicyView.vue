@@ -2,16 +2,15 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-
-
 const route = useRoute();
 const router = useRouter();
 
-// 탭 정의
+
 const tabs = [
   { id: 'terms', label: '이용약관' },
   { id: 'privacy', label: '개인정보처리방침' },
-  { id: 'refund', label: '결제 및 환불 정책' }
+  { id: 'refund', label: '결제 및 환불 정책' },
+  { id: 'account', label: '회원가입 및 계정 정책' },
 ];
 
 // 현재 활성 탭
@@ -25,13 +24,13 @@ onMounted(() => {
   }
 });
 
-// 탭 변경 시 URL 업데이트
+
 const changeTab = (tabId) => {
   activeTab.value = tabId;
   router.replace({ query: { tab: tabId } });
 };
 
-// URL 변경 감지
+
 watch(() => route.query.tab, (newTab) => {
   if (newTab && tabs.find(t => t.id === newTab)) {
     activeTab.value = newTab;
@@ -141,49 +140,79 @@ const policyContents = {
         content: '① 마이페이지 > 예약 내역에서 취소 신청\n② 고객센터 전화 문의 (평일 10:00 ~ 19:00)\n③ 1:1 문의를 통한 취소 요청'
       }
     ]
+  },
+  // 회원가입 및 계정 정책
+  account: {
+    title: '회원가입 및 계정 정책',
+    effectiveDate: '2025년 12월 23일',
+    sections: [
+      {
+        title: '1. 목적 및 정책의 적용',
+        content: '본 정책은 본 플랫폼을 통해 숙소를 검색·비교·예약하는 모든 이용자에게 적용됩니다. 이용자가 결제를 완료하거나 회원가입을 진행하면 본 정책에 동의한 것으로 봅니다.\n이 약관은 회사가 제공하는 게스트하우스 예약 플랫폼 서비스를 이용하는 회원(이하 “호스트” 또는 “게스트”)과 회사 간의 권리·의무 및 책임사항을 정함을 목적으로 합니다.'
+      },
+      {
+        title: '2. 회원가입 절차',
+        content: '① 회원가입은 가입 양식에 따라 필요한 정보를 기입하여 신청을 완료함으로써 이루어집니다.\n② 회사는 이메일 주소의 유효성을 검사하며, 가입신청자는 중복 확인을 거쳐야 다음 단계로 진행할 수 있습니다.\n③ 맞춤형 숙소 추천 등 개인화 서비스를 위해 관심 테마 정보를 수집할 수 있으며, 이는 선택 사항입니다.'
+      },
+      {
+        title: '3. 회원가입 자격 및 제한',
+        content: '① 회원가입은 만 19세 이상의 개인만 가능합니다. (미성년자 가입 불가)\n② 타인의 개인정보 도용, 허위 기재, 과거 자격 상실 이력 등이 있는 경우 가입 승낙을 유보하거나 해지할 수 있습니다.'
+      },
+      {
+        title: '4. 아이디 및 비밀번호 관리',
+        content: '① 아이디와 비밀번호에 대한 관리 책임은 전적으로 회원 본인에게 있습니다.\n② 비밀번호는 문자, 숫자, 특수문자를 조합하여 안전하게 설정해야 하며, 타인에게 양도하거나 대여할 수 없습니다.\n③ 도용 인지 시 즉시 회사에 통지하고 안내를 따라야 합니다.'
+      },
+      {
+        title: '5. 회원 정보의 변경 및 마이페이지',
+        content: '① 회원은 "마이페이지"를 통해 개인정보를 열람하고 수정할 수 있습니다. (단, 이메일 등 일부 정보 수정 불가)\n② 정보 변경 시 즉시 수정해야 하며, 이를 게을리하여 발생한 불이익(예약 정보 미수신 등)에 대해 회사는 책임을 지지 않습니다.'
+      },
+      {
+        title: '6. 로그인 및 서비스 이용',
+        content: '① 가입 시 등록한 이메일과 비밀번호를 이용하며, 로그인 시 숙소 예약, 위시리스트 등 모든 서비스를 이용할 수 있습니다.\n② 장기간 로그인하지 않는 계정은 휴면 상태로 전환될 수 있으며, 관련 정책은 별도로 공지합니다.'
+      },
+      {
+        title: '7. 회원 탈퇴 및 자격 상실',
+        content: '① 회원은 언제든지 "마이페이지"를 통해 탈퇴를 신청할 수 있으며, 회사는 즉시 처리합니다.\n② 탈퇴 시 법령상 보관 의무가 있는 정보를 제외한 모든 데이터는 삭제됩니다.\n③ 금지 행위 적발 시 회사는 사전 통지 후 회원 자격을 제한하거나 상실시킬 수 있습니다.'
+      }
+    ]
   }
 };
 
-// 현재 탭의 콘텐츠
+
 const currentContent = computed(() => policyContents[activeTab.value]);
 </script>
 
 <template>
   <div class="policy-page">
-    <!-- 헤더 -->
     <div class="policy-header">
       <h1 class="policy-title">약관 및 정책</h1>
     </div>
 
-    <!-- 탭 네비게이션 -->
     <div class="tab-navigation">
       <div class="tab-container">
         <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          :class="['tab-button', { active: activeTab === tab.id }]"
-          @click="changeTab(tab.id)"
+            v-for="tab in tabs"
+            :key="tab.id"
+            :class="['tab-button', { active: activeTab === tab.id }]"
+            @click="changeTab(tab.id)"
         >
           {{ tab.label }}
         </button>
       </div>
     </div>
 
-    <!-- 콘텐츠 영역 -->
     <div class="policy-content">
       <div class="content-wrapper">
-        <!-- 정책 제목 및 시행일 -->
         <div class="content-header">
           <h2 class="content-title">{{ currentContent.title }}</h2>
           <p class="effective-date">시행일자: {{ currentContent.effectiveDate }}</p>
         </div>
 
-        <!-- 정책 섹션들 -->
         <div class="sections">
-          <div 
-            v-for="(section, index) in currentContent.sections" 
-            :key="index"
-            class="section"
+          <div
+              v-for="(section, index) in currentContent.sections"
+              :key="index"
+              class="section"
           >
             <h3 class="section-title">{{ section.title }}</h3>
             <p class="section-content">{{ section.content }}</p>
@@ -195,12 +224,12 @@ const currentContent = computed(() => policyContents[activeTab.value]);
 </template>
 
 <style scoped>
+
 .policy-page {
   min-height: 100vh;
   background-color: #f8f9fa;
 }
 
-/* 헤더 */
 .policy-header {
   background: linear-gradient(135deg, #6DC3BB 0%, #5ab3aa 100%);
   padding: 40px 24px;
@@ -215,13 +244,12 @@ const currentContent = computed(() => policyContents[activeTab.value]);
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-/* 탭 네비게이션 */
 .tab-navigation {
   background: white;
   border-bottom: 1px solid #e5e5e5;
   position: sticky;
-  top: 70px; /* 메인 헤더 높이에 맞춤 */
-  z-index: 50; /* 메인 헤더(z-index: 100)보다 낮게 설정 */
+  top: 70px;
+  z-index: 50;
 }
 
 .tab-container {
@@ -265,7 +293,6 @@ const currentContent = computed(() => policyContents[activeTab.value]);
   border-radius: 3px 3px 0 0;
 }
 
-/* 콘텐츠 영역 */
 .policy-content {
   max-width: 1200px;
   margin: 0 auto;
@@ -299,7 +326,6 @@ const currentContent = computed(() => policyContents[activeTab.value]);
   margin: 0;
 }
 
-/* 섹션 */
 .sections {
   display: flex;
   flex-direction: column;
@@ -333,89 +359,20 @@ const currentContent = computed(() => policyContents[activeTab.value]);
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-/* 반응형 - 태블릿 */
 @media (max-width: 768px) {
-  .policy-header {
-    padding: 32px 16px;
-  }
-
-  .policy-title {
-    font-size: 24px;
-  }
-
-  .tab-container {
-    padding: 0 16px;
-  }
-
-  .tab-button {
-    padding: 14px 12px;
-    font-size: 14px;
-  }
-
-  .policy-content {
-    padding: 24px 16px;
-  }
-
-  .content-wrapper {
-    padding: 24px;
-    border-radius: 12px;
-  }
-
-  .content-title {
-    font-size: 20px;
-  }
-
-  .section-title {
-    font-size: 15px;
-  }
-
-  .section-content {
-    font-size: 13px;
-  }
+  .policy-header { padding: 32px 16px; }
+  .policy-title { font-size: 24px; }
+  .tab-container { padding: 0 16px; }
+  .tab-button { padding: 14px 12px; font-size: 14px; }
+  .policy-content { padding: 24px 16px; }
+  .content-wrapper { padding: 24px; border-radius: 12px; }
+  .content-title { font-size: 20px; }
 }
 
-/* 반응형 - 모바일 */
 @media (max-width: 480px) {
-  .policy-header {
-    padding: 24px 12px;
-  }
-
-  .policy-title {
-    font-size: 20px;
-  }
-
-  .tab-container {
-    padding: 0 8px;
-  }
-
-  .tab-button {
-    padding: 12px 8px;
-    font-size: 13px;
-  }
-
-  .policy-content {
-    padding: 16px 12px;
-  }
-
-  .content-wrapper {
-    padding: 20px 16px;
-  }
-
-  .content-title {
-    font-size: 18px;
-  }
-
-  .sections {
-    gap: 20px;
-  }
-
-  .section-title {
-    font-size: 14px;
-  }
-
-  .section-content {
-    font-size: 12px;
-    line-height: 1.7;
-  }
+  .policy-header { padding: 24px 12px; }
+  .policy-title { font-size: 20px; }
+  .tab-button { padding: 12px 8px; font-size: 13px; }
+  .content-wrapper { padding: 20px 16px; }
 }
 </style>
