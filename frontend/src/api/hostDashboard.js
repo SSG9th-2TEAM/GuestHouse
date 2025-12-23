@@ -1,7 +1,6 @@
 import { hostGet } from './adminClient'
 
-export async function fetchHostDashboardSummary({ year, month }) {
-  const params = { year, month }
+export async function fetchHostDashboardSummary(params = {}) {
   return hostGet('/host/dashboard/summary', params)
 }
 

@@ -63,4 +63,19 @@
         ORDER BY period
     </select>
 
+    <!-- 기간 상세: 일 단위 집계 (YYYY-MM-DD) -->
+    <select id="selectRevenueDailyDetails"
+            resultType="com.ssg9th2team.geharbang.domain.revenue.host.dto.HostRevenueDetailResponse">
+        SELECT
+            DATE_FORMAT(h.stat_date, '%Y-%m-%d') AS period,
+            COALESCE(SUM(h.revenue), 0) AS revenue,
+            COALESCE(AVG(h.occupancy_rate), 0) AS occupancyRate
+        FROM host_daily_stats h
+        WHERE h.user_id = #{hostId}
+          AND h.stat_date &gt;= #{start}
+          AND h.stat_date &lt; #{end}
+        GROUP BY DATE_FORMAT(h.stat_date, '%Y-%m-%d')
+        ORDER BY period
+    </select>
+
 </mapper>

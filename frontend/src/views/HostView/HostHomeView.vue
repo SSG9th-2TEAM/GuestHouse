@@ -1,69 +1,139 @@
 <script setup>
-import {computed, ref, onMounted} from 'vue'
+import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
 import {fetchHostDashboardSummary, fetchHostTodaySchedule} from '@/api/hostDashboard'
+import { formatCurrency, formatDate, formatNumber, formatShortTime } from '@/utils/formatters'
 
 const router = useRouter()
 
 const dashboardSummary = ref({
-  expectedRevenue: 0,
+  confirmedRevenue: 0,
   confirmedReservations: 0,
   avgRating: 0,
-  operatingAccommodations: 0
+  operatingAccommodations: 0,
+  totalAccommodations: 0
 })
 
 const todaySchedule = ref([])
 
 const todayLabel = ref('')
 const isLoading = ref(false)
+const summaryError = ref('')
+const scheduleError = ref('')
+const prefersReducedMotion = ref(false)
 
-const formatDateLabel = (date) => {
-  const weekDays = ['일', '월', '화', '수', '목', '금', '토']
-  const year = date.getFullYear()
-  const month = date.getMonth() + 1
-  const day = date.getDate()
-  const weekday = weekDays[date.getDay()]
-  return `${year}년 ${month}월 ${day}일 (${weekday})`
-}
+const periodOptions = [
+  { value: 'today', label: '오늘' },
+  { value: '7days', label: '7일' },
+  { value: '30days', label: '30일' },
+  { value: 'month', label: '이번달' },
+  { value: 'year', label: '올해' }
+]
+
+const selectedPeriod = ref('month')
+
+const periodLabel = computed(() => {
+  const option = periodOptions.find((item) => item.value === selectedPeriod.value)
+  return option ? option.label : '이번달'
+})
+
+const periodPrefix = computed(() => {
+  switch (selectedPeriod.value) {
+    case 'today':
+      return '오늘'
+    case '7days':
+      return '최근 7일'
+    case '30days':
+      return '최근 30일'
+    case 'year':
+      return '올해'
+    default:
+      return '이번 달'
+  }
+})
+
+const animatedSummary = ref({
+  confirmedRevenue: 0,
+  confirmedReservations: 0,
+  avgRating: 0,
+  operatingAccommodations: 0,
+  totalAccommodations: 0
+})
+
+const scheduleFilters = [
+  { value: 'all', label: '전체' },
+  { value: 'checkin', label: '체크인' },
+  { value: 'checkout', label: '체크아웃' }
+]
+
+const selectedScheduleFilter = ref('all')
+
+const scheduleCountLabel = computed(() => {
+  if (selectedScheduleFilter.value === 'checkin') return '체크인'
+  if (selectedScheduleFilter.value === 'checkout') return '체크아웃'
+  return '체크인/아웃'
+})
+
+const hasKpiData = computed(() => {
+  const summary = dashboardSummary.value
+  return Boolean(
+    summary.confirmedRevenue ||
+    summary.confirmedReservations ||
+    summary.avgRating ||
+    summary.operatingAccommodations ||
+    summary.totalAccommodations
+  )
+})
 
 const formatKpiValue = (value, unit) => {
   if (typeof value === 'number') {
-    return `${unit === '₩' ? '₩' : ''}${value.toLocaleString()}${unit === '₩' ? '' : unit}`
+    if (unit === '/5.0') {
+      return `${value.toFixed(1)}${unit}`
+    }
+    if (unit === '₩') {
+      return formatCurrency(value)
+    }
+    return `${formatNumber(value)}${unit ?? ''}`
   }
   return `${value}${unit ?? ''}`
 }
 
+const formatTimeShort = (time) => {
+  return formatShortTime(time)
+}
+
 const kpis = computed(() => ([
   {
-    label: '이번 달 예상 수익',
-    value: dashboardSummary.value.expectedRevenue ?? 0,
+    label: `${periodPrefix.value} 확정 매출`,
+    value: animatedSummary.value.confirmedRevenue ?? 0,
     unit: '₩',
-    trend: '이번 달 기준',
     tone: 'positive',
+    delta: null,
     target: '/host/revenue'
   },
   {
-    label: '이번 달 예약 확정',
-    value: dashboardSummary.value.confirmedReservations ?? 0,
+    label: `${periodPrefix.value} 예약 확정`,
+    value: animatedSummary.value.confirmedReservations ?? 0,
     unit: '건',
-    trend: '이번 달 기준',
     tone: 'positive',
+    delta: null,
     target: '/host/booking'
   },
   {
-    label: '평균 평점',
-    value: dashboardSummary.value.avgRating ?? 0,
+    label: `${periodPrefix.value} 평균 평점`,
+    value: animatedSummary.value.avgRating ?? 0,
     unit: '/5.0',
-    trend: '최근 30일',
     tone: 'neutral',
+    delta: null,
     target: '/host/review'
   },
   {
-    label: '숙소 운영 현황',
-    value: dashboardSummary.value.operatingAccommodations ?? 0,
-    unit: '개 운영중',
-    trend: '운영 중 숙소',
+    label: '내 숙소 운영 상태',
+    value: animatedSummary.value.operatingAccommodations ?? 0,
+    total: animatedSummary.value.totalAccommodations ?? 0,
+    unit: '운영중',
     tone: 'warning',
+    delta: null,
     target: '/host/accommodation'
   }
 ]))
@@ -72,6 +142,7 @@ const tasks = computed(() => todaySchedule.value.map((item) => ({
   id: item.reservationId ?? `${item.accommodationName}-${item.time}`,
   type: item.type === 'CHECKOUT' ? 'checkout' : 'checkin',
   time: item.time || '',
+  displayTime: formatTimeShort(item.time),
   accommodation: `${item.accommodationName}${item.roomName ? ` ${item.roomName}` : ''}`,
   guest: item.guestName || '',
   phone: item.phone || '',
@@ -79,7 +150,23 @@ const tasks = computed(() => todaySchedule.value.map((item) => ({
   memo: item.requestNote || ''
 })))
 
-const hasMemo = computed(() => tasks.value.some(t => t.memo))
+const filteredTasks = computed(() => {
+  if (selectedScheduleFilter.value === 'checkin') {
+    return tasks.value.filter((task) => task.type === 'checkin')
+  }
+  if (selectedScheduleFilter.value === 'checkout') {
+    return tasks.value.filter((task) => task.type === 'checkout')
+  }
+  return tasks.value
+})
+
+const hasMemo = computed(() => filteredTasks.value.some(t => t.memo))
+
+const emptyMessage = computed(() => {
+  return selectedScheduleFilter.value === 'all'
+    ? '오늘 예정된 일정이 없습니다.'
+    : '선택한 조건의 일정이 없습니다.'
+})
 
 const goTo = (path) => {
   if (path) router.push(path)
@@ -96,30 +183,108 @@ const closeTask = () => {
   showTaskModal.value = false
 }
 
+const kpiGridRef = ref(null)
+const activeKpiIndex = ref(0)
+let kpiScrollHandler = null
+
+const animateValue = (key, target, options = {}) => {
+  const duration = options.duration ?? 420
+  const decimals = options.decimals ?? 0
+  const start = animatedSummary.value[key] ?? 0
+  if (prefersReducedMotion.value) {
+    animatedSummary.value[key] = target
+    return
+  }
+  const startTime = performance.now()
+  const step = (now) => {
+    const progress = Math.min((now - startTime) / duration, 1)
+    const value = start + (target - start) * progress
+    animatedSummary.value[key] = decimals ? Number(value.toFixed(decimals)) : Math.round(value)
+    if (progress < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
+const runKpiCountUp = () => {
+  animateValue('confirmedRevenue', dashboardSummary.value.confirmedRevenue ?? 0)
+  animateValue('confirmedReservations', dashboardSummary.value.confirmedReservations ?? 0)
+  animateValue('avgRating', dashboardSummary.value.avgRating ?? 0, { decimals: 1 })
+  animateValue('operatingAccommodations', dashboardSummary.value.operatingAccommodations ?? 0)
+  animateValue('totalAccommodations', dashboardSummary.value.totalAccommodations ?? 0)
+}
+
+const setupKpiIndicator = () => {
+  const grid = kpiGridRef.value
+  if (!grid) return
+  const cards = grid.querySelectorAll('.kpi-card')
+  const firstCard = cards[0]
+  if (!firstCard) return
+  const cardWidth = firstCard.getBoundingClientRect().width
+  const gap = 12
+
+  kpiScrollHandler = () => {
+    const index = Math.round(grid.scrollLeft / (cardWidth + gap))
+    activeKpiIndex.value = Math.min(Math.max(index, 0), kpis.value.length - 1)
+  }
+
+  grid.addEventListener('scroll', kpiScrollHandler, { passive: true })
+}
+
+const scrollToKpi = (index) => {
+  const grid = kpiGridRef.value
+  if (!grid) return
+  const cards = grid.querySelectorAll('.kpi-card')
+  const target = cards[index]
+  if (!target) return
+  grid.scrollTo({ left: target.offsetLeft, behavior: 'smooth' })
+}
+
+const buildSummaryParams = () => ({ range: selectedPeriod.value })
+
 const loadDashboard = async () => {
   isLoading.value = true
+  summaryError.value = ''
+  scheduleError.value = ''
   const today = new Date()
-  const year = today.getFullYear()
-  const month = today.getMonth() + 1
-  todayLabel.value = formatDateLabel(today)
+  todayLabel.value = formatDate(today, true)
 
   const [summaryRes, scheduleRes] = await Promise.all([
-    fetchHostDashboardSummary({year, month}),
+    fetchHostDashboardSummary(buildSummaryParams()),
     fetchHostTodaySchedule({date: today.toISOString().slice(0, 10)})
   ])
 
   if (summaryRes.ok && summaryRes.data) {
     dashboardSummary.value = summaryRes.data
+  } else {
+    summaryError.value = '데이터를 불러오지 못했어요.'
   }
 
   if (scheduleRes.ok && Array.isArray(scheduleRes.data)) {
     todaySchedule.value = scheduleRes.data
+  } else {
+    scheduleError.value = '데이터를 불러오지 못했어요.'
   }
 
   isLoading.value = false
+  runKpiCountUp()
 }
 
-onMounted(loadDashboard)
+onMounted(() => {
+  prefersReducedMotion.value = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  loadDashboard()
+  setupKpiIndicator()
+})
+
+onUnmounted(() => {
+  const grid = kpiGridRef.value
+  if (grid && kpiScrollHandler) {
+    grid.removeEventListener('scroll', kpiScrollHandler)
+  }
+})
+
+watch(selectedPeriod, () => {
+  loadDashboard()
+})
 </script>
 
 <template>
@@ -127,16 +292,44 @@ onMounted(loadDashboard)
     <header class="view-header">
       <div>
         <h2>대시보드</h2>
-        <p class="subtitle">이번 달 운영 현황을 빠르게 확인하세요.</p>
+        <p class="subtitle">{{ periodLabel }} 기준 운영 현황을 빠르게 확인하세요.</p>
       </div>
     </header>
 
+    <section class="period-segment" role="tablist" aria-label="기간 선택">
+      <button
+        v-for="option in periodOptions"
+        :key="option.value"
+        class="segment-btn"
+        :class="{ active: selectedPeriod === option.value }"
+        type="button"
+        role="tab"
+        :aria-selected="selectedPeriod === option.value"
+        @click="selectedPeriod = option.value"
+      >
+        {{ option.label }}
+      </button>
+    </section>
+
     <!-- KPI grid -->
-    <section class="kpi-grid">
+    <section class="kpi-grid" ref="kpiGridRef" :class="{ 'fade-section': !isLoading }">
+      <div v-if="isLoading" class="kpi-skeleton">
+        <div v-for="i in 3" :key="i" class="skeleton-card" />
+      </div>
+      <div v-else-if="summaryError" class="status-card">
+        <p>데이터를 불러오지 못했어요.</p>
+        <button class="ghost-btn" type="button" @click="loadDashboard">다시 시도</button>
+      </div>
+      <div v-else-if="!hasKpiData" class="status-card">
+        <p>선택한 기간에 확정 매출이 없습니다.</p>
+        <button class="ghost-btn" type="button" @click="selectedPeriod = 'month'">기간 변경</button>
+      </div>
       <article
           v-for="item in kpis"
           :key="item.label"
           class="kpi-card"
+          :class="{ 'fade-item': !isLoading }"
+          :style="{ animationDelay: `${Math.min(kpis.indexOf(item), 5) * 60}ms` }"
           role="button"
           tabindex="0"
           @click="goTo(item.target)"
@@ -144,38 +337,101 @@ onMounted(loadDashboard)
       >
         <div class="kpi-top">
           <p class="kpi-label">{{ item.label }}</p>
-          <span class="kpi-trend" :class="item.tone">{{ item.trend }}</span>
         </div>
-        <p class="kpi-value">{{ formatKpiValue(item.value, item.unit) }}</p>
+        <p class="kpi-value">
+          <span v-if="item.total !== undefined">
+            <span v-if="item.total > 0">운영중 {{ item.value }} / 전체 {{ item.total }}</span>
+            <span v-else>운영중 {{ item.value }}</span>
+          </span>
+          <span v-else>{{ formatKpiValue(item.value, item.unit) }}</span>
+        </p>
+        <div class="kpi-delta" :class="{ hidden: !item.delta }">
+          <span v-if="item.delta">{{ item.delta }}</span>
+        </div>
       </article>
     </section>
 
+    <div class="kpi-indicator" aria-hidden="true">
+      <button
+        v-for="(_, index) in kpis"
+        :key="index"
+        class="kpi-dot"
+        :class="{ active: index === activeKpiIndex }"
+        type="button"
+        @click="scrollToKpi(index)"
+      />
+    </div>
+
     <!-- Today tasks -->
-    <section class="task-panel">
+    <section class="task-panel" :class="{ 'fade-section': !isLoading }">
       <div class="task-head">
         <div>
           <h3>오늘 일정</h3>
           <p class="task-date">{{ todayLabel }}</p>
         </div>
-        <span class="task-chip">체크인/아웃 {{ tasks.length }}건</span>
+        <span class="task-chip">
+          <span class="task-chip-label">{{ scheduleCountLabel }}</span>
+          <span class="task-chip-count">{{ filteredTasks.length }}건</span>
+        </span>
+      </div>
+
+      <div class="task-filters">
+        <button
+          v-for="filter in scheduleFilters"
+          :key="filter.value"
+          class="filter-chip"
+          :class="{ active: selectedScheduleFilter === filter.value }"
+          type="button"
+          @click="selectedScheduleFilter = filter.value"
+        >
+          {{ filter.label }}
+        </button>
       </div>
 
       <div class="task-list">
-        <div v-for="task in tasks" :key="task.id" class="task-card" role="button" tabindex="0" @click="openTask(task)"
+        <div v-if="isLoading" class="task-skeleton">
+          <div v-for="i in 4" :key="i" class="skeleton-card" />
+        </div>
+        <div v-else-if="scheduleError" class="status-card">
+          <p>데이터를 불러오지 못했어요.</p>
+          <button class="ghost-btn" type="button" @click="loadDashboard">다시 시도</button>
+        </div>
+        <div v-for="(task, index) in filteredTasks" :key="task.id" class="task-card" :class="{ 'fade-item': !isLoading }"
+             :style="{ animationDelay: `${Math.min(index, 5) * 70}ms` }"
+             role="button" tabindex="0" @click="openTask(task)"
              @keypress.enter="openTask(task)">
           <div class="task-row">
             <span class="pill" :class="task.type === 'checkin' ? 'pill-green' : 'pill-gray'">
               {{ task.type === 'checkin' ? '체크인' : '체크아웃' }}
             </span>
-            <span class="time">{{ task.time }}</span>
+            <span class="time">{{ task.displayTime }}</span>
           </div>
           <p class="accommodation">{{ task.accommodation }}</p>
           <p class="guest">{{ task.guest }} 님</p>
+          <div class="task-actions">
+            <a
+              v-if="task.phone"
+              class="call-btn"
+              :href="`tel:${task.phone}`"
+              @click.stop
+              aria-label="게스트 전화"
+            >
+              <span class="call-icon">☎</span>
+              <span>전화</span>
+            </a>
+            <span class="detail-hint">
+              예약 상세
+              <span class="chevron">›</span>
+            </span>
+          </div>
           <p v-if="task.memo" class="memo">📝 {{ task.memo }}</p>
         </div>
       </div>
 
-      <p v-if="!tasks.length && !isLoading" class="empty">오늘 예정된 일정이 없습니다.</p>
+      <div v-if="!filteredTasks.length && !isLoading && !scheduleError" class="status-card">
+        <p>{{ emptyMessage }}</p>
+        <button class="ghost-btn" type="button" @click="goTo('/host/booking')">캘린더 보기</button>
+      </div>
       <p v-else-if="isLoading" class="empty">일정을 불러오는 중입니다.</p>
       <p v-else-if="hasMemo" class="footnote">메모가 있는 일정은 📝 로 표시됩니다.</p>
     </section>
@@ -207,7 +463,8 @@ onMounted(loadDashboard)
 .dashboard-home {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
+  padding: 1rem 1rem calc(1.5rem + var(--bn-h, 0px) + (var(--bn-pad, 0px) * 2) + env(safe-area-inset-bottom));
 }
 
 .view-header h2 {
@@ -229,10 +486,95 @@ onMounted(loadDashboard)
   margin: 0;
 }
 
-.kpi-grid {
+.status-card {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px dashed #e5e7eb;
+  background: #f8fafc;
+  text-align: center;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+  gap: 0.5rem;
+}
+
+.status-card p {
+  margin: 0;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.ghost-btn {
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #0f766e;
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 800;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.period-segment {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f5f5f5;
+  padding-top: 0.35rem;
+  padding-bottom: 0.25rem;
+  scroll-snap-type: x mandatory;
+}
+
+.fade-section {
+  animation: fadeUp 240ms ease both;
+}
+
+.fade-item {
+  animation: fadeUp 240ms ease both;
+}
+
+.segment-btn {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #475569;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  scroll-snap-align: start;
+}
+
+.segment-btn.active {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.kpi-grid {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 0.25rem;
+  position: relative;
+}
+
+.kpi-skeleton {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.skeleton-card {
+  flex: 0 0 78%;
+  height: 120px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.1s ease infinite;
 }
 
 .kpi-card {
@@ -243,6 +585,8 @@ onMounted(loadDashboard)
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
   transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
   cursor: pointer;
+  flex: 0 0 78%;
+  scroll-snap-align: start;
 }
 
 .kpi-top {
@@ -258,32 +602,43 @@ onMounted(loadDashboard)
   margin: 0;
 }
 
-.kpi-trend {
-  font-size: 0.8rem;
-  font-weight: 700;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  color: #374151;
-}
-
-.kpi-trend.positive {
-  color: #0f766e;
-  background: #e0f2f1;
-  border-color: #c0e6df;
-}
-
-.kpi-trend.warning {
-  color: #b45309;
-  background: #fff7ed;
-  border-color: #fde68a;
-}
-
 .kpi-value {
   font-size: 1.75rem;
   font-weight: 800;
   color: #0f172a;
   margin: 0;
+}
+
+.kpi-delta {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+  min-height: 1rem;
+}
+
+.kpi-delta.hidden {
+  visibility: hidden;
+}
+
+.kpi-indicator {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: -0.25rem;
+}
+
+.kpi-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: #cbd5f5;
+  opacity: 0.6;
+}
+
+.kpi-dot.active {
+  background: #0f766e;
+  opacity: 1;
 }
 
 .kpi-card:hover {
@@ -322,18 +677,62 @@ onMounted(loadDashboard)
 }
 
 .task-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
   background: #e0f2f1;
   color: #0f766e;
   font-weight: 700;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  border-radius: 12px;
   border: 1px solid #c0e6df;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.task-chip-label {
+  font-size: 0.78rem;
+}
+
+.task-chip-count {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.task-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+}
+
+.filter-chip {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #475569;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.filter-chip.active {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
 }
 
 .task-list {
   display: grid;
   grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.task-skeleton {
+  display: grid;
   gap: 0.75rem;
 }
 
@@ -385,6 +784,45 @@ onMounted(loadDashboard)
   margin: 0;
   color: #374151;
   font-size: 0.95rem;
+}
+
+.task-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.call-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid #d1e7e2;
+  background: #f0fcf9;
+  color: #0f766e;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.call-icon {
+  font-size: 0.9rem;
+}
+
+.detail-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.chevron {
+  font-size: 1rem;
 }
 
 .memo {
@@ -470,8 +908,65 @@ onMounted(loadDashboard)
 }
 
 @media (min-width: 768px) {
+  .dashboard-home {
+    padding: 1.5rem 1.5rem calc(2rem + var(--bn-h, 0px) + (var(--bn-pad, 0px) * 2) + env(safe-area-inset-bottom));
+  }
+
+  .period-segment {
+    position: static;
+    background: transparent;
+    padding-top: 0;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    overflow: visible;
+  }
+
+  .kpi-card {
+    flex: 1;
+  }
+
+  .kpi-skeleton,
+  .skeleton-card {
+    flex: 1;
+  }
+
+  .kpi-indicator {
+    display: none;
+  }
+
   .task-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-section,
+  .fade-item,
+  .skeleton-card {
+    animation: none !important;
   }
 }
 

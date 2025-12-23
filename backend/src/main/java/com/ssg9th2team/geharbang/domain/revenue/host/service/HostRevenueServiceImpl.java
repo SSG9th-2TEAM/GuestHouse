@@ -73,8 +73,19 @@ public class HostRevenueServiceImpl implements HostRevenueService {
     }
 
     @Override
-    public List<HostRevenueDetailResponse> getDetails(Long hostId, LocalDate from, LocalDate to) {
+    public List<HostRevenueDetailResponse> getDetails(Long hostId, LocalDate from, LocalDate to, String granularity) {
         LocalDate end = to.plusDays(1);
+        String normalized = granularity == null ? "month" : granularity.toLowerCase();
+
+        if ("day".equals(normalized)) {
+            List<HostRevenueDetailResponse> raw = hostRevenueMapper.selectRevenueDailyDetails(hostId, from, end);
+            Map<String, HostRevenueDetailResponse> byPeriod = new HashMap<>();
+            for (HostRevenueDetailResponse item : raw) {
+                byPeriod.put(item.getPeriod(), item);
+            }
+            return buildDailyDetails(from, to, byPeriod);
+        }
+
         List<HostRevenueDetailResponse> raw = hostRevenueMapper.selectRevenueDetails(hostId, from, end);
         Map<String, HostRevenueDetailResponse> byPeriod = new HashMap<>();
         for (HostRevenueDetailResponse item : raw) {
@@ -122,6 +133,23 @@ public class HostRevenueServiceImpl implements HostRevenueService {
                 result.add(new HostRevenueDetailResponse(key, 0L, 0.0));
             }
             cursor = cursor.plusMonths(1);
+        }
+        return result;
+    }
+
+    private List<HostRevenueDetailResponse> buildDailyDetails(LocalDate from, LocalDate to,
+                                                              Map<String, HostRevenueDetailResponse> byPeriod) {
+        List<HostRevenueDetailResponse> result = new ArrayList<>();
+        LocalDate cursor = from;
+        while (!cursor.isAfter(to)) {
+            String key = cursor.toString();
+            HostRevenueDetailResponse existing = byPeriod.get(key);
+            if (existing != null) {
+                result.add(existing);
+            } else {
+                result.add(new HostRevenueDetailResponse(key, 0L, 0.0));
+            }
+            cursor = cursor.plusDays(1);
         }
         return result;
     }

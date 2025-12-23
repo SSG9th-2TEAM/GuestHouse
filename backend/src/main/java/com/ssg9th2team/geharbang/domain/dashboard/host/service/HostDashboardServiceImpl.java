@@ -29,6 +29,13 @@ public class HostDashboardServiceImpl implements HostDashboardService {
     }
 
     @Override
+    public HostDashboardSummaryResponse getSummaryByRange(Long hostId, LocalDate start, LocalDate end) {
+        return HostDashboardSummaryResponse.from(
+                hostDashboardMapper.selectHostSummary(hostId, start, end)
+        );
+    }
+
+    @Override
     public List<TodayScheduleItemResponse> getTodaySchedule(Long hostId, LocalDate date) {
         LocalDateTime start = date.atStartOfDay();
         LocalDateTime end = start.plusDays(1);
