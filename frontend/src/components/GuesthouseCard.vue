@@ -32,7 +32,6 @@ const formatRating = (value) => {
         <span class="price">
           <strong>&#8361;{{ price.toLocaleString() }}</strong> / 박
         </span>
-        <button class="book-btn">예약하기</button>
       </div>
     </div>
   </article>
@@ -87,11 +86,10 @@ const formatRating = (value) => {
 }
 
 .card-content {
-  padding: 0.4rem 0.7rem;
+  padding: 0.15rem 0.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
-  flex: 1;
+  gap: 0.02rem;
 }
 
 .header-row {
@@ -105,7 +103,7 @@ const formatRating = (value) => {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-main);
-  margin-bottom: 0.1rem;
+  margin: 0;
   flex: 1;
   min-width: 0;
   word-break: keep-all;
@@ -119,26 +117,34 @@ const formatRating = (value) => {
 .description {
   font-size: 0.82rem;
   color: var(--text-sub);
-  line-height: 1.3;
+  line-height: 1.1;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .location {
   font-size: 0.86rem;
   color: var(--text-sub);
+  line-height: 1;
+  margin: 0;
 }
 
 .footer-row {
-  margin-top: auto;
+  margin-top: 0.12rem;
+  margin-bottom: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 0.2rem;
+  padding-top: 0.02rem;
 }
 
 .book-btn {
   background-color: var(--primary);
   color: #004d40;
-  padding: 0.35rem 0.75rem;
+  padding: 0.2rem 0.55rem;
   border-radius: 8px;
   font-weight: 600;
   font-size: 0.9rem;

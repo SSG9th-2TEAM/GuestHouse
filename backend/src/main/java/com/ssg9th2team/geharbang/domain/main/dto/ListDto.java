@@ -4,8 +4,6 @@ package com.ssg9th2team.geharbang.domain.main.dto;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.math.BigDecimal;
-
 @Getter
 @Builder
 public class ListDto {
@@ -16,8 +14,8 @@ public class ListDto {
     private String district;
     private String township;
     private Long minPrice;
-    private BigDecimal rating;
-    private Long reviewCount;
+    private Integer rating;
+    private Integer reviewCount;
     private String imageUrl;
 
     /*
