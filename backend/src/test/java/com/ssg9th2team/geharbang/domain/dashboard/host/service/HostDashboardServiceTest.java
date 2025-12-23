@@ -59,10 +59,11 @@ class HostDashboardServiceTest {
     void getSummaryAggregatesStats() {
         HostDashboardSummaryResponse response = hostDashboardService.getSummary(HOST_ID, 2025, 1);
 
-        assertThat(response.getExpectedRevenue()).isEqualTo(3000L);
+        assertThat(response.getConfirmedRevenue()).isEqualTo(3000L);
         assertThat(response.getConfirmedReservations()).isEqualTo(5);
         assertThat(response.getAvgRating()).isCloseTo(4.0, within(0.01));
         assertThat(response.getOperatingAccommodations()).isEqualTo(2);
+        assertThat(response.getTotalAccommodations()).isEqualTo(3);
     }
 
     @Test

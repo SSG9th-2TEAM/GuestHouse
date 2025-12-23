@@ -13,5 +13,5 @@ public interface HostRevenueService {
 
     List<HostRevenueTrendResponse> getTrend(Long hostId, int year);
 
-    List<HostRevenueDetailResponse> getDetails(Long hostId, LocalDate from, LocalDate to);
+    List<HostRevenueDetailResponse> getDetails(Long hostId, LocalDate from, LocalDate to, String granularity);
 }

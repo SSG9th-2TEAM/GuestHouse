@@ -150,7 +150,7 @@ const setTab = (path) => router.push(path)
 .content {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 1.5rem 1rem 2.5rem;
+  padding: 1.5rem 1rem calc(2.5rem + var(--bn-h) + (var(--bn-pad) * 2) + env(safe-area-inset-bottom));
 }
 
 /* ===================

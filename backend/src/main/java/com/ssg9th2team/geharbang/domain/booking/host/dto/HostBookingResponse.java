@@ -15,6 +15,9 @@ public class HostBookingResponse {
     private LocalDateTime checkin;
     private LocalDateTime checkout;
     private Integer guestCount;
+    private Integer stayNights;
     private Integer finalPaymentAmount;
     private Integer reservationStatus;
+    private Integer paymentStatus;
+    private LocalDateTime createdAt;
 }

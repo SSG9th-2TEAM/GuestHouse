@@ -15,8 +15,11 @@
             r.checkin AS checkin,
             r.checkout AS checkout,
             r.guest_count AS guestCount,
+            r.stay_nights AS stayNights,
             r.final_payment_amount AS finalPaymentAmount,
-            r.reservation_status AS reservationStatus
+            r.reservation_status AS reservationStatus,
+            r.payment_status AS paymentStatus,
+            r.created_at AS createdAt
         FROM reservation r
         JOIN accommodation a ON a.accommodations_id = r.accommodations_id
         WHERE a.user_id = #{hostId}
@@ -33,8 +36,11 @@
             r.checkin AS checkin,
             r.checkout AS checkout,
             r.guest_count AS guestCount,
+            r.stay_nights AS stayNights,
             r.final_payment_amount AS finalPaymentAmount,
-            r.reservation_status AS reservationStatus
+            r.reservation_status AS reservationStatus,
+            r.payment_status AS paymentStatus,
+            r.created_at AS createdAt
         FROM reservation r
         JOIN accommodation a ON a.accommodations_id = r.accommodations_id
         WHERE a.user_id = #{hostId}
@@ -53,8 +59,11 @@
             r.checkin AS checkin,
             r.checkout AS checkout,
             r.guest_count AS guestCount,
+            r.stay_nights AS stayNights,
             r.final_payment_amount AS finalPaymentAmount,
-            r.reservation_status AS reservationStatus
+            r.reservation_status AS reservationStatus,
+            r.payment_status AS paymentStatus,
+            r.created_at AS createdAt
         FROM reservation r
         JOIN accommodation a ON a.accommodations_id = r.accommodations_id
         WHERE a.user_id = #{hostId}

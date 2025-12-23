@@ -9,5 +9,7 @@ import java.util.List;
 public interface HostDashboardService {
     HostDashboardSummaryResponse getSummary(Long hostId, int year, int month);
 
+    HostDashboardSummaryResponse getSummaryByRange(Long hostId, LocalDate start, LocalDate end);
+
     List<TodayScheduleItemResponse> getTodaySchedule(Long hostId, LocalDate date);
 }

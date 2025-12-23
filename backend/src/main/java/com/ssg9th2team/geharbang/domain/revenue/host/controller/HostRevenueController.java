@@ -46,10 +46,11 @@ public class HostRevenueController {
     // 기간 내 월별 매출/점유율 상세
     public List<HostRevenueDetailResponse> details(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String granularity
     ) {
         // TODO: replace with authenticated user ID once security is wired.
         Long hostId = 1L;
-        return hostRevenueService.getDetails(hostId, from, to);
+        return hostRevenueService.getDetails(hostId, from, to, granularity);
     }
 }

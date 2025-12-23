@@ -10,7 +10,8 @@ export async function fetchHostRevenueTrend({ year }) {
   return hostGet('/host/revenue/trend', params)
 }
 
-export async function fetchHostRevenueDetails({ from, to }) {
+export async function fetchHostRevenueDetails({ from, to, granularity }) {
   const params = { from, to }
+  if (granularity) params.granularity = granularity
   return hostGet('/host/revenue/details', params)
 }
