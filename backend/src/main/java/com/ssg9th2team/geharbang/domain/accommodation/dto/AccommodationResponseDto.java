@@ -54,6 +54,7 @@ public class AccommodationResponseDto {
 
     // 편의시설 및 테마 (1:N 조인)
     private List<String> amenities;
+    private List<AmenityDetailDto> amenityDetails;
     private List<String> themes;
 
     // 숙소 상세보기 -> 객실 리스트

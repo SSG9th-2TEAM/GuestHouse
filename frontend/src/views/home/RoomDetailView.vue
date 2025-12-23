@@ -72,6 +72,23 @@ const normalizeRooms = (rooms, fallbackPrice) => {
   })
 }
 
+const normalizeAmenities = (data) => {
+  if (Array.isArray(data?.amenityDetails)) {
+    return data.amenityDetails
+      .map((amenity) => ({
+        name: amenity?.amenityName ?? amenity?.name ?? '',
+        icon: amenity?.amenityIcon ?? amenity?.icon ?? ''
+      }))
+      .filter((amenity) => amenity.name)
+  }
+  if (Array.isArray(data?.amenities)) {
+    return data.amenities
+      .map((name) => ({ name, icon: '' }))
+      .filter((amenity) => amenity.name)
+  }
+  return []
+}
+
 const normalizeDetail = (data) => {
   const imageUrls = Array.isArray(data?.images)
     ? data.images.map((image) => image?.imageUrl).filter(Boolean)
@@ -93,7 +110,7 @@ const normalizeDetail = (data) => {
     sns: data?.sns ?? '',
     latitude: data?.latitude ?? null,
     longitude: data?.longitude ?? null,
-    amenities: Array.isArray(data?.amenities) ? data.amenities : [],
+    amenities: normalizeAmenities(data),
     themes: Array.isArray(data?.themes) ? data.themes : [],
     host: {
       name: '호스트',
@@ -397,17 +414,19 @@ watch(() => route.params.id, loadAccommodation)
         <span class="rating">★ {{ guesthouse.rating }} (후기 {{ guesthouse.reviewCount }}개)</span>
         <span class="location">{{ guesthouse.address }}</span>
       </div>
-      <p class="description" :class="{ 'description-clamped': !showFullDescription }">
-        {{ guesthouse.description }}
-      </p>
-      <button
-        v-if="isDescriptionLong"
-        type="button"
-        class="more-btn"
-        @click="showFullDescription = !showFullDescription"
-      >
-        {{ showFullDescription ? '접기' : '더보기' }}
-      </button>
+      <div class="description-row">
+        <p class="description" :class="{ 'description-clamped': !showFullDescription }">
+          {{ guesthouse.description }}
+        </p>
+        <button
+          v-if="isDescriptionLong"
+          type="button"
+          class="more-btn"
+          @click="showFullDescription = !showFullDescription"
+        >
+          {{ showFullDescription ? '접기' : '더보기' }}
+        </button>
+      </div>
       <div class="detail-meta">
         <span class="meta-item">위치 {{ guesthouse.address || '-' }}</span>
       </div>
@@ -432,8 +451,15 @@ watch(() => route.params.id, loadAccommodation)
 
     <section class="section amenity-section">
       <h2>편의시설</h2>
-      <div class="tag-list">
-        <span v-for="amenity in guesthouse.amenities" :key="amenity" class="tag">{{ amenity }}</span>
+      <div class="tag-list amenity-list">
+        <span
+          v-for="(amenity, idx) in guesthouse.amenities"
+          :key="amenity.name || idx"
+          class="tag amenity-tag"
+        >
+          <span v-if="amenity.icon" class="amenity-icon" v-html="amenity.icon"></span>
+          <span class="amenity-text">{{ amenity.name }}</span>
+        </span>
         <span v-if="!guesthouse.amenities.length" class="tag empty">등록된 정보 없음</span>
       </div>
       <h2>테마</h2>
@@ -779,7 +805,15 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   flex-direction: column;
   gap: 0.25rem;
 }
-.description { line-height: 1.6; }
+.description-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.description {
+  line-height: 1.6;
+  flex: 1;
+}
 .description-clamped {
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -787,13 +821,16 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   overflow: hidden;
 }
 .more-btn {
-  margin-top: 0.5rem;
-  background: none;
-  border: none;
-  color: var(--text-main);
-  font-weight: 600;
+  margin-top: 0.15rem;
+  margin-left: auto;
+  background: #BFE7DF;
+  border: 1px solid #8FCFC1;
+  color: #0f4c44;
+  font-weight: 700;
   cursor: pointer;
-  padding: 0;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 .detail-meta {
   display: flex;
@@ -852,6 +889,26 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 .tag.empty {
   color: var(--text-sub);
+}
+.amenity-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.amenity-icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  color: var(--text-main);
+  flex-shrink: 0;
+}
+.amenity-text {
+  line-height: 1;
+}
+:deep(.amenity-icon svg) {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 /* Extra info */
@@ -1268,6 +1325,14 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
     left: 16px;
     transform: none;
     justify-content: space-between;
+  }
+  .description-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .more-btn {
+    align-self: flex-end;
   }
 }
 </style>
