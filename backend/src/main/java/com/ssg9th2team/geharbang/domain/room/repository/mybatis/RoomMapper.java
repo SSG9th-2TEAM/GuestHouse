@@ -23,4 +23,8 @@ public interface RoomMapper {
 
     void deleteRoom(@Param("accommodationsId") Long accommodationsId,  // 삭제
                     @Param("roomId") Long roomId);
+
+
+    RoomResponseDto selectRoomById(@Param("accommodationsId") Long accommodationsId,  // 객실 상세조회
+                                   @Param("roomId") Long roomId);
 }

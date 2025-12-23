@@ -29,9 +29,9 @@
         <div class="footer-section">
           <h3>이용약관</h3>
           <ul>
-            <li><a href="#">개인정보 처리방침</a></li>
-            <li><a href="#">이용약관</a></li>
-            <li><a href="#">환불 정책</a></li>
+            <li><router-link to="/policy?tab=privacy">개인정보 처리방침</router-link></li>
+            <li><router-link to="/policy?tab=terms">이용약관</router-link></li>
+            <li><router-link to="/policy?tab=refund">환불 정책</router-link></li>
           </ul>
         </div>
 

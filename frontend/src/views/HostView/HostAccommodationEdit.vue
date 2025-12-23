@@ -93,6 +93,9 @@ const themeIdMap = {
   '조식': 12, '오마카세': 13
 }
 
+// 은행 목록
+const bankList = ['국민은행', '신한은행', '우리은행', '하나은행', '농협', '카카오뱅크', '토스뱅크', '기업은행']
+
 // Form data
 const form = ref({
   // 기본정보 (Readonly)
@@ -132,6 +135,39 @@ const form = ref({
 
 // 객실 데이터
 const rooms = ref([])
+
+// 이미지 관련
+// 이미지 관리 - 통합 State
+// { id: number | string, url: string, file: File | null, isNew: boolean }
+const displayImages = ref([])
+
+// 배너 이미지 관련
+const bannerFile = ref(null)
+const bannerPreview = ref('')
+
+// 체크인/체크아웃 시간 선택 관련
+const checkInHour = ref('')
+const checkInMinute = ref('')
+const checkOutHour = ref('')
+const checkOutMinute = ref('')
+
+// 시간/분 옵션
+const hourOptions = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const minuteOptions = ['00', '30']
+
+// 체크인 시간 watch - 시/분 변경 시 form.checkInTime 업데이트
+watch([checkInHour, checkInMinute], ([hour, minute]) => {
+  if (hour && minute) {
+    form.value.checkInTime = `${hour}:${minute}`
+  }
+})
+
+// 체크아웃 시간 watch - 시/분 변경 시 form.checkOutTime 업데이트
+watch([checkOutHour, checkOutMinute], ([hour, minute]) => {
+  if (hour && minute) {
+    form.value.checkOutTime = `${hour}:${minute}`
+  }
+})
 
 // 편의시설 토글
 const toggleAmenity = (id) => {
@@ -173,7 +209,12 @@ const loadAccommodation = async () => {
   loadError.value = ''
 
   try {
-    const response = await fetch(`${API_BASE_URL}/accommodations/${accommodationId}`)
+    const token = localStorage.getItem('accessToken')
+    const response = await fetch(`${API_BASE_URL}/accommodations/${accommodationId}`, {
+         headers: {
+            'Authorization': `Bearer ${token}`
+         }
+    })
     if (!response.ok) throw new Error('숙소 정보를 불러올 수 없습니다.')
 
     const data = await response.json()
@@ -198,8 +239,8 @@ const loadAccommodation = async () => {
       transportInfo: data.transportInfo,
       parkingInfo: data.parkingInfo,
       sns: data.sns,
-      checkInTime: data.checkInTime,
-      checkOutTime: data.checkOutTime,
+      checkInTime: data.checkInTime || '',
+      checkOutTime: data.checkOutTime || '',
       isActive: data.accommodationStatus === 1,
       
       amenities: data.amenityIds || [], // IDs
@@ -220,11 +261,36 @@ const loadAccommodation = async () => {
     // Images Mapping
     if (data.images) {
         const banner = data.images.find(img => img.imageType === 'banner')
-        if (banner) form.value.bannerImage = banner.imageUrl
-        
-        form.value.detailImages = data.images
+        if (banner) {
+             form.value.bannerImage = banner.imageUrl // URL
+        }
+
+        const details = data.images
             .filter(img => img.imageType === 'detail')
-            .map(img => img.imageUrl)
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+
+        // 기존 이미지 로드
+        displayImages.value = details.map((img, idx) => ({
+             id: img.id || idx, // DB ID unavailable in some DTOs so use index fallback if needed
+             url: img.imageUrl,
+             file: null,
+             isNew: false
+        }))
+    }
+
+    // 체크인/체크아웃 시간 파싱 (HH:mm 형식)
+    if (data.checkInTime) {
+        const [hour, minute] = data.checkInTime.split(':')
+        checkInHour.value = hour ? hour.padStart(2, '0') : ''
+        checkInMinute.value = minute ? minute.padStart(2, '0') : '00'
+        // Ensure form model is also set
+        form.value.checkInTime = data.checkInTime
+    }
+    if (data.checkOutTime) {
+        const [hour, minute] = data.checkOutTime.split(':')
+        checkOutHour.value = hour ? hour.padStart(2, '0') : ''
+        checkOutMinute.value = minute ? minute.padStart(2, '0') : '00'
+        form.value.checkOutTime = data.checkOutTime
     }
 
     // 객실 매핑
@@ -246,6 +312,7 @@ const loadAccommodation = async () => {
     }
 
     await nextTick()
+    await waitForKakao()
     initMap()
 
   } catch (error) {
@@ -258,15 +325,51 @@ const loadAccommodation = async () => {
 
 // 카카오맵
 const initMap = () => {
-  if (!window.kakao || !window.kakao.maps || !mapContainer.value) return 
+    if (!window.kakao || !window.kakao.maps || !mapContainer.value) return
 
-  const coords = new window.kakao.maps.LatLng(form.value.latitude, form.value.longitude)
-  const options = { center: coords, level: 3 }
-  
-  map.value = new window.kakao.maps.Map(mapContainer.value, options)
-  marker.value = new window.kakao.maps.Marker({
-    position: coords,
-    map: map.value
+    window.kakao.maps.load(() => {
+    geocoder.value = new window.kakao.maps.services.Geocoder()
+    
+    // latitude/longitude가 없으면 주소로 좌표 검색 (Fallback)
+    const lat = parseFloat(form.value.latitude)
+    const lng = parseFloat(form.value.longitude)
+    
+    if (isNaN(lat) || isNaN(lng)) {
+        const fullAddress = `${form.value.city} ${form.value.district} ${form.value.township} ${form.value.address}`.trim()
+        console.warn('Invalid coordinates, attempting fallback with address:', fullAddress)
+        
+        if (fullAddress) {
+            geocoder.value.addressSearch(fullAddress, (result, status) => {
+                 if (status === window.kakao.maps.services.Status.OK) {
+                    const y = result[0].y
+                    const x = result[0].x
+                    
+                    form.value.latitude = y
+                    form.value.longitude = x
+                    
+                    const coords = new window.kakao.maps.LatLng(y, x)
+                    const options = { center: coords, level: 3 }
+                    map.value = new window.kakao.maps.Map(mapContainer.value, options)
+                    marker.value = new window.kakao.maps.Marker({
+                        position: coords,
+                        map: map.value
+                    })
+                 } else {
+                    console.error('Geocoding failed for address:', form.value.address)
+                 }
+            })
+        }
+        return
+    }
+
+    const coords = new window.kakao.maps.LatLng(lat, lng)
+    const options = { center: coords, level: 3 }
+
+    map.value = new window.kakao.maps.Map(mapContainer.value, options)
+    marker.value = new window.kakao.maps.Marker({
+      position: coords,
+      map: map.value
+    })
   })
 }
 
@@ -297,17 +400,61 @@ const validateForm = () => {
     }
 
     // Room Validation at Submit
+    // 유효성 검사 로직 보완
     if (rooms.value.length === 0) {
         errors.value.rooms = '등록된 객실이 없습니다.'
-        errorMessages.push('객실')
+        // errorMessages.push('객실') // 중복 경고 방지
         isValid = false
     }
 
     return { isValid, errorMessages }
 }
 
+// Kakao Map Waiter
+const waitForKakao = () => {
+    return new Promise((resolve) => {
+        if (window.kakao && window.kakao.maps) {
+            resolve()
+        } else {
+            const checkKakao = setInterval(() => {
+                if (window.kakao && window.kakao.maps) {
+                    clearInterval(checkKakao)
+                    resolve()
+                }
+            }, 100)
+        }
+    })
+}
+
+// 주소 검색 (Daum Postcode)
+const openPostcode = () => {
+  new window.daum.Postcode({
+    oncomplete: function(data) {
+      // 주소 연동
+      form.value.city = data.sido
+      form.value.district = data.sigungu
+      form.value.township = data.bname
+      form.value.address = data.buildingName ? `${data.address} (${data.buildingName})` : data.address
+      
+      // 좌표 변환
+      if (geocoder.value) {
+         geocoder.value.addressSearch(data.address, (result, status) => {
+            if (status === window.kakao.maps.services.Status.OK) {
+               form.value.latitude = result[0].y
+               form.value.longitude = result[0].x
+               
+               const coords = new window.kakao.maps.LatLng(result[0].y, result[0].x)
+               map.value.setCenter(coords)
+               marker.value.setPosition(coords)
+            }
+         })
+      }
+    }
+  }).open()
+}
+
 const handleUpdate = async () => {
-    // 객실 추가/수정 중인지 확인
+    // roomForm이 열려있으면 경고
     if (showRoomForm.value) {
         openModal('작성 중인 객실 정보를 먼저 저장(등록/수정)해주세요.')
         return
@@ -319,20 +466,56 @@ const handleUpdate = async () => {
         return
     }
 
+    // 객실 데이터 유효성 검사 (전체)
+    for (const room of rooms.value) {
+        if (!room.name || !room.name.trim()) {
+             openModal('객실명이 비어있는 객실이 있습니다.')
+             return
+        }
+        if (!room.weekdayPrice || parseInt(room.weekdayPrice) < 0) {
+             openModal(`[${room.name}] 객실의 주중 요금을 확인해주세요.`)
+             return
+        }
+        // 주말 요금은 0원일 수도 있다고 가정? 보통은 아니지만 0 이상 체크
+        if (room.weekendPrice === undefined || room.weekendPrice === '' || parseInt(room.weekendPrice) < 0) {
+             openModal(`[${room.name}] 객실의 주말 요금을 확인해주세요.`)
+             return
+        }
+        if (!room.minGuests || parseInt(room.minGuests) < 1) {
+             openModal(`[${room.name}] 객실의 최소 인원은 1명 이상이어야 합니다.`)
+             return
+        }
+        if (!room.maxGuests || parseInt(room.maxGuests) < 1) {
+             openModal(`[${room.name}] 객실의 최대 인원은 1명 이상이어야 합니다.`)
+             return
+        }
+        if (parseInt(room.minGuests) > parseInt(room.maxGuests)) {
+             openModal(`[${room.name}] 객실의 최대 인원은 최소 인원보다 커야 합니다.`)
+             return
+        }
+    }
+
     try {
-        // 객실 데이터 준비 (이미지는 Base64로 변환되거나 기존 URL 유지)
-        // Note: For existing rooms, if image is URL, it means no change. If File object, need upload/base64.
-        // Simplified approach: Re-uploading everything or handling separation is complex. 
-        // Assuming Backend handles mixed URL/Base64 or we convert new files only.
-        
         const roomsData = await Promise.all(rooms.value.map(async (room) => {
-            let imagePayload = room.mainImageUrl
+            let imagePayload = null
+
+            // 1. 새로 업로드된 이미지가 있으면 Base64로 변환
             if (room.representativeImage instanceof File) {
                 imagePayload = await fileToBase64(room.representativeImage)
             }
-            
+            // 2. representativeImagePreview가 http URL이면 (기존 이미지) URL 그대로 사용
+            else if (room.representativeImagePreview && room.representativeImagePreview.startsWith('http')) {
+                imagePayload = room.representativeImagePreview
+            }
+             // 3. 기존 이미지 URL이 있으면 유지 (fallback)
+            else if (room.mainImageUrl) {
+                imagePayload = room.mainImageUrl
+            }
+
+            // DB ID (Long) vs Temporary ID (Timestamp > 10000000000)
+            const isTempId = typeof room.id === 'number' && room.id > 10000000000;
             return {
-                roomId: room.id, // ID exists for update
+                roomId: isTempId ? null : room.id,
                 roomName: room.name,
                 price: parseInt(room.weekdayPrice),
                 weekendPrice: parseInt(room.weekendPrice),
@@ -340,47 +523,108 @@ const handleUpdate = async () => {
                 maxGuests: parseInt(room.maxGuests),
                 roomDescription: room.description || '',
                 mainImageUrl: imagePayload,
-                bathroomCount: parseInt(room.bathroomCount),
+                bathroomCount: parseInt(room.bathroomCount) || 0,
                 roomType: 'STANDARD',
-                bedCount: parseInt(room.bedCount),
-                roomStatus: room.isActive ? 1 : 0
+                bedCount: parseInt(room.bedCount) || 0,
+                roomStatus: room.isActive ? 1 : 0,
+                amenities: room.amenities || []
             }
         }))
 
+        // 이미지 데이터 구성 (Base64 변환)
+        const imageList = []
+        
+        // 1. Banner Image
+        if (bannerFile.value) {
+            // New Banner Uploaded
+            const base64 = await fileToBase64(bannerFile.value)
+            imageList.push({
+                imageUrl: base64,
+                imageType: 'banner',
+                sortOrder: 1
+            })
+        } else if (form.value.bannerImage) {
+            // Existing Banner (URL) - Send as is
+            imageList.push({
+                imageUrl: form.value.bannerImage,
+                imageType: 'banner',
+                sortOrder: 1
+            })
+        }
+
+        // 2. Detail Images
+        for (let i = 0; i < displayImages.value.length; i++) {
+            const item = displayImages.value[i]
+            if (item.isNew && item.file) {
+                 const base64 = await fileToBase64(item.file)
+                 imageList.push({
+                     imageUrl: base64,
+                     imageType: 'detail',
+                     sortOrder: i + 2
+                 })
+            } else {
+                 imageList.push({
+                     imageUrl: item.url,
+                     imageType: 'detail',
+                     sortOrder: i + 2
+                 })
+            }
+        }
+
         const requestData = {
+            accommodationsName: form.value.name,
+            accommodationsCategory: accommodationTypeReverseMap[form.value.type] || form.value.type,
             accommodationsDescription: form.value.description,
             shortDescription: form.value.shortDescription || '',
             transportInfo: form.value.transportInfo || '',
             accommodationStatus: form.value.isActive ? 1 : 0,
             parkingInfo: form.value.parkingInfo || '',
             sns: form.value.sns || '',
-            phone: form.value.phone, // Readonly but sent back
+            phone: form.value.phone, 
+            checkInTime: form.value.checkInTime,
+            phone: form.value.phone, 
             checkInTime: form.value.checkInTime,
             checkOutTime: form.value.checkOutTime,
-            checkInTime: form.value.checkInTime,
-            checkOutTime: form.value.checkOutTime,
+            latitude: form.value.latitude,
+            longitude: form.value.longitude,
+            
+            // Bank Info Added
+            bankName: form.value.bankName,
+            accountNumber: form.value.accountNumber,
+            accountHolder: form.value.accountHolder,
+
             rooms: roomsData,
-            // Amenities: form.amenities stores IDs already
+            images: imageList,
             amenityIds: form.value.amenities,
-            // Themes: form.themes stores Names, convert to IDs
             themeIds: form.value.themes.map(name => themeIdMap[name]).filter(id => id !== undefined)
         }
 
+        console.log('Update Request:', requestData) // Debug Log
+
+        const token = localStorage.getItem('accessToken')
         const response = await fetch(`${API_BASE_URL}/accommodations/${accommodationId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify(requestData)
         })
 
         if (response.ok) {
             updateSuccess.value = true
             openModal('숙소 정보가 수정되었습니다.')
+        } else if (response.status === 401) {
+            // Token Expired
+            alert('로그인 세션이 만료되었습니다. 다시 로그인해주세요.')
+            router.push('/login')
         } else {
-            openModal('수정에 실패했습니다.')
+            console.error('Update failed status:', response.status)
+            openModal('수정에 실패했습니다. (Status: ' + response.status + ')')
         }
     } catch (e) {
-        console.error(e)
-        openModal('오류가 발생했습니다.')
+        console.error('HandleUpdate Error:', e)
+        openModal('오류가 발생했습니다: ' + e.message)
     }
 }
 
@@ -483,6 +727,15 @@ const saveRoom = () => {
         return
     }
 
+    // 기존 객실의 mainImageUrl 유지
+    let existingMainImageUrl = null
+    if (editingRoomId.value) {
+        const existingRoom = rooms.value.find(r => r.id === editingRoomId.value)
+        if (existingRoom) {
+            existingMainImageUrl = existingRoom.mainImageUrl
+        }
+    }
+
     const roomData = {
         id: editingRoomId.value || Date.now(),
         ...roomForm.value,
@@ -493,7 +746,11 @@ const saveRoom = () => {
         bedCount: parseInt(roomForm.value.bedCount) || 0,
         bathroomCount: parseInt(roomForm.value.bathroomCount) || 0,
         amenities: [...roomForm.value.amenities],
-        // Image handled implicitly
+        // 새 이미지가 없으면 기존 mainImageUrl 유지
+        mainImageUrl: roomForm.value.representativeImage ? null : existingMainImageUrl,
+        // **Fix: Persist local preview state**
+        representativeImage: roomForm.value.representativeImage,
+        representativeImagePreview: roomForm.value.representativeImagePreview
     }
 
     if (editingRoomId.value) {
@@ -513,11 +770,23 @@ const editRoom = (room) => {
     editingRoomId.value = room.id
     roomForm.value = { ...room }
     // Ensure image preview is set if it's a URL
-    if (typeof room.mainImageUrl === 'string' && room.mainImageUrl.startsWith('http')) {
+    // Ensure image preview is set if it's a URL
+    if (room.mainImageUrl) {
          roomForm.value.representativeImagePreview = room.mainImageUrl
     } else if (room.representativeImagePreview) {
          roomForm.value.representativeImagePreview = room.representativeImagePreview
     }
+    showRoomForm.value = false  // 인라인 폼 사용
+}
+
+const cancelEditRoom = () => {
+    editingRoomId.value = null
+    resetRoomForm()
+}
+
+const showNewRoomForm = () => {
+    resetRoomForm()
+    editingRoomId.value = null
     showRoomForm.value = true
 }
 
@@ -531,7 +800,7 @@ const resetRoomForm = () => {
     roomForm.value = {
         name: '', weekdayPrice: '', weekendPrice: '', minGuests: '', maxGuests: '',
         bedCount: '', bathroomCount: '', description: '', amenities: [],
-        representativeImage: null, representativeImagePreview: '', isActive: true
+        representativeImage: null, representativeImagePreview: '', isActive: true // Default to active
     }
     roomErrors.value = {}
 }
@@ -546,18 +815,50 @@ const fileToBase64 = (file) => {
   })
 }
 
-// Room Amenity Options
-const roomAmenityOptions = {
-    bathroom: { label: '욕실', items: ['비누', '샤워', '개인 욕실'] },
-    bedroom: { label: '침실', items: ['간이/추가 침대 제공', '에어컨', '난방'] },
-    dining: { label: '식사 및 음료', items: ['공용 주방 이용', '전용 주방'] },
-    etc: { label: '기타', items: ['무료 WiFi', '금고', '다리미'] }
+// 배너 이미지 업로드
+const handleBannerUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    bannerFile.value = file
+    const url = URL.createObjectURL(file)
+    bannerPreview.value = url
+    // form.value.bannerImage acts as preview for banner in template? 
+    // Template uses form.bannerImage for existing and if null? 
+    // Wait, lets check template. 
+    // Template: <img v-if="!bannerPreview && form.bannerImage" :src="form.bannerImage">
+    //           <img v-if="bannerPreview" :src="bannerPreview">
+  }
 }
-const toggleRoomAmenity = (item) => {
-    const idx = roomForm.value.amenities.indexOf(item)
-    if (idx > -1) roomForm.value.amenities.splice(idx, 1)
-    else roomForm.value.amenities.push(item)
+
+// 배너 이미지 삭제
+const removeBannerImage = () => {
+  bannerFile.value = null
+  bannerPreview.value = ''
+  form.value.bannerImage = null
 }
+
+// 상세 이미지 업로드
+const handleDetailImagesUpload = (event) => {
+  const files = Array.from(event.target.files)
+  const remaining = 10 - displayImages.value.length
+
+  files.slice(0, remaining).forEach(file => {
+      displayImages.value.push({
+          id: Date.now() + Math.random(),
+          url: URL.createObjectURL(file), // Preview URL
+          file: file,
+          isNew: true
+      })
+  })
+}
+
+// 상세 이미지 삭제
+const removeDetailImage = (idx) => {
+  displayImages.value.splice(idx, 1)
+}
+
+
+
 
 onMounted(() => {
   loadAccommodation()
@@ -573,13 +874,14 @@ onMounted(() => {
       <div class="header-top">
         <div class="title-area">
           <h1>숙소 정보 수정</h1>
+          <p class="subtitle">등록된 숙소 정보를 수정할 수 있습니다.</p>
         </div>
       </div>
       
       <!-- Toggle & Actions -->
       <div class="header-controls">
         <div class="toggle-wrapper">
-          <span class="toggle-label">숙소 운영</span>
+          <span class="toggle-label">{{ form.isActive ? '운영 중' : '운영 중지' }}</span>
           <div class="toggle-switch" :class="{ active: form.isActive }" @click="form.isActive = !form.isActive">
             <div class="toggle-slider"></div>
           </div>
@@ -594,13 +896,14 @@ onMounted(() => {
 
     <!-- ========== Form Content ========== -->
     <div v-if="!isLoading" class="form-content">
-      <!-- Section: 기본정보 (READONLY) -->
+      
+      <!-- Section: 기본정보 -->
       <section class="form-section">
-        <h3 class="subsection-title">기본정보 (수정 불가)</h3>
-        
+        <h3 class="subsection-title">기본정보</h3>
+
         <div class="form-group">
-          <label>숙소명</label>
-          <input type="text" v-model="form.name" readonly class="readonly-input" />
+          <label>숙소명 <span class="required">*</span></label>
+          <input type="text" v-model="form.name" placeholder="숙소명을 입력해주세요" />
         </div>
 
         <div class="form-group">
@@ -619,37 +922,54 @@ onMounted(() => {
         </div>
       </section>
 
-      <!-- Section: 수정 가능 정보 -->
+      <!-- Section: 상세 정보 (수정 가능) -->
       <section class="form-section">
-        <h3 class="subsection-title update-title">숙소 상세 정보 (수정 가능)</h3>
+        <h3 class="subsection-title">숙소 상세 정보</h3>
         
+        <div class="form-group">
+          <label>한 줄 설명</label>
+          <input type="text" v-model="form.shortDescription" placeholder="숙소 리스트에 표시될 짧은 소개글입니다." />
+        </div>
+
         <div class="form-group">
           <label>숙소 소개(상세설명) <span class="required">*</span></label>
           <textarea
             v-model="form.description"
             rows="5"
             :class="{ 'input-error': errors.description }"
+            placeholder="숙소의 매력 포인트, 주변 환경, 호스팅 스타일 등을 상세히 적어주세요."
           ></textarea>
+          <span v-if="errors.description" class="error-message">{{ errors.description }}</span>
         </div>
 
         <div class="form-group">
-           <label>한 줄 설명</label>
-           <input type="text" v-model="form.shortDescription" />
-        </div>
-
-        <div class="form-group">
-           <label>SNS</label>
-           <input type="text" v-model="form.sns" placeholder="@instagram_id" />
+          <label>SNS</label>
+          <input type="text" v-model="form.sns" placeholder="@instagram_id" />
         </div>
       </section>
 
-      <!-- Section: 위치 정보 (READONLY) -->
+      <!-- Section: 위치 정보 (수정 불가) -->
       <section class="form-section">
         <h3 class="subsection-title">위치 정보 (수정 불가)</h3>
 
         <div class="form-group">
-          <label>주소</label>
-          <input type="text" :value="`${form.city} ${form.district} ${form.township} ${form.address}`" readonly class="readonly-input" />
+          <label>시/도</label>
+          <input type="text" v-model="form.city" readonly class="readonly-input" />
+        </div>
+
+        <div class="form-group">
+          <label>구/군</label>
+          <input type="text" v-model="form.district" readonly class="readonly-input" />
+        </div>
+
+        <div class="form-group">
+          <label>읍/면/동</label>
+          <input type="text" v-model="form.township" readonly class="readonly-input" />
+        </div>
+
+        <div class="form-group">
+          <label>상세주소</label>
+          <input type="text" v-model="form.address" readonly class="readonly-input" />
         </div>
 
         <div class="form-group">
@@ -657,14 +977,11 @@ onMounted(() => {
         </div>
       </section>
 
-      <!-- Section: 교통 및 주차 (EDITABLE) -->
+      <!-- Section: 교통 및 주차 (수정 가능) -->
       <section class="form-section">
-        <h3 class="subsection-title">교통 및 주차 정보 (수정 가능)</h3>
+        <h3 class="subsection-title">교통 및 주차 정보</h3>
         
-        <div class="form-group">
-          <label>주변 교통정보</label>
-          <textarea v-model="form.transportInfo" rows="3" placeholder="예: 강남역 1번 출구 도보 5분"></textarea>
-        </div>
+
 
         <div class="form-group">
           <label>주차정보</label>
@@ -672,184 +989,371 @@ onMounted(() => {
         </div>
       </section>
 
-      <!-- Section: 운영 정책 (EDITABLE) -->
+      <!-- Section: 운영 정책 (수정 가능) -->
       <section class="form-section">
-        <h3 class="subsection-title">체크인/아웃 정보 (수정 가능)</h3>
+        <h3 class="subsection-title">체크인/아웃 정보</h3>
         
-        <div class="form-group">
-          <label>체크인 시간 <span class="required">*</span></label>
-          <div class="time-input">
-            <input v-model="form.checkInTime" type="time" />
+        <div class="form-row two-col">
+          <div class="form-group">
+            <label>체크인 시간 <span class="required">*</span></label>
+            <div class="time-selector-group">
+                <select v-model="checkInHour" class="time-select">
+                    <option v-for="h in hourOptions" :key="h" :value="h">{{ h }}시</option>
+                </select>
+                <span class="time-separator">:</span>
+                <select v-model="checkInMinute" class="time-select">
+                    <option v-for="m in minuteOptions" :key="m" :value="m">{{ m }}분</option>
+                </select>
+            </div>
+            <span v-if="errors.checkInTime" class="error-message">{{ errors.checkInTime }}</span>
           </div>
-        </div>
-        
-        <div class="form-group">
-          <label>체크아웃 시간 <span class="required">*</span></label>
-          <div class="time-input">
-            <input v-model="form.checkOutTime" type="time" />
+          
+          <div class="form-group">
+            <label>체크아웃 시간 <span class="required">*</span></label>
+            <div class="time-selector-group">
+                <select v-model="checkOutHour" class="time-select">
+                    <option v-for="h in hourOptions" :key="h" :value="h">{{ h }}시</option>
+                </select>
+                <span class="time-separator">:</span>
+                <select v-model="checkOutMinute" class="time-select">
+                    <option v-for="m in minuteOptions" :key="m" :value="m">{{ m }}분</option>
+                </select>
+            </div>
+            <span v-if="errors.checkOutTime" class="error-message">{{ errors.checkOutTime }}</span>
           </div>
         </div>
       </section>
 
-      <!-- Section: 편의 시설 & 테마 (수정 가능) -->
+      <!-- Section: 편의 시설 & 테마 -->
       <section class="form-section">
-        <h3 class="subsection-title">편의 시설 & 테마 (수정 가능)</h3>
-        
-        <div class="amenities-grid">
-          <label 
-            v-for="amenity in amenityOptions" 
-            :key="amenity.id" 
-            class="amenity-checkbox"
-            :class="{ checked: isAmenityChecked(amenity.id) }"
-          >
-            <input 
-              type="checkbox" 
-              :checked="isAmenityChecked(amenity.id)" 
-              @change="toggleAmenity(amenity.id)"
-            />
-            <span class="checkmark"></span>
-            <span class="amenity-label">{{ amenity.label }}</span>
-          </label>
+        <h3 class="subsection-title">편의 시설 & 테마</h3>
+
+        <div class="form-group">
+          <label class="mb-2">편의 시설</label>
+          <div class="amenities-grid">
+            <label
+              v-for="amenity in amenityOptions"
+              :key="amenity.id"
+              class="amenity-checkbox"
+              :class="{ checked: isAmenityChecked(amenity.id) }"
+            >
+              <input
+                type="checkbox"
+                :checked="isAmenityChecked(amenity.id)"
+                @change="toggleAmenity(amenity.id)"
+              />
+              <span class="checkmark"></span>
+              <span class="amenity-label">{{ amenity.label }}</span>
+            </label>
+          </div>
         </div>
-        
-        <div class="theme-selection mt-4">
-             <h4 class="subsection-title mt-4">테마 (최대 6개)</h4>
-             <div v-for="(category, key) in themeOptions" :key="key" class="theme-category">
-               <div class="theme-category-title">{{ category.label }}</div>
-               <div class="theme-tags">
-                 <label 
-                   v-for="item in category.items" 
-                   :key="item" 
-                   class="theme-tag"
-                   :class="{ selected: isThemeChecked(item) }"
-                 >
-                   <input 
-                     type="checkbox" 
-                     :checked="isThemeChecked(item)"
-                     @change="toggleTheme(item)"
-                   />
-                   {{ item }}
-                 </label>
-               </div>
+
+        <div class="form-group mt-4">
+           <label class="mb-2">테마 (최대 6개)</label>
+           <div v-for="(category, key) in themeOptions" :key="key" class="theme-category">
+             <div class="theme-category-title">{{ category.label }}</div>
+             <div class="theme-tags">
+               <label
+                 v-for="item in category.items"
+                 :key="item"
+                 class="theme-tag"
+                 :class="{ selected: isThemeChecked(item) }"
+               >
+                 <input
+                   type="checkbox"
+                   :checked="isThemeChecked(item)"
+                   @change="toggleTheme(item)"
+                 />
+                 {{ item }}
+               </label>
              </div>
+           </div>
         </div>
       </section>
       
-      <!-- Section: 이미지 (READONLY - DISPLAY ONLY) -->
+      <!-- Section: 이미지 -->
       <section class="form-section">
-         <h3 class="subsection-title">이미지 (수정 불가)</h3>
-         <div v-if="form.bannerImage" class="existing-image mb-4">
-            <label>배너 이미지</label>
-            <img :src="form.bannerImage" class="banner-preview" />
+         <h3 class="subsection-title">숙소 이미지</h3>
+
+         <!-- 배너 이미지 -->
+         <div class="form-group">
+            <label>배너 이미지 <span class="required">*</span></label>
+            <div class="banner-upload-area">
+               <div v-if="bannerPreview || form.bannerImage" class="banner-preview-wrapper">
+                  <!-- Priority: bannerPreview (New File) > form.bannerImage (Existing URL) -->
+                  <img :src="bannerPreview ? bannerPreview : form.bannerImage" class="banner-preview" />
+                  <button type="button" class="remove-image-btn" @click="removeBannerImage">✕</button>
+               </div>
+               <label v-else class="upload-box">
+                  <input type="file" accept="image/*" @change="handleBannerUpload" />
+                  <div class="upload-placeholder">
+                     <span class="upload-icon">📷</span>
+                     <span class="upload-text">배너 이미지 업로드</span>
+                     <span class="upload-info">권장 크기: 1200 x 400px</span>
+                  </div>
+               </label>
+            </div>
          </div>
-         <div v-if="form.detailImages.length > 0">
-            <label>상세 이미지</label>
-            <div class="detail-images-preview">
-                <div v-for="(img, idx) in form.detailImages" :key="idx" class="detail-image-item">
-                    <img :src="img" />
-                </div>
+
+         <!-- 상세 이미지 -->
+         <div class="form-group">
+            <label>상세 이미지 (최대 10장)</label>
+            <div class="detail-images-container">
+               <div class="detail-images-preview">
+                  <div v-for="(img, idx) in displayImages" :key="img.id" class="detail-image-item">
+                     <img :src="img.url" />
+                     <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
+                  </div>
+                  <label v-if="displayImages.length < 10" class="add-detail-image">
+                     <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
+                     <span>+</span>
+                  </label>
+               </div>
             </div>
          </div>
       </section>
 
-      <!-- Section: 정산 계좌 (READONLY) -->
+      <!-- Section: 정산 계좌 (수정 가능) -->
       <section class="form-section">
-         <h3 class="subsection-title">정산 계좌 (수정 불가)</h3>
+         <h3 class="subsection-title">정산 계좌</h3>
          <div class="form-group">
-            <label>은행</label>
-            <input type="text" v-model="form.bankName" readonly class="readonly-input" />
-         </div>
-         <div class="form-group">
-            <label>계좌번호</label>
-            <input type="text" v-model="form.accountNumber" readonly class="readonly-input" />
+            <label>은행명</label>
+            <select v-model="form.bankName">
+               <option value="" disabled>선택해주세요</option>
+               <option v-for="bank in bankList" :key="bank" :value="bank">{{ bank }}</option>
+            </select>
          </div>
          <div class="form-group">
             <label>예금주</label>
-            <input type="text" v-model="form.accountHolder" readonly class="readonly-input" />
+            <input type="text" v-model="form.accountHolder" placeholder="예금주명을 입력해주세요" />
+         </div>
+         <div class="form-group">
+            <label>계좌번호</label>
+            <input type="text" v-model="form.accountNumber" placeholder="'-' 없이 숫자만 입력" @input="filterNumberInput" />
          </div>
       </section>
 
-      <!-- Section: 객실 관리 (FULLY EDITABLE) -->
+      <!-- Section: 객실 관리 (수정 가능) -->
       <section class="form-section">
-        <h3 class="subsection-title" style="color: #BFE7DF;">객실 관리 (수정 가능)</h3>
-        
+        <h3 class="subsection-title">객실 관리</h3>
+
         <!-- Room List -->
         <div v-if="rooms.length > 0" class="room-list">
           <div v-for="room in rooms" :key="room.id" class="room-card">
-            <div class="room-info">
-              <h4 class="room-name">{{ room.name }}</h4>
+            <!-- 수정 모드가 아닐 때: 카드 표시 -->
+            <template v-if="editingRoomId !== room.id">
+              <div class="room-header">
+                <h4 class="room-name">{{ room.name }}</h4>
+                <div class="room-toggle">
+                  <span class="toggle-label-small">{{ room.isActive ? '운영 중' : '운영 중지' }}</span>
+                  <div
+                    class="toggle-switch small"
+                    :class="{ active: room.isActive }"
+                    @click="room.isActive = !room.isActive"
+                  >
+                    <div class="toggle-slider"></div>
+                  </div>
+                </div>
+              </div>
               <div class="room-details">
-                <span class="detail-label">평일: {{ Number(room.weekdayPrice).toLocaleString() }}원</span> |
-                <span class="detail-label">주말: {{ Number(room.weekendPrice).toLocaleString() }}원</span> |
-                <span class="detail-label">{{ room.minGuests }}~{{ room.maxGuests }}명</span>
+                <div class="detail-row">
+                  <span class="detail-label">주중 요금</span>
+                  <span class="detail-value">₩{{ Number(room.weekdayPrice).toLocaleString() }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">주말 요금</span>
+                  <span class="detail-value">₩{{ Number(room.weekendPrice).toLocaleString() }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">인원</span>
+                  <span class="detail-value">{{ room.minGuests }}~{{ room.maxGuests }}명</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">침대/욕실</span>
+                  <span class="detail-value">침대 {{ room.bedCount || 0 }}개 | 욕실 {{ room.bathroomCount || 0 }}개</span>
+                </div>
               </div>
-              <div class="room-toggle">
-                 <span>{{ room.isActive ? '운영중' : '운영중지' }}</span>
+              <div class="room-actions">
+                <button class="room-btn edit" @click="editRoom(room)">수정</button>
+                <button class="room-btn delete" @click="deleteRoom(room.id)">삭제</button>
               </div>
-            </div>
-            <div class="room-actions">
-              <button class="room-btn" @click="editRoom(room)">수정</button>
-              <button class="room-btn" @click="deleteRoom(room.id)">삭제</button>
+            </template>
+
+            <!-- 수정 모드일 때: 폼 표시 (해당 카드 위치에서) -->
+            <div v-else class="room-form-inline">
+              <div class="editing-room-header">
+                 <span class="editing-badge">수정 중</span>
+                 <h4 class="editing-target-name">{{ room.name }}</h4>
+              </div>
+
+              <div class="form-group">
+                <label>객실명 <span class="required">*</span></label>
+                <input type="text" v-model="roomForm.name" :class="{ 'input-error': roomErrors.name }" placeholder="객실 이름을 입력하세요" />
+                <span v-if="roomErrors.name" class="error-message">{{ roomErrors.name }}</span>
+              </div>
+
+              <!-- 객실 이미지 -->
+              <div class="form-group">
+                <label>객실 대표 이미지 <span class="required">*</span></label>
+                <div class="room-image-upload-area" :class="{ 'upload-error': roomErrors.representativeImage }">
+                  <div v-if="roomForm.representativeImagePreview" class="room-image-preview">
+                    <img :src="roomForm.representativeImagePreview" alt="객실 대표 이미지" />
+                    <button type="button" class="room-remove-image-btn" @click="removeRoomImage">✕</button>
+                  </div>
+                  <label v-else class="room-upload-box">
+                    <input type="file" accept="image/*" @change="handleRoomImageUpload" class="hidden-file-input" />
+                    <div class="room-upload-content">
+                      <span class="room-upload-icon">📷</span>
+                      <span class="room-upload-text">이미지 업로드</span>
+                    </div>
+                  </label>
+                </div>
+                <span v-if="roomErrors.representativeImage" class="error-message">{{ roomErrors.representativeImage }}</span>
+              </div>
+
+              <!-- 운영상태 토글 -->
+              <div class="form-group">
+                <label>운영 상태</label>
+                <div class="room-status-toggle">
+                  <span class="toggle-label-small">{{ roomForm.isActive ? '운영 중' : '운영 중지' }}</span>
+                  <div
+                    class="toggle-switch small"
+                    :class="{ active: roomForm.isActive }"
+                    @click="roomForm.isActive = !roomForm.isActive"
+                  >
+                    <div class="toggle-slider"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row two-col">
+                <div class="form-group">
+                  <label>주중 요금 <span class="required">*</span></label>
+                  <input type="number" v-model="roomForm.weekdayPrice" :class="{ 'input-error': roomErrors.weekdayPrice }" @input="filterNumberInput" />
+                  <span v-if="roomErrors.weekdayPrice" class="error-message">{{ roomErrors.weekdayPrice }}</span>
+                </div>
+                <div class="form-group">
+                  <label>주말 요금 <span class="required">*</span></label>
+                  <input type="number" v-model="roomForm.weekendPrice" :class="{ 'input-error': roomErrors.weekendPrice }" @input="filterNumberInput" />
+                  <span v-if="roomErrors.weekendPrice" class="error-message">{{ roomErrors.weekendPrice }}</span>
+                </div>
+              </div>
+
+              <div class="form-row two-col">
+                <div class="form-group">
+                  <label>최소 인원</label>
+                  <input type="number" v-model="roomForm.minGuests" :class="{ 'input-error': roomErrors.minGuests }" @input="filterNumberInput" />
+                  <span v-if="roomErrors.minGuests" class="error-message">{{ roomErrors.minGuests }}</span>
+                </div>
+                <div class="form-group">
+                  <label>최대 인원</label>
+                  <input type="number" v-model="roomForm.maxGuests" :class="{ 'input-error': roomErrors.maxGuests }" @input="filterNumberInput" />
+                  <span v-if="roomErrors.maxGuests" class="error-message">{{ roomErrors.maxGuests }}</span>
+                </div>
+              </div>
+
+              <div class="form-row two-col">
+                <div class="form-group">
+                  <label>침대 개수</label>
+                  <input v-model="roomForm.bedCount" type="number" @input="filterNumberInput" />
+                </div>
+                <div class="form-group">
+                  <label>욕실 개수</label>
+                  <input v-model="roomForm.bathroomCount" type="number" @input="filterNumberInput" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>객실 설명</label>
+                <textarea v-model="roomForm.description" rows="3"></textarea>
+              </div>
+
+              <!-- Room Amenities -->
+              <div class="room-amenities-section">
+                <h4 class="room-amenities-title">객실 편의시설</h4>
+                <div v-for="(cat, key) in roomAmenityOptions" :key="key" class="room-amenity-category">
+                  <div class="room-amenity-label">{{ cat.label }}</div>
+                  <div class="room-amenity-tags">
+                    <label v-for="item in cat.items" :key="item" class="room-amenity-tag" :class="{ selected: roomForm.amenities.includes(item) }">
+                      <input type="checkbox" :checked="roomForm.amenities.includes(item)" @change="toggleRoomAmenity(item)" />
+                      {{ item }}
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="room-form-actions">
+                <button class="btn-outline" @click="cancelEditRoom">취소</button>
+                <button class="btn-primary" @click="saveRoom">수정</button>
+              </div>
             </div>
           </div>
         </div>
-        
-        <p v-else class="no-rooms">등록된 객실이 없습니다.</p>
-        
-        <button class="add-room-btn" @click="showRoomForm = true; resetRoomForm()" v-if="!showRoomForm">
+
+        <p v-else class="no-rooms" :class="{ 'no-rooms-error': errors.rooms }">
+            등록된 객실이 없습니다.
+            <span v-if="errors.rooms" class="error-message">{{ errors.rooms }}</span>
+        </p>
+
+        <button class="add-room-btn" @click="showNewRoomForm" v-if="!showRoomForm && !editingRoomId">
           + 객실 추가하기
         </button>
-        
-        <!-- Room Form (Edit/Add) -->
-        <div v-if="showRoomForm" class="room-form">
-          <h4 class="room-form-title">{{ editingRoomId ? '객실 수정' : '새 객실 등록' }}</h4>
 
-          <div class="form-group">
-            <label>객실명 <span class="required">*</span></label>
-            <input v-model="roomForm.name" type="text" :class="{ 'input-error': roomErrors.name }" />
-            <span v-if="roomErrors.name" class="error-message">{{ roomErrors.name }}</span>
-          </div>
+        <!-- 새 객실 추가 폼 (맨 밑에) -->
+        <div v-if="showRoomForm && !editingRoomId" class="room-form">
+           <h4 class="room-form-title">{{ editingRoomId ? '객실 수정' : '새 객실 추가' }}</h4>
 
-          <div class="form-group">
+           <div class="form-group">
+             <label>객실명 <span class="required">*</span></label>
+             <input type="text" v-model="roomForm.name" :class="{ 'input-error': roomErrors.name }" placeholder="객실 이름을 입력하세요" />
+             <span v-if="roomErrors.name" class="error-message">{{ roomErrors.name }}</span>
+           </div>
+
+           <!-- 객실 이미지 -->
+           <div class="form-group">
              <label>객실 대표 이미지 <span class="required">*</span></label>
              <div class="room-image-upload-area" :class="{ 'upload-error': roomErrors.representativeImage }">
                <div v-if="roomForm.representativeImagePreview" class="room-image-preview">
-                 <img :src="roomForm.representativeImagePreview" />
-                 <button class="room-remove-image-btn" @click="removeRoomImage">✕</button>
+                 <img :src="roomForm.representativeImagePreview" alt="객실 대표 이미지" />
+                 <button type="button" class="room-remove-image-btn" @click="removeRoomImage">✕</button>
                </div>
                <label v-else class="room-upload-box">
-                 <input type="file" @change="handleRoomImageUpload" accept="image/*" class="hidden-file-input" />
-                 <span>이미지 업로드</span>
+                 <input type="file" accept="image/*" @change="handleRoomImageUpload" class="hidden-file-input" />
+                 <div class="room-upload-content">
+                   <span class="room-upload-icon">📷</span>
+                   <span class="room-upload-text">이미지 업로드</span>
+                 </div>
                </label>
              </div>
-          </div>
+             <span v-if="roomErrors.representativeImage" class="error-message">{{ roomErrors.representativeImage }}</span>
+           </div>
 
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label>주중 요금 <span class="required">*</span></label>
-              <input v-model="roomForm.weekdayPrice" type="number" @input="filterNumberInput" :class="{ 'input-error': roomErrors.weekdayPrice }" />
-              <span v-if="roomErrors.weekdayPrice" class="error-message">{{ roomErrors.weekdayPrice }}</span>
-            </div>
-            <div class="form-group">
-              <label>주말 요금 <span class="required">*</span></label>
-              <input v-model="roomForm.weekendPrice" type="number" @input="filterNumberInput" :class="{ 'input-error': roomErrors.weekendPrice }" />
+           <div class="form-row two-col">
+             <div class="form-group">
+               <label>주중 요금 <span class="required">*</span></label>
+               <input type="number" v-model="roomForm.weekdayPrice" :class="{ 'input-error': roomErrors.weekdayPrice }" @input="filterNumberInput" />
+               <span v-if="roomErrors.weekdayPrice" class="error-message">{{ roomErrors.weekdayPrice }}</span>
+             </div>
+             <div class="form-group">
+               <label>주말 요금 <span class="required">*</span></label>
+               <input type="number" v-model="roomForm.weekendPrice" :class="{ 'input-error': roomErrors.weekendPrice }" @input="filterNumberInput" />
                <span v-if="roomErrors.weekendPrice" class="error-message">{{ roomErrors.weekendPrice }}</span>
-            </div>
-          </div>
+             </div>
+           </div>
 
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label>최소 인원</label>
-              <input v-model="roomForm.minGuests" type="number" @input="filterNumberInput" />
+           <div class="form-row two-col">
+             <div class="form-group">
+               <label>최소 인원</label>
+               <input type="number" v-model="roomForm.minGuests" :class="{ 'input-error': roomErrors.minGuests }" @input="filterNumberInput" />
                <span v-if="roomErrors.minGuests" class="error-message">{{ roomErrors.minGuests }}</span>
-            </div>
-            <div class="form-group">
-              <label>최대 인원</label>
-              <input v-model="roomForm.maxGuests" type="number" @input="filterNumberInput" />
+             </div>
+             <div class="form-group">
+               <label>최대 인원</label>
+               <input type="number" v-model="roomForm.maxGuests" :class="{ 'input-error': roomErrors.maxGuests }" @input="filterNumberInput" />
                <span v-if="roomErrors.maxGuests" class="error-message">{{ roomErrors.maxGuests }}</span>
+              </div>
             </div>
-          </div>
-          
+
            <div class="form-row two-col">
             <div class="form-group">
               <label>침대 개수</label>
@@ -866,19 +1370,7 @@ onMounted(() => {
             <textarea v-model="roomForm.description" rows="3"></textarea>
           </div>
 
-          <!-- Room Amenities -->
-          <div class="room-amenities-section">
-             <h4 class="room-amenities-title">객실 편의시설</h4>
-             <div v-for="(cat, key) in roomAmenityOptions" :key="key" class="room-amenity-category">
-                <div class="room-amenity-label">{{ cat.label }}</div>
-                <div class="room-amenity-tags">
-                   <label v-for="item in cat.items" :key="item" class="room-amenity-tag" :class="{ selected: roomForm.amenities.includes(item) }">
-                      <input type="checkbox" :checked="roomForm.amenities.includes(item)" @change="toggleRoomAmenity(item)" />
-                      {{ item }}
-                   </label>
-                </div>
-             </div>
-          </div>
+
 
           <div class="room-form-actions">
             <button class="btn-outline" @click="showRoomForm = false">취소</button>
@@ -905,40 +1397,102 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Copying styles from Register page with necessary tweaks */
 .register-page {
   background: #f8f9fa;
   min-height: 100vh;
   padding-bottom: 2rem;
 }
 
-.loading-spinner {
-    text-align: center;
-    padding: 2rem;
-    font-size: 1.2rem;
-    color: #004d40;
-}
-
+/* Page Header */
 .page-header {
   background: white;
   padding: 1.5rem;
   margin: 1rem;
+  max-width: 570px;
   border-radius: 16px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   position: sticky;
   top: 1rem;
   z-index: 10;
+  overflow: hidden;
 }
 
 @media (min-width: 768px) {
-  .page-header { max-width: 600px; margin: 1rem auto; }
+  .page-header {
+    margin: 1rem auto;
+  }
 }
 
+.header-top {
+  margin-bottom: 1rem;
+}
+
+.title-area {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-badge {
+  width: 36px;
+  height: 36px;
+  background: #BFE7DF;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #004d40;
+  font-size: 1.1rem;
+}
+
+.page-header h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #BFE7DF;
+  margin: 0;
+}
+
+/* Progress Bar */
+.progress-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.progress-bar {
+  position: relative;
+  height: 6px;
+  background: #e0e0e0;
+  border-radius: 3px;
+  flex: 1;
+}
+
+.progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: #BFE7DF;
+  border-radius: 3px;
+}
+
+.progress-text {
+  position: static;
+  font-size: 0.75rem;
+  color: #888;
+  white-space: nowrap;
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Header Controls */
 .header-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 1rem;
+  margin-top: 1.5rem;
 }
 
 .toggle-wrapper {
@@ -950,6 +1504,11 @@ onMounted(() => {
   border-radius: 25px;
 }
 
+.toggle-label {
+  font-size: 0.9rem;
+  color: #333;
+}
+
 .toggle-switch {
   width: 44px;
   height: 24px;
@@ -959,23 +1518,59 @@ onMounted(() => {
   cursor: pointer;
   transition: background 0.3s;
 }
-.toggle-switch.active { background: #BFE7DF; }
-.toggle-slider {
-  width: 20px; height: 20px; background: white;
-  border-radius: 50%; position: absolute;
-  top: 2px; left: 2px; transition: left 0.3s;
+
+.toggle-switch.active {
+  background: #BFE7DF;
 }
-.toggle-switch.active .toggle-slider { left: 22px; }
+
+.toggle-slider {
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: left 0.3s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.toggle-switch.active .toggle-slider {
+  left: 22px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-outline {
+  padding: 0.6rem 1rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+}
 
 .btn-primary {
-  padding: 0.6rem 1rem; border: none; background: #BFE7DF;
-  border-radius: 8px; color: #004d40; font-weight: 600; cursor: pointer;
-}
-.btn-outline {
-  padding: 0.6rem 1rem; border: 1px solid #ddd; background: white;
-  border-radius: 8px; color: #333; font-weight: 600; cursor: pointer;
+  padding: 0.6rem 1rem;
+  border: none;
+  background: #BFE7DF;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #004d40;
+  cursor: pointer;
 }
 
+.btn-primary:hover {
+  background: #a8ddd2;
+}
+
+/* Form Content */
 .form-content {
   padding: 0 1rem 1rem;
   max-width: 600px;
@@ -990,105 +1585,1144 @@ onMounted(() => {
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #BFE7DF;
+  margin: 0 0 0.5rem;
+}
+
+.section-desc {
+  font-size: 0.9rem;
+  color: #888;
+  margin: 0 0 1.5rem;
+}
+
 .subsection-title {
-  font-size: 1rem; font-weight: 700; color: #222; margin-bottom: 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 1rem;
 }
-.update-title { color: #004d40; }
 
-.form-group { margin-bottom: 1.25rem; }
-.form-group label { display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem; }
-
-input, select, textarea {
-  width: 100%; padding: 0.875rem 1rem; border: 1px solid #e0e0e0;
-  border-radius: 8px; font-size: 0.95rem; box-sizing: border-box;
+/* Form Groups */
+.form-group {
+  margin-bottom: 1.25rem;
 }
-input:focus, textarea:focus { outline: none; border-color: #BFE7DF; }
-.readonly-input { background: #f5f5f5; color: #666; cursor: not-allowed; }
+
+.form-group label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.required {
+  color: #BFE7DF;
+}
+
+input[type="text"],
+input[type="tel"],
+input[type="email"],
+select,
+textarea {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: white;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #BFE7DF;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #aaa;
+}
+
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  cursor: pointer;
+}
+
+/* Location Button */
+.btn-location {
+  width: 100%;
+  padding: 0.875rem;
+  background: #BFE7DF;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #004d40;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.btn-location:hover {
+  background: #a8ddd2;
+}
+
+/* Kakao Map */
+.kakao-map {
+  width: 100%;
+  height: 280px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+}
+
+.coords-info {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #666;
+  background: #f0f0f0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
+.help-text {
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 0.75rem;
+}
+
+/* Bottom Actions */
+.bottom-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.btn-cancel {
+  flex: 1;
+  padding: 1rem;
+  background: #f5f5f5;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+}
+
+.btn-submit {
+  flex: 2;
+  padding: 1rem;
+  background: #BFE7DF;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #004d40;
+  cursor: pointer;
+}
+
+.btn-submit:hover {
+  background: #a8ddd2;
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+  .header-controls {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  
+  .action-buttons {
+    width: 100%;
+  }
+  
+  .btn-outline,
+  .btn-primary {
+    flex: 1;
+  }
+}
+
+/* Time Input */
+.time-input {
+  position: relative;
+}
+
+.time-input input[type="time"] {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: white;
+}
+
+.time-input input[type="time"]:focus {
+  outline: none;
+  border-color: #BFE7DF;
+}
+
+/* Time Selector */
+.time-selector-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.time-select {
+    flex: 1;
+    padding: 0.875rem 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: white;
+    font-size: 0.95rem;
+    cursor: pointer;
+    appearance: none; /* Custom arrow can be added if needed, but keeping simple for now */
+    text-align: center;
+}
+
+.time-select:focus {
+    outline: none;
+    border-color: #BFE7DF;
+}
+
+.time-separator {
+    font-weight: bold;
+    color: #333;
+}
 
 /* Amenities Grid */
-.amenities-grid { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.amenities-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
 
 .amenity-checkbox {
-  display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem;
-  border: 1px solid #e0e0e0; border-radius: 8px; background: white;
-  cursor: pointer; transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
 }
-.amenity-checkbox:hover { border-color: #BFE7DF; }
-.amenity-checkbox.checked { background: #f0fcfa; border-color: #BFE7DF; }
 
-/* Hide default checkbox */
+.amenity-checkbox:hover {
+  border-color: #BFE7DF;
+}
+
+.amenity-checkbox.checked {
+  border-color: #BFE7DF;
+  background: #f0fcfa;
+}
+
 .amenity-checkbox input[type="checkbox"] {
-  accent-color: #BFE7DF; width: 18px; height: 18px; cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: #BFE7DF;
+  cursor: pointer;
 }
 
-/* Theme Selection UI */
-.theme-selection { margin-top: 1rem; }
-.theme-category { margin-bottom: 1.5rem; }
-.theme-category-title { font-weight: 600; color: #555; margin-bottom: 0.5rem; font-size: 0.9rem; }
-.theme-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.amenity-label {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+/* Upload Box */
+.upload-box {
+  position: relative;
+  border: 2px dashed #e0e0e0;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  overflow: hidden;
+}
+
+.upload-box:hover {
+  border-color: #BFE7DF;
+  background: #f9fefe;
+}
+
+.upload-box input[type="file"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-text {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.upload-info {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.upload-hint {
+  font-size: 0.8rem;
+  color: #aaa;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 20px;
+  margin-top: 0.5rem;
+}
+
+.banner-preview {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+/* Detail Images Preview */
+.detail-images-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.detail-image-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.detail-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+/* Theme Categories */
+.theme-category {
+  margin-bottom: 1.5rem;
+}
+
+.theme-category-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.75rem;
+}
+
+.theme-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
 
 .theme-tag {
-  display: inline-flex; align-items: center; padding: 0.5rem 1rem;
-  border: 1px solid #e0e0e0; border-radius: 20px; font-size: 0.9rem;
-  color: #333; background: white; cursor: pointer; transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
 }
-.theme-tag:hover { border-color: #BFE7DF; }
-.theme-tag.selected {
-  background: #f0fcfa; border-color: #BFE7DF; color: #004d40;
-}
-.theme-tag input { display: none; }
 
-.existing-image img, .banner-preview { width: 100%; height: 150px; object-fit: cover; border-radius: 8px; }
-.detail-images-preview { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
-.detail-image-item { aspect-ratio: 1; border-radius: 8px; overflow: hidden; }
-.detail-image-item img { width: 100%; height: 100%; object-fit: cover; }
+.theme-tag input[type="checkbox"] {
+  display: none;
+}
+
+.theme-tag:hover {
+  border-color: #BFE7DF;
+}
+
+.theme-tag.selected {
+  border-color: #BFE7DF;
+  background: #f0fcfa;
+  color: #004d40;
+}
 
 /* Room List */
-.room-card { border: 1px solid #e0e0e0; border-radius: 12px; padding: 1rem; background: white; margin-bottom: 1rem; }
-.room-info h4 { margin: 0 0 0.5rem; }
-.room-details { font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; }
-.room-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
-.room-btn { padding: 0.4rem 0.8rem; border: 1px solid #e0e0e0; border-radius: 4px; background: white; cursor: pointer; }
-
-.add-room-btn {
-  width: 100%; padding: 1rem; border: 2px dashed #BFE7DF; background: transparent;
-  color: #BFE7DF; font-weight: 600; border-radius: 12px; cursor: pointer;
+.room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
-.add-room-btn:hover { background: #f5fcfa; }
+
+.room-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.room-info {
+  margin-bottom: 1rem;
+}
+
+.room-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 0.5rem;
+}
+
+.room-details {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0 0 0.75rem;
+}
+
+.room-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.toggle-switch.small {
+  width: 36px;
+  height: 20px;
+}
+
+.toggle-switch.small .toggle-slider {
+  width: 16px;
+  height: 16px;
+}
+
+.toggle-switch.small.active .toggle-slider {
+  left: 18px;
+}
+
+.room-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.room-btn {
+  flex: 1;
+  padding: 0.6rem;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.room-card-image {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.room-card-image img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.room-btn:hover {
+  background: #f5f5f5;
+}
+
+.no-rooms {
+  text-align: center;
+  color: #888;
+  padding: 2rem;
+}
+
+/* Add Room Button */
+.add-room-btn {
+  width: 100%;
+  padding: 1rem;
+  border: 2px dashed #BFE7DF;
+  background: transparent;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #BFE7DF;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.add-room-btn:hover {
+  background: #f5fcfa;
+}
+
+/* Form Helper Classes */
+.form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.form-row.two-col > * {
+  flex: 1;
+}
+
+.input-with-unit {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-unit input {
+  padding-right: 2.5rem;
+}
+
+.unit {
+  position: absolute;
+  right: 1rem;
+  color: #666;
+  font-size: 0.9rem;
+}
 
 /* Room Form */
-.room-form { background: #fafafa; padding: 1rem; border-radius: 10px; border: 1px solid #eee; margin-top: 1rem; }
-.form-row { display: flex; gap: 1rem; }
-.form-row.two-col > * { flex: 1; }
+.room-content {
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+}
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
 
-.room-image-preview { position: relative; width: 100%; height: 200px; }
-.room-image-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
-.room-remove-image-btn { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; }
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 320px;
+  width: 90%;
+  text-align: center;
+}
+
+.modal-message {
+  font-size: 1rem;
+  color: #333;
+  margin: 0 0 1.5rem;
+  line-height: 1.5;
+}
+
+.modal-btn {
+  width: 100%;
+  padding: 0.875rem;
+  background: #BFE7DF;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #004d40;
+  cursor: pointer;
+}
+
+.modal-btn:hover {
+  background: #a8ddd2;
+}
+
+/* Number Input Fix */
+input[type="number"] {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: white;
+  box-sizing: border-box;
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"]:focus {
+  outline: none;
+  border-color: #BFE7DF;
+}
+
+/* Room Amenities Section */
+.room-amenities-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.room-amenities-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 1rem;
+}
+
+.room-amenity-category {
+  margin-bottom: 1.25rem;
+}
+
+.room-amenity-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+
+.room-amenity-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.room-amenity-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+}
+
+.room-amenity-tag input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-right: 0.4rem;
+  accent-color: #BFE7DF;
+}
+
+.room-amenity-tag:hover {
+  border-color: #BFE7DF;
+}
+
+.room-amenity-tag.selected {
+  border-color: #BFE7DF;
+  background: #f0fcfa;
+}
+
+/* ========== Verification Step ========== */
+.verification-step {
+  padding: 2rem 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+}
+
+.verification-card {
+  background: white;
+  border-radius: 20px;
+  padding: 2.5rem;
+  max-width: 500px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.verification-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 0.5rem;
+}
+
+.verification-desc {
+  font-size: 0.95rem;
+  color: #666;
+  margin: 0 0 2rem;
+}
+
+.license-upload-area {
+  margin-bottom: 1.5rem;
+}
+
+.upload-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 2rem;
+  border: 2px dashed #ccc;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* Room Image Upload Styles */
+.room-image-upload-area {
+  width: 100%;
+}
 
 .room-upload-box {
-    display: flex; align-items: center; justify-content: center; height: 100px;
-    border: 2px dashed #ddd; border-radius: 8px; cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 150px;
+  border: 2px dashed #BFE7DF;
+  border-radius: 12px;
+  background: #f8fffe;
+  cursor: pointer;
+  transition: all 0.2s;
 }
-.hidden-file-input { display: none; }
 
-.room-amenity-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.room-amenity-tag {
-    padding: 0.4rem 0.8rem; border: 1px solid #e0e0e0; border-radius: 20px; font-size: 0.85rem; cursor: pointer;
+.upload-box:hover {
+  border-color: #BFE7DF;
+  background: #f9fcfb;
 }
-.room-amenity-tag.selected { background: #e0f2f1; border-color: #004d40; color: #004d40; }
-.room-amenity-tag input { display: none; }
 
-.room-form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+.upload-text {
+  font-size: 1rem;
+  color: #666;
+}
 
-.bottom-actions { display: flex; gap: 1rem; margin-top: 2rem; }
-.btn-cancel { flex: 1; padding: 1rem; border: none; background: #e0e0e0; border-radius: 8px; cursor: pointer; color: #555; font-weight: 700; }
-.btn-submit { flex: 2; padding: 1rem; border: none; background: #BFE7DF; border-radius: 8px; cursor: pointer; color: #004d40; font-weight: 700; }
+.license-preview {
+  position: relative;
+  display: inline-block;
+}
 
-.error-message { color: #d32f2f; font-size: 0.8rem; margin-top: 0.25rem; display: block; }
-.input-error { border-color: #d32f2f; }
+.license-preview img {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
 
-/* Modal */
-.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; display: flex; justify-content: center; align-items: center; }
-.modal-content { background: white; padding: 2rem; border-radius: 12px; width: 90%; max-width: 320px; text-align: center; }
-.modal-btn { width: 100%; padding: 0.8rem; background: #BFE7DF; border: none; border-radius: 8px; margin-top: 1rem; cursor: pointer; font-weight: 700; color: #004d40; }
+.license-preview .remove-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ff5252;
+  color: white;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.room-upload-box:hover {
+  background: #f0fbf9;
+  border-color: #8fd4c7;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.room-upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.room-upload-icon {
+  font-size: 2rem;
+}
+
+.room-upload-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.room-upload-hint {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.room-image-preview {
+  position: relative;
+  width: 100%;
+  max-width: 200px;
+}
+
+.room-image-preview img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+}
+
+.room-remove-image-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.extracted-text-box {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.extracted-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+  margin: 0 0 0.5rem;
+}
+
+.extracted-content {
+  font-size: 0.9rem;
+  color: #333;
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+.verification-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.btn-extract,
+.btn-verify {
+  padding: 0.875rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn-extract {
+  background: #00875A;
+  color: white;
+}
+
+.btn-extract:hover:not(:disabled) {
+  background: #006644;
+}
+
+.btn-verify {
+  background: #BFE7DF;
+  color: #004d40;
+}
+
+.btn-verify:hover:not(:disabled) {
+  background: #a8ddd2;
+}
+
+.btn-extract:disabled,
+.btn-verify:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.room-remove-image-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* ========== 유효성 검사 에러 스타일 ========== */
+.error-message {
+  display: block;
+  color: #e53935;
+  font-size: 0.8rem;
+  margin-top: 0.4rem;
+  padding-left: 0.2rem;
+}
+
+.input-error {
+  border-color: #e53935 !important;
+  background-color: #fff5f5 !important;
+}
+
+.input-error:focus {
+  border-color: #e53935 !important;
+  box-shadow: 0 0 0 2px rgba(229, 57, 53, 0.2);
+}
+
+.upload-error {
+  border-color: #e53935 !important;
+  background-color: #fff5f5 !important;
+}
+
+.no-rooms-error {
+  color: #e53935;
+  border: 1px dashed #e53935;
+  border-radius: 8px;
+  background-color: #fff5f5;
+}
+
+/* 객실 폼 에러 스타일 */
+.room-form .input-error {
+  border-color: #e53935 !important;
+}
+
+.room-form .error-message {
+  display: block;
+  margin-top: 0.3rem;
+}
+
+/* 입력 필드 에러 시 흔들림 애니메이션 */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.input-error {
+  animation: shake 0.3s ease-in-out;
+}
+
+/* Readonly Input */
+.readonly-input {
+  background-color: #f5f5f5 !important;
+  color: #666 !important;
+  cursor: not-allowed;
+}
+
+/* Readonly Section */
+.readonly-section {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Disabled Checkbox & Tag */
+.amenity-checkbox.disabled,
+.theme-tag.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Room Header */
+.room-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.room-header .room-name {
+  margin: 0;
+}
+
+.room-header .room-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toggle-label-small {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+/* Detail Row */
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  font-size: 0.85rem;
+}
+
+.detail-label {
+  color: #888;
+}
+
+.detail-value {
+  color: #333;
+  font-weight: 500;
+}
+
+/* Form Row Three Col */
+.form-row.three-col {
+  display: flex;
+  gap: 1rem;
+}
+
+.form-row.three-col > * {
+  flex: 1;
+}
+
+/* Margin helpers */
+.mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+.mt-4 {
+  margin-top: 1rem;
+}
+
+/* Banner Upload */
+.banner-upload-area {
+  width: 100%;
+}
+
+.banner-preview-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.banner-preview-wrapper .remove-image-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.upload-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Detail Images */
+.detail-images-container {
+  width: 100%;
+}
+
+.add-detail-image {
+  width: 100px;
+  height: 100px;
+  border: 2px dashed #BFE7DF;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 2rem;
+  color: #BFE7DF;
+  transition: all 0.2s;
+}
+
+.add-detail-image:hover {
+  background: #f0fcfa;
+}
+
+.add-detail-image input {
+  display: none;
+}
+
+/* 기본정보 섹션 수정 불가 필드 추가 라벨 */
+.form-group label .readonly-badge {
+  font-size: 0.75rem;
+  color: #888;
+  margin-left: 0.5rem;
+}
+
+/* Room Form Inline */
+.room-form-inline {
+  padding: 1rem;
+  background: #f9fffe;
+  border-radius: 8px;
+}
+
+.room-form-inline .room-form-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* Room Status Toggle */
+.room-status-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+/* Room Form Actions */
+.room-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.room-form-actions .btn-outline,
+.room-form-actions .btn-primary {
+  flex: 1;
+  padding: 0.75rem;
+}
+
+
+.kakao-map {
+  width: 100%;
+  height: 400px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
 </style>
+
