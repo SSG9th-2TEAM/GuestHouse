@@ -43,6 +43,9 @@ public class AccommodationResponseDto {
     private String checkInTime;
     private String checkOutTime;
     private String rejectionReason;
+    
+    // 대표 이미지 URL (리스트 조회용)
+    private String mainImageUrl;
 
     // 정산계좌 정보 (조인)
     private String bankName;

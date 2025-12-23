@@ -6,5 +6,5 @@ import java.util.List;
 
 public interface MainService {
 
-    List<ListDto> findByTheme();
+    List<ListDto> findByTheme(List<Long> themeIds);
 }

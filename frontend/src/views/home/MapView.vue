@@ -104,8 +104,7 @@ onMounted(() => {
     <!-- Floating List Button -->
     <div class="list-btn-wrapper">
       <button class="list-floating-btn" @click="router.push('/list')">
-        <span class="icon">≣</span>
-        <span class="text">목록 보기</span>
+        <span class="text">리스트에서 보기</span>
       </button>
     </div>
 

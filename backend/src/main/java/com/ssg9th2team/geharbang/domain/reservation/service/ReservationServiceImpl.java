@@ -22,6 +22,7 @@ public class ReservationServiceImpl implements ReservationService {
 
         private final ReservationJpaRepository reservationRepository;
         private final com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository accommodationRepository;
+        private final com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper accommodationMapper;
         private final com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository roomRepository;
         private final UserRepository userRepository;
 
@@ -126,6 +127,39 @@ public class ReservationServiceImpl implements ReservationService {
                 return reservationRepository.findByAccommodationsId(accommodationsId)
                                 .stream()
                                 .map(ReservationResponseDto::from)
+                                .toList();
+        }
+
+        @Override
+        public List<ReservationResponseDto> getMyReservations() {
+                // JWT 토큰에서 인증된 사용자 정보 추출
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                String email = authentication.getName();
+                User user = userRepository.findByEmail(email)
+                                .orElseThrow(() -> new IllegalStateException("인증된 사용자를 찾을 수 없습니다: " + email));
+
+                // 사용자의 예약 목록 조회 (숙소 정보 + 이미지 포함)
+                return reservationRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
+                                .stream()
+                                .map(reservation -> {
+                                        com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation accommodation = accommodationRepository
+                                                        .findById(reservation.getAccommodationsId()).orElse(null);
+
+                                        String accName = (accommodation != null) ? accommodation.getAccommodationsName()
+                                                        : null;
+                                        String accAddress = (accommodation != null)
+                                                        ? accommodation.getCity() + " " + accommodation.getDistrict()
+                                                                        + " "
+                                                                        + accommodation.getTownship() + " "
+                                                                        + accommodation.getAddressDetail()
+                                                        : null;
+
+                                        // 숙소 대표 이미지 조회 (sort_order = 0)
+                                        String imageUrl = accommodationMapper
+                                                        .selectMainImageUrl(reservation.getAccommodationsId());
+
+                                        return ReservationResponseDto.from(reservation, accName, accAddress, imageUrl);
+                                })
                                 .toList();
         }
 

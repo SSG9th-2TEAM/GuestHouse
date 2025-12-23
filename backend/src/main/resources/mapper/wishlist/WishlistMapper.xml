@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ssg9th2team.geharbang.domain.wishlist.repository.mybatis.WishlistMapper">
+
+
+
+    <!-- 마이페이지용: 내가 찜한 숙소의 상세 정보를 다 가져옴 (카드 목록 표시용) -->
+    <select id="selectWishlistByUserId" resultType="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto">
+        SELECT
+            a.accommodations_id AS accommodationsId,
+            a.accommodations_name AS accommodationsName,
+            a.min_price AS minPrice,
+            a.city,
+            a.district,
+            -- 대표 이미지 1장
+            (SELECT ai.image_url
+             FROM accommodation_image ai
+             WHERE ai.accommodations_id = a.accommodations_id
+             ORDER BY ai.image_id ASC
+             LIMIT 1) AS mainImageUrl
+        FROM wishlist w
+        JOIN accommodation a ON w.accommodations_id = a.accommodations_id
+        WHERE w.user_id = #{userId}
+        ORDER BY w.created_at DESC
+    </select>
+
+
+    <!-- 메인페이지용: 내가 찜한 숙소의 ID만 가져옴 (하트 색칠용) -->
+    <select id="selectWishlistAccommodationIds" resultType="java.lang.Long">
+        SELECT accommodations_id
+        FROM wishlist
+        WHERE user_id = #{userId}
+    </select>
+</mapper>

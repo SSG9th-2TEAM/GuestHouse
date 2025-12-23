@@ -13,7 +13,7 @@ public interface RoomService {
     // 객실 수정
     void updateRoom(Long accommodationsId, Long roomId, RoomUpdateDto updateDto);
 
-    // 객실 삭제
+
     // 객실 삭제
     void deleteRoom(Long accommodationsId, Long roomId);
 

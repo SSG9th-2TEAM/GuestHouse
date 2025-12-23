@@ -1,12 +1,13 @@
-<script setup>
+﻿<script setup>
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import FilterModal from '../../components/FilterModal.vue'
-import { useRouter } from 'vue-router'
-import { guesthouses } from '../../data/guesthouses'
-import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { fetchList } from '@/api/list'
+import { ref, computed, onMounted } from 'vue'
 
 const router = useRouter()
-const items = guesthouses
+const route = useRoute()
+const items = ref([])
 
 // Filter State
 const isFilterModalOpen = ref(false)
@@ -14,16 +15,39 @@ const minPrice = ref(null)
 const maxPrice = ref(null)
 const selectedThemeIds = ref([])
 
+const normalizeItem = (item) => {
+  const id = item.accomodationsId ?? item.accommodationsId ?? item.id
+  const title = item.accomodationsName ?? item.accommodationsName ?? item.title ?? ''
+  const description = item.shortDescription ?? item.description ?? ''
+  const rating = item.rating ?? null
+  const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
+  const price = Number(item.minPrice ?? item.price ?? 0)
+  const imageUrl = item.imageUrl || 'https://via.placeholder.com/400x300'
+  return { id, title, description, rating, location, price, imageUrl }
+}
+
+const loadList = async (themeIds = []) => {
+  try {
+    const response = await fetchList(themeIds)
+    if (response.ok) {
+      const payload = response.data
+      const list = Array.isArray(payload)
+        ? payload
+        : payload?.items ?? payload?.content ?? payload?.data ?? []
+      items.value = list.map(normalizeItem)
+    } else {
+      console.error('Failed to load list', response.status)
+    }
+  } catch (error) {
+    console.error('Failed to load list', error)
+  }
+}
+
 // Computed Items
 const filteredItems = computed(() => {
-  return items.filter(item => {
+  return items.value.filter(item => {
     if (minPrice.value !== null && item.price < minPrice.value) return false
     if (maxPrice.value !== null && item.price > maxPrice.value) return false
-    if (selectedThemeIds.value.length) {
-      const themeIds = Array.isArray(item.themeIds) ? item.themeIds : Array.isArray(item.themes) ? item.themes : []
-      const hasMatch = themeIds.some(id => selectedThemeIds.value.includes(id))
-      if (!hasMatch) return false
-    }
     return true
   })
 })
@@ -33,16 +57,34 @@ const handleApplyFilter = ({ min, max, themeIds = [] }) => {
   maxPrice.value = max
   selectedThemeIds.value = themeIds
   isFilterModalOpen.value = false
+  loadList(themeIds)
 }
+
+const parseThemeIds = (value) => {
+  if (!value) return []
+  const raw = Array.isArray(value) ? value.join(',') : String(value)
+  return raw
+    .split(',')
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item))
+}
+
+onMounted(() => {
+  const initialThemeIds = parseThemeIds(route.query.themeIds)
+  if (initialThemeIds.length) {
+    selectedThemeIds.value = initialThemeIds
+    loadList(initialThemeIds)
+    return
+  }
+  loadList()
+})
 </script>
 
 <template>
   <main class="container main-content">
     <div class="header">
       <h1>숙소 목록</h1>
-      <button class="filter-btn" @click="isFilterModalOpen = true">
-        🔍 필터
-      </button>
+      <button class="filter-btn" @click="isFilterModalOpen = true"><span class="icon">🔍</span>필터</button>
     </div>
 
     <div class="list-container">
@@ -50,6 +92,8 @@ const handleApplyFilter = ({ min, max, themeIds = [] }) => {
         v-for="item in filteredItems" 
         :key="item.id"
         :title="item.title"
+        :description="item.description"
+        :rating="item.rating"
         :location="item.location"
         :price="item.price"
         :image-url="item.imageUrl"
@@ -61,7 +105,6 @@ const handleApplyFilter = ({ min, max, themeIds = [] }) => {
     <!-- Floating Map Button -->
     <div class="map-btn-wrapper">
       <button class="map-floating-btn" @click="router.push('/map')">
-        <span class="icon">🗺️</span>
         <span class="text">지도에서 보기</span>
       </button>
     </div>
@@ -82,7 +125,7 @@ const handleApplyFilter = ({ min, max, themeIds = [] }) => {
 .main-content {
   padding-top: 2rem;
   padding-bottom: 6rem; /* Extra padding for floating button */
-  max-width: 1200px; 
+  max-width: 1280px; 
   margin: 0 auto;
   padding-left: 1rem;
   padding-right: 1rem;
@@ -123,8 +166,9 @@ const handleApplyFilter = ({ min, max, themeIds = [] }) => {
 
 .list-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 280px), var(--card-width, 280px))); 
   gap: 2rem;
+  justify-content: start;
 }
 
 .list-item {

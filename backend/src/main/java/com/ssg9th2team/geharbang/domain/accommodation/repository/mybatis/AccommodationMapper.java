@@ -16,14 +16,14 @@ public interface AccommodationMapper {
 
     // ===== 숙소 CRUD =====
 
-    void insertAccommodation(Accommodation accommodation);  // 숙소 등록
+    void insertAccommodation(Accommodation accommodation); // 숙소 등록
 
     AccommodationResponseDto selectAccommodationById(@Param("accommodationsId") Long accommodationsId); // 숙소 조회
 
-    void updateAccommodation(@Param("accommodationsId") Long accommodationsId,  // 숙소 수정
-                             @Param("Accommodation") Accommodation accommodation);
+    void updateAccommodation(@Param("accommodationsId") Long accommodationsId, // 숙소 수정
+            @Param("Accommodation") Accommodation accommodation);
 
-    void deleteAccommodation(@Param("accommodationsId") Long accommodationsId);  // 숙소 삭제
+    void deleteAccommodation(@Param("accommodationsId") Long accommodationsId); // 숙소 삭제
 
     // 객실 목록 조회 (서비스 로직용)
     List<RoomResponseListDto> selectRoomsByAccommodationId(@Param("accommodationsId") Long accommodationsId);
@@ -34,19 +34,21 @@ public interface AccommodationMapper {
 
     void deleteAccommodationImages(@Param("accommodationsId") Long accommodationsId); // 이미지 삭제
 
-    void insertAccommodationImages(@Param("accommodationsId") Long accommodationsId,      // 이미지 등록
-                                   @Param("images") List<AccommodationImageDto> images);
+    void insertAccommodationImages(@Param("accommodationsId") Long accommodationsId, // 이미지 등록
+            @Param("images") List<AccommodationImageDto> images);
 
-    void insertAccommodationAmenities(@Param("accommodationsId") Long accommodationsId,   // 편의시설 등록
-                                      @Param("amenityIds") List<Long> amenityIds);
+    void insertAccommodationAmenities(@Param("accommodationsId") Long accommodationsId, // 편의시설 등록
+            @Param("amenityIds") List<Long> amenityIds);
 
-    void deleteAccommodationAmenities(@Param("accommodationsId") Long accommodationsId);  // 편의시설 삭제
+    void deleteAccommodationAmenities(@Param("accommodationsId") Long accommodationsId); // 편의시설 삭제
 
-    void insertAccommodationThemes(@Param("accommodationsId") Long accommodationsId,    // 테마 등록
-                                   @Param("themeIds") List<Long> themeIds);
+    void insertAccommodationThemes(@Param("accommodationsId") Long accommodationsId, // 테마 등록
+            @Param("themeIds") List<Long> themeIds);
 
-    void deleteAccommodationThemes(@Param("accommodationsId") Long accommodationsId);  // 테마 삭제
+    void deleteAccommodationThemes(@Param("accommodationsId") Long accommodationsId); // 테마 삭제
 
+    // 숙소 대표 이미지 조회 (sort_order = 0)
+    String selectMainImageUrl(@Param("accommodationsId") Long accommodationsId);
 
     // ===== 정산계좌 =====
 
@@ -56,10 +58,10 @@ public interface AccommodationMapper {
                              @Param("AccountNumberDto")AccountNumberDto accountNumberDto);
 
 
+
     // ===== 최소 가격 업데이트 =====
 
     void updateMinPrice(@Param("accommodationsId") Long accommodationsId);
-
 
     // ===== Host dashboard list =====
 
@@ -67,8 +69,6 @@ public interface AccommodationMapper {
 
     HostAccommodationSummaryResponse selectHostAccommodationById(
             @Param("hostId") Long hostId,
-            @Param("accommodationsId") Long accommodationsId
-    );
-
+            @Param("accommodationsId") Long accommodationsId);
 
 }
