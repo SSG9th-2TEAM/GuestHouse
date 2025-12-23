@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentConfirmRequestDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentResponseDto;
 import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
+import com.ssg9th2team.geharbang.domain.payment.entity.PaymentRefund;
 import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,7 @@ import java.util.Map;
 public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentJpaRepository paymentRepository;
+    private final PaymentRefundJpaRepository paymentRefundRepository;
     private final ReservationJpaRepository reservationRepository;
     private final ObjectMapper objectMapper;
 
@@ -146,6 +149,92 @@ public class PaymentServiceImpl implements PaymentService {
         Payment payment = paymentRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다: " + orderId));
         return PaymentResponseDto.from(payment);
+    }
+
+    @Override
+    public PaymentResponseDto getPaymentByReservationId(Long reservationId) {
+        Payment payment = paymentRepository.findByReservationId(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다: reservationId=" + reservationId));
+        return PaymentResponseDto.from(payment);
+    }
+
+    @Override
+    @Transactional
+    public PaymentResponseDto cancelPayment(Long reservationId, String cancelReason, Integer refundAmount) {
+        log.info("결제 취소 요청: reservationId={}, refundAmount={}", reservationId, refundAmount);
+
+        // 결제 정보 조회
+        Payment payment = paymentRepository.findByReservationId(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다: reservationId=" + reservationId));
+
+        // 예약 조회
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
+
+        // 환불 금액 결정
+        Integer actualRefundAmount = (refundAmount != null) ? refundAmount : payment.getApprovedAmount();
+
+        // 환불 기록 생성 (요청 상태)
+        PaymentRefund paymentRefund = PaymentRefund.builder()
+                .paymentId(payment.getId())
+                .refundAmount(actualRefundAmount)
+                .refundStatus(0) // 0: 요청
+                .reasonMessage(cancelReason)
+                .requestedBy("USER")
+                .build();
+
+        // 토스페이먼츠 결제 취소 API 호출
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            restTemplate.getMessageConverters()
+                    .add(0, new org.springframework.http.converter.StringHttpMessageConverter(StandardCharsets.UTF_8));
+
+            String encodedSecretKey = Base64.getEncoder()
+                    .encodeToString((secretKey + ":").getBytes(StandardCharsets.UTF_8));
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(new MediaType("application", "json", StandardCharsets.UTF_8));
+            headers.set("Authorization", "Basic " + encodedSecretKey);
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("cancelReason", cancelReason);
+            if (refundAmount != null && refundAmount < payment.getApprovedAmount()) {
+                body.put("cancelAmount", refundAmount); // 부분 취소
+            }
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+            String cancelUrl = "https://api.tosspayments.com/v1/payments/" + payment.getPgPaymentKey() + "/cancel";
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    cancelUrl,
+                    HttpMethod.POST,
+                    entity,
+                    String.class);
+
+            log.info("토스페이먼츠 취소 응답: status={}", response.getStatusCode());
+
+            // 환불 성공 - payment_refund 테이블 업데이트
+            paymentRefund.updateRefundSuccess(payment.getPgPaymentKey(), LocalDateTime.now());
+            paymentRefundRepository.save(paymentRefund);
+
+            // 예약 상태 업데이트 (취소/환불)
+            reservation.updateRefunded();
+            reservationRepository.save(reservation);
+
+            log.info("환불 처리 완료: reservationId={}, refundAmount={}", reservationId, actualRefundAmount);
+
+            return PaymentResponseDto.from(payment);
+
+        } catch (Exception e) {
+            log.error("결제 취소 실패", e);
+
+            // 환불 실패 - payment_refund 테이블 업데이트
+            paymentRefund.updateRefundFailed("CANCEL_FAILED", e.getMessage());
+            paymentRefundRepository.save(paymentRefund);
+
+            throw new RuntimeException("환불 처리에 실패했습니다: " + e.getMessage());
+        }
     }
 
     private Long extractReservationId(String orderId) {

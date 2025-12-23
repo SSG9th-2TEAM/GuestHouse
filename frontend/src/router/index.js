@@ -3,6 +3,14 @@ import { getUserInfo } from '@/api/authClient';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
+    scrollBehavior(to, from, savedPosition) {
+        // 뒤로가기/앞으로가기 시 이전 스크롤 위치 복원
+        if (savedPosition) {
+            return savedPosition;
+        }
+        // 새 페이지 이동 시 상단으로 스크롤
+        return { top: 0 };
+    },
     routes: [
         {
             path: '/',

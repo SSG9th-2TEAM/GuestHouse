@@ -1,53 +1,131 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getMyReservations, deletePendingReservation } from '@/api/reservationApi'
+import { isAuthenticated } from '@/api/authClient'
 
 const router = useRouter()
 
-// Mock Data
-const upcomingReservations = ref([
-  {
-    id: 1,
-    title: '제주 서핑 캠프',
-    location: '제주 서귀포',
-    date: '2025.12.25',
-    time: '14:00',
-    guests: 2,
-    price: 35000,
-    image: 'https://picsum.photos/id/16/200/200'
-  },
-  {
-    id: 2,
-    title: '한옥 스테이',
-    location: '서울 종로구',
-    date: '2026.01.05',
-    time: '15:00',
-    guests: 4,
-    price: 120000,
-    image: 'https://picsum.photos/id/18/200/200'
-  }
-])
+// 로딩 및 에러 상태
+const isLoading = ref(true)
+const errorMessage = ref('')
 
-const pastReservations = ref([
-  {
-    id: 3,
-    title: '로맨틱 루프',
-    location: '강릉 동명항',
-    date: '2025.11.30',
-    time: '09:00',
-    guests: 2,
-    price: 35000,
-    image: 'https://picsum.photos/id/42/200/200'
-  }
-])
+// 예약 데이터
+const reservations = ref([])
 
-const handleDelete = (id) => {
-  if(confirm('내역에서 삭제하시겠습니까?')) {
-    // Logic to remove...
-    upcomingReservations.value = upcomingReservations.value.filter(r => r.id !== id)
-    pastReservations.value = pastReservations.value.filter(r => r.id !== id)
+// 오늘 날짜
+const today = new Date()
+today.setHours(0, 0, 0, 0)
+
+// 예정된 예약 (체크인 날짜가 오늘 이후)
+const upcomingReservations = computed(() => {
+  return reservations.value.filter(r => {
+    const checkinDate = new Date(r.checkin)
+    checkinDate.setHours(0, 0, 0, 0)
+    return checkinDate >= today && r.reservationStatus === 2 // 확정된 예약만 (2: 확정)
+  })
+})
+
+// 이용 완료 (체크인 날짜가 오늘 이전)
+const pastReservations = computed(() => {
+  return reservations.value.filter(r => {
+    const checkinDate = new Date(r.checkin)
+    checkinDate.setHours(0, 0, 0, 0)
+    return checkinDate < today && r.reservationStatus === 2 // 확정된 예약만 (2: 확정)
+  })
+})
+
+// 날짜 포맷 (YYYY.MM.DD)
+const formatDate = (dateString) => {
+  const date = new Date(dateString)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}.${month}.${day}`
+}
+
+// 시간 포맷
+const formatTime = (dateString) => {
+  const date = new Date(dateString)
+  return date.toLocaleTimeString('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
+// 예약 목록 조회 (토큰 기반)
+const fetchReservations = async () => {
+  try {
+    isLoading.value = true
+    errorMessage.value = ''
+
+    if (!isAuthenticated()) {
+      router.push('/login')
+      return
+    }
+
+    const data = await getMyReservations()
+    reservations.value = data || []
+  } catch (error) {
+    console.error('예약 조회 실패:', error)
+    errorMessage.value = '예약 내역을 불러오는데 실패했습니다.'
+  } finally {
+    isLoading.value = false
   }
 }
+
+// 예약 취소 (페이지 이동)
+const handleCancel = (item) => {
+  router.push({
+    name: 'reservation-cancel',
+    params: { id: item.reservationId },
+    state: {
+      reservationData: {
+        id: item.reservationId,
+        hotelName: item.accommodationName,
+        location: item.accommodationAddress,
+        checkin: formatDate(item.checkin),
+        checkout: formatDate(item.checkout),
+        guests: item.guestCount,
+        price: item.finalPaymentAmount,
+        image: item.accommodationImageUrl || `https://picsum.photos/seed/${item.accommodationsId}/200/200`
+      }
+    }
+  })
+}
+
+// 예약 내역에서 삭제
+const handleDelete = async (id) => {
+  if (confirm('내역에서 삭제하시겠습니까?')) {
+    try {
+      await deletePendingReservation(id)
+      reservations.value = reservations.value.filter(r => r.reservationId !== id)
+    } catch (error) {
+      console.error('삭제 실패:', error)
+      alert('삭제에 실패했습니다.')
+    }
+  }
+}
+
+// 리뷰 작성
+const handleWriteReview = (item) => {
+  router.push({
+    name: 'write-review',
+    state: {
+      reservationData: {
+        reservationId: item.reservationId,
+        accommodationId: item.accommodationsId,
+        accommodationName: item.accommodationName,
+        dates: `${formatDate(item.checkin)} ~ ${formatDate(item.checkout)}`
+      }
+    }
+  })
+}
+
+onMounted(() => {
+  fetchReservations()
+})
 </script>
 
 <template>
@@ -57,101 +135,101 @@ const handleDelete = (id) => {
       <h1 class="page-title">예약 내역</h1>
     </div>
 
-    <!-- Upcoming Reservations -->
-    <section class="section">
-      <h2 class="section-title">예정된 예약</h2>
-      
-      <div v-if="upcomingReservations.length === 0" class="empty-state">
-        예정된 예약이 없습니다.
-      </div>
+    <!-- 로딩 상태 -->
+    <div v-if="isLoading" class="loading-state">
+      <p>예약 내역을 불러오는 중...</p>
+    </div>
 
-      <div v-else class="card-list">
-        <div v-for="item in upcomingReservations" :key="item.id" class="res-card">
-          <div class="card-content">
-            <img :src="item.image" class="card-img" alt="thumbnail" />
-            <div class="card-info">
-              <h3 class="res-title">{{ item.title }}</h3>
-              <p class="res-loc"> {{ item.location }}</p>
-              <div class="res-details">
-                <span>날짜</span> <span class="val">{{ item.date }}</span>
-                <span class="spacer">시간</span> <span class="val">{{ item.time }}</span>
-              </div>
-              <div class="res-details">
-                <span>인원</span> <span class="val">{{ item.guests }}명</span>
-              </div>
-              <div class="res-price">
-                결제금액 <span class="price-val">{{ item.price.toLocaleString() }}원</span>
+    <!-- 에러 상태 -->
+    <div v-else-if="errorMessage" class="error-state">
+      <p>{{ errorMessage }}</p>
+      <button @click="fetchReservations" class="retry-btn">다시 시도</button>
+    </div>
+
+    <template v-else>
+      <!-- 예정된 예약 -->
+      <section class="section">
+        <h2 class="section-title">예정된 예약</h2>
+
+        <div v-if="upcomingReservations.length === 0" class="empty-state">
+          예정된 예약이 없습니다.
+        </div>
+
+        <div v-else class="card-list">
+          <div v-for="item in upcomingReservations" :key="item.reservationId" class="res-card">
+            <div class="card-content">
+              <img
+                  :src="item.accommodationImageUrl || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
+                  class="card-img"
+                  alt="thumbnail"
+              />
+              <div class="card-info">
+                <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
+                <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
+                <div class="res-details">
+                  <span>체크인</span> <span class="val">{{ formatDate(item.checkin) }}</span>
+                </div>
+                <div class="res-details">
+                  <span>체크아웃</span> <span class="val">{{ formatDate(item.checkout) }}</span>
+                </div>
+                <div class="res-details">
+                  <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
+                  <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
+                </div>
+                <div class="res-price">
+                  결제금액 <span class="price-val">{{ item.finalPaymentAmount?.toLocaleString() || 0 }}원</span>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div class="card-actions">
-            <button class="action-btn dark">예약 변경</button>
-            <button class="action-btn outline" @click="router.push({
-              name: 'reservation-cancel', 
-              params: { id: item.id },
-              state: { 
-                reservationData: {
-                  id: item.id,
-                  hotelName: item.title,
-                  location: item.location,
-                  dates: item.date,
-                  guests: item.guests,
-                  price: item.price,
-                  image: item.image
-                }
-              }
-            })">예약 취소</button>
-            <button class="icon-btn delete" @click="handleDelete(item.id)">🗑</button>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- Past Reservations -->
-    <section class="section">
-      <h2 class="section-title">이용 완료</h2>
-
-      <div v-if="pastReservations.length === 0" class="empty-state">
-        이용 완료된 내역이 없습니다.
-      </div>
-
-      <div v-else class="card-list">
-        <div v-for="item in pastReservations" :key="item.id" class="res-card">
-          <div class="card-content">
-            <img :src="item.image" class="card-img" alt="thumbnail" />
-            <div class="card-info">
-              <h3 class="res-title">{{ item.title }}</h3>
-              <p class="res-loc"> {{ item.location }}</p>
-              <div class="res-details">
-                <span>날짜</span> <span class="val">{{ item.date }}</span>
-                <span class="spacer">시간</span> <span class="val">{{ item.time }}</span>
-              </div>
-              <div class="res-details">
-                <span>인원</span> <span class="val">{{ item.guests }}명</span>
-              </div>
-              <div class="res-price">
-                결제금액 <span class="price-val">{{ item.price.toLocaleString() }}원</span>
-              </div>
+            <div class="card-actions">
+              <button class="action-btn outline" @click="handleCancel(item)">예약 취소</button>
+              <button class="icon-btn delete" @click="handleDelete(item.reservationId)">🗑</button>
             </div>
           </div>
-          
-          <div class="card-actions">
-            <button class="action-btn gray-full" @click="router.push({
-              name: 'write-review',
-              state: {
-                reservationData: {
-                  accommodationName: item.title,
-                  dates: item.date
-                }
-              }
-            })">리뷰 작성하기</button>
-            <button class="icon-btn delete" @click="handleDelete(item.id)">🗑</button>
+        </div>
+      </section>
+
+      <!-- 이용 완료 -->
+      <section class="section">
+        <h2 class="section-title">이용 완료</h2>
+
+        <div v-if="pastReservations.length === 0" class="empty-state">
+          이용 완료된 내역이 없습니다.
+        </div>
+
+        <div v-else class="card-list">
+          <div v-for="item in pastReservations" :key="item.reservationId" class="res-card">
+            <div class="card-content">
+              <img
+                  :src="item.accommodationImageUrl || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
+                  class="card-img"
+                  alt="thumbnail"
+              />
+              <div class="card-info">
+                <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
+                <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
+                <div class="res-details">
+                  <span>이용일</span> <span class="val">{{ formatDate(item.checkin) }} ~ {{ formatDate(item.checkout) }}</span>
+                </div>
+                <div class="res-details">
+                  <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
+                  <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
+                </div>
+                <div class="res-price">
+                  결제금액 <span class="price-val">{{ item.finalPaymentAmount?.toLocaleString() || 0 }}원</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-actions">
+              <button class="action-btn review" @click="handleWriteReview(item)">리뷰 작성하기</button>
+              <button class="icon-btn delete" @click="handleDelete(item.reservationId)">🗑</button>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-
+      </section>
+    </template>
   </div>
 </template>
 
@@ -192,12 +270,28 @@ const handleDelete = (id) => {
   color: #333;
 }
 
+.loading-state,
+.error-state,
 .empty-state {
   text-align: center;
   padding: 2rem;
   color: #888;
   background: #f9f9f9;
   border-radius: 12px;
+}
+
+.error-state {
+  color: #e11d48;
+}
+
+.retry-btn {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
 }
 
 .card-list {
@@ -250,9 +344,11 @@ const handleDelete = (id) => {
   color: #444;
   margin-bottom: 2px;
 }
+
 .res-details .spacer {
-  margin-left: 8px;
+  margin-left: 12px;
 }
+
 .res-details .val {
   font-weight: 500;
 }
@@ -260,7 +356,7 @@ const handleDelete = (id) => {
 .res-price {
   margin-top: 0.5rem;
   font-size: 0.9rem;
-  color: #0066ff; /* Blue for price keyword as in screenshot? Wait, label is blue? No, usually price is blue. Screenshot shows "결제금액" is blue text or the value is blue. Looking at screenshot 2: "결제금액" is Blue, Value is Blue. */
+  color: #2563eb;
   font-weight: bold;
 }
 
@@ -268,7 +364,6 @@ const handleDelete = (id) => {
   color: #2563eb;
 }
 
-/* Actions */
 .card-actions {
   display: flex;
   gap: 0.5rem;
@@ -283,29 +378,31 @@ const handleDelete = (id) => {
   cursor: pointer;
 }
 
-.action-btn.dark {
-  background: var(--primary);
-  color: #004d40;
-  border: 1px solid var(--primary);
-}
-
 .action-btn.outline {
   background: white;
   color: #555;
   border: 1px solid #ddd;
 }
 
-.action-btn.gray-full {
-  background: #e5e7eb;
-  color: #374151; /* Dark gray text */
-  border: none;
+.action-btn.outline:hover {
+  background: #f5f5f5;
+}
+
+.action-btn.review {
+  background: var(--primary);
+  color: #004d40;
+  border: 1px solid var(--primary);
+}
+
+.action-btn.review:hover {
+  opacity: 0.9;
 }
 
 .icon-btn.delete {
   background: var(--primary);
   border: 1px solid var(--primary);
-  color: #e11d48; /* Red Icon */
-  width: 42px; /* Square-ish */
+  color: #e11d48;
+  width: 42px;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -314,4 +411,7 @@ const handleDelete = (id) => {
   cursor: pointer;
 }
 
+.icon-btn.delete:hover {
+  opacity: 0.9;
+}
 </style>

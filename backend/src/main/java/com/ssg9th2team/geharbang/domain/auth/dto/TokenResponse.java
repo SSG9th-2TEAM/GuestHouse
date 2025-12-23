@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 public class TokenResponse {
 
+    private Long userId;
     private String grantType;
     private String accessToken;
     private String refreshToken;
