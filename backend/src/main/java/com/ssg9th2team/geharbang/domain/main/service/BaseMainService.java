@@ -2,11 +2,14 @@ package com.ssg9th2team.geharbang.domain.main.service;
 
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
+import com.ssg9th2team.geharbang.domain.main.repository.AccommodationImageProjection;
 import com.ssg9th2team.geharbang.domain.main.repository.MainRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -19,12 +22,29 @@ public class BaseMainService implements MainService {
         List<Accommodation> accommodations = (themeIds == null || themeIds.isEmpty())
                 ? mainRepository.findAll()
                 : mainRepository.findByThemeIds(themeIds);
+        Map<Long, String> imageById = loadRepresentativeImages(accommodations);
         return accommodations.stream()
-                .map(this::toListDto)
+                .map(accommodation -> toListDto(accommodation, imageById))
                 .toList();
     }
 
-    private ListDto toListDto(Accommodation accommodation) {
+    private Map<Long, String> loadRepresentativeImages(List<Accommodation> accommodations) {
+        if (accommodations.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = accommodations.stream()
+                .map(Accommodation::getAccommodationsId)
+                .toList();
+        return mainRepository.findRepresentativeImages(ids)
+                .stream()
+                .collect(Collectors.toMap(
+                        AccommodationImageProjection::getAccommodationsId,
+                        AccommodationImageProjection::getImageUrl,
+                        (existing, ignored) -> existing
+                ));
+    }
+
+    private ListDto toListDto(Accommodation accommodation, Map<Long, String> imageById) {
         return ListDto.builder()
                 .accomodationsId(accommodation.getAccommodationsId())
                 .accomodationsName(accommodation.getAccommodationsName())
@@ -35,7 +55,7 @@ public class BaseMainService implements MainService {
                 .minPrice(accommodation.getMinPrice() != null ? accommodation.getMinPrice().longValue() : null)
                 .rating(null) // TODO: populate when rating available
                 .reviewCount(null) // TODO: populate when review count available
-                .imageUrl(null) // TODO: populate when image URL available
+                .imageUrl(imageById.get(accommodation.getAccommodationsId()))
                 .build();
     }
 }

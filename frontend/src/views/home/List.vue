@@ -1,11 +1,12 @@
 <script setup>
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import FilterModal from '../../components/FilterModal.vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { fetchList } from '@/api/list'
 import { ref, computed, onMounted } from 'vue'
 
 const router = useRouter()
+const route = useRoute()
 const items = ref([])
 
 // Filter State
@@ -57,7 +58,22 @@ const handleApplyFilter = ({ min, max, themeIds = [] }) => {
   loadList(themeIds)
 }
 
+const parseThemeIds = (value) => {
+  if (!value) return []
+  const raw = Array.isArray(value) ? value.join(',') : String(value)
+  return raw
+    .split(',')
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item))
+}
+
 onMounted(() => {
+  const initialThemeIds = parseThemeIds(route.query.themeIds)
+  if (initialThemeIds.length) {
+    selectedThemeIds.value = initialThemeIds
+    loadList(initialThemeIds)
+    return
+  }
   loadList()
 })
 </script>

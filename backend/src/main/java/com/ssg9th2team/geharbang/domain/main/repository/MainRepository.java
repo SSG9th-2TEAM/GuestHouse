@@ -15,4 +15,17 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
             WHERE at.theme_id IN (:themeIds)
             """, nativeQuery = true)
     List<Accommodation> findByThemeIds(@Param("themeIds") List<Long> themeIds);
+
+    @Query(value = """
+            SELECT
+                ai.accommodations_id AS accommodationsId,
+                ai.image_url AS imageUrl
+            FROM accommodation_image ai
+            WHERE ai.sort_order = 0
+              AND ai.image_type = 'banner'
+              AND ai.accommodations_id IN (:accommodationIds)
+            """, nativeQuery = true)
+    List<AccommodationImageProjection> findRepresentativeImages(
+            @Param("accommodationIds") List<Long> accommodationIds
+    );
 }

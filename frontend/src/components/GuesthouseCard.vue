@@ -46,7 +46,7 @@ defineProps({
 }
 
 .image-container {
-  height: 200px;
+  aspect-ratio: 1 / 1;
   background: #e5e7eb;
   position: relative;
 }
@@ -74,10 +74,10 @@ defineProps({
 }
 
 .card-content {
-  padding: 1rem;
+  padding: 0.4rem 0.7rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.1rem;
   flex: 1;
 }
 
@@ -88,14 +88,14 @@ defineProps({
 }
 
 .title {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-main);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.1rem;
 }
 
 .location {
-  font-size: 0.875rem;
+  font-size: 0.86rem;
   color: var(--text-sub);
 }
 
@@ -104,16 +104,16 @@ defineProps({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 0.75rem;
+  padding-top: 0.2rem;
 }
 
 .book-btn {
   background-color: var(--primary);
   color: #004d40;
-  padding: 0.5rem 1rem;
+  padding: 0.35rem 0.75rem;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   transition: opacity 0.2s;
   border: none;
 }
