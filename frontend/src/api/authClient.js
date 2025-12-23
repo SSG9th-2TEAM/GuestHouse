@@ -63,7 +63,12 @@ async function apiRequest(endpoint, options = {}) {
       headers
     })
 
-    const data = await response.json().catch(() => null)
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (e) {
+      // Ignore JSON parsing errors for non-json responses
+    }
 
     return {
       ok: response.ok,
