@@ -2,11 +2,11 @@
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import FilterModal from '../../components/FilterModal.vue'
 import { useRouter } from 'vue-router'
-import { guesthouses } from '../../data/guesthouses'
-import { ref, computed } from 'vue'
+import { fetchList } from '@/api/list'
+import { ref, computed, onMounted } from 'vue'
 
 const router = useRouter()
-const items = guesthouses
+const items = ref([])
 
 // Filter State
 const isFilterModalOpen = ref(false)
@@ -14,16 +14,37 @@ const minPrice = ref(null)
 const maxPrice = ref(null)
 const selectedThemeIds = ref([])
 
+const normalizeItem = (item) => {
+  const id = item.accomodationsId ?? item.accommodationsId ?? item.id
+  const title = item.accomodationsName ?? item.accommodationsName ?? item.title ?? ''
+  const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
+  const price = Number(item.minPrice ?? item.price ?? 0)
+  const imageUrl = item.imageUrl || 'https://via.placeholder.com/400x300'
+  return { id, title, location, price, imageUrl }
+}
+
+const loadList = async (themeIds = []) => {
+  try {
+    const response = await fetchList(themeIds)
+    if (response.ok) {
+      const payload = response.data
+      const list = Array.isArray(payload)
+        ? payload
+        : payload?.items ?? payload?.content ?? payload?.data ?? []
+      items.value = list.map(normalizeItem)
+    } else {
+      console.error('Failed to load list', response.status)
+    }
+  } catch (error) {
+    console.error('Failed to load list', error)
+  }
+}
+
 // Computed Items
 const filteredItems = computed(() => {
-  return items.filter(item => {
+  return items.value.filter(item => {
     if (minPrice.value !== null && item.price < minPrice.value) return false
     if (maxPrice.value !== null && item.price > maxPrice.value) return false
-    if (selectedThemeIds.value.length) {
-      const themeIds = Array.isArray(item.themeIds) ? item.themeIds : Array.isArray(item.themes) ? item.themes : []
-      const hasMatch = themeIds.some(id => selectedThemeIds.value.includes(id))
-      if (!hasMatch) return false
-    }
     return true
   })
 })
@@ -33,7 +54,12 @@ const handleApplyFilter = ({ min, max, themeIds = [] }) => {
   maxPrice.value = max
   selectedThemeIds.value = themeIds
   isFilterModalOpen.value = false
+  loadList(themeIds)
 }
+
+onMounted(() => {
+  loadList()
+})
 </script>
 
 <template>

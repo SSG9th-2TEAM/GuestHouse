@@ -15,9 +15,11 @@ public class BaseMainService implements MainService {
     private final MainRepository mainRepository;
 
     @Override
-    public List<ListDto> findByTheme() {
-        return mainRepository.findAll()
-                .stream()
+    public List<ListDto> findByTheme(List<Long> themeIds) {
+        List<Accommodation> accommodations = (themeIds == null || themeIds.isEmpty())
+                ? mainRepository.findAll()
+                : mainRepository.findByThemeIds(themeIds);
+        return accommodations.stream()
                 .map(this::toListDto)
                 .toList();
     }
