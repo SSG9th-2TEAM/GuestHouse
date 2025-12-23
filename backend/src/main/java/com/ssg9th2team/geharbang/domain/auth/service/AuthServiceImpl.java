@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-
 import com.ssg9th2team.geharbang.domain.auth.entity.Admin;
 import com.ssg9th2team.geharbang.domain.auth.repository.AdminRepository;
 import java.util.Optional;
@@ -66,7 +65,8 @@ public class AuthServiceImpl implements AuthService {
                 .password(encodedPassword)
                 .phone(signupRequest.getPhone())
                 .role(UserRole.USER)
-                .marketingAgreed(signupRequest.getMarketingAgreed() != null ? signupRequest.getMarketingAgreed() : false)
+                .marketingAgreed(
+                        signupRequest.getMarketingAgreed() != null ? signupRequest.getMarketingAgreed() : false)
                 .hostApproved(null)
                 .themes(themes)
                 .build();
@@ -104,8 +104,7 @@ public class AuthServiceImpl implements AuthService {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 admin.getUsername(),
                 null,
-                Collections.singleton(new SimpleGrantedAuthority("ROLE_ADMIN"))
-        );
+                Collections.singleton(new SimpleGrantedAuthority("ROLE_ADMIN")));
 
         String accessToken = jwtTokenProvider.generateAccessToken(authentication);
         String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
@@ -125,8 +124,7 @@ public class AuthServiceImpl implements AuthService {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 user.getEmail(),
                 null,
-                Collections.singleton(new SimpleGrantedAuthority(user.getRole().getKey()))
-        );
+                Collections.singleton(new SimpleGrantedAuthority(user.getRole().getKey())));
 
         String accessToken = jwtTokenProvider.generateAccessToken(authentication);
         String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
@@ -141,7 +139,6 @@ public class AuthServiceImpl implements AuthService {
                 .role(user.getRole().name())
                 .build();
     }
-
 
     @Override
     @Transactional(readOnly = true)

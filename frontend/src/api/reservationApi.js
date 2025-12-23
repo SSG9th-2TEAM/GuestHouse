@@ -1,5 +1,5 @@
 // 예약 API 클라이언트
-const baseURL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+import { authenticatedRequest } from './authClient'
 
 /**
  * 예약 생성
@@ -7,11 +7,8 @@ const baseURL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
  * @returns {Promise<Object>} - 생성된 예약 정보
  */
 export async function createReservation(data) {
-    const response = await fetch(`${baseURL}/reservations`, {
+    const response = await authenticatedRequest('/api/reservations', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
         body: JSON.stringify(data)
     })
 
@@ -19,7 +16,7 @@ export async function createReservation(data) {
         throw new Error(`예약 생성 실패: ${response.status}`)
     }
 
-    return response.json()
+    return response.data
 }
 
 /**
@@ -28,13 +25,13 @@ export async function createReservation(data) {
  * @returns {Promise<Object>} - 예약 정보
  */
 export async function getReservation(reservationId) {
-    const response = await fetch(`${baseURL}/reservations/${reservationId}`)
+    const response = await authenticatedRequest(`/api/reservations/${reservationId}`)
 
     if (!response.ok) {
         throw new Error(`예약 조회 실패: ${response.status}`)
     }
 
-    return response.json()
+    return response.data
 }
 
 /**
@@ -43,13 +40,13 @@ export async function getReservation(reservationId) {
  * @returns {Promise<Array>} - 예약 목록
  */
 export async function getUserReservations(userId = 1) {
-    const response = await fetch(`${baseURL}/reservations/user/${userId}`)
+    const response = await authenticatedRequest(`/api/reservations/user/${userId}`)
 
     if (!response.ok) {
         throw new Error(`예약 목록 조회 실패: ${response.status}`)
     }
 
-    return response.json()
+    return response.data
 }
 
 /**
@@ -58,13 +55,13 @@ export async function getUserReservations(userId = 1) {
  * @returns {Promise<Array>} - 예약 목록
  */
 export async function getAccommodationReservations(accommodationsId) {
-    const response = await fetch(`${baseURL}/reservations/accommodation/${accommodationsId}`)
+    const response = await authenticatedRequest(`/api/reservations/accommodation/${accommodationsId}`)
 
     if (!response.ok) {
         throw new Error(`숙소 예약 목록 조회 실패: ${response.status}`)
     }
 
-    return response.json()
+    return response.data
 }
 
 /**
@@ -73,7 +70,7 @@ export async function getAccommodationReservations(accommodationsId) {
  * @returns {Promise<void>}
  */
 export async function deletePendingReservation(reservationId) {
-    const response = await fetch(`${baseURL}/reservations/pending/${reservationId}`, {
+    const response = await authenticatedRequest(`/api/reservations/pending/${reservationId}`, {
         method: 'DELETE'
     })
 

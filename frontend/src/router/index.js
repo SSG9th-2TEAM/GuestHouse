@@ -176,6 +176,11 @@ const router = createRouter({
                     component: () => import('../views/AdminView/AdminReportsView.vue')
                 }
             ]
+        },
+        {
+            path: '/policy',
+            name: 'policy',
+            component: () => import('../views/policy/PolicyView.vue')
         }
     ]
 })
