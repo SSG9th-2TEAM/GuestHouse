@@ -6,7 +6,15 @@ import { createReservation } from '@/api/reservationApi'
 const router = useRouter()
 const route = useRoute()
 
-// guests 텍스트에서 총 인원수 추출 (예: "성인 2명, 아동 1명" -> 3)
+const props = defineProps({
+  accommodationsId: [String, Number],
+  roomId: [String, Number],
+  guestCount: [String, Number],
+  checkin: String,
+  checkout: String
+})
+
+// guests 텍스트에서 총 인원수 추출 (예: "게스트 2명, 아동 1명" -> 3)
 const parseGuestCount = (guestsText) => {
   if (!guestsText) return 1
   const matches = guestsText.match(/(\d+)/g)
@@ -24,6 +32,16 @@ const calculateStayNights = (checkin, checkout) => {
   const diffTime = checkoutDate.getTime() - checkinDate.getTime()
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   return diffDays > 0 ? diffDays : 1
+}
+
+const formatDateDisplay = (dateText) => {
+  if (!dateText) return ''
+  const parsed = new Date(dateText)
+  if (Number.isNaN(parsed.getTime())) return ''
+  const year = parsed.getFullYear()
+  const month = parsed.getMonth() + 1
+  const day = parsed.getDate()
+  return `${year}년 ${month}월 ${day}일`
 }
 
 // dates 텍스트에서 체크인/체크아웃 파싱 (예: "2025년 12월 24일 ~ 2025년 12월 26일")
@@ -71,16 +89,26 @@ const parseDatesText = (datesText) => {
 
 // Get data from query params
 const booking = computed(() => {
-  const guestsText = route.query.guests || '성인 1명'
+  const guestCountFromProps = parseInt(props.guestCount)
+  const guestsText = `게스트 ${Number.isNaN(guestCountFromProps) ? 1 : guestCountFromProps}명`
   const guestCountFromQuery = parseInt(route.query.guestCount)
-  const guestCount = !isNaN(guestCountFromQuery) ? guestCountFromQuery : parseGuestCount(guestsText)
-  
-  // checkin/checkout 쿼리 파라미터가 없으면 dates 텍스트에서 파싱
-  const datesText = route.query.dates || '날짜를 선택하세요'
-  let checkin = route.query.checkin || route.query.checkIn || null
-  let checkout = route.query.checkout || route.query.checkOut || null
-  
-  if (!checkin || !checkout) {
+  const guestCount = !Number.isNaN(guestCountFromProps)
+    ? guestCountFromProps
+    : (!Number.isNaN(guestCountFromQuery) ? guestCountFromQuery : parseGuestCount(route.query.guests || guestsText))
+
+  // checkin/checkout props 우선, 없으면 dates 텍스트에서 파싱
+  let checkin = props.checkin || route.query.checkin || route.query.checkIn || null
+  let checkout = props.checkout || route.query.checkout || route.query.checkOut || null
+
+  let datesText = '날짜를 선택하세요'
+  if (checkin && checkout) {
+    const formattedStart = formatDateDisplay(checkin)
+    const formattedEnd = formatDateDisplay(checkout)
+    if (formattedStart && formattedEnd) {
+      datesText = `${formattedStart} ~ ${formattedEnd}`
+    }
+  } else {
+    datesText = route.query.dates || datesText
     const parsedDates = parseDatesText(datesText)
     checkin = checkin || parsedDates.checkin
     checkout = checkout || parsedDates.checkout
@@ -89,8 +117,8 @@ const booking = computed(() => {
   const stayNights = calculateStayNights(checkin, checkout)
   
   return {
-    accommodationsId: parseInt(route.params.id) || 2,
-    roomId: parseInt(route.query.roomId) || 2, // Defaulting to 2 if missing, or handle as null
+    accommodationsId: parseInt(props.accommodationsId) || parseInt(route.params.id) || 2,
+    roomId: parseInt(props.roomId) || parseInt(route.query.roomId) || 2,
     hotelName: route.query.hotelName || '그랜드 호텔 서울',
     rating: parseFloat(route.query.rating) || 4.8,
     reviewCount: parseInt(route.query.reviewCount) || 219,

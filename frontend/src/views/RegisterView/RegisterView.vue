@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { signup, checkEmailDuplicate } from '@/api/authClient'
+import { signup, checkEmailDuplicate, sendVerificationEmail, verifyEmailCode } from '@/api/authClient'
 
 const router = useRouter()
 const currentStep = ref(1)
@@ -12,10 +12,88 @@ const emailCheckMessage = ref('')
 // Step 1: Terms Agreement
 const allAgreed = ref(false)
 const terms = ref([
-  { id: 1, label: '(필수) 서비스 이용약관', required: true, checked: false },
-  { id: 2, label: '(필수) 개인정보 처리방침', required: true, checked: false },
-  { id: 3, label: '(선택) 마케팅 정보 수신 동의', required: false, checked: false }
+  { id: 1, label: '(필수) 서비스 이용약관', required: true, checked: false, content: `
+    제1조 (목적)<br/>
+    본 약관은 [회사명]이 제공하는 게스트하우스 예약 플랫폼 서비스(이하 "서비스")의 이용과 관련하여 회사와 회원 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.<br/><br/>
+
+    제2조 (서비스의 내용)<br/>
+    서비스는 게스트하우스 정보 검색, 예약 및 결제, 후기 작성, 마이페이지를 통한 예약 관리 등의 기능을 제공합니다. 회사는 통신판매중개자로서, 실제 숙박 서비스는 호스트(숙소 운영자)가 제공합니다.<br/><br/>
+
+    제3조 (회원의 의무)<br/>
+    1. 회원은 본 약관 및 관계 법령을 준수해야 합니다.<br/>
+    2. 회원은 정확한 정보를 제공해야 하며, 허위 정보로 인해 발생하는 불이익에 대한 책임은 회원에게 있습니다.<br/>
+    3. 회원은 서비스 이용과 관련하여 다음 행위를 하여서는 안 됩니다:<br/>
+       - 허위 정보 등록<br/>
+       - 타인의 정보 도용<br/>
+       - 서비스의 정상적인 운영 방해<br/>
+       - 회사의 지식재산권 침해<br/>
+       - 기타 불법적이거나 부당한 행위<br/><br/>
+
+    제4조 (예약 및 결제)<br/>
+    1. 회원은 서비스를 통해 게스트하우스 예약을 요청할 수 있으며, 회사는 호스트를 대신하여 예약 접수 및 결제를 중개합니다.<br/>
+    2. 예약 확정 및 결제 완료 시, 회원과 호스트 간에 숙박 계약이 체결됩니다.<br/>
+    3. 예약 취소 및 환불 정책은 각 숙소의 정책 또는 회사의 표준 정책에 따르며, 회원은 이를 확인 후 예약해야 합니다.<br/><br/>
+
+    제5조 (후기 작성 및 관리)<br/>
+    1. 회원은 숙박 서비스 이용 후 숙소에 대한 후기(리뷰)를 작성할 수 있습니다.<br/>
+    2. 후기 내용은 객관적이고 사실에 기반해야 하며, 욕설, 비방, 허위 사실 유포 등 타인의 권리를 침해하거나 서비스의 건전한 운영을 저해하는 내용은 삭제될 수 있습니다.<br/><br/>
+
+    제6조 (서비스 이용 제한)<br/>
+    회사는 회원이 본 약관의 의무를 위반하거나 서비스의 정상적인 운영을 방해하는 경우, 서비스 이용을 제한하거나 회원 자격을 상실시킬 수 있습니다.<br/><br/>
+
+    제7조 (면책 조항)<br/>
+    회사는 천재지변, 불가항력 또는 회원의 귀책사유로 인한 서비스 이용의 장애에 대하여는 책임을 지지 않습니다. 또한, 회사는 통신판매중개자로서 호스트와 회원 간의 직접적인 숙박 계약에 대한 일차적인 책임을 지지 않습니다.<br/><br/>
+
+    (본 약관의 상세 내용은 [회사명] 웹사이트에 게시된 전문을 참고하여 주십시오.)
+    ` },
+  { id: 2, label: '(필수) 개인정보 처리방침', required: true, checked: false, content: `
+    제1조 (개인정보의 수집 및 이용 목적)<br/>
+    [회사명] (이하 "회사")는 게스트하우스 예약 서비스 제공을 위해 다음 목적에 따라 최소한의 개인정보를 수집 및 이용합니다.<br/>
+    1. 회원 가입 및 서비스 이용(예약, 결제, 후기 작성 등)<br/>
+    2. 불만 처리 등 고객 상담<br/>
+    3. 마케팅 및 광고 (선택 동의 시)<br/><br/>
+
+    제2조 (수집하는 개인정보 항목)<br/>
+    회사는 원활한 서비스 제공을 위해 다음과 같은 개인정보를 수집할 수 있습니다.<br/>
+    1. **회원 가입 시**: 이메일 주소(ID), 비밀번호, 휴대전화 번호, 관심 테마 정보(선택)<br/>
+    2. **예약 및 결제 시**: 예약자 이름, 숙박 인원, 연락처, 결제 정보(카드사, 카드번호 일부 등)<br/>
+    3. **서비스 이용 시**: IP 주소, 서비스 이용 기록, 접속 로그, 쿠키 등<br/><br/>
+
+    제3조 (개인정보의 보유 및 이용 기간)<br/>
+    회원의 개인정보는 원칙적으로 개인정보 수집 및 이용 목적이 달성되면 지체 없이 파기합니다. 단, 관계 법령의 규정에 의하여 보존할 필요가 있는 경우, 회사는 관계 법령에서 정한 일정한 기간 동안 회원정보를 보관합니다.<br/><br/>
+
+    제4조 (개인정보의 제3자 제공)<br/>
+    회사는 회원의 개인정보를 "제1조 (개인정보의 수집 및 이용 목적)"에서 고지한 범위 내에서만 사용하며, 회원의 사전 동의 없이 동 범위를 초과하여 이용하거나 원칙적으로 외부에 제공하지 않습니다. 다만, 예약 서비스 제공을 위해 필요한 최소한의 정보(예약자 이름, 연락처, 숙박 인원 등)는 해당 호스트에게 제공될 수 있습니다.<br/><br/>
+
+    제5조 (개인정보의 파기 절차 및 방법)<br/>
+    회사는 개인정보 보유기간의 경과, 처리목적 달성 등 개인정보가 불필요하게 되었을 때에는 지체 없이 해당 개인정보를 파기합니다. 전자적 파일 형태의 정보는 기록을 재생할 수 없는 기술적 방법을 사용하며, 종이 문서 형태의 정보는 분쇄기로 분쇄하거나 소각하여 파기합니다.<br/><br/>
+
+    (본 개인정보 처리방침의 상세 내용은 [회사명] 웹사이트에 게시된 전문을 참고하여 주십시오.)
+    ` },
+  { id: 4, label: '(필수) 만 19세 이상 확인', required: true, checked: false, content: `
+    연령 확인 안내 (필수)<br/><br/>
+    본 서비스는 청소년보호법 등 관련 법령에 따라 만 19세 미만 청소년의 숙박 예약 및 이용을 제한하고 있습니다.<br/><br/>
+    이에 회원으로 가입하고 서비스를 이용하기 위해서는 본인이 만 19세 이상임을 확인하고 동의해야 합니다.<br/><br/>
+    만 19세 미만의 자가 허위의 정보로 가입 및 예약을 진행하여 발생하는 모든 문제에 대한 책임은 회원 본인 및 법정대리인에게 있습니다.
+    ` },
+  { id: 3, label: '(선택) 마케팅 정보 수신 동의', required: false, checked: false, content: `
+    마케팅 정보 수신 동의 (선택)<br/><br/>
+
+    [회사명]은(는) 회원님께 더 유용하고 맞춤화된 서비스 및 혜택을 제공하기 위해 마케팅 정보를 발송하고자 합니다.<br/><br/>
+
+    **동의하시는 경우, 아래와 같은 정보를 받아보실 수 있습니다.**<br/>
+    1. 신규 숙소 및 추천 상품 정보: 회원님의 관심사에 맞는 새로운 게스트하우스 또는 특별 할인 상품 소식<br/>
+    2. 이벤트 및 프로모션: 쿠폰, 할인 행사, 시즌별 특별 이벤트 등 회원님께 유리한 혜택 정보<br/>
+    3. 서비스 관련 소식: 서비스 업데이트, 새로운 기능 소개 등 서비스 이용에 도움이 되는 정보<br/><br/>
+
+    수신 채널: 이메일, 문자메시지(SMS/MMS), 앱 푸시 알림<br/><br/>
+
+    본 동의는 선택 사항이며, 동의하지 않으셔도 서비스의 기본 기능 이용에는 어떠한 제한도 없습니다. 마케팅 정보 수신 동의 여부는 "마이페이지 > 개인정보 관리"에서 언제든지 변경하거나 철회할 수 있습니다. 동의를 철회하시는 경우에도 법령에 따른 의무 이행을 위한 정보 및 비마케팅성 정보는 계속 발송될 수 있습니다.<br/><br/>
+
+    (본 마케팅 정보 수신 동의에 대한 상세 내용은 [회사명] 웹사이트에 게시된 전문을 참고하여 주십시오.)
+    ` }
 ])
+
 
 const toggleAll = () => {
   terms.value.forEach(t => t.checked = allAgreed.value)
@@ -29,6 +107,21 @@ const requiredTermsAgreed = computed(() => {
   return terms.value.filter(t => t.required).every(t => t.checked)
 })
 
+// Terms Modal State
+const showTermsModal = ref(false)
+const termsModalTitle = ref('')
+const termsModalContent = ref('')
+
+const openTermsModal = (term) => {
+  termsModalTitle.value = term.label
+  termsModalContent.value = term.content
+  showTermsModal.value = true
+}
+
+const closeTermsModal = () => {
+  showTermsModal.value = false
+}
+
 // Step 2: User Info
 const email = ref('')
 const password = ref('')
@@ -37,8 +130,85 @@ const phone = ref('')
 const showPassword = ref(false)
 const showPasswordConfirm = ref(false)
 
+// Password validation
+const passwordCriteria = ref([
+  { label: '영문', valid: false, regex: /[a-zA-Z]/ },
+  { label: '숫자', valid: false, regex: /[0-9]/ },
+  { label: '특수문자', valid: false, regex: /[!@#$%^&*(),.?":{}|<>]/ },
+  { label: '8자 이상 20자 이하', valid: false, regex: /^.{8,20}$/ }
+])
+
+const allPasswordCriteriaMet = computed(() => passwordCriteria.value.every(c => c.valid))
+
+const passwordMatchState = computed(() => {
+  if (!passwordConfirm.value) {
+    return null // Don't show any message if the confirm field is empty
+  }
+  if (password.value === passwordConfirm.value) {
+    return { valid: true, message: '비밀번호가 일치합니다.' }
+  } else {
+    return { valid: false, message: '비밀번호가 일치하지 않습니다.' }
+  }
+})
+
+watch(password, (newValue) => {
+  passwordCriteria.value.forEach(criterion => {
+    criterion.valid = criterion.regex.test(newValue)
+  })
+})
+
+// 핸드폰 번호
+const isPhoneValid = ref(false)
+const phoneErrorMessage = ref('')
+
+watch(phone, (newValue) => {
+  let cleaned = newValue.replace(/\D/g, '') // Remove all non-digits
+  let formatted = ''
+
+  if (cleaned.startsWith('010') && cleaned.length > 3) {
+    if (cleaned.length < 8) {
+      formatted = cleaned.substring(0, 3) + '-' + cleaned.substring(3)
+    } else {
+      formatted = cleaned.substring(0, 3) + '-' + cleaned.substring(3, 7) + '-' + cleaned.substring(7, 11)
+    }
+  } else if (cleaned.length > 0) {
+    formatted = cleaned;
+  }
+  
+  if (formatted !== newValue) {
+    phone.value = formatted
+  }
+  validatePhone()
+})
+
+const validatePhone = () => {
+  const phoneRegex = /^010-\d{4}-\d{4}$/;
+  if (!phone.value) {
+    isPhoneValid.value = false;
+    phoneErrorMessage.value = '전화번호를 입력해주세요.';
+  } else if (!phoneRegex.test(phone.value)) {
+    isPhoneValid.value = false;
+    phoneErrorMessage.value = '올바른 전화번호 형식이 아닙니다. (예: 010-1234-5678)';
+  } else {
+    isPhoneValid.value = true;
+    phoneErrorMessage.value = '';
+  }
+}
+
+// Email Verification State
+const verificationCode = ref('')
+const isCodeSent = ref(false)
+const isCodeVerified = ref(false)
+const timer = ref(0)
+let timerId = null
+
 const isStep2Valid = computed(() => {
-  return email.value && password.value && passwordConfirm.value && phone.value && password.value === passwordConfirm.value && isEmailChecked.value
+  return isEmailChecked.value && 
+         isCodeVerified.value &&
+         password.value &&
+         password.value === passwordConfirm.value &&
+         allPasswordCriteriaMet.value &&
+         isPhoneValid.value
 })
 
 // Step 3: Theme Selection
@@ -91,6 +261,30 @@ const goBack = () => {
   }
 }
 
+const handleConfirmCode = async () => {
+  if (!verificationCode.value) {
+    openModal('인증번호를 입력해주세요.', 'error')
+    return
+  }
+
+  try {
+    const response = await verifyEmailCode(email.value, verificationCode.value)
+    if (response.ok && response.data === true) { // 백엔드에서 true/false 반환
+      isCodeVerified.value = true
+      stopTimer()
+      emailCheckMessage.value = '이메일 인증이 완료되었습니다.'
+      openModal('인증에 성공했습니다.', 'success')
+    } else {
+      isCodeVerified.value = false
+      // 백엔드에서 전달된 에러 메시지 활용
+      openModal(response.data?.message || '인증번호가 올바르지 않거나 만료되었습니다.', 'error')
+    }
+  } catch (error) {
+    console.error('인증번호 확인 에러:', error)
+    openModal('인증번호 확인 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.', 'error')
+  }
+}
+
 const goNext = () => {
   if (currentStep.value === 1) {
     if (requiredTermsAgreed.value) {
@@ -99,10 +293,10 @@ const goNext = () => {
       openModal('필수 약관에 동의해주세요.', 'error')
     }
   } else if (currentStep.value === 2) {
-    if (!email.value || !password.value || !passwordConfirm.value || !phone.value) {
-      openModal('모든 필수 항목을 입력해주세요.', 'error')
-    } else if (!isEmailChecked.value) {
-      openModal('이메일 중복 확인을 해주세요.', 'error')
+    if (!isCodeVerified.value) {
+      openModal('이메일 인증을 완료해주세요.', 'error')
+    } else if (!password.value || !passwordConfirm.value || !phone.value) {
+      openModal('비밀번호와 전화번호를 모두 입력해주세요.', 'error')
     } else if (password.value !== passwordConfirm.value) {
       openModal('비밀번호가 일치하지 않습니다.', 'error')
     } else {
@@ -111,43 +305,76 @@ const goNext = () => {
   }
 }
 
-// 이메일 중복 확인
-const handleEmailCheck = async () => {
+const startTimer = () => {
+  stopTimer() // Ensure no multiple timers are running
+  timer.value = 180 // 3 minutes
+  timerId = setInterval(() => {
+    if (timer.value > 0) {
+      timer.value--
+    } else {
+      stopTimer()
+    }
+  }, 1000)
+}
+
+const stopTimer = () => {
+  if (timerId) {
+    clearInterval(timerId)
+    timerId = null
+  }
+}
+
+const formattedTimer = computed(() => {
+  const minutes = Math.floor(timer.value / 60)
+  const seconds = timer.value % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+})
+
+// 이메일 인증코드 전송
+const handleSendCode = async () => {
   if (!email.value) {
     openModal('이메일을 입력해주세요.', 'error')
     return
   }
+  // Basic email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email.value)) {
+    openModal('올바른 이메일 형식이 아닙니다.', 'error');
+    return;
+  }
+
+  isEmailChecked.value = false;
+  isCodeSent.value = false;
+  isCodeVerified.value = false;
+  stopTimer(); // 이전 타이머가 있다면 중지
 
   try {
-    const response = await checkEmailDuplicate(email.value)
+    // 1. 이메일 중복 확인
+    const duplicateCheckResponse = await checkEmailDuplicate(email.value)
+    if (duplicateCheckResponse.ok && duplicateCheckResponse.data === true) {
+      emailCheckMessage.value = '이미 사용 중인 이메일입니다.'
+      openModal('이미 사용 중인 이메일입니다.', 'error')
+      return;
+    } else if (!duplicateCheckResponse.ok) {
+      openModal(duplicateCheckResponse.data?.message || '이메일 중복 확인 중 오류가 발생했습니다.', 'error')
+      return;
+    }
 
-    console.log('이메일 중복 확인 응답:', response)
-    console.log('response.ok:', response.ok)
-    console.log('response.data:', response.data)
-
-    if (response.ok) {
-      // response.data가 true면 중복, false면 중복 아님
-      if (response.data === true) {
-        // 중복됨
-        isEmailChecked.value = false
-        emailCheckMessage.value = '이미 사용 중인 이메일입니다.'
-        openModal('이미 사용 중인 이메일입니다.', 'error')
-      } else if (response.data === false) {
-        // 중복 아님
-        isEmailChecked.value = true
-        emailCheckMessage.value = '사용 가능한 이메일입니다.'
-        openModal('사용 가능한 이메일입니다.', 'success')
-      } else {
-        // 예상치 못한 응답
-        console.error('예상치 못한 응답:', response.data)
-        openModal('이메일 중복 확인 중 오류가 발생했습니다.', 'error')
-      }
+    // 2. 인증 코드 전송 요청
+    const sendCodeResponse = await sendVerificationEmail(email.value)
+    if (sendCodeResponse.ok) {
+      isEmailChecked.value = true;
+      emailCheckMessage.value = '인증번호가 발송되었습니다.'
+      isCodeSent.value = true
+      startTimer()
+      openModal('인증번호가 발송되었습니다. 이메일을 확인해주세요.', 'success')
     } else {
-      openModal('이메일 중복 확인 중 오류가 발생했습니다.', 'error')
+      // 백엔드에서 전달된 에러 메시지 활용
+      openModal(sendCodeResponse.data?.message || '인증번호 전송 중 오류가 발생했습니다.', 'error')
     }
   } catch (error) {
-    console.error('이메일 중복 확인 에러:', error)
-    openModal('이메일 중복 확인 중 오류가 발생했습니다.', 'error')
+    console.error('이메일 인증코드 전송 에러:', error)
+    openModal('이메일 인증코드 전송 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.', 'error')
   }
 }
 
@@ -292,7 +519,7 @@ const handleSkip = async () => {
             <label v-for="term in terms" :key="term.id" class="term-row">
               <input type="checkbox" v-model="term.checked" @change="updateAllAgreed" />
               <span>{{ term.label }}</span>
-              <span class="arrow">›</span>
+              <button type="button" class="view-term-btn" @click.stop="openTermsModal(term)">보기</button>
             </label>
           </div>
         </div>
@@ -306,21 +533,41 @@ const handleSkip = async () => {
           <div class="input-group">
             <label>이메일 *</label>
             <div class="input-row">
-              <input type="email" v-model="email" placeholder="example@email.com" @input="isEmailChecked = false" />
-              <button class="check-btn" @click="handleEmailCheck" :class="{ checked: isEmailChecked }">
-                {{ isEmailChecked ? '확인완료' : '중복확인' }}
+              <input type="email" v-model="email" placeholder="example@email.com" :disabled="isCodeSent" @input="isCodeSent = false; isCodeVerified = false; isEmailChecked = false;" />
+              <button type="button" class="check-btn" @click="handleSendCode" :disabled="isCodeSent">
+                인증번호 전송
               </button>
             </div>
-            <span v-if="emailCheckMessage" class="email-check-message" :class="{ success: isEmailChecked, error: !isEmailChecked }">
+            <span v-if="emailCheckMessage" class="email-check-message" :class="{ success: isCodeVerified, error: !isCodeVerified && emailCheckMessage }">
               {{ emailCheckMessage }}
             </span>
+          </div>
+
+          <div v-if="isCodeSent" class="input-group">
+            <label>인증번호 *</label>
+            <div class="input-row">
+              <input type="text" v-model="verificationCode" placeholder="인증번호 6자리를 입력하세요" :disabled="isCodeVerified" />
+              <span v-if="timer > 0" class="timer">{{ formattedTimer }}</span>
+              <button type="button" class="check-btn" @click="handleConfirmCode" :disabled="isCodeVerified || timer === 0">
+                {{ isCodeVerified ? '인증완료' : '인증번호 확인' }}
+              </button>
+            </div>
           </div>
 
           <div class="input-group">
             <label>비밀번호 *</label>
             <div class="input-wrapper">
-              <input :type="showPassword ? 'text' : 'password'" v-model="password" placeholder="비밀번호를 입력하세요 (4자 이상)" />
-              <button class="toggle-btn" @click="showPassword = !showPassword">{{ showPassword ? '숨김' : '보기' }}</button>
+              <input :type="showPassword ? 'text' : 'password'" v-model="password" placeholder="비밀번호를 입력하세요" />
+              <button type="button" class="toggle-btn" @click="showPassword = !showPassword">
+                <svg v-if="showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+              </button>
+            </div>
+            <div class="password-criteria">
+              <span v-for="criterion in passwordCriteria" :key="criterion.label" :class="{ 'is-valid': criterion.valid }">
+                <svg v-if="criterion.valid" class="check-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span class="criteria-label">{{ criterion.label }}</span>
+              </span>
             </div>
           </div>
 
@@ -328,14 +575,24 @@ const handleSkip = async () => {
             <label>비밀번호 확인 *</label>
             <div class="input-wrapper">
               <input :type="showPasswordConfirm ? 'text' : 'password'" v-model="passwordConfirm" placeholder="비밀번호를 다시 입력하세요" />
-              <button class="toggle-btn" @click="showPasswordConfirm = !showPasswordConfirm">{{ showPasswordConfirm ? '숨김' : '보기' }}</button>
+              <button type="button" class="toggle-btn" @click="showPasswordConfirm = !showPasswordConfirm">
+                <svg v-if="showPasswordConfirm" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+              </button>
             </div>
+            <span v-if="passwordMatchState" class="email-check-message" :class="{ 'success-match': passwordMatchState.valid, 'error': !passwordMatchState.valid }">
+              {{ passwordMatchState.message }}
+            </span>
           </div>
 
           <div class="input-group">
             <label>전화번호 *</label>
-            <input type="tel" v-model="phone" placeholder="전화번호를 입력하세요" />
+            <input type="tel" v-model="phone" placeholder="전화번호를 입력하세요" @blur="validatePhone" />
+            <span v-if="phoneErrorMessage && !isPhoneValid" class="email-check-message error">
+              {{ phoneErrorMessage }}
+            </span>
           </div>
+
         </div>
 
         <button class="next-btn" :disabled="!isStep2Valid" @click="goNext">다음</button>
@@ -381,6 +638,17 @@ const handleSkip = async () => {
         </div>
         <p class="modal-message">{{ modalMessage }}</p>
         <button class="modal-btn" @click="closeModal">확인</button>
+      </div>
+    </div>
+
+    <!-- Terms Modal -->
+    <div v-if="showTermsModal" class="modal-overlay" @click.self="closeTermsModal">
+      <div class="modal-content large">
+        <h2>{{ termsModalTitle }}</h2>
+        <div class="terms-content-scroll">
+          <div v-html="termsModalContent"></div>
+        </div>
+        <button class="modal-btn" @click="closeTermsModal">닫기</button>
       </div>
     </div>
   </div>
@@ -535,6 +803,23 @@ const handleSkip = async () => {
   font-size: 1.2rem;
 }
 
+.view-term-btn {
+  background: none;
+  border: none;
+  color: #00796b;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.view-term-btn:hover {
+  background: #f0f0f0;
+}
+
 /* Form */
 .form-section {
   margin-bottom: 2rem;
@@ -573,10 +858,19 @@ const handleSkip = async () => {
   flex: 1;
 }
 
+.input-row .timer {
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  font-size: 0.9rem;
+  color: #ef4444;
+  white-space: nowrap;
+}
+
 .check-btn {
   padding: 0 1rem;
-  background: #333;
-  color: white;
+  background: #BFE7DF;
+  color: #333;
   border: none;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -587,7 +881,8 @@ const handleSkip = async () => {
 }
 
 .check-btn.checked {
-  background: #00796b;
+  background: #BFE7DF;
+  color: #333;
   cursor: default;
 }
 
@@ -599,6 +894,10 @@ const handleSkip = async () => {
 
 .email-check-message.success {
   color: #2e7d32;
+}
+
+.email-check-message.success-match {
+  color: #00796b;
 }
 
 .email-check-message.error {
@@ -623,7 +922,47 @@ const handleSkip = async () => {
   border: none;
   padding: 0 1rem;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0; /* Hide text fallback */
+  color: #9ca3af;
+}
+
+.toggle-btn:hover {
+  color: #374151;
+}
+
+.toggle-btn svg {
+  transition: color 0.2s;
+}
+
+.password-criteria {
+  display: flex;
+  flex-wrap: wrap; /* Allow items to wrap */
+  gap: 0.75rem;
+  font-size: 0.9rem; /* Increased font size */
+  font-weight: 600; /* Made bolder */
+  color: #a1a1aa;
+  margin-top: 0.5rem;
+}
+
+.password-criteria > span {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap; /* Prevent criteria labels from breaking */
+}
+
+.password-criteria .is-valid {
+  color: #00796b;
+}
+
+.password-criteria .is-valid .check-icon {
+  color: #00796b;
+}
+
+.check-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.5; /* Make checkmark bolder */
 }
 
 /* Theme Selection */
@@ -782,6 +1121,39 @@ const handleSkip = async () => {
 }
 
 .modal-message {
+  font-size: 1rem;
+  color: #333;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.modal-content.large {
+  max-width: 600px;
+  width: 95%;
+  padding: 2.5rem;
+}
+
+.terms-content-scroll {
+  max-height: 400px;
+  overflow-y: auto;
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+  line-height: 1.6;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.modal-content h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  color: #333;
+}
+
+.modal-content p {
   font-size: 1rem;
   color: #333;
   margin-bottom: 1.5rem;

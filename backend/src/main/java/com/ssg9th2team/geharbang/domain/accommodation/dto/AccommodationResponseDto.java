@@ -45,6 +45,9 @@ public class AccommodationResponseDto {
     private String checkInTime;
     private String checkOutTime;
     private String rejectionReason;
+    private Integer minPrice;
+    private Double rating;
+    private Integer reviewCount;
 
     private Double rating;
     

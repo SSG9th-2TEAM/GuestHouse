@@ -13,7 +13,7 @@ defineProps({
 const formatRating = (value) => {
   const numeric = Number(value)
   if (!Number.isFinite(numeric)) return '-'
-  return numeric.toFixed(1)
+  return numeric.toFixed(2)
 }
 
 const emit = defineEmits(['toggle-favorite'])
@@ -180,3 +180,4 @@ const emit = defineEmits(['toggle-favorite'])
   opacity: 0.9;
 }
 </style>
+

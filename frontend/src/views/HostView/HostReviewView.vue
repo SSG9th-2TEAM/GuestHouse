@@ -162,7 +162,7 @@ onMounted(loadReviews)
             ></textarea>
             <div class="form-actions">
               <button class="btn-cancel" @click="cancelReply(review.id)">취소</button>
-              <button class="btn-submit" @click="submitReply(review.id)">답변 등록</button>
+              <button class="btn-submit host-btn--primary" @click="submitReply(review.id)">답변 등록</button>
             </div>
           </div>
 
@@ -201,7 +201,7 @@ onMounted(loadReviews)
 .view-header h2 {
   font-size: 1.7rem;
   font-weight: 800;
-  color: #0b3b32;
+  color: var(--brand-accent);
   margin: 0.15rem 0 0.2rem;
   letter-spacing: -0.01em;
 }
@@ -220,7 +220,7 @@ onMounted(loadReviews)
   padding: 1.25rem;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
   margin-bottom: 1rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
 }
 
 .empty-box {
@@ -235,9 +235,9 @@ onMounted(loadReviews)
 }
 
 .ghost-btn {
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--brand-border);
   background: white;
-  color: #0f766e;
+  color: var(--brand-accent);
   border-radius: 10px;
   padding: 0.55rem 0.9rem;
   font-weight: 800;
@@ -291,8 +291,8 @@ onMounted(loadReviews)
 .avatar {
   width: 48px;
   height: 48px;
-  background: #E0F2F1;
-  color: #0f766e;
+  background: var(--brand-primary);
+  color: var(--brand-accent);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -370,7 +370,7 @@ onMounted(loadReviews)
 .reply-form textarea {
   width: 100%;
   padding: 0.9rem 1rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   border-radius: 12px;
   font-size: 0.95rem;
   resize: vertical;
@@ -381,8 +381,8 @@ onMounted(loadReviews)
 
 .reply-form textarea:focus {
   outline: none;
-  border-color: #c0e6df;
-  box-shadow: 0 0 0 3px rgba(191, 231, 223, 0.45);
+  border-color: var(--brand-primary-strong);
+  box-shadow: 0 0 0 3px var(--brand-primary);
 }
 
 .form-actions {
@@ -404,20 +404,18 @@ onMounted(loadReviews)
 
 .btn-cancel {
   background: white;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   color: #475569;
 }
 
 .btn-submit {
-  background: #0f766e;
   border: none;
-  color: white;
 }
 
 .btn-reply-toggle {
   background: none;
   border: none;
-  color: #0f766e;
+  color: var(--brand-accent);
   font-weight: 900;
   cursor: pointer;
   padding: 0;

@@ -18,19 +18,4 @@ public class ListDto {
     private Integer reviewCount;
     private String imageUrl;
 
-    /*
-    // 나중에 Accommodation.java로 이동
-    public ListDto toRead() {
-        return ListDto.builder()
-                .accomodationsId(accommodationsId)
-                .accomodationsName(accommodationsName)
-                .shortDescription(shortDescription)
-                .city(city)
-                .district(district)
-                .township(township)
-//                .minPrice(minPrice)
-//                .rating(rating)
-                .build();
-    }
-    */
 }
