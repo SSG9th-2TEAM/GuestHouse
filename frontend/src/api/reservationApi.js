@@ -35,12 +35,26 @@ export async function getReservation(reservationId) {
 }
 
 /**
- * 사용자별 예약 목록 조회
+ * 사용자별 예약 목록 조회 (userId 파라미터 방식)
  * @param {number} userId - 사용자 ID (없으면 기본값 1 사용)
  * @returns {Promise<Array>} - 예약 목록
  */
 export async function getUserReservations(userId = 1) {
     const response = await authenticatedRequest(`/api/reservations/user/${userId}`)
+
+    if (!response.ok) {
+        throw new Error(`예약 목록 조회 실패: ${response.status}`)
+    }
+
+    return response.data
+}
+
+/**
+ * 현재 로그인된 사용자의 예약 목록 조회 (토큰 기반)
+ * @returns {Promise<Array>} - 예약 목록
+ */
+export async function getMyReservations() {
+    const response = await authenticatedRequest('/api/reservations/my')
 
     if (!response.ok) {
         throw new Error(`예약 목록 조회 실패: ${response.status}`)

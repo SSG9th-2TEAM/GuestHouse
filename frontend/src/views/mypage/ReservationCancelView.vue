@@ -1,24 +1,97 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { authenticatedRequest } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
 
+const isLoading = ref(true)
+const errorMessage = ref('')
+
 const reservation = ref({
   id: route.params.id,
-  hotelName: '그랜드 호텔 서울',
-  location: '서울시 강남구',
-  dates: '2025년 12월 12일 ~ 12월 13일',
+  hotelName: '',
+  location: '',
+  checkin: '',
+  checkout: '',
   guests: 1,
-  price: 150000,
-  image: 'https://picsum.photos/id/11/200/200'
+  price: 0,
+  image: ''
 })
 
-onMounted(() => {
-  if (history.state && history.state.reservationData) {
-    reservation.value = { ...reservation.value, ...history.state.reservationData }
+const paymentInfo = ref({
+  paymentMethod: '',
+  approvedAmount: 0
+})
+
+// 예약 정보 로드
+onMounted(async () => {
+  try {
+    // history.state에서 예약 정보 받아오기
+    if (history.state && history.state.reservationData) {
+      const data = history.state.reservationData
+      reservation.value = {
+        id: data.id,
+        hotelName: data.hotelName,
+        location: data.location,
+        checkin: data.checkin,
+        checkout: data.checkout,
+        guests: data.guests,
+        price: data.price,
+        image: data.image
+      }
+    }
+
+    // 결제 정보 조회
+    const reservationId = route.params.id
+    const response = await authenticatedRequest(`/api/payments/reservation/${reservationId}`)
+    if (response.ok && response.data) {
+      paymentInfo.value = {
+        paymentMethod: response.data.paymentMethod || '카드',
+        approvedAmount: response.data.approvedAmount || reservation.value.price
+      }
+    }
+  } catch (error) {
+    console.error('결제 정보 조회 실패:', error)
+    // 결제 정보가 없어도 진행 가능
+    paymentInfo.value.approvedAmount = reservation.value.price
+  } finally {
+    isLoading.value = false
   }
+})
+
+// 체크인까지 남은 일수 계산
+const daysUntilCheckin = computed(() => {
+  if (!reservation.value.checkin) return 0
+  const checkinDate = new Date(reservation.value.checkin)
+  checkinDate.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diffTime = checkinDate - today
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  return diffDays
+})
+
+// 환불 비율 계산
+const refundRate = computed(() => {
+  const days = daysUntilCheckin.value
+  if (days >= 7) return 100
+  if (days >= 5) return 90
+  if (days >= 3) return 70
+  if (days >= 1) return 50
+  return 0
+})
+
+// 환불 금액 계산
+const refundAmount = computed(() => {
+  const amount = paymentInfo.value.approvedAmount || reservation.value.price || 0
+  return Math.floor(amount * (refundRate.value / 100))
+})
+
+// 환불 가능 여부
+const canRefund = computed(() => {
+  return refundRate.value > 0
 })
 
 const cancelReason = ref('')
@@ -45,7 +118,22 @@ const closeModal = () => {
   }
 }
 
-const handleCancel = () => {
+// 결제 수단 표시 텍스트
+const paymentMethodText = computed(() => {
+  const method = paymentInfo.value.paymentMethod
+  if (!method) return '결제 수단'
+  if (method === '카드' || method === 'CARD') return '신용/체크카드'
+  if (method === '간편결제') return '간편결제'
+  if (method === '계좌이체') return '계좌이체'
+  return method
+})
+
+// 환불 처리
+const handleCancel = async () => {
+  if (!canRefund.value) {
+    openModal('체크인 당일은 환불이 불가능합니다.', 'error')
+    return
+  }
   if (!cancelReason.value.trim()) {
     openModal('환불 사유를 입력해주세요.', 'error')
     return
@@ -55,7 +143,30 @@ const handleCancel = () => {
     return
   }
   
-  openModal('환불 요청이 완료되었습니다.', 'success', () => router.push('/reservations'))
+  try {
+    const response = await authenticatedRequest('/api/payments/cancel', {
+      method: 'POST',
+      body: JSON.stringify({
+        reservationId: Number(route.params.id),
+        cancelReason: cancelReason.value,
+        refundAmount: refundAmount.value
+      })
+    })
+
+    if (response.ok) {
+      openModal(`환불이 완료되었습니다.\n환불 금액: ${refundAmount.value.toLocaleString()}원`, 'success', () => router.push('/reservations'))
+    } else {
+      openModal('환불 처리에 실패했습니다.', 'error')
+    }
+  } catch (error) {
+    console.error('환불 요청 실패:', error)
+    openModal('환불 처리 중 오류가 발생했습니다.', 'error')
+  }
+}
+
+// 환불 규정 페이지로 이동
+const goToRefundPolicy = () => {
+  window.open('/policy?tab=refund', '_blank')
 }
 </script>
 
@@ -67,75 +178,100 @@ const handleCancel = () => {
       <h1>예약 취소</h1>
     </div>
 
-    <!-- Info Card -->
-    <div class="info-card">
-      <img :src="reservation.image" class="info-img" />
-      <div class="info-content">
-        <h3>{{ reservation.hotelName }}</h3>
-        <p class="loc">{{ reservation.location }}</p>
-        <p class="date">{{ reservation.dates }}</p>
-        <p class="guests">게스트 {{ reservation.guests }}명</p>
-      </div>
+    <!-- Loading -->
+    <div v-if="isLoading" class="loading-state">
+      <p>정보를 불러오는 중...</p>
     </div>
 
-    <!-- Refund Guide -->
-    <div class="refund-guide">
-      <h3>환불 안내</h3>
-      <ul>
-        <li>체크인 7일 전: 100% 환불</li>
-        <li>체크인 3일 전: 50% 환불</li>
-        <li>체크인 3일 이내: 환불 불가</li>
-      </ul>
-      <div class="refund-amount">
-        <span>예상 환불 금액</span>
-        <span class="amount">₩{{ reservation.price?.toLocaleString() }}</span>
-      </div>
-    </div>
-
-    <!-- Cancel Reason -->
-    <div class="reason-section">
-      <h3>취소 사유</h3>
-      <textarea v-model="cancelReason" placeholder="취소 사유를 입력해주세요."></textarea>
-    </div>
-
-    <!-- Refund Method -->
-    <div class="method-section">
-      <h3>환불 수단</h3>
-      <div class="method-box">
-        <span>💳</span>
-        <span>신용카드 (****-1234)</span>
-      </div>
-    </div>
-
-    <!-- Warning -->
-    <div class="warning-box">
-      <p>⚠️ 취소 후에는 되돌릴 수 없습니다.</p>
-    </div>
-
-    <!-- Agreement -->
-    <label class="agreement">
-      <input type="checkbox" v-model="agreed" />
-      <span>위 환불 규정을 확인하고 동의합니다.</span>
-    </label>
-
-    <!-- Bottom Bar -->
-    <div class="bottom-bar">
-      <button class="cancel-btn outline" @click="router.back()">뒤로가기</button>
-      <button class="cancel-btn primary" @click="handleCancel">환불 요청</button>
-    </div>
-
-    <!-- Modal -->
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-content">
-        <div class="modal-icon" :class="modalType">
-          <span v-if="modalType === 'success'">✓</span>
-          <span v-else-if="modalType === 'error'">!</span>
-          <span v-else>i</span>
+    <template v-else>
+      <!-- Info Card -->
+      <div class="info-card">
+        <img :src="reservation.image || 'https://picsum.photos/200/200'" class="info-img" />
+        <div class="info-content">
+          <h3>{{ reservation.hotelName }}</h3>
+          <p class="loc">{{ reservation.location }}</p>
+          <p class="date">{{ reservation.checkin }} ~ {{ reservation.checkout }}</p>
+          <p class="guests">게스트 {{ reservation.guests }}명</p>
         </div>
-        <p class="modal-message">{{ modalMessage }}</p>
-        <button class="modal-btn" @click="closeModal">확인</button>
       </div>
-    </div>
+
+      <!-- Refund Guide -->
+      <div class="refund-guide">
+        <h3>환불 규정</h3>
+        <ul>
+          <li :class="{ active: daysUntilCheckin >= 7 }">체크인 7일 전: <strong>100%</strong> 환불</li>
+          <li :class="{ active: daysUntilCheckin >= 5 && daysUntilCheckin < 7 }">체크인 5~6일 전: <strong>90%</strong> 환불</li>
+          <li :class="{ active: daysUntilCheckin >= 3 && daysUntilCheckin < 5 }">체크인 3~4일 전: <strong>70%</strong> 환불</li>
+          <li :class="{ active: daysUntilCheckin >= 1 && daysUntilCheckin < 3 }">체크인 1~2일 전: <strong>50%</strong> 환불</li>
+          <li :class="{ active: daysUntilCheckin < 1, 'no-refund': true }">체크인 당일 또는 노쇼: <strong>환불 불가</strong></li>
+        </ul>
+        <div class="days-info">
+          <span>체크인까지</span>
+          <span class="days">{{ daysUntilCheckin }}일</span>
+        </div>
+        <div class="refund-amount">
+          <span>예상 환불 금액 ({{ refundRate }}%)</span>
+          <span class="amount" :class="{ 'no-refund': !canRefund }">₩{{ refundAmount.toLocaleString() }}</span>
+        </div>
+      </div>
+
+      <!-- Cancel Reason -->
+      <div class="reason-section">
+        <h3>취소 사유</h3>
+        <textarea v-model="cancelReason" placeholder="취소 사유를 입력해주세요."></textarea>
+      </div>
+
+      <!-- Refund Method -->
+      <div class="method-section">
+        <h3>환불 수단</h3>
+        <div class="method-box">
+          <span>💳</span>
+          <span>{{ paymentMethodText }}로 결제한 금액이 환불됩니다</span>
+        </div>
+      </div>
+
+      <!-- Warning -->
+      <div class="warning-box" v-if="!canRefund">
+        <p>⚠️ 체크인 당일은 환불이 불가능합니다.</p>
+      </div>
+      <div class="warning-box" v-else>
+        <p>⚠️ 취소 후에는 되돌릴 수 없습니다.</p>
+      </div>
+
+      <!-- Agreement -->
+      <label class="agreement">
+        <input type="checkbox" v-model="agreed" />
+        <span>
+          위 <a href="#" @click.prevent="goToRefundPolicy" class="policy-link">환불 규정</a>을 확인하고 동의합니다.
+        </span>
+      </label>
+
+      <!-- Bottom Bar -->
+      <div class="bottom-bar">
+        <button class="cancel-btn outline" @click="router.back()">뒤로가기</button>
+        <button 
+          class="cancel-btn primary" 
+          @click="handleCancel"
+          :disabled="!canRefund"
+          :class="{ disabled: !canRefund }"
+        >
+          환불 요청
+        </button>
+      </div>
+
+      <!-- Modal -->
+      <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+          <div class="modal-icon" :class="modalType">
+            <span v-if="modalType === 'success'">✓</span>
+            <span v-else-if="modalType === 'error'">!</span>
+            <span v-else>i</span>
+          </div>
+          <p class="modal-message">{{ modalMessage }}</p>
+          <button class="modal-btn" @click="closeModal">확인</button>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -163,6 +299,12 @@ const handleCancel = () => {
 .page-header h1 {
   font-size: 1.2rem;
   font-weight: 700;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 3rem;
+  color: #666;
 }
 
 /* Info Card */
@@ -212,11 +354,42 @@ const handleCancel = () => {
 }
 
 .refund-guide ul {
-  list-style: disc inside;
+  list-style: none;
   font-size: 0.85rem;
   color: #555;
-  line-height: 1.6;
+  line-height: 1.8;
   margin-bottom: 1rem;
+}
+
+.refund-guide ul li {
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.refund-guide ul li.active {
+  background: var(--primary);
+  color: #004d40;
+  font-weight: 600;
+}
+
+.refund-guide ul li.no-refund.active {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.days-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid #eee;
+  color: #666;
+}
+
+.days-info .days {
+  font-weight: bold;
+  color: #2563eb;
 }
 
 .refund-amount {
@@ -229,6 +402,11 @@ const handleCancel = () => {
 
 .amount {
   color: #2563eb;
+  font-size: 1.1rem;
+}
+
+.amount.no-refund {
+  color: #dc2626;
 }
 
 /* Reason */
@@ -306,6 +484,11 @@ const handleCancel = () => {
   height: 18px;
 }
 
+.policy-link {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
 /* Bottom Bar */
 .bottom-bar {
   position: fixed;
@@ -340,6 +523,12 @@ const handleCancel = () => {
   background: var(--primary);
   color: #004d40;
   border: none;
+}
+
+.cancel-btn.disabled {
+  background: #ccc;
+  color: #666;
+  cursor: not-allowed;
 }
 
 /* Modal */
@@ -397,6 +586,7 @@ const handleCancel = () => {
   color: #333;
   margin-bottom: 1.5rem;
   line-height: 1.5;
+  white-space: pre-line;
 }
 
 .modal-btn {
