@@ -14,7 +14,7 @@ public class ListDto {
     private String district;
     private String township;
     private Long minPrice;
-    private Integer rating;
+    private Double rating;
     private Integer reviewCount;
     private String imageUrl;
 

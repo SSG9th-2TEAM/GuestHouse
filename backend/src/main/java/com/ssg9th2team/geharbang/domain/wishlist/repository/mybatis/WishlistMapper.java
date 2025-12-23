@@ -8,7 +8,7 @@ import java.util.List;
 @Mapper
 public interface WishlistMapper {
 
-    // 마이페이지용 : 내가 찜한 숙소 상세 목록
+  // (마이페이지용 - 상세 정보 포함)
     List<AccommodationResponseDto> selectWishlistByUserId(Long userId);
 
 
