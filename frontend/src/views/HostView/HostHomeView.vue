@@ -74,6 +74,57 @@ const scheduleCountLabel = computed(() => {
   return '체크인/아웃'
 })
 
+const parseTimeToMinutes = (time) => {
+  if (!time) return null
+  const [hours, minutes] = String(time).split(':').map((item) => Number(item))
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null
+  return (hours * 60) + minutes
+}
+
+const todayInsight = computed(() => {
+  const checkinCount = todaySchedule.value.filter((item) => item.type === 'CHECKIN').length
+  const checkoutCount = todaySchedule.value.filter((item) => item.type === 'CHECKOUT').length
+  const total = checkinCount + checkoutCount
+  if (!total) return null
+
+  let title = ''
+  let description = ''
+  let tag = '오늘'
+  let typeQuery = null
+
+  if (checkinCount > 0 && checkoutCount > 0) {
+    title = `오늘 일정 ${total}건이 있어요`
+    description = `체크인 ${checkinCount} · 체크아웃 ${checkoutCount}`
+  } else if (checkinCount > 0) {
+    title = `오늘 체크인 ${checkinCount}건이 있어요`
+    description = '체크아웃 일정은 없어요'
+    tag = '체크인'
+    typeQuery = 'CHECKIN'
+  } else {
+    title = `오늘 체크아웃 ${checkoutCount}건이 있어요`
+    description = '체크인 일정은 없어요'
+    tag = '체크아웃'
+    typeQuery = 'CHECKOUT'
+  }
+
+  const earliest = todaySchedule.value
+    .map((item) => ({ ...item, minutes: parseTimeToMinutes(item.time) }))
+    .filter((item) => Number.isFinite(item.minutes))
+    .sort((a, b) => a.minutes - b.minutes)[0]
+
+  const earliestHint = earliest
+    ? `첫 일정 ${formatTimeShort(earliest.time)} · ${earliest.accommodationName}`
+    : null
+
+  return {
+    title,
+    description,
+    tag,
+    typeQuery,
+    earliestHint
+  }
+})
+
 const hasKpiData = computed(() => {
   const summary = dashboardSummary.value
   return Boolean(
@@ -170,6 +221,14 @@ const emptyMessage = computed(() => {
 
 const goTo = (path) => {
   if (path) router.push(path)
+}
+
+const goToTodayBookings = () => {
+  if (!todayInsight.value) return
+  router.push({
+    path: '/host/booking',
+    query: { view: 'list', status: 'confirmed', sort: 'checkin' }
+  })
 }
 
 const selectedTask = ref(null)
@@ -296,12 +355,32 @@ watch(selectedPeriod, () => {
       </div>
     </header>
 
+    <button
+      v-if="todayInsight"
+      class="insight-card host-card"
+      type="button"
+      aria-label="오늘 일정 요약"
+      @click="goToTodayBookings"
+    >
+      <div class="insight-main">
+        <span class="insight-icon" aria-hidden="true">🔔</span>
+        <div class="insight-text">
+          <div class="insight-title">{{ todayInsight.title }}</div>
+          <div class="insight-desc">{{ todayInsight.description }}</div>
+          <div v-if="todayInsight.earliestHint" class="insight-meta">{{ todayInsight.earliestHint }}</div>
+        </div>
+      </div>
+      <div class="insight-side">
+        <span class="insight-cta insight-cta-btn">예약 관리 &gt;</span>
+      </div>
+    </button>
+
     <section class="period-segment" role="tablist" aria-label="기간 선택">
       <button
         v-for="option in periodOptions"
         :key="option.value"
-        class="segment-btn"
-        :class="{ active: selectedPeriod === option.value }"
+        class="segment-btn host-chip"
+        :class="{ 'host-chip--active': selectedPeriod === option.value }"
         type="button"
         role="tab"
         :aria-selected="selectedPeriod === option.value"
@@ -369,7 +448,7 @@ watch(selectedPeriod, () => {
           <h3>오늘 일정</h3>
           <p class="task-date">{{ todayLabel }}</p>
         </div>
-        <span class="task-chip">
+        <span class="task-chip host-chip">
           <span class="task-chip-label">{{ scheduleCountLabel }}</span>
           <span class="task-chip-count">{{ filteredTasks.length }}건</span>
         </span>
@@ -379,8 +458,8 @@ watch(selectedPeriod, () => {
         <button
           v-for="filter in scheduleFilters"
           :key="filter.value"
-          class="filter-chip"
-          :class="{ active: selectedScheduleFilter === filter.value }"
+          class="filter-chip host-chip"
+          :class="{ 'host-chip--active': selectedScheduleFilter === filter.value }"
           type="button"
           @click="selectedScheduleFilter = filter.value"
         >
@@ -470,13 +549,13 @@ watch(selectedPeriod, () => {
 .view-header h2 {
   font-size: 1.7rem;
   font-weight: 800;
-  color: #0b3b32;
+  color: var(--brand-accent);
   margin: 0.25rem 0;
 }
 
 .eyebrow {
   font-size: 0.85rem;
-  color: #0f766e;
+  color: var(--brand-accent);
   font-weight: 700;
   margin: 0;
 }
@@ -486,12 +565,107 @@ watch(selectedPeriod, () => {
   margin: 0;
 }
 
+.insight-card {
+  width: 100%;
+  border: 1px solid var(--brand-primary-strong);
+  background: var(--brand-primary);
+  color: var(--text-default);
+  border-radius: 16px;
+  padding: 0.95rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
+  text-align: left;
+  min-height: 44px;
+}
+
+.insight-card:hover {
+  background: var(--brand-primary-strong);
+}
+
+.insight-card:focus-visible {
+  outline: 2px solid var(--brand-primary-strong);
+  outline-offset: 2px;
+}
+
+.insight-main {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+}
+
+.insight-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--brand-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex: 0 0 auto;
+}
+
+.insight-text {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.insight-title {
+  font-weight: 900;
+  color: var(--brand-accent);
+  font-size: 1rem;
+}
+
+.insight-desc {
+  font-weight: 700;
+  color: var(--text-default);
+  font-size: 0.9rem;
+}
+
+.insight-meta {
+  font-size: 0.85rem;
+  color: #475569;
+  font-weight: 700;
+}
+
+.insight-side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.insight-cta {
+  color: var(--brand-accent);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.insight-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.8rem;
+  min-width: 120px;
+  min-height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-primary-strong);
+  background: var(--surface);
+  color: var(--brand-accent);
+  font-weight: 800;
+}
+
 .status-card {
   width: 100%;
   padding: 1rem;
   border-radius: 12px;
-  border: 1px dashed #e5e7eb;
-  background: #f8fafc;
+  border: 1px dashed var(--brand-border);
+  background: var(--brand-bg);
   text-align: center;
   display: grid;
   gap: 0.5rem;
@@ -504,9 +678,9 @@ watch(selectedPeriod, () => {
 }
 
 .ghost-btn {
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--brand-border);
   background: white;
-  color: #0f766e;
+  color: var(--brand-accent);
   border-radius: 10px;
   padding: 0.55rem 0.9rem;
   font-weight: 800;
@@ -521,7 +695,7 @@ watch(selectedPeriod, () => {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: #f5f5f5;
+  background: var(--brand-bg);
   padding-top: 0.35rem;
   padding-bottom: 0.25rem;
   scroll-snap-type: x mandatory;
@@ -536,21 +710,12 @@ watch(selectedPeriod, () => {
 }
 
 .segment-btn {
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #475569;
   font-weight: 700;
   border-radius: 999px;
   padding: 0.45rem 0.85rem;
   font-size: 0.9rem;
   white-space: nowrap;
   scroll-snap-align: start;
-}
-
-.segment-btn.active {
-  border-color: #0f766e;
-  background: #0f766e;
-  color: #ffffff;
 }
 
 .kpi-grid {
@@ -632,24 +797,24 @@ watch(selectedPeriod, () => {
   height: 8px;
   border-radius: 50%;
   border: none;
-  background: #cbd5f5;
+  background: #cbd5e1;
   opacity: 0.6;
 }
 
 .kpi-dot.active {
-  background: #0f766e;
+  background: var(--brand-primary);
   opacity: 1;
 }
 
 .kpi-card:hover {
   transform: translateY(-2px) scale(1.01);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
-  border-color: #d1e9e3;
+  border-color: var(--brand-primary-strong);
 }
 
 .task-panel {
   background: white;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   border-radius: 16px;
   padding: 1.25rem 1.5rem;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
@@ -681,12 +846,9 @@ watch(selectedPeriod, () => {
   flex-direction: column;
   align-items: center;
   gap: 0.15rem;
-  background: #e0f2f1;
-  color: #0f766e;
   font-weight: 700;
   padding: 0.4rem 0.75rem;
   border-radius: 12px;
-  border: 1px solid #c0e6df;
   font-size: 0.85rem;
   line-height: 1.1;
   text-align: center;
@@ -709,20 +871,11 @@ watch(selectedPeriod, () => {
 }
 
 .filter-chip {
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #475569;
   font-weight: 700;
   border-radius: 999px;
   padding: 0.3rem 0.75rem;
   font-size: 0.85rem;
   white-space: nowrap;
-}
-
-.filter-chip.active {
-  border-color: #0f766e;
-  background: #0f766e;
-  color: #ffffff;
 }
 
 .task-list {
@@ -737,7 +890,7 @@ watch(selectedPeriod, () => {
 }
 
 .task-card {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   border-radius: 12px;
   padding: 1rem;
   background: #f9fafb;
@@ -760,8 +913,8 @@ watch(selectedPeriod, () => {
 }
 
 .pill-green {
-  background: #e0f2f1;
-  color: #0f766e;
+  background: var(--brand-primary);
+  color: var(--brand-accent);
 }
 
 .pill-gray {
@@ -802,9 +955,9 @@ watch(selectedPeriod, () => {
   gap: 0.35rem;
   padding: 0.3rem 0.6rem;
   border-radius: 999px;
-  border: 1px solid #d1e7e2;
-  background: #f0fcf9;
-  color: #0f766e;
+  border: 1px solid var(--brand-primary-strong);
+  background: var(--brand-primary);
+  color: var(--brand-accent);
   font-weight: 700;
   text-decoration: none;
 }
@@ -832,8 +985,8 @@ watch(selectedPeriod, () => {
 }
 
 .task-card:hover {
-  border-color: #0f766e;
-  background: #f0fcf9;
+  border-color: var(--brand-primary-strong);
+  background: var(--brand-primary);
   transform: translateY(-2px) scale(1.01);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.07);
 }
@@ -878,7 +1031,7 @@ watch(selectedPeriod, () => {
 
 .close-btn {
   border: none;
-  background: #f5f5f5;
+  background: var(--brand-bg);
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -971,6 +1124,31 @@ watch(selectedPeriod, () => {
 }
 
 @media (min-width: 1024px) {
+  .insight-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 16px 20px;
+    min-height: 72px;
+  }
+
+  .insight-main {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .insight-side {
+    width: auto;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .insight-cta-btn {
+    min-height: 40px;
+    padding: 0.4rem 0.95rem;
+  }
+
   .view-header h2 {
     font-size: 2rem;
   }
