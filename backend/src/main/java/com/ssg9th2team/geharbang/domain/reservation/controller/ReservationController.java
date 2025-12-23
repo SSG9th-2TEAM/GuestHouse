@@ -47,12 +47,21 @@ public class ReservationController {
     }
 
     /**
-     * 사용자별 예약 목록 조회
+     * 사용자별 예약 목록 조회 (URL 파라미터)
      */
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<ReservationResponseDto>> getReservationsByUser(
             @PathVariable Long userId) {
         List<ReservationResponseDto> responses = reservationService.getReservationsByUserId(userId);
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * 현재 로그인된 사용자의 예약 목록 조회 (토큰 기반)
+     */
+    @GetMapping("/my")
+    public ResponseEntity<List<ReservationResponseDto>> getMyReservations() {
+        List<ReservationResponseDto> responses = reservationService.getMyReservations();
         return ResponseEntity.ok(responses);
     }
 

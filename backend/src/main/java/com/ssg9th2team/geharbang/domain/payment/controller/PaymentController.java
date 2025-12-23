@@ -2,6 +2,7 @@ package com.ssg9th2team.geharbang.domain.payment.controller;
 
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentConfirmRequestDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentResponseDto;
+import com.ssg9th2team.geharbang.domain.payment.dto.RefundRequestDto;
 import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +32,29 @@ public class PaymentController {
     public ResponseEntity<PaymentResponseDto> getPaymentByOrderId(
             @PathVariable String orderId) {
         PaymentResponseDto response = paymentService.getPaymentByOrderId(orderId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 예약번호로 결제 조회
+     */
+    @GetMapping("/reservation/{reservationId}")
+    public ResponseEntity<PaymentResponseDto> getPaymentByReservationId(
+            @PathVariable Long reservationId) {
+        PaymentResponseDto response = paymentService.getPaymentByReservationId(reservationId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 결제 취소 (환불)
+     */
+    @PostMapping("/cancel")
+    public ResponseEntity<PaymentResponseDto> cancelPayment(
+            @RequestBody RefundRequestDto requestDto) {
+        PaymentResponseDto response = paymentService.cancelPayment(
+                requestDto.reservationId(),
+                requestDto.cancelReason(),
+                requestDto.refundAmount());
         return ResponseEntity.ok(response);
     }
 
