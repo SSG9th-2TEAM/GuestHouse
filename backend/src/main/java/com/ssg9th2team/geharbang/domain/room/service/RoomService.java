@@ -14,5 +14,9 @@ public interface RoomService {
     void updateRoom(Long accommodationsId, Long roomId, RoomUpdateDto updateDto);
 
     // 객실 삭제
+    // 객실 삭제
     void deleteRoom(Long accommodationsId, Long roomId);
+
+    // 객실 상세 조회
+    RoomResponseDto getRoom(Long accommodationsId, Long roomId);
 }

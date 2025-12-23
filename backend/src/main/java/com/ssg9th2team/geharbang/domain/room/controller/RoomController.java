@@ -60,4 +60,15 @@ public class RoomController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error: " + e.getMessage());
         }
     }
+
+    // 객실 상세 조회
+    @GetMapping("/{accommodationId}/{roomId}")
+    public ResponseEntity<?> getRoom(@PathVariable Long accommodationId,
+                                     @PathVariable Long roomId) {
+        try {
+            return ResponseEntity.ok(roomService.getRoom(accommodationId, roomId));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error: " + e.getMessage());
+        }
+    }
 }

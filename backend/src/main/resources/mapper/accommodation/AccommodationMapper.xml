@@ -12,6 +12,9 @@
         <collection property="amenities" column="accommodationsId" select="selectAmenitiesByAccommodationId"/>
         <collection property="themes" column="accommodationsId" select="selectThemesByAccommodationId"/>
         <collection property="rooms" column="accommodationsId" select="selectRoomsByAccommodationId"/>
+        <collection property="images" column="accommodationsId" select="selectImagesByAccommodationId"/>
+        <collection property="amenityIds" column="accommodationsId" select="selectAmenityIdsByAccommodationId"/>
+        <collection property="themeIds" column="accommodationsId" select="selectThemeIdsByAccommodationId"/>
     </resultMap>
 
 
@@ -118,19 +121,32 @@
 
 
     <!-- 숙소 수정 -->
-    <update id="updateAccommodation" parameterType="com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation">
+    <update id="updateAccommodation">
         UPDATE accommodation
         SET
-            accommodations_description = #{accommodationsDescription},
-            short_description = #{shortDescription},
-            transport_info = #{transportInfo},
-            accommodation_status = #{accommodationStatus},
-            parking_info = #{parkingInfo},
-            sns = #{sns},
-            phone = #{phone},
-            check_in_time = #{checkInTime},
-            check_out_time = #{checkOutTime}
+            accommodations_name = #{Accommodation.accommodationsName},
+            accommodations_description = #{Accommodation.accommodationsDescription},
+            short_description = #{Accommodation.shortDescription},
+            transport_info = #{Accommodation.transportInfo},
+            accommodation_status = #{Accommodation.accommodationStatus},
+            parking_info = #{Accommodation.parkingInfo},
+            sns = #{Accommodation.sns},
+            phone = #{Accommodation.phone},
+            check_in_time = #{Accommodation.checkInTime},
+            check_out_time = #{Accommodation.checkOutTime},
+            latitude = #{Accommodation.latitude},
+            longitude = #{Accommodation.longitude}
         WHERE accommodations_id = #{accommodationsId}
+    </update>
+
+    <!-- 정산계좌 수정 -->
+    <update id="updateAccountNumber">
+        UPDATE account_number
+        SET
+            bank_name = #{AccountNumberDto.bankName},
+            account_number = #{AccountNumberDto.accountNumber},
+            account_holder = #{AccountNumberDto.accountHolder}
+        WHERE account_number_id = #{accountNumberId}
     </update>
 
 
@@ -142,6 +158,11 @@
 
     <delete id="deleteAccommodationAmenities">
         DELETE FROM accommodation_amenity
+        WHERE accommodations_id = #{accommodationsId}
+    </delete>
+
+    <delete id="deleteAccommodationImages">
+        DELETE FROM accommodation_image
         WHERE accommodations_id = #{accommodationsId}
     </delete>
 
@@ -204,16 +225,45 @@
     <!-- 객실 리스트 조회 (Nested Select) -->
     <select id="selectRoomsByAccommodationId" resultType="com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto">
         SELECT
+            room_id AS roomId,
             room_name AS roomName,
             room_description AS roomDescription,
             max_guests AS maxGuests,
+            min_guests AS minGuests,
             price,
             weekend_price AS weekendPrice,
-            main_image_url AS mainImageUrl
+            main_image_url AS mainImageUrl,
+            bathroom_count AS bathroomCount,
+            bed_count AS bedCount,
+            room_status AS roomStatus
         FROM room
         WHERE accommodations_id = #{accommodationsId}
-          AND room_status = 1
         ORDER BY room_id
+    </select>
+
+    <!-- 이미지 조회 (Nested Select) -->
+    <select id="selectImagesByAccommodationId" resultType="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto">
+        SELECT
+            image_url AS imageUrl,
+            image_type AS imageType,
+            sort_order AS sortOrder
+        FROM accommodation_image
+        WHERE accommodations_id = #{accommodationsId}
+        ORDER BY sort_order
+    </select>
+
+    <!-- 편의시설 ID 조회 (Nested Select) -->
+    <select id="selectAmenityIdsByAccommodationId" resultType="long">
+        SELECT amenity_id
+        FROM accommodation_amenity
+        WHERE accommodations_id = #{accommodationsId}
+    </select>
+
+    <!-- 테마 ID 조회 (Nested Select) -->
+    <select id="selectThemeIdsByAccommodationId" resultType="long">
+        SELECT theme_id
+        FROM accommodation_theme
+        WHERE accommodations_id = #{accommodationsId}
     </select>
 
     <!-- Host 숙소 목록 -->
@@ -252,7 +302,9 @@
             a.district,
             a.township,
             a.address_detail,
-            a.min_price
+            a.address_detail,
+            a.min_price,
+            a.created_at
         ORDER BY a.created_at DESC
     </select>
 
