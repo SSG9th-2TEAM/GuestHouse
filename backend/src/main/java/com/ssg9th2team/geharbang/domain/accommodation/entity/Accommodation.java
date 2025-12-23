@@ -96,6 +96,12 @@ public class Accommodation {
     @Column(name = "min_price")
     private Integer minPrice;
 
+    @Column(name = "rating")
+    private Integer rating;
+
+    @Column(name = "review_count")
+    private Integer reviewCount;
+
     // 생성 시 기본값 세팅
     @PrePersist
     public void prePersist() {

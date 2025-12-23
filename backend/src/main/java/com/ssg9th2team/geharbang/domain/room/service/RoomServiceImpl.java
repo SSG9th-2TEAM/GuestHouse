@@ -82,5 +82,11 @@ public class RoomServiceImpl implements RoomService {
         // 객실 삭제 후 숙소의 최소 가격 업데이트
         accommodationMapper.updateMinPrice(accommodationsId);
     }
+
+    // 객실 상세 조회
+    @Override
+    public RoomResponseDto getRoom(Long accommodationsId, Long roomId) {
+        return roomMapper.selectRoomById(accommodationsId, roomId);
+    }
 }
    
