@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { fetchHostBookings, fetchHostBookingCalendar } from '@/api/hostBooking'
 import { formatCurrency, formatDate, formatDateRange, formatDateTime } from '@/utils/formatters'
 
@@ -21,7 +22,11 @@ const paymentBadge = {
   3: '환불 완료'
 }
 
-const activeTab = ref('list')
+const route = useRoute()
+const router = useRouter()
+const activeTab = computed(() => {
+  return route.query.view === 'calendar' ? 'calendar' : 'list'
+})
 const selectedDate = ref(null)
 const selectedBooking = ref(null)
 const showModal = ref(false)
@@ -190,6 +195,26 @@ const normalizeBooking = (item) => ({
   createdAt: item.createdAt ?? item.created_at ?? ''
 })
 
+const normalizeSortQuery = (value) => {
+  const normalized = String(value ?? '').toLowerCase()
+  if (normalized === 'checkinsoon' || normalized === 'checkin') return 'checkin'
+  if (normalized === 'checkoutsoon' || normalized === 'checkout') return 'checkout'
+  if (normalized === 'latest') return 'latest'
+  return null
+}
+
+const normalizeStatusQuery = (value) => {
+  const normalized = String(value ?? '').toLowerCase()
+  if (!normalized) return null
+  const matched = statusFilters.find((item) => item.value === normalized)
+  if (matched) return matched.value
+  if (normalized.includes('confirm')) return 'confirmed'
+  if (normalized.includes('checkin')) return 'checkin'
+  if (normalized.includes('cancel')) return 'canceled'
+  if (normalized.includes('request') || normalized.includes('pending')) return 'pending'
+  return null
+}
+
 const filteredBookings = computed(() => {
   const base = bookings.value.filter((booking) => booking.reservationStatus !== 0)
   const filter = statusFilters.find((item) => item.value === selectedStatus.value)
@@ -253,6 +278,47 @@ watch(currentMonth, (value) => {
   selectedDate.value = null
   loadCalendar(toMonthParam(value))
 })
+
+watch(
+  () => route.query,
+  (query) => {
+    if (!query.view) {
+      router.replace({ query: { ...query, view: 'list' } })
+      return
+    }
+    const sort = normalizeSortQuery(query.sort)
+    if (sort) selectedSort.value = sort
+    const status = normalizeStatusQuery(query.status)
+    if (status) selectedStatus.value = status
+  },
+  { immediate: true }
+)
+
+const syncQuery = (next) => {
+  const current = route.query
+  const normalized = {
+    ...current,
+    ...next
+  }
+  const keys = Object.keys(normalized)
+  const isSame = keys.every((key) => String(normalized[key] ?? '') === String(current[key] ?? ''))
+  if (!isSame) {
+    router.replace({ query: normalized })
+  }
+}
+
+watch(selectedStatus, (value) => {
+  syncQuery({ status: value })
+})
+
+watch(selectedSort, (value) => {
+  syncQuery({ sort: value })
+})
+
+const setView = (view) => {
+  if (view === activeTab.value) return
+  router.replace({ query: { ...route.query, view } })
+}
 </script>
 
 <template>
@@ -263,9 +329,29 @@ watch(currentMonth, (value) => {
         <p class="subtitle">총 {{ filteredBookings.length }}건 · {{ sortOptions.find(item => item.value === selectedSort)?.label }}</p>
       </div>
 
-      <div class="tab-switch">
-        <button class="tab-btn" :class="{ active: activeTab === 'list' }" @click="activeTab = 'list'">목록</button>
-        <button class="tab-btn" :class="{ active: activeTab === 'calendar' }" @click="activeTab = 'calendar'">캘린더</button>
+      <div class="tab-switch" role="tablist" aria-label="예약 보기 전환">
+        <button
+          class="tab-btn host-chip"
+          :class="{ 'host-chip--active': activeTab === 'list' }"
+          role="tab"
+          :aria-selected="activeTab === 'list'"
+          :aria-pressed="activeTab === 'list'"
+          type="button"
+          @click="setView('list')"
+        >
+          목록
+        </button>
+        <button
+          class="tab-btn host-chip"
+          :class="{ 'host-chip--active': activeTab === 'calendar' }"
+          role="tab"
+          :aria-selected="activeTab === 'calendar'"
+          :aria-pressed="activeTab === 'calendar'"
+          type="button"
+          @click="setView('calendar')"
+        >
+          캘린더
+        </button>
       </div>
     </header>
 
@@ -275,8 +361,8 @@ watch(currentMonth, (value) => {
           <button
             v-for="filter in statusFilters"
             :key="filter.value"
-            class="filter-chip"
-            :class="{ active: selectedStatus === filter.value }"
+            class="filter-chip host-chip"
+            :class="{ 'host-chip--active': selectedStatus === filter.value }"
             type="button"
             @click="selectedStatus = filter.value"
           >
@@ -370,9 +456,16 @@ watch(currentMonth, (value) => {
               'has-booking': !cell.empty && cell.count
             }"
             @click="!cell.empty && (selectedDate = cell.day)"
+            @keydown.enter="!cell.empty && (selectedDate = cell.day)"
+            @keydown.space.prevent="!cell.empty && (selectedDate = cell.day)"
+            :role="cell.empty ? undefined : 'button'"
+            :tabindex="cell.empty ? -1 : 0"
           >
             <span v-if="!cell.empty" class="day">{{ cell.day }}</span>
-            <span v-if="!cell.empty && cell.count" class="count-chip">{{ cell.count }}건</span>
+            <span v-if="!cell.empty && cell.count" class="count-chip">
+              <span class="count-number">{{ cell.count }}</span>
+              <span class="count-unit">건</span>
+            </span>
           </div>
         </div>
       </div>
@@ -453,7 +546,7 @@ watch(currentMonth, (value) => {
   margin: 0.15rem 0 0.2rem;
   font-size: 1.7rem;
   font-weight: 800;
-  color: var(--host-title, #0b3b32);
+  color: var(--brand-accent);
   letter-spacing: -0.01em;
 }
 
@@ -479,9 +572,6 @@ watch(currentMonth, (value) => {
 }
 
 .filter-chip {
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #475569;
   font-weight: 800;
   border-radius: 999px;
   padding: 0.4rem 0.85rem;
@@ -490,14 +580,8 @@ watch(currentMonth, (value) => {
   white-space: nowrap;
 }
 
-.filter-chip.active {
-  border-color: var(--host-accent, #0f766e);
-  background: var(--host-accent, #0f766e);
-  color: #ffffff;
-}
-
 .sort-select {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--brand-border);
   border-radius: 12px;
   padding: 0.5rem 0.8rem;
   font-weight: 700;
@@ -509,9 +593,10 @@ watch(currentMonth, (value) => {
 .tab-switch {
   display: inline-flex;
   width: 100%;
-  background: #eef2f3;
-  border-radius: 12px;
-  padding: 0.15rem;
+  background: var(--surface);
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  padding: 0.2rem;
   white-space: nowrap;
 }
 
@@ -520,15 +605,22 @@ watch(currentMonth, (value) => {
   border: none;
   background: transparent;
   padding: 0.6rem 0.9rem;
-  border-radius: 10px;
-  font-weight: 900;
-  color: #4b5563;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #334155;
+  min-height: 44px;
 }
 
-.tab-btn.active {
-  background: white;
-  color: var(--host-accent, #0f766e);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+.tab-btn.host-chip--active {
+  background: var(--brand-primary, #BFE7DF);
+  color: #0f172a;
+  border: 1px solid var(--brand-primary-strong, #0f766e);
+}
+
+.tab-btn.host-chip--active:hover,
+.tab-btn.host-chip--active:focus-visible {
+  background: var(--brand-primary-strong, #0f766e);
+  color: #0f172a;
 }
 
 .mobile-cards {
@@ -608,9 +700,9 @@ watch(currentMonth, (value) => {
 
 .ghost-btn {
   width: 100%;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--brand-border);
   background: transparent;
-  color: var(--host-accent, #0f766e);
+  color: var(--brand-accent);
   border-radius: 10px;
   padding: 0.6rem;
   font-weight: 900;
@@ -665,9 +757,9 @@ td { color: #111827; }
 }
 
 .badge-green {
-  background: #e0f2f1;
-  color: var(--host-accent, #0f766e);
-  border-color: #c0e6df;
+  background: var(--brand-primary);
+  color: var(--brand-accent);
+  border-color: var(--brand-primary-strong);
 }
 
 .badge-gray {
@@ -745,7 +837,7 @@ td { color: #111827; }
   min-height: 68px;
   border: 1px solid var(--border, #e5e7eb);
   border-radius: 10px;
-  padding: 0.4rem;
+  padding: 0.4rem 0.4rem 1.2rem;
   position: relative;
   background: #f9fafb;
   cursor: pointer;
@@ -754,13 +846,29 @@ td { color: #111827; }
 .cell.empty { background: transparent; border: none; cursor: default; }
 
 .cell.selected {
-  border-color: var(--host-accent, #0f766e);
-  background: #e0f2f1;
+  border-color: var(--brand-600);
+  background: var(--brand-primary);
 }
 
 .cell.has-booking {
-  border-color: #bfe7df;
-  background: #f6fffb;
+  border: 2px solid var(--brand-primary-strong, #0f766e);
+  box-shadow: inset 0 0 0 1px var(--brand-primary-strong, #0f766e);
+  background: var(--brand-200);
+}
+
+.cell.selected.has-booking {
+  background: var(--brand-primary);
+}
+
+.cell.has-booking:hover,
+.cell.has-booking:focus-visible {
+  border-color: var(--brand-primary-strong, #0f766e);
+  background: var(--brand-primary);
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--brand-primary-strong, #0f766e);
+  outline-offset: 2px;
 }
 
 .day { font-weight: 900; color: #111827; }
@@ -773,15 +881,37 @@ td { color: #111827; }
 
 .count-chip {
   position: absolute;
-  left: 0.35rem;
+  right: 0.35rem;
   bottom: 0.3rem;
-  border: 1px solid #bfe7df;
-  color: #0f766e;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  line-height: 1;
+  border: 1px solid var(--brand-primary-strong, #0f766e);
+  color: var(--brand-accent);
   background: #fff;
   border-radius: 999px;
-  padding: 0.05rem 0.35rem;
-  font-size: 0.72rem;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.68rem;
+  min-width: 30px;
+  justify-content: center;
   font-weight: 800;
+}
+
+.count-number {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 420px) {
+  .count-unit {
+    display: none;
+  }
+
+  .count-chip {
+    min-width: 22px;
+    padding: 0.08rem 0.25rem;
+  }
 }
 
 .date-panel h4 {
@@ -804,7 +934,7 @@ td { color: #111827; }
   cursor: pointer;
 }
 
-.date-card:hover { border-color: var(--host-accent, #0f766e); }
+.date-card:hover { border-color: var(--brand-primary-strong); }
 
 .date-card h5 {
   margin: 0.1rem 0 0;

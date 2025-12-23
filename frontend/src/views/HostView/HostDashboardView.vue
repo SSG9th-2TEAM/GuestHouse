@@ -20,10 +20,18 @@ const tabs = [
 
 const activeTab = computed(() => {
   const path = route.path
-  if (path.includes('/host/accommodation')) return 'property'
-  if (path.includes('/host/booking')) return 'booking'
-  if (path.includes('/host/revenue')) return 'revenue'
-  if (path.includes('/host/review')) return 'review'
+  if (path === '/host') return 'dashboard'
+  if (
+    path === '/host/accommodation' ||
+    path.startsWith('/host/accommodation/') ||
+    path === '/host/accmmodation' ||
+    path.startsWith('/host/accmmodation/')
+  ) {
+    return 'property'
+  }
+  if (path === '/host/booking' || path.startsWith('/host/booking/')) return 'booking'
+  if (path === '/host/revenue' || path.startsWith('/host/revenue/')) return 'revenue'
+  if (path === '/host/review' || path.startsWith('/host/review/')) return 'review'
   return 'dashboard'
 })
 
@@ -35,7 +43,7 @@ const setTab = (path) => router.push(path)
     <!-- Desktop top navigation -->
     <header class="top-nav">
       <div class="top-nav__inner">
-        <div class="brand">Host Center</div>
+        <router-link class="brand" to="/host">Host Center</router-link>
         <nav class="top-menu">
           <button
               v-for="tab in tabs"
@@ -75,7 +83,7 @@ const setTab = (path) => router.push(path)
 /* ✅ merge-safe: 이 파일 내부에서만 하단 네비 토큰 관리 */
 .host-dashboard {
   min-height: 100vh;
-  background: #f5f5f5;
+  background: var(--brand-bg);
 
   /* 하단 네비 사이즈 토큰(모바일 퍼스트) */
   --bn-h: 56px;      /* bar base height(패딩 제외) */
@@ -96,8 +104,8 @@ const setTab = (path) => router.push(path)
   position: sticky;
   top: 0;
   z-index: 20;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--bg-white);
+  border-bottom: 1px solid var(--brand-border);
   display: none; /* 기본 숨김 */
 }
 
@@ -114,8 +122,9 @@ const setTab = (path) => router.push(path)
 .brand {
   font-weight: 800;
   font-size: 1rem;
-  color: #0f766e;
+  color: var(--brand-accent);
   letter-spacing: -0.01em;
+  text-decoration: none;
 }
 
 .top-menu {
@@ -128,20 +137,20 @@ const setTab = (path) => router.push(path)
   background: transparent;
   padding: 0.5rem 0.9rem;
   border-radius: 999px;
-  color: #4b5563;
+  color: var(--text-default);
   font-weight: 800;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .top-menu__item:hover {
-  background: #e0f2f1;
-  color: #0f766e;
+  background: var(--brand-primary);
+  color: var(--brand-accent);
 }
 
 .top-menu__item.active {
-  background: #0f766e;
-  color: white;
+  background: var(--brand-primary);
+  color: var(--brand-accent);
 }
 
 /* ===================
@@ -162,8 +171,8 @@ const setTab = (path) => router.push(path)
   right: 0;
   bottom: 0;
 
-  background: #ffffff;
-  border-top: 1px solid #e5e7eb;
+  background: var(--bg-white);
+  border-top: 1px solid var(--brand-border);
 
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -182,7 +191,7 @@ const setTab = (path) => router.push(path)
   background: none;
   border: none;
   text-align: center;
-  color: #111827;
+  color: var(--text-default);
   font-weight: 800;
 
   display: flex;
@@ -193,7 +202,9 @@ const setTab = (path) => router.push(path)
 }
 
 .nav-item.active {
-  color: #BFE7DF;
+  background: var(--brand-primary);
+  color: var(--brand-accent);
+  border-radius: 12px;
 }
 
 .nav-icon {
