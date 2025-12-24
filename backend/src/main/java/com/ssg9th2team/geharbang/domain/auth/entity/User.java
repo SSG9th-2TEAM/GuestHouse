@@ -35,7 +35,7 @@ public class User {
     @Column(nullable = false, length = 50)
     private String phone;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = UserRoleConverter.class)
     @Column(nullable = false, length = 20)
     private UserRole role;
 

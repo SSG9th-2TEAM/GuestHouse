@@ -2,6 +2,9 @@
 import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
 import {fetchHostDashboardSummary, fetchHostTodaySchedule} from '@/api/hostDashboard'
+import { fetchHostAccommodations } from '@/api/hostAccommodation'
+import { getUserInfo } from '@/api/authClient'
+import NavStay from '@/components/nav-icons/NavStay.vue'
 import { formatCurrency, formatDate, formatNumber, formatShortTime } from '@/utils/formatters'
 
 const router = useRouter()
@@ -15,6 +18,11 @@ const dashboardSummary = ref({
 })
 
 const todaySchedule = ref([])
+const accommodations = ref([])
+const accommodationsLoading = ref(false)
+const accommodationsError = ref('')
+const hostAccessDenied = ref(false)
+const userInfo = ref(getUserInfo())
 
 const todayLabel = ref('')
 const isLoading = ref(false)
@@ -219,6 +227,58 @@ const emptyMessage = computed(() => {
     : '선택한 조건의 일정이 없습니다.'
 })
 
+const normalizeApprovalStatus = (status) => {
+  if (status === null || status === undefined) return 'unknown'
+  const value = String(status).trim().toLowerCase()
+  if (value === 'approved' || value === 'approve') return 'approved'
+  if (value === 'pending' || value === 'inspection' || value === 'review') return 'pending'
+  if (value === 'rejected' || value === 'reject' || value === 'denied') return 'rejected'
+  if (value === '1' || value === 'true') return 'approved'
+  if (value === '2') return 'pending'
+  if (value === '3' || value === '0') return 'rejected'
+  return 'unknown'
+}
+
+const normalizeAccommodation = (item) => {
+  const statusSource = item.approvalStatus ?? item.status ?? item.accommodationStatus ?? item.reviewStatus
+  return {
+    id: item.accommodationsId ?? item.accommodationId ?? item.id ?? `${item.name ?? 'acc'}-${Math.random()}`,
+    name: item.accommodationsName ?? item.name ?? '',
+    approvalStatus: normalizeApprovalStatus(statusSource),
+    rejectReason: item.rejectReason ?? item.rejectionReason ?? item.approvalReason ?? item.reason ?? ''
+  }
+}
+
+const approvedCount = computed(() =>
+  accommodations.value.filter((item) => item.approvalStatus === 'approved').length
+)
+
+const rejectedItem = computed(() =>
+  accommodations.value.find((item) => item.approvalStatus === 'rejected')
+)
+
+const rejectedReasonText = computed(() => {
+  const reason = rejectedItem.value?.rejectReason
+  return reason ? `반려 사유: ${reason}` : '등록 정보를 확인 후 수정해 주세요.'
+})
+
+const hostState = computed(() => {
+  if (accommodationsLoading.value) return 'loading'
+  if (hostAccessDenied.value) return 'empty'
+  if (!accommodations.value.length) return 'empty'
+  if (approvedCount.value > 0) return 'approved'
+  if (rejectedItem.value) return 'rejected'
+  return 'pending'
+})
+
+const goToRegister = () => router.push('/host/accommodation/register')
+const goToManage = () => router.push('/host/accommodation')
+
+const syncNavVisibility = (state) => {
+  if (typeof document === 'undefined') return
+  document.body.classList.toggle('host-nav-locked', state === 'empty' || state === 'pending' || state === 'rejected')
+}
+
 const goTo = (path) => {
   if (path) router.push(path)
 }
@@ -301,6 +361,7 @@ const scrollToKpi = (index) => {
 const buildSummaryParams = () => ({ range: selectedPeriod.value })
 
 const loadDashboard = async () => {
+  if (hostAccessDenied.value) return
   isLoading.value = true
   summaryError.value = ''
   scheduleError.value = ''
@@ -311,6 +372,12 @@ const loadDashboard = async () => {
     fetchHostDashboardSummary(buildSummaryParams()),
     fetchHostTodaySchedule({date: today.toISOString().slice(0, 10)})
   ])
+
+  if (summaryRes.status === 403 || scheduleRes.status === 403) {
+    hostAccessDenied.value = true
+    isLoading.value = false
+    return
+  }
 
   if (summaryRes.ok && summaryRes.data) {
     dashboardSummary.value = summaryRes.data
@@ -328,10 +395,37 @@ const loadDashboard = async () => {
   runKpiCountUp()
 }
 
-onMounted(() => {
+const loadAccommodations = async () => {
+  accommodationsLoading.value = true
+  accommodationsError.value = ''
+  const response = await fetchHostAccommodations()
+  if (response.ok) {
+    const payload = response.data
+    const list = Array.isArray(payload)
+      ? payload
+      : payload?.items ?? payload?.content ?? payload?.data ?? []
+    accommodations.value = list.map(normalizeAccommodation)
+  } else if (response.status === 403) {
+    hostAccessDenied.value = true
+    accommodations.value = []
+  } else {
+    accommodationsError.value = '숙소 상태를 불러오지 못했습니다.'
+  }
+  accommodationsLoading.value = false
+}
+
+onMounted(async () => {
   prefersReducedMotion.value = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-  loadDashboard()
-  setupKpiIndicator()
+  const role = userInfo.value?.role ?? ''
+  if (typeof role === 'string' && role.includes('HOST')) {
+    await loadAccommodations()
+    if (!hostAccessDenied.value) {
+      loadDashboard()
+      setupKpiIndicator()
+    }
+  } else {
+    hostAccessDenied.value = true
+  }
 })
 
 onUnmounted(() => {
@@ -341,6 +435,10 @@ onUnmounted(() => {
   }
 })
 
+watch(hostState, (value) => {
+  syncNavVisibility(value)
+}, { immediate: true })
+
 watch(selectedPeriod, () => {
   loadDashboard()
 })
@@ -348,172 +446,216 @@ watch(selectedPeriod, () => {
 
 <template>
   <div class="dashboard-home">
-    <header class="view-header">
-      <div>
-        <h2>대시보드</h2>
-        <p class="subtitle">{{ periodLabel }} 기준 운영 현황을 빠르게 확인하세요.</p>
-      </div>
-    </header>
-
-    <button
-      v-if="todayInsight"
-      class="insight-card host-card"
-      type="button"
-      aria-label="오늘 일정 요약"
-      @click="goToTodayBookings"
-    >
-      <div class="insight-main">
-        <span class="insight-icon" aria-hidden="true">🔔</span>
-        <div class="insight-text">
-          <div class="insight-title">{{ todayInsight.title }}</div>
-          <div class="insight-desc">{{ todayInsight.description }}</div>
-          <div v-if="todayInsight.earliestHint" class="insight-meta">{{ todayInsight.earliestHint }}</div>
+    <section v-if="hostState !== 'approved'" class="host-state">
+      <div class="state-card host-card">
+        <div class="state-icon">
+          <NavStay />
+        </div>
+        <div class="state-text">
+          <h3 v-if="hostState === 'empty'">숙소를 등록하세요!</h3>
+          <h3 v-else-if="hostState === 'pending'">숙소 심사중이에요</h3>
+          <h3 v-else-if="hostState === 'rejected'">숙소 심사가 반려되었어요</h3>
+          <h3 v-else>숙소 상태를 확인 중이에요</h3>
+          <p v-if="hostState === 'empty'">숙소를 등록하면 예약/매출뿐 아니라 리뷰, 일정, 통계까지 한 곳에서 관리할 수 있어요.</p>
+          <p v-else-if="hostState === 'pending'">
+            등록하신 숙소를 확인하고 있어요. 평균 영업일 1~2일 내에 결과를 안내합니다.
+          </p>
+          <p v-else-if="hostState === 'rejected'">
+            {{ rejectedReasonText }}
+          </p>
+          <p v-else-if="accommodationsError">{{ accommodationsError }}</p>
+        </div>
+        <div class="state-actions">
+          <button
+            v-if="hostState === 'empty'"
+            class="state-btn primary"
+            type="button"
+            @click="goToRegister"
+          >
+            숙소 등록하기
+          </button>
+          <template v-else>
+            <button class="state-btn" type="button" @click="goToManage">숙소 관리</button>
+            <button
+              class="state-btn primary"
+              type="button"
+              @click="goToManage"
+            >
+              {{ hostState === 'rejected' ? '수정 후 재제출' : '등록 정보 확인/수정' }}
+            </button>
+          </template>
         </div>
       </div>
-      <div class="insight-side">
-        <span class="insight-cta insight-cta-btn">예약 관리 &gt;</span>
-      </div>
-    </button>
-
-    <section class="period-segment" role="tablist" aria-label="기간 선택">
-      <button
-        v-for="option in periodOptions"
-        :key="option.value"
-        class="segment-btn host-chip"
-        :class="{ 'host-chip--active': selectedPeriod === option.value }"
-        type="button"
-        role="tab"
-        :aria-selected="selectedPeriod === option.value"
-        @click="selectedPeriod = option.value"
-      >
-        {{ option.label }}
-      </button>
     </section>
 
-    <!-- KPI grid -->
-    <section class="kpi-grid" ref="kpiGridRef" :class="{ 'fade-section': !isLoading }">
-      <div v-if="isLoading" class="kpi-skeleton">
-        <div v-for="i in 3" :key="i" class="skeleton-card" />
-      </div>
-      <div v-else-if="summaryError" class="status-card">
-        <p>데이터를 불러오지 못했어요.</p>
-        <button class="ghost-btn" type="button" @click="loadDashboard">다시 시도</button>
-      </div>
-      <div v-else-if="!hasKpiData" class="status-card">
-        <p>선택한 기간에 확정 매출이 없습니다.</p>
-        <button class="ghost-btn" type="button" @click="selectedPeriod = 'month'">기간 변경</button>
-      </div>
-      <article
-          v-for="item in kpis"
-          :key="item.label"
-          class="kpi-card"
-          :class="{ 'fade-item': !isLoading }"
-          :style="{ animationDelay: `${Math.min(kpis.indexOf(item), 5) * 60}ms` }"
-          role="button"
-          tabindex="0"
-          @click="goTo(item.target)"
-          @keypress.enter="goTo(item.target)"
-      >
-        <div class="kpi-top">
-          <p class="kpi-label">{{ item.label }}</p>
-        </div>
-        <p class="kpi-value">
-          <span v-if="item.total !== undefined">
-            <span v-if="item.total > 0">운영중 {{ item.value }} / 전체 {{ item.total }}</span>
-            <span v-else>운영중 {{ item.value }}</span>
-          </span>
-          <span v-else>{{ formatKpiValue(item.value, item.unit) }}</span>
-        </p>
-        <div class="kpi-delta" :class="{ hidden: !item.delta }">
-          <span v-if="item.delta">{{ item.delta }}</span>
-        </div>
-      </article>
-    </section>
-
-    <div class="kpi-indicator" aria-hidden="true">
-      <button
-        v-for="(_, index) in kpis"
-        :key="index"
-        class="kpi-dot"
-        :class="{ active: index === activeKpiIndex }"
-        type="button"
-        @click="scrollToKpi(index)"
-      />
-    </div>
-
-    <!-- Today tasks -->
-    <section class="task-panel" :class="{ 'fade-section': !isLoading }">
-      <div class="task-head">
+    <template v-else>
+      <header class="view-header">
         <div>
-          <h3>오늘 일정</h3>
-          <p class="task-date">{{ todayLabel }}</p>
+          <h2>대시보드</h2>
+          <p class="subtitle">{{ periodLabel }} 기준 운영 현황을 빠르게 확인하세요.</p>
         </div>
-        <span class="task-chip host-chip">
-          <span class="task-chip-label">{{ scheduleCountLabel }}</span>
-          <span class="task-chip-count">{{ filteredTasks.length }}건</span>
-        </span>
-      </div>
+      </header>
 
-      <div class="task-filters">
+      <button
+        v-if="todayInsight"
+        class="insight-card host-card"
+        type="button"
+        aria-label="오늘 일정 요약"
+        @click="goToTodayBookings"
+      >
+        <div class="insight-main">
+          <span class="insight-icon" aria-hidden="true">🔔</span>
+          <div class="insight-text">
+            <div class="insight-title">{{ todayInsight.title }}</div>
+            <div class="insight-desc">{{ todayInsight.description }}</div>
+            <div v-if="todayInsight.earliestHint" class="insight-meta">{{ todayInsight.earliestHint }}</div>
+          </div>
+        </div>
+        <div class="insight-side">
+          <span class="insight-cta insight-cta-btn">예약 관리 &gt;</span>
+        </div>
+      </button>
+
+      <section class="period-segment" role="tablist" aria-label="기간 선택">
         <button
-          v-for="filter in scheduleFilters"
-          :key="filter.value"
-          class="filter-chip host-chip"
-          :class="{ 'host-chip--active': selectedScheduleFilter === filter.value }"
+          v-for="option in periodOptions"
+          :key="option.value"
+          class="segment-btn host-chip"
+          :class="{ 'host-chip--active': selectedPeriod === option.value }"
           type="button"
-          @click="selectedScheduleFilter = filter.value"
+          role="tab"
+          :aria-selected="selectedPeriod === option.value"
+          @click="selectedPeriod = option.value"
         >
-          {{ filter.label }}
+          {{ option.label }}
         </button>
-      </div>
+      </section>
 
-      <div class="task-list">
-        <div v-if="isLoading" class="task-skeleton">
-          <div v-for="i in 4" :key="i" class="skeleton-card" />
+      <!-- KPI grid -->
+      <section class="kpi-grid" ref="kpiGridRef" :class="{ 'fade-section': !isLoading }">
+        <div v-if="isLoading" class="kpi-skeleton">
+          <div v-for="i in 3" :key="i" class="skeleton-card" />
         </div>
-        <div v-else-if="scheduleError" class="status-card">
+        <div v-else-if="summaryError" class="status-card">
           <p>데이터를 불러오지 못했어요.</p>
           <button class="ghost-btn" type="button" @click="loadDashboard">다시 시도</button>
         </div>
-        <div v-for="(task, index) in filteredTasks" :key="task.id" class="task-card" :class="{ 'fade-item': !isLoading }"
-             :style="{ animationDelay: `${Math.min(index, 5) * 70}ms` }"
-             role="button" tabindex="0" @click="openTask(task)"
-             @keypress.enter="openTask(task)">
-          <div class="task-row">
-            <span class="pill" :class="task.type === 'checkin' ? 'pill-green' : 'pill-gray'">
-              {{ task.type === 'checkin' ? '체크인' : '체크아웃' }}
-            </span>
-            <span class="time">{{ task.displayTime }}</span>
-          </div>
-          <p class="accommodation">{{ task.accommodation }}</p>
-          <p class="guest">{{ task.guest }} 님</p>
-          <div class="task-actions">
-            <a
-              v-if="task.phone"
-              class="call-btn"
-              :href="`tel:${task.phone}`"
-              @click.stop
-              aria-label="게스트 전화"
-            >
-              <span class="call-icon">☎</span>
-              <span>전화</span>
-            </a>
-            <span class="detail-hint">
-              예약 상세
-              <span class="chevron">›</span>
-            </span>
-          </div>
-          <p v-if="task.memo" class="memo">📝 {{ task.memo }}</p>
+        <div v-else-if="!hasKpiData" class="status-card">
+          <p>선택한 기간에 확정 매출이 없습니다.</p>
+          <button class="ghost-btn" type="button" @click="selectedPeriod = 'month'">기간 변경</button>
         </div>
+        <article
+            v-for="item in kpis"
+            :key="item.label"
+            class="kpi-card"
+            :class="{ 'fade-item': !isLoading }"
+            :style="{ animationDelay: `${Math.min(kpis.indexOf(item), 5) * 60}ms` }"
+            role="button"
+            tabindex="0"
+            @click="goTo(item.target)"
+            @keypress.enter="goTo(item.target)"
+        >
+          <div class="kpi-top">
+            <p class="kpi-label">{{ item.label }}</p>
+          </div>
+          <p class="kpi-value">
+            <span v-if="item.total !== undefined">
+              <span v-if="item.total > 0">운영중 {{ item.value }} / 전체 {{ item.total }}</span>
+              <span v-else>운영중 {{ item.value }}</span>
+            </span>
+            <span v-else>{{ formatKpiValue(item.value, item.unit) }}</span>
+          </p>
+          <div class="kpi-delta" :class="{ hidden: !item.delta }">
+            <span v-if="item.delta">{{ item.delta }}</span>
+          </div>
+        </article>
+      </section>
+
+      <div class="kpi-indicator" aria-hidden="true">
+        <button
+          v-for="(_, index) in kpis"
+          :key="index"
+          class="kpi-dot"
+          :class="{ active: index === activeKpiIndex }"
+          type="button"
+          @click="scrollToKpi(index)"
+        />
       </div>
 
-      <div v-if="!filteredTasks.length && !isLoading && !scheduleError" class="status-card">
-        <p>{{ emptyMessage }}</p>
-        <button class="ghost-btn" type="button" @click="goTo('/host/booking')">목록 보기</button>
-      </div>
-      <p v-else-if="isLoading" class="empty">일정을 불러오는 중입니다.</p>
-      <p v-else-if="hasMemo" class="footnote">메모가 있는 일정은 📝 로 표시됩니다.</p>
-    </section>
+      <!-- Today tasks -->
+      <section class="task-panel" :class="{ 'fade-section': !isLoading }">
+        <div class="task-head">
+          <div>
+            <h3>오늘 일정</h3>
+            <p class="task-date">{{ todayLabel }}</p>
+          </div>
+          <span class="task-chip host-chip">
+            <span class="task-chip-label">{{ scheduleCountLabel }}</span>
+            <span class="task-chip-count">{{ filteredTasks.length }}건</span>
+          </span>
+        </div>
+
+        <div class="task-filters">
+          <button
+            v-for="filter in scheduleFilters"
+            :key="filter.value"
+            class="filter-chip host-chip"
+            :class="{ 'host-chip--active': selectedScheduleFilter === filter.value }"
+            type="button"
+            @click="selectedScheduleFilter = filter.value"
+          >
+            {{ filter.label }}
+          </button>
+        </div>
+
+        <div class="task-list">
+          <div v-if="isLoading" class="task-skeleton">
+            <div v-for="i in 4" :key="i" class="skeleton-card" />
+          </div>
+          <div v-else-if="scheduleError" class="status-card">
+            <p>데이터를 불러오지 못했어요.</p>
+            <button class="ghost-btn" type="button" @click="loadDashboard">다시 시도</button>
+          </div>
+          <div v-for="(task, index) in filteredTasks" :key="task.id" class="task-card" :class="{ 'fade-item': !isLoading }"
+               :style="{ animationDelay: `${Math.min(index, 5) * 70}ms` }"
+               role="button" tabindex="0" @click="openTask(task)"
+               @keypress.enter="openTask(task)">
+            <div class="task-row">
+              <span class="pill" :class="task.type === 'checkin' ? 'pill-green' : 'pill-gray'">
+                {{ task.type === 'checkin' ? '체크인' : '체크아웃' }}
+              </span>
+              <span class="time">{{ task.displayTime }}</span>
+            </div>
+            <p class="accommodation">{{ task.accommodation }}</p>
+            <p class="guest">{{ task.guest }} 님</p>
+            <div class="task-actions">
+              <a
+                v-if="task.phone"
+                class="call-btn"
+                :href="`tel:${task.phone}`"
+                @click.stop
+                aria-label="게스트 전화"
+              >
+                <span class="call-icon">☎</span>
+                <span>전화</span>
+              </a>
+              <span class="detail-hint">
+                예약 상세
+                <span class="chevron">›</span>
+              </span>
+            </div>
+            <p v-if="task.memo" class="memo">📝 {{ task.memo }}</p>
+          </div>
+        </div>
+
+        <div v-if="!filteredTasks.length && !isLoading && !scheduleError" class="status-card">
+          <p>{{ emptyMessage }}</p>
+          <button class="ghost-btn" type="button" @click="goTo('/host/booking')">목록 보기</button>
+        </div>
+        <p v-else-if="isLoading" class="empty">일정을 불러오는 중입니다.</p>
+        <p v-else-if="hasMemo" class="footnote">메모가 있는 일정은 📝 로 표시됩니다.</p>
+      </section>
+    </template>
 
     <div v-if="showTaskModal && selectedTask" class="modal-backdrop" @click.self="closeTask">
       <div class="modal">
@@ -543,6 +685,7 @@ watch(selectedPeriod, () => {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-height: 100vh;
   padding: 1rem 1rem calc(1.5rem + var(--bn-h, 0px) + (var(--bn-pad, 0px) * 2) + env(safe-area-inset-bottom));
 }
 
@@ -563,6 +706,78 @@ watch(selectedPeriod, () => {
 .subtitle {
   color: #6b7280;
   margin: 0;
+}
+
+.host-state {
+  display: flex;
+  justify-content: center;
+}
+
+.state-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 1.2rem 1.1rem;
+  display: grid;
+  gap: 0.9rem;
+  text-align: left;
+}
+
+.state-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--brand-primary);
+  color: var(--brand-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.state-icon :deep(svg),
+.state-icon :deep(img) {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.state-text h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--brand-accent);
+}
+
+.state-text p {
+  margin: 0;
+  color: #475569;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.state-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.state-btn {
+  border: 1px solid var(--brand-primary-strong, #0f766e);
+  background: #ffffff;
+  color: var(--brand-accent);
+  border-radius: 12px;
+  min-height: 44px;
+  padding: 0.6rem 0.9rem;
+  font-weight: 900;
+}
+
+.state-btn.primary {
+  background: var(--brand-primary);
+  color: #0f172a;
+}
+
+.state-btn:focus-visible {
+  outline: 2px solid var(--brand-primary-strong, #0f766e);
+  outline-offset: 2px;
 }
 
 .insight-card {
@@ -1124,6 +1339,19 @@ watch(selectedPeriod, () => {
 }
 
 @media (min-width: 1024px) {
+  .host-state {
+    justify-content: center;
+  }
+
+  .state-card {
+    max-width: 600px;
+  }
+
+  .state-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+
   .insight-card {
     display: grid;
     grid-template-columns: 1fr auto;

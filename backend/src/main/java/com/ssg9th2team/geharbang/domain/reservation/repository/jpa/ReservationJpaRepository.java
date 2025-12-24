@@ -2,6 +2,7 @@ package com.ssg9th2team.geharbang.domain.reservation.repository.jpa;
 
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,7 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-public interface ReservationJpaRepository extends JpaRepository<Reservation, Long> {
+public interface ReservationJpaRepository extends JpaRepository<Reservation, Long>, JpaSpecificationExecutor<Reservation> {
 
     List<Reservation> findByUserId(Long userId);
 
@@ -32,4 +33,13 @@ public interface ReservationJpaRepository extends JpaRepository<Reservation, Lon
     @Modifying
     @Query("DELETE FROM Reservation r WHERE r.id = :reservationId AND r.reservationStatus = 0")
     int deletePendingReservation(@Param("reservationId") Long reservationId);
+
+    @Query("select count(distinct r.userId) from Reservation r " +
+            "where r.createdAt >= :start and r.createdAt < :end")
+    long countDistinctGuest(LocalDateTime start, LocalDateTime end);
+
+    @Query("select count(distinct a.userId) from Reservation r " +
+            "join Accommodation a on r.accommodationsId = a.accommodationsId " +
+            "where r.createdAt >= :start and r.createdAt < :end")
+    long countDistinctHost(LocalDateTime start, LocalDateTime end);
 }

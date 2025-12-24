@@ -1,32 +1,81 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AdminStatCard from '../../components/admin/AdminStatCard.vue'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
-import { reports, reportsStats } from '../../mocks/adminMockData'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
+import { fetchAdminReports } from '../../api/adminApi'
+import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 
 const stats = ref([])
 const reportList = ref([])
 const searchQuery = ref('')
 const statusFilter = ref('all')
 const priorityFilter = ref('all')
+const page = ref(0)
+const size = ref(20)
+const totalPages = ref(0)
+const totalElements = ref(0)
+const isLoading = ref(false)
+const loadError = ref('')
+const route = useRoute()
+const router = useRouter()
 
-const loadReports = () => {
-  stats.value = [
-    { label: '대기중', value: `${reportsStats.pending}건`, sub: '빠른 초기 대응 필요', tone: 'warning' },
-    { label: '처리중', value: `${reportsStats.inProgress}건`, sub: '담당자 배정 완료', tone: 'accent' },
-    { label: '처리완료', value: `${reportsStats.resolved}건`, sub: '이번 달 92% 해결', tone: 'success' }
-  ]
-  reportList.value = reports
+const loadReports = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  const response = await fetchAdminReports({
+    status: statusFilter.value,
+    keyword: searchQuery.value || undefined,
+    page: page.value,
+    size: size.value,
+    sort: 'latest'
+  })
+  if (response.ok && response.data) {
+    const payload = response.data
+    reportList.value = extractItems(payload)
+    const meta = extractPageMeta(payload)
+    page.value = meta.page
+    size.value = meta.size
+    totalPages.value = meta.totalPages
+    totalElements.value = meta.totalElements
+    const pending = reportList.value.filter((r) => r.status === 'WAIT').length
+    const checked = reportList.value.filter((r) => r.status === 'CHECKED').length
+    const blinded = reportList.value.filter((r) => r.status === 'BLINDED').length
+    stats.value = [
+      { label: '대기중', value: `${pending}건`, sub: '현재 페이지 기준', tone: 'warning' },
+      { label: '처리완료', value: `${checked}건`, sub: '현재 페이지 기준', tone: 'success' },
+      { label: '블라인드', value: `${blinded}건`, sub: '현재 페이지 기준', tone: 'accent' }
+    ]
+  } else {
+    loadError.value = '신고 목록을 불러오지 못했습니다.'
+  }
+  isLoading.value = false
 }
 
-onMounted(loadReports)
+const syncQuery = (next) => {
+  const params = { ...route.query, ...next }
+  const normalized = toQueryParams(params)
+  const current = toQueryParams(route.query)
+  const isSame = Object.keys({ ...normalized, ...current })
+    .every((key) => String(normalized[key] ?? '') === String(current[key] ?? ''))
+  if (!isSame) {
+    router.replace({ query: normalized })
+  }
+}
+
+onMounted(() => {
+  statusFilter.value = route.query.status ?? 'all'
+  searchQuery.value = route.query.keyword ?? ''
+  page.value = Number(route.query.page ?? 0)
+  loadReports()
+})
 
 const statusVariant = (status) => {
-  if (status === '완료') return 'success'
-  if (status === '처리중') return 'accent'
-  if (status === '대기') return 'warning'
+  if (status === 'CHECKED') return 'success'
+  if (status === 'BLINDED') return 'danger'
+  if (status === 'WAIT') return 'warning'
   return 'neutral'
 }
 
@@ -40,14 +89,18 @@ const filteredReports = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   return reportList.value.filter((item) => {
     const matchesQuery = !query ||
-      item.id.toLowerCase().includes(query) ||
-      item.reporter.toLowerCase().includes(query) ||
-      item.target.toLowerCase().includes(query) ||
-      item.reason.toLowerCase().includes(query)
+      String(item.reportId ?? '').includes(query) ||
+      (item.title ?? '').toLowerCase().includes(query)
     const matchesStatus = statusFilter.value === 'all' || item.status === statusFilter.value
-    const matchesPriority = priorityFilter.value === 'all' || item.priority === priorityFilter.value
+    const matchesPriority = priorityFilter.value === 'all'
     return matchesQuery && matchesStatus && matchesPriority
   })
+})
+
+watch([searchQuery, statusFilter], () => {
+  page.value = 0
+  syncQuery({ status: statusFilter.value, keyword: searchQuery.value || undefined, page: page.value })
+  loadReports()
 })
 
 const downloadReport = (format) => {
@@ -112,9 +165,9 @@ const downloadReport = (format) => {
         <span class="admin-chip">필터</span>
         <select v-model="statusFilter" class="admin-select">
           <option value="all">전체 상태</option>
-          <option value="대기">대기</option>
-          <option value="처리중">처리중</option>
-          <option value="완료">완료</option>
+          <option value="WAIT">대기</option>
+          <option value="CHECKED">처리완료</option>
+          <option value="BLINDED">블라인드</option>
         </select>
         <select v-model="priorityFilter" class="admin-select">
           <option value="all">전체 우선순위</option>
@@ -144,30 +197,20 @@ const downloadReport = (format) => {
         <thead>
           <tr>
             <th>신고ID</th>
-            <th>신고자</th>
-            <th>피신고자</th>
             <th>신고 사유</th>
             <th>신고 일시</th>
-            <th>우선순위</th>
             <th>처리 상태</th>
-            <th>담당자</th>
             <th>관리</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredReports" :key="item.id">
-            <td class="admin-strong">{{ item.id }}</td>
-            <td>{{ item.reporter }}</td>
-            <td>{{ item.target }}</td>
-            <td class="admin-strong">{{ item.reason }} · {{ item.summary }}</td>
-            <td>{{ item.createdAt }}</td>
-            <td>
-              <AdminBadge :text="item.priority" :variant="priorityVariant(item.priority)" />
-            </td>
+          <tr v-for="item in filteredReports" :key="item.reportId">
+            <td class="admin-strong">#{{ item.reportId }}</td>
+            <td class="admin-strong">{{ item.title }}</td>
+            <td>{{ item.createdAt?.slice?.(0, 10) ?? '-' }}</td>
             <td>
               <AdminBadge :text="item.status" :variant="statusVariant(item.status)" />
             </td>
-            <td>{{ item.assignee }}</td>
             <td>
               <div class="admin-inline-actions admin-inline-actions--nowrap">
                 <button class="admin-btn admin-btn--ghost" type="button">상세</button>
@@ -178,6 +221,21 @@ const downloadReport = (format) => {
           </tr>
         </tbody>
       </table>
+      <div v-if="isLoading" class="admin-status">불러오는 중...</div>
+      <div v-else-if="loadError" class="admin-status">
+        <span>{{ loadError }}</span>
+        <button class="admin-btn admin-btn--ghost" type="button" @click="loadReports">다시 시도</button>
+      </div>
+      <div v-else-if="!filteredReports.length" class="admin-status">데이터가 없습니다.</div>
+      <div class="admin-pagination">
+        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page <= 0" @click="page = page - 1; loadReports()">
+          이전
+        </button>
+        <span>{{ page + 1 }} / {{ Math.max(totalPages, 1) }}</span>
+        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page + 1 >= totalPages" @click="page = page + 1; loadReports()">
+          다음
+        </button>
+      </div>
     </AdminTableCard>
   </section>
 </template>
@@ -200,6 +258,25 @@ const downloadReport = (format) => {
   font-size: 2rem;
   font-weight: 900;
   color: #0b3b32;
+}
+
+.admin-status {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--text-sub, #6b7280);
+  font-weight: 700;
+  margin-top: 12px;
+}
+
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  color: var(--text-sub, #6b7280);
+  font-weight: 700;
 }
 
 .admin-subtitle {

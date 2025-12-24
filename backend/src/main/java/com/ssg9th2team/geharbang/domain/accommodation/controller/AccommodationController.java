@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationCreateReq
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationUpdateRequestDto;
 import com.ssg9th2team.geharbang.domain.accommodation.service.AccommodationService;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
@@ -17,12 +18,17 @@ import org.springframework.web.bind.annotation.*;
 public class AccommodationController {
 
     private final AccommodationService accommodationService;
+    private final UserRepository userRepository;
 
     // 숙소 등록
     @PostMapping
-    public ResponseEntity<?> createAccommodation(@Valid @RequestBody AccommodationCreateRequestDto requestDto, org.springframework.security.core.Authentication authentication) {
+    public ResponseEntity<?> createAccommodation(@Valid @RequestBody AccommodationCreateRequestDto requestDto,
+                                                 org.springframework.security.core.Authentication authentication) {
         try {
-            Long userId = Long.parseLong(authentication.getName());
+            String email = authentication.getName();
+            Long userId = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"))
+                    .getId();
             Long accommodationsId = accommodationService.createAccommodation(userId, requestDto);
             return ResponseEntity.status(HttpStatus.CREATED).body(accommodationsId);
         } catch (Exception e) {

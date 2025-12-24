@@ -1,48 +1,111 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminStatCard from '../../components/admin/AdminStatCard.vue'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
-import {
-  dashboardStats,
-  dashboardPendingListings,
-  dashboardRevenueTrend,
-  dashboardAlerts
-} from '../../mocks/adminMockData'
+import { fetchAdminDashboardSummary, fetchAdminDashboardTimeseries } from '../../api/adminApi'
 
 const router = useRouter()
 const stats = ref([])
+const summary = ref(null)
 const pendingListings = ref([])
+const openReportListings = ref([])
 const revenueTrend = ref({ months: [], values: [] })
 const alerts = ref([])
 const pendingQuery = ref('')
 const pendingStatus = ref('all')
 const activePeriod = ref('30')
+const isLoading = ref(false)
+const loadError = ref('')
 
-const loadDashboard = () => {
-  stats.value = dashboardStats
-  pendingListings.value = dashboardPendingListings
-  revenueTrend.value = dashboardRevenueTrend
-  alerts.value = dashboardAlerts
+const toDateString = (date) => date.toISOString().slice(0, 10)
+
+const buildAlerts = (openReports, pendingAcc) => {
+  const reportAlerts = openReports.map((item) => ({
+    id: `report-${item.reportId}`,
+    title: `리뷰 신고 #${item.reportId}`,
+    meta: item.title ?? '신고 사유 확인 필요',
+    time: item.createdAt?.slice?.(0, 10) ?? '-',
+    tone: 'warning',
+    target: `/admin/reports?highlight=${item.reportId}`
+  }))
+  const accAlerts = pendingAcc.map((item) => ({
+    id: `acc-${item.accommodationsId}`,
+    title: `숙소 심사 대기 #${item.accommodationsId}`,
+    meta: item.name ?? '승인 대기 숙소',
+    time: item.createdAt?.slice?.(0, 10) ?? '-',
+    tone: 'accent',
+    target: `/admin/accommodations?highlight=${item.accommodationsId}`
+  }))
+  return [...reportAlerts, ...accAlerts].slice(0, 6)
+}
+
+const resolveRange = (days) => {
+  const count = Number(days) || 30
+  const end = new Date()
+  const start = new Date()
+  start.setDate(end.getDate() - (count - 1))
+  return { from: toDateString(start), to: toDateString(end) }
+}
+
+const formatCurrency = (value) => `₩${Number(value ?? 0).toLocaleString()}`
+const formatRate = (value) => `${(Number(value ?? 0) * 100).toFixed(1)}%`
+
+const loadDashboard = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  const range = resolveRange(activePeriod.value)
+  const summaryResponse = await fetchAdminDashboardSummary(range)
+  const trendResponse = await fetchAdminDashboardTimeseries({ metric: 'revenue', ...range })
+  if (summaryResponse.ok && summaryResponse.data) {
+    const data = summaryResponse.data
+    summary.value = data
+    const platformFeeRate = data.platformFeeRate ?? 0
+    stats.value = [
+      { label: '승인 대기 숙소', value: `${data.pendingAccommodations ?? 0}건`, sub: '심사 대기', tone: 'warning', target: '/admin/accommodations?status=pending' },
+      { label: '미처리 신고', value: `${data.openReports ?? 0}건`, sub: '처리 필요', tone: 'warning', target: '/admin/reports?status=wait' },
+      { label: '예약 생성', value: `${data.reservationCount ?? 0}건`, sub: '선택 기간 기준', tone: 'success', target: '/admin/bookings?sort=latest' },
+      { label: '결제 성공', value: formatCurrency(data.paymentSuccessAmount), sub: '선택 기간 기준', tone: 'accent', target: '/admin/payments?status=success' },
+      { label: '플랫폼 수익(수수료)', value: formatCurrency(data.platformFeeAmount), sub: `수수료율 ${formatRate(platformFeeRate)}`, tone: 'primary', target: '/admin/payments?status=success' },
+      { label: '결제 실패', value: `${data.paymentFailureCount ?? 0}건`, sub: '실패/취소', tone: 'neutral', target: '/admin/payments?status=failed' },
+      { label: '환불 요청', value: `${data.refundRequestCount ?? 0}건`, sub: '요청 건수', tone: 'neutral', target: '/admin/payments?status=refund' }
+    ]
+    pendingListings.value = data.pendingAccommodationsList ?? []
+    openReportListings.value = data.openReportsList ?? []
+    alerts.value = buildAlerts(openReportListings.value, pendingListings.value)
+    if (trendResponse.ok && trendResponse.data) {
+      const points = trendResponse.data.points ?? []
+      revenueTrend.value = {
+        months: points.map((point) => point.date?.slice?.(5) ?? point.date),
+        values: points.map((point) => point.value ?? 0)
+      }
+    } else {
+      revenueTrend.value = { months: [], values: [] }
+    }
+  } else {
+    loadError.value = '대시보드 데이터를 불러오지 못했습니다.'
+  }
+  isLoading.value = false
 }
 
 const filteredPending = computed(() => {
   const query = pendingQuery.value.trim().toLowerCase()
   return pendingListings.value.filter((item) => {
     const matchesQuery = !query ||
-      item.name.toLowerCase().includes(query) ||
-      item.host.toLowerCase().includes(query) ||
-      item.location.toLowerCase().includes(query)
-    const matchesStatus = pendingStatus.value === 'all' || item.status === pendingStatus.value
+      (item.name ?? '').toLowerCase().includes(query) ||
+      String(item.hostUserId ?? '').includes(query) ||
+      `${item.city ?? ''} ${item.district ?? ''}`.toLowerCase().includes(query)
+    const matchesStatus = pendingStatus.value === 'all' || item.approvalStatus === pendingStatus.value
     return matchesQuery && matchesStatus
   })
 })
 
 const pendingStatusVariant = (status) => {
-  if (status === '대기') return 'warning'
-  if (status === '검토') return 'accent'
+  if (status === 'PENDING') return 'warning'
+  if (status === 'APPROVED') return 'success'
+  if (status === 'REJECTED') return 'danger'
   return 'neutral'
 }
 
@@ -53,7 +116,20 @@ const alertVariant = (tone) => {
   return 'neutral'
 }
 
-const revenueMax = computed(() => Math.max(...revenueTrend.value.values, 1))
+const summaryItems = computed(() => {
+  if (!summary.value) return []
+  return [
+    { label: '승인 대기 숙소', sub: '심사 필요', value: `${summary.value.pendingAccommodations ?? 0}건` },
+    { label: '미처리 신고', sub: '처리 필요', value: `${summary.value.openReports ?? 0}건` },
+    { label: '결제 실패', sub: '실패/취소', value: `${summary.value.paymentFailureCount ?? 0}건` },
+    { label: '환불 요청', sub: '접수 건수', value: `${summary.value.refundRequestCount ?? 0}건` }
+  ]
+})
+
+const revenueMax = computed(() => {
+  const values = revenueTrend.value.values ?? []
+  return values.length ? Math.max(...values, 1) : 1
+})
 const revenueHeight = (value) => `${(value / revenueMax.value) * 100}%`
 
 const goTo = (target) => {
@@ -107,6 +183,8 @@ const downloadReport = (format) => {
 }
 
 onMounted(loadDashboard)
+
+watch(activePeriod, loadDashboard)
 </script>
 
 <template>
@@ -129,6 +207,11 @@ onMounted(loadDashboard)
         :clickable="Boolean(card.target)"
         @click="goTo(card.target)"
       />
+      <div v-if="isLoading" class="admin-status">불러오는 중...</div>
+      <div v-else-if="loadError" class="admin-status">
+        <span>{{ loadError }}</span>
+        <button class="admin-btn admin-btn--ghost" type="button" @click="loadDashboard">다시 시도</button>
+      </div>
     </div>
 
     <div class="admin-filter-bar">
@@ -167,8 +250,9 @@ onMounted(loadDashboard)
           />
           <select v-model="pendingStatus" class="admin-select">
             <option value="all">전체 상태</option>
-            <option value="대기">대기</option>
-            <option value="검토">검토</option>
+            <option value="PENDING">대기</option>
+            <option value="APPROVED">승인</option>
+            <option value="REJECTED">반려</option>
           </select>
         </template>
         <table class="admin-table--nowrap admin-table--roomy">
@@ -188,27 +272,28 @@ onMounted(loadDashboard)
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in filteredPending" :key="item.id">
-              <td class="admin-strong">{{ item.id }}</td>
+            <tr v-for="item in filteredPending" :key="item.accommodationsId">
+              <td class="admin-strong">#{{ item.accommodationsId }}</td>
               <td class="admin-strong">{{ item.name }}</td>
-              <td>{{ item.host }}</td>
-              <td>{{ item.location }}</td>
-              <td>{{ item.type }}</td>
-              <td>{{ item.rooms }}개</td>
-              <td>{{ item.nightlyPrice }}</td>
-              <td>{{ item.contact }}</td>
-              <td>{{ item.submittedAt }}</td>
+              <td>{{ item.hostUserId }}</td>
+              <td>{{ item.city }} {{ item.district }}</td>
+              <td>{{ item.category }}</td>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
+              <td>{{ item.createdAt?.slice?.(0, 10) ?? '-' }}</td>
               <td>
-                <AdminBadge :text="item.status" :variant="pendingStatusVariant(item.status)" />
+                <AdminBadge :text="item.approvalStatus" :variant="pendingStatusVariant(item.approvalStatus)" />
               </td>
               <td>
-                <button class="admin-btn admin-btn--ghost" type="button" @click="goTo('/admin/accommodations')">
+                <button class="admin-btn admin-btn--ghost" type="button" @click="goTo(`/admin/accommodations?highlight=${item.accommodationsId}`)">
                   상세 보기
                 </button>
               </td>
             </tr>
           </tbody>
         </table>
+        <div v-if="!filteredPending.length" class="admin-status">승인 대기 숙소가 없습니다.</div>
       </AdminTableCard>
 
     </div>
@@ -223,7 +308,13 @@ onMounted(loadDashboard)
           <button class="admin-btn admin-btn--ghost" type="button">전체 보기</button>
         </div>
         <div class="admin-alert-list">
-          <div v-for="alert in alerts" :key="alert.id" class="admin-alert-item">
+          <button
+            v-for="alert in alerts"
+            :key="alert.id"
+            class="admin-alert-item"
+            type="button"
+            @click="goTo(alert.target)"
+          >
             <div>
               <div class="admin-alert-title">{{ alert.title }}</div>
               <div class="admin-alert-meta">{{ alert.meta }}</div>
@@ -231,7 +322,8 @@ onMounted(loadDashboard)
             <div class="admin-alert-right">
               <AdminBadge :text="alert.time" :variant="alertVariant(alert.tone)" />
             </div>
-          </div>
+          </button>
+          <div v-if="!alerts.length" class="admin-status">현재 확인할 알림이 없습니다.</div>
         </div>
       </div>
 
@@ -244,34 +336,14 @@ onMounted(loadDashboard)
           <button class="admin-btn admin-btn--ghost" type="button">리포트 보기</button>
         </div>
         <div class="admin-highlight-list">
-          <div class="admin-highlight-item">
+          <div v-for="item in summaryItems" :key="item.label" class="admin-highlight-item">
             <div>
-              <p class="admin-highlight-label">승인 평균 소요</p>
-              <p class="admin-highlight-sub">전주 대비 -0.6일</p>
+              <p class="admin-highlight-label">{{ item.label }}</p>
+              <p class="admin-highlight-sub">{{ item.sub }}</p>
             </div>
-            <p class="admin-highlight-value">2.4일</p>
+            <p class="admin-highlight-value">{{ item.value }}</p>
           </div>
-          <div class="admin-highlight-item">
-            <div>
-              <p class="admin-highlight-label">환불 처리</p>
-              <p class="admin-highlight-sub">24시간 내 완료</p>
-            </div>
-            <p class="admin-highlight-value">98.1%</p>
-          </div>
-          <div class="admin-highlight-item">
-            <div>
-              <p class="admin-highlight-label">CS 응답 속도</p>
-              <p class="admin-highlight-sub">목표 4시간 이하</p>
-            </div>
-            <p class="admin-highlight-value">2시간</p>
-          </div>
-          <div class="admin-highlight-item">
-            <div>
-              <p class="admin-highlight-label">숙소 승인 SLA</p>
-              <p class="admin-highlight-sub">48시간 이내 처리</p>
-            </div>
-            <p class="admin-highlight-value">92%</p>
-          </div>
+          <div v-if="!summaryItems.length" class="admin-status">요약 데이터를 불러오는 중입니다.</div>
         </div>
       </div>
     </div>
@@ -297,7 +369,7 @@ onMounted(loadDashboard)
             class="admin-chart-bar"
             :style="{ height: revenueHeight(value) }"
           >
-            <span class="admin-chart-bar__label">{{ value }}억</span>
+            <span class="admin-chart-bar__label">{{ formatCurrency(value) }}</span>
           </div>
         </div>
       </div>
@@ -338,6 +410,14 @@ onMounted(loadDashboard)
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
+}
+
+.admin-status {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--text-sub, #6b7280);
+  font-weight: 700;
 }
 
 .admin-grid--2 {

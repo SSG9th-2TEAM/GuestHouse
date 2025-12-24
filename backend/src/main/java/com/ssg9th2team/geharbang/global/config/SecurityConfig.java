@@ -42,11 +42,14 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/public/**",
-                                "/api/host/**",
+                                // "/api/host/**",
+                                "/admin/**",
                                 "/api/themes",
                                 "/error",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**")
+                        .permitAll()
+                        .requestMatchers("/api/admin/**")
                         .permitAll()
                         // 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated())

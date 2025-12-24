@@ -1,10 +1,12 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AdminStatCard from '../../components/admin/AdminStatCard.vue'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
-import { payments, paymentsStats, dashboardTransactions } from '../../mocks/adminMockData'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
+import { fetchAdminPayments, refundPayment } from '../../api/adminApi'
+import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 
 const stats = ref([])
 const paymentList = ref([])
@@ -13,29 +15,80 @@ const statusFilter = ref('all')
 const typeFilter = ref('all')
 const transactionMode = ref('yearly')
 const transactionSeries = ref([])
+const page = ref(0)
+const size = ref(20)
+const totalPages = ref(0)
+const totalElements = ref(0)
+const isLoading = ref(false)
+const loadError = ref('')
+const route = useRoute()
+const router = useRouter()
 
-const loadPayments = () => {
-  stats.value = [
-    { label: '총 거래액', value: paymentsStats.totalVolume, sub: '주간 +5.2%', tone: 'primary' },
-    { label: '플랫폼 수수료', value: paymentsStats.platformFee, sub: '수수료율 7%', tone: 'accent' },
-    { label: '거래 건수', value: paymentsStats.transactions, sub: '성공률 98.2%', tone: 'success' }
-  ]
-  paymentList.value = payments
-  setTransactionMode('yearly')
+const loadPayments = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  const response = await fetchAdminPayments({
+    status: statusFilter.value,
+    keyword: searchQuery.value || undefined,
+    page: page.value,
+    size: size.value,
+    sort: 'latest'
+  })
+  if (response.ok && response.data) {
+    const payload = response.data
+    paymentList.value = extractItems(payload)
+    const meta = extractPageMeta(payload)
+    page.value = meta.page
+    size.value = meta.size
+    totalPages.value = meta.totalPages
+    totalElements.value = meta.totalElements
+    const totalAmount = paymentList.value.reduce((sum, item) => sum + (item.approvedAmount ?? 0), 0)
+    stats.value = [
+      { label: '총 거래액', value: `${totalAmount.toLocaleString()}원`, sub: '현재 페이지 기준', tone: 'primary' },
+      { label: '거래 건수', value: `${paymentList.value.length}건`, sub: '현재 페이지 기준', tone: 'success' },
+      { label: '결제 이슈', value: `${paymentList.value.filter((p) => p.paymentStatus !== 1).length}건`, sub: '실패/환불', tone: 'accent' }
+    ]
+  } else {
+    loadError.value = '결제 목록을 불러오지 못했습니다.'
+  }
+  isLoading.value = false
 }
 
-onMounted(loadPayments)
+const syncQuery = (next) => {
+  const params = { ...route.query, ...next }
+  const normalized = toQueryParams(params)
+  const current = toQueryParams(route.query)
+  const isSame = Object.keys({ ...normalized, ...current })
+    .every((key) => String(normalized[key] ?? '') === String(current[key] ?? ''))
+  if (!isSame) {
+    router.replace({ query: normalized })
+  }
+}
+
+onMounted(() => {
+  statusFilter.value = route.query.status ?? 'all'
+  searchQuery.value = route.query.keyword ?? ''
+  page.value = Number(route.query.page ?? 0)
+  loadPayments()
+})
 
 const statusVariant = (status) => {
-  if (status === '완료') return 'success'
-  if (status === '환불') return 'warning'
-  if (status === '보류') return 'danger'
+  if (status === 1) return 'success'
+  if (status === 3) return 'warning'
+  if (status === 2) return 'danger'
   return 'neutral'
+}
+
+const mapStatusFilter = (filter) => {
+  if (filter === 'success') return '1'
+  if (filter === 'failed') return '2'
+  if (filter === 'refunded') return '3'
+  return filter
 }
 
 const setTransactionMode = (mode) => {
   transactionMode.value = mode
-  transactionSeries.value = dashboardTransactions[mode] || []
+  transactionSeries.value = []
 }
 
 const transactionMax = computed(() => Math.max(...transactionSeries.value, 1))
@@ -45,14 +98,26 @@ const filteredPayments = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   return paymentList.value.filter((item) => {
     const matchesQuery = !query ||
-      item.id.toLowerCase().includes(query) ||
-      item.host.toLowerCase().includes(query) ||
-      item.guest.toLowerCase().includes(query) ||
-      item.accommodation.toLowerCase().includes(query)
-    const matchesStatus = statusFilter.value === 'all' || item.status === statusFilter.value
-    const matchesType = typeFilter.value === 'all' || item.type === typeFilter.value
+      String(item.paymentId ?? '').includes(query) ||
+      (item.orderId ?? '').toLowerCase().includes(query) ||
+      (item.paymentKey ?? '').toLowerCase().includes(query)
+    const matchesStatus = statusFilter.value === 'all' || String(item.paymentStatus) === mapStatusFilter(statusFilter.value)
+    const matchesType = typeFilter.value === 'all'
     return matchesQuery && matchesStatus && matchesType
   })
+})
+
+const handleRefund = async (item) => {
+  if (!item?.paymentId) return
+  if (!confirm('해당 결제를 환불 처리하시겠습니까?')) return
+  await refundPayment(item.paymentId, { reason: '관리자 환불' })
+  loadPayments()
+}
+
+watch([searchQuery, statusFilter], () => {
+  page.value = 0
+  syncQuery({ status: statusFilter.value, keyword: searchQuery.value || undefined, page: page.value })
+  loadPayments()
 })
 
 const downloadReport = (format) => {
@@ -124,9 +189,9 @@ const downloadReport = (format) => {
         </select>
         <select v-model="statusFilter" class="admin-select">
           <option value="all">전체 상태</option>
-          <option value="완료">완료</option>
-          <option value="환불">환불</option>
-          <option value="보류">보류</option>
+          <option value="success">완료</option>
+          <option value="failed">실패</option>
+          <option value="refunded">환불</option>
         </select>
       </div>
       <div class="admin-filter-group">
@@ -188,43 +253,44 @@ const downloadReport = (format) => {
         <thead>
           <tr>
             <th>거래ID</th>
-            <th>호스트</th>
-            <th>게스트</th>
-            <th>숙소</th>
             <th>거래액</th>
-            <th>수수료</th>
-            <th>유형</th>
             <th>상태</th>
-            <th>결제수단</th>
-            <th>정산일</th>
             <th>날짜</th>
             <th>관리</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredPayments" :key="item.id">
-            <td class="admin-strong">{{ item.id }}</td>
-            <td>{{ item.host }}</td>
-            <td>{{ item.guest }}</td>
-            <td>{{ item.accommodation }}</td>
-            <td>{{ item.amount }}</td>
-            <td>{{ item.fee }}</td>
-            <td>{{ item.type }}</td>
+          <tr v-for="item in filteredPayments" :key="item.paymentId">
+            <td class="admin-strong">#{{ item.paymentId }}</td>
+            <td>{{ item.approvedAmount?.toLocaleString?.() ?? '-' }}</td>
             <td>
-              <AdminBadge :text="item.status" :variant="statusVariant(item.status)" />
+              <AdminBadge :text="item.paymentStatus" :variant="statusVariant(item.paymentStatus)" />
             </td>
-            <td>{{ item.method }}</td>
-            <td>{{ item.settlementDate }}</td>
-            <td>{{ item.date }}</td>
+            <td>{{ item.createdAt?.slice?.(0, 10) ?? '-' }}</td>
             <td>
               <div class="admin-inline-actions admin-inline-actions--nowrap">
-                <button class="admin-btn admin-btn--ghost" type="button">영수증</button>
-                <button class="admin-btn admin-btn--muted" type="button">정산</button>
+                <button class="admin-btn admin-btn--ghost" type="button">상세</button>
+                <button class="admin-btn admin-btn--danger" type="button" @click="handleRefund(item)">환불</button>
               </div>
             </td>
           </tr>
         </tbody>
       </table>
+      <div v-if="isLoading" class="admin-status">불러오는 중...</div>
+      <div v-else-if="loadError" class="admin-status">
+        <span>{{ loadError }}</span>
+        <button class="admin-btn admin-btn--ghost" type="button" @click="loadPayments">다시 시도</button>
+      </div>
+      <div v-else-if="!filteredPayments.length" class="admin-status">데이터가 없습니다.</div>
+      <div class="admin-pagination">
+        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page <= 0" @click="page = page - 1; loadPayments()">
+          이전
+        </button>
+        <span>{{ page + 1 }} / {{ Math.max(totalPages, 1) }}</span>
+        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page + 1 >= totalPages" @click="page = page + 1; loadPayments()">
+          다음
+        </button>
+      </div>
     </AdminTableCard>
   </section>
 </template>
@@ -259,6 +325,25 @@ const downloadReport = (format) => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
+}
+
+.admin-status {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--text-sub, #6b7280);
+  font-weight: 700;
+  margin-top: 12px;
+}
+
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  color: var(--text-sub, #6b7280);
+  font-weight: 700;
 }
 
 .admin-card {

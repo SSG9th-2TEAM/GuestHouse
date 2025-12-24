@@ -3,7 +3,9 @@ package com.ssg9th2team.geharbang.domain.dashboard.host.controller;
 import com.ssg9th2team.geharbang.domain.dashboard.host.dto.HostDashboardSummaryResponse;
 import com.ssg9th2team.geharbang.domain.dashboard.host.dto.TodayScheduleItemResponse;
 import com.ssg9th2team.geharbang.domain.dashboard.host.service.HostDashboardService;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,16 +21,20 @@ import java.util.List;
 public class HostDashboardController {
 
     private final HostDashboardService hostDashboardService;
+    private final UserRepository userRepository;
 
     @GetMapping("/dashboard/summary")
     // @PreAuthorize("hasRole('HOST')")
     public HostDashboardSummaryResponse summary(
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
-            @RequestParam(required = false) String range
-            // @AuthenticationPrincipal CustomUserDetails user
+            @RequestParam(required = false) String range,
+            Authentication authentication
     ) {
-        Long hostId = 1L; // TODO: replace with user.getUserId()
+        String email = authentication.getName();
+        Long hostId = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"))
+                .getId();
         if (range != null && !range.isBlank()) {
             LocalDate today = LocalDate.now();
             RangeWindow window = RangeWindow.from(range.trim(), today);
@@ -42,9 +48,13 @@ public class HostDashboardController {
 
     @GetMapping("/dashboard/today-schedule")
     public List<TodayScheduleItemResponse> todaySchedule(
-            @RequestParam LocalDate date
+            @RequestParam LocalDate date,
+            Authentication authentication
     ) {
-        Long hostId = 1L; // TODO: replace with user.getUserId()
+        String email = authentication.getName();
+        Long hostId = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"))
+                .getId();
         return hostDashboardService.getTodaySchedule(hostId, date);
     }
 

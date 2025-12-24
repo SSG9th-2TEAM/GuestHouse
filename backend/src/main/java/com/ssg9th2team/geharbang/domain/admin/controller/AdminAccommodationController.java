@@ -1,0 +1,50 @@
+package com.ssg9th2team.geharbang.domain.admin.controller;
+
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationDetail;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationSummary;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminRejectRequest;
+import com.ssg9th2team.geharbang.domain.admin.service.AdminAccommodationService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/admin/accommodations")
+@RequiredArgsConstructor
+public class AdminAccommodationController {
+
+    private final AdminAccommodationService accommodationService;
+
+    @GetMapping
+    public AdminPageResponse<AdminAccommodationSummary> getAccommodations(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "latest") String sort
+    ) {
+        return accommodationService.getAccommodations(status, keyword, page, size, sort);
+    }
+
+    @GetMapping("/{accommodationId}")
+    public AdminAccommodationDetail getAccommodationDetail(@PathVariable Long accommodationId) {
+        return accommodationService.getAccommodationDetail(accommodationId);
+    }
+
+    @PostMapping("/{accommodationId}/approve")
+    public AdminAccommodationDetail approveAccommodation(@PathVariable Long accommodationId) {
+        return accommodationService.approveAccommodation(accommodationId);
+    }
+
+    @PostMapping("/{accommodationId}/reject")
+    public AdminAccommodationDetail rejectAccommodation(@PathVariable Long accommodationId,
+                                                        @RequestBody AdminRejectRequest request) {
+        return accommodationService.rejectAccommodation(accommodationId, request != null ? request.reason() : null);
+    }
+}

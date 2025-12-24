@@ -44,7 +44,7 @@ public class Accommodation {
     @Column(name = "district", length = 50 , nullable = false)
     private String district;
 
-    @Column(name = "township", length = 50, nullable = false)
+    @Column(name = "township", length = 50)
     private String township;
 
     @Column(name = "address_detail", length = 200, nullable = false)
@@ -65,7 +65,7 @@ public class Accommodation {
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = ApprovalStatusConverter.class)
     @Column(name = "approval_status")   // 숙소 승인 상태
     private ApprovalStatus approvalStatus;
 
@@ -135,6 +135,16 @@ public class Accommodation {
         this.phone = phone;
         this.checkInTime = checkInTime;
         this.checkOutTime = checkOutTime;
+    }
+
+    public void approve() {
+        this.approvalStatus = ApprovalStatus.APPROVED;
+        this.rejectionReason = null;
+    }
+
+    public void reject(String reason) {
+        this.approvalStatus = ApprovalStatus.REJECTED;
+        this.rejectionReason = reason;
     }
 
 
