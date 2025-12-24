@@ -26,6 +26,9 @@ public class User {
     @Column(name = "user_id")
     private Long id;
 
+    @Column(nullable = false, length = 50)
+    private String name;
+
     @Column(nullable = false, unique = true, length = 50)
     private String email;
 
@@ -62,7 +65,8 @@ public class User {
     private Set<Theme> themes = new HashSet<>();
 
     @Builder
-    public User(String email, String password, String phone, UserRole role, Boolean marketingAgreed, Boolean hostApproved, Set<Theme> themes) {
+    public User(String name, String email, String password, String phone, UserRole role, Boolean marketingAgreed, Boolean hostApproved, Set<Theme> themes) {
+        this.name = name;
         this.email = email;
         this.password = password;
         this.phone = phone;

@@ -123,6 +123,7 @@ const closeTermsModal = () => {
 }
 
 // Step 2: User Info
+const name = ref('')
 const email = ref('')
 const password = ref('')
 const passwordConfirm = ref('')
@@ -142,7 +143,7 @@ const allPasswordCriteriaMet = computed(() => passwordCriteria.value.every(c => 
 
 const passwordMatchState = computed(() => {
   if (!passwordConfirm.value) {
-    return null // Don't show any message if the confirm field is empty
+    return null
   }
   if (password.value === passwordConfirm.value) {
     return { valid: true, message: '비밀번호가 일치합니다.' }
@@ -203,14 +204,14 @@ const timer = ref(0)
 let timerId = null
 
 const isStep2Valid = computed(() => {
-  return isEmailChecked.value && 
+  return name.value &&
+         isEmailChecked.value &&
          isCodeVerified.value &&
          password.value &&
          password.value === passwordConfirm.value &&
          allPasswordCriteriaMet.value &&
          isPhoneValid.value
 })
-
 // Step 3: Theme Selection
 const themes = ref([
   { id: 1, label: '액티비티', selected: false },
@@ -398,6 +399,7 @@ const handleComplete = async () => {
 
     // 회원가입 데이터 생성
     const signupData = {
+      name: name.value,
       email: email.value,
       password: password.value,
       phone: phone.value,
@@ -446,6 +448,7 @@ const handleSkip = async () => {
     const marketingAgreed = marketingTerm ? marketingTerm.checked : false
 
     const signupData = {
+      name: name.value,
       email: email.value,
       password: password.value,
       phone: phone.value,
@@ -530,6 +533,11 @@ const handleSkip = async () => {
       <!-- Step 2: Info -->
       <template v-if="currentStep === 2">
         <div class="form-section">
+          <div class="input-group">
+            <label>이름 *</label>
+            <input type="text" v-model="name" placeholder="이름을 입력하세요" />
+          </div>
+
           <div class="input-group">
             <label>이메일 *</label>
             <div class="input-row">
