@@ -40,6 +40,22 @@ public class VerificationCodeService {
         return false;
     }
 
+    // 비밀번호 찾기용: 검증만 하고 삭제하지 않음
+    public boolean verifyCodeOnly(String email, String code) {
+        String storedCode = emailCodeStorage.get(email);
+        Long expirationTime = codeExpiration.get(email);
+
+        if (storedCode == null || expirationTime == null) {
+            return false;
+        }
+
+        if (System.currentTimeMillis() > expirationTime) {
+            return false; // 만료되었지만 삭제하지 않음
+        }
+
+        return storedCode.equals(code); // 검증만 하고 삭제하지 않음
+    }
+
     public void removeCode(String email) {
         emailCodeStorage.remove(email);
         codeExpiration.remove(email);

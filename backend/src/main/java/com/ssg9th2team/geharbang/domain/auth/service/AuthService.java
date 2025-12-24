@@ -30,11 +30,17 @@ public interface AuthService {
     // 이메일 중복 확인
     boolean checkEmailDuplicate(String email);
 
+    // 닉네임 중복 확인
+    boolean checkNicknameDuplicate(String nickname);
+
     // 이메일 인증 코드 전송
     void sendVerificationCode(String email);
 
     // 이메일 인증 코드 확인
     boolean verifyEmailCode(VerifyCodeRequest verifyCodeRequest);
+
+    // 이메일 인증 코드 확인만 (삭제하지 않음) - 비밀번호 찾기용
+    boolean verifyEmailCodeOnly(VerifyCodeRequest verifyCodeRequest);
 
     // 리프레시 토큰으로 액세스 토큰 재발급
     TokenResponse refresh(String refreshToken);

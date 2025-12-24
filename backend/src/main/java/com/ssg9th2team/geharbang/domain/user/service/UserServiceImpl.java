@@ -25,7 +25,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        // Check for active reservations
+
         List<Reservation> reservations = reservationRepository.findByUserId(user.getId());
         boolean hasActiveReservations = reservations.stream()
                 .anyMatch(r -> r.getReservationStatus() != 3); // 3: Cancelled
@@ -34,7 +34,7 @@ public class UserServiceImpl implements UserService {
             throw new IllegalStateException("진행 중이거나 완료된 예약이 있어 탈퇴할 수 없습니다. 모든 예약을 취소한 후 다시 시도해주세요.");
         }
 
-        // Log the reasons for deletion
+
         log.info("사용자 {} 탈퇴. 사유: {}, 기타: {}", email, deleteAccountRequest.getReasons(),
                 deleteAccountRequest.getOtherReason());
 

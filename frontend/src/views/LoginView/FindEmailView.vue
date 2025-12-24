@@ -65,7 +65,7 @@ const goToLogin = () => {
             <h1 class="page-title">이메일 찾기</h1>
 
             <div v-if="!foundEmail" class="form-section">
-                <p class="description">회원가입 시 입력했던 이름과 전화번호를 입력해주세요.</p>
+                <p class="description">회원가입 시 입력했던 <br/>이름과 전화번호를 입력해주세요.</p>
                 <div class="input-group">
                     <label for="name">이름</label>
                     <input type="text" id="name" v-model="name" placeholder="이름을 입력하세요" />
