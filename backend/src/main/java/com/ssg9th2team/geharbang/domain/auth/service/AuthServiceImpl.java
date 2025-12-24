@@ -66,6 +66,7 @@ public class AuthServiceImpl implements AuthService {
 
         // 4. User 엔티티 생성
         User user = User.builder()
+                .name(signupRequest.getName())
                 .email(signupRequest.getEmail())
                 .password(encodedPassword)
                 .phone(signupRequest.getPhone())
