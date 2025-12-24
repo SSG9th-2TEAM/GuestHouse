@@ -7,6 +7,14 @@ const router = useRouter()
 const accommodationId = route.params.id
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+const SERVER_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:8080'
+
+// 이미지 URL을 전체 경로로 변환
+const getFullImageUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('blob:') || url.startsWith('http')) return url
+  return `${SERVER_BASE_URL}${url}`
+}
 
 // 로딩 상태
 const isLoading = ref(true)
@@ -262,7 +270,7 @@ const loadAccommodation = async () => {
     if (data.images) {
         const banner = data.images.find(img => img.imageType === 'banner')
         if (banner) {
-             form.value.bannerImage = banner.imageUrl // URL
+             form.value.bannerImage = getFullImageUrl(banner.imageUrl)
         }
 
         const details = data.images
@@ -271,8 +279,8 @@ const loadAccommodation = async () => {
 
         // 기존 이미지 로드
         displayImages.value = details.map((img, idx) => ({
-             id: img.id || idx, // DB ID unavailable in some DTOs so use index fallback if needed
-             url: img.imageUrl,
+             id: img.id || idx,
+             url: getFullImageUrl(img.imageUrl),
              file: null,
              isNew: false
         }))
@@ -311,15 +319,17 @@ const loadAccommodation = async () => {
       }))
     }
 
-    await nextTick()
-    await waitForKakao()
-    initMap()
-
   } catch (error) {
     console.error('Load Error:', error)
     loadError.value = error.message
   } finally {
     isLoading.value = false
+    // 로딩 완료 후 DOM 렌더링을 기다린 다음 지도 초기화
+    await nextTick()
+    await waitForKakao()
+    setTimeout(() => {
+      initMap()
+    }, 200)
   }
 }
 
@@ -329,24 +339,24 @@ const initMap = () => {
 
     window.kakao.maps.load(() => {
     geocoder.value = new window.kakao.maps.services.Geocoder()
-    
+
     // latitude/longitude가 없으면 주소로 좌표 검색 (Fallback)
     const lat = parseFloat(form.value.latitude)
     const lng = parseFloat(form.value.longitude)
-    
+
     if (isNaN(lat) || isNaN(lng)) {
         const fullAddress = `${form.value.city} ${form.value.district} ${form.value.township} ${form.value.address}`.trim()
         console.warn('Invalid coordinates, attempting fallback with address:', fullAddress)
-        
+
         if (fullAddress) {
             geocoder.value.addressSearch(fullAddress, (result, status) => {
                  if (status === window.kakao.maps.services.Status.OK) {
                     const y = result[0].y
                     const x = result[0].x
-                    
+
                     form.value.latitude = y
                     form.value.longitude = x
-                    
+
                     const coords = new window.kakao.maps.LatLng(y, x)
                     const options = { center: coords, level: 3 }
                     map.value = new window.kakao.maps.Map(mapContainer.value, options)
@@ -354,6 +364,10 @@ const initMap = () => {
                         position: coords,
                         map: map.value
                     })
+                    // 지도 relayout (크기 재계산)
+                    setTimeout(() => {
+                        if (map.value) map.value.relayout()
+                    }, 100)
                  } else {
                     console.error('Geocoding failed for address:', form.value.address)
                  }
@@ -370,6 +384,10 @@ const initMap = () => {
       position: coords,
       map: map.value
     })
+    // 지도 relayout (크기 재계산)
+    setTimeout(() => {
+        if (map.value) map.value.relayout()
+    }, 100)
   })
 }
 
@@ -840,7 +858,7 @@ const removeBannerImage = () => {
 // 상세 이미지 업로드
 const handleDetailImagesUpload = (event) => {
   const files = Array.from(event.target.files)
-  const remaining = 10 - displayImages.value.length
+  const remaining = 30 - displayImages.value.length
 
   files.slice(0, remaining).forEach(file => {
       displayImages.value.push({
@@ -1097,14 +1115,14 @@ onMounted(() => {
 
          <!-- 상세 이미지 -->
          <div class="form-group">
-            <label>상세 이미지 (최대 10장)</label>
+            <label>상세 이미지 (최대 30장)</label>
             <div class="detail-images-container">
                <div class="detail-images-preview">
                   <div v-for="(img, idx) in displayImages" :key="img.id" class="detail-image-item">
                      <img :src="img.url" />
                      <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
                   </div>
-                  <label v-if="displayImages.length < 10" class="add-detail-image">
+                  <label v-if="displayImages.length < 30" class="add-detail-image">
                      <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
                      <span>+</span>
                   </label>
@@ -1270,7 +1288,6 @@ onMounted(() => {
 
               <!-- Room Amenities -->
               <div class="room-amenities-section">
-                <h4 class="room-amenities-title">객실 편의시설</h4>
                 <div v-for="(cat, key) in roomAmenityOptions" :key="key" class="room-amenity-category">
                   <div class="room-amenity-label">{{ cat.label }}</div>
                   <div class="room-amenity-tags">

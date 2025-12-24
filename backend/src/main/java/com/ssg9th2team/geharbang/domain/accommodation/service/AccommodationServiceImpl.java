@@ -11,6 +11,7 @@ import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.Accommo
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.mybatis.RoomMapper;
+import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,9 +23,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AccommodationServiceImpl implements AccommodationService {
 
-    //  DTO → Entity 변환
     private final AccommodationMapper accommodationMapper;
     private final RoomMapper roomMapper;
+    private final ObjectStorageService objectStorageService;
 
 
 
@@ -32,6 +33,42 @@ public class AccommodationServiceImpl implements AccommodationService {
     @Override
     @Transactional
     public Long createAccommodation(Long userId, AccommodationCreateRequestDto createRequestDto) {
+        
+        // Base64 이미지 처리 - 네이버 클라우드 Object Storage에 업로드
+        try {
+            // 1. 사업자 등록증 이미지
+            if (createRequestDto.getBusinessRegistrationImage() != null) {
+                String savedUrl = objectStorageService.uploadBase64Image(
+                        createRequestDto.getBusinessRegistrationImage(), "business");
+                createRequestDto.setBusinessRegistrationImage(savedUrl);
+            }
+
+            // 2. 숙소 이미지 리스트
+            if (createRequestDto.getImages() != null) {
+                for (com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto img : createRequestDto.getImages()) {
+                    if (img.getImageUrl() != null) {
+                        String savedUrl = objectStorageService.uploadBase64Image(
+                                img.getImageUrl(), "accommodations");
+                        img.setImageUrl(savedUrl);
+                    }
+                }
+            }
+
+            // 3. 객실 대표 이미지
+            if (createRequestDto.getRooms() != null) {
+                for (com.ssg9th2team.geharbang.domain.room.dto.RoomCreateDto room : createRequestDto.getRooms()) {
+                    if (room.getMainImageUrl() != null) {
+                        String savedUrl = objectStorageService.uploadBase64Image(
+                                room.getMainImageUrl(), "rooms");
+                        room.setMainImageUrl(savedUrl);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("이미지 업로드 중 오류가 발생했습니다: " + e.getMessage());
+        }
+
 
         // 정산계좌 먼저 등록
         // 계좌테이블이 부모이므로 계좌를 먼저 등록하고 계좌 아이디를 가지고 숙소를 등록
@@ -109,7 +146,6 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         return accommodationsId;
     }
-
 
     // 숙소 상세조회
     @Override
