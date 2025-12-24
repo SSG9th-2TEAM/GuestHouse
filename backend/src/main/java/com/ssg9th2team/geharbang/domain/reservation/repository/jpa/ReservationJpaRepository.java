@@ -32,4 +32,18 @@ public interface ReservationJpaRepository extends JpaRepository<Reservation, Lon
     @Modifying
     @Query("DELETE FROM Reservation r WHERE r.id = :reservationId AND r.reservationStatus = 0")
     int deletePendingReservation(@Param("reservationId") Long reservationId);
+
+    /**
+     * 같은 객실에 날짜가 겹치는 예약이 있는지 확인 (확정된 예약만)
+     * 날짜 겹침 조건: 새 체크인 < 기존 체크아웃 AND 새 체크아웃 > 기존 체크인
+     */
+    @Query("SELECT COUNT(r) > 0 FROM Reservation r " +
+            "WHERE r.roomId = :roomId " +
+            "AND r.reservationStatus = 2 " + // 확정된 예약만
+            "AND r.checkin < :checkout " +
+            "AND r.checkout > :checkin")
+    boolean hasConflictingReservation(
+            @Param("roomId") Long roomId,
+            @Param("checkin") LocalDateTime checkin,
+            @Param("checkout") LocalDateTime checkout);
 }
