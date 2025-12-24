@@ -7,7 +7,11 @@ defineProps({
   rating: [Number, String],
   price: Number,
   imageUrl: String,
-  isFavorite: Boolean
+  isFavorite: Boolean,
+  isActive: {
+    type: Boolean,
+    default: true
+  }
 })
 
 const formatRating = (value) => {
@@ -20,11 +24,12 @@ const emit = defineEmits(['toggle-favorite'])
 </script>
 
 <template>
-  <article class="card">
+  <article class="card" :class="{ inactive: !isActive }">
     <div class="image-container">
       <img :src="imageUrl" :alt="title" class="card-image" />
-      <button 
-        class="favorite-btn" 
+      <span v-if="!isActive" class="inactive-badge">사용 중지</span>
+      <button
+        class="favorite-btn"
         :class="{ active: isFavorite }"
         @click.stop="$emit('toggle-favorite', id)"
       >
@@ -103,6 +108,22 @@ const emit = defineEmits(['toggle-favorite'])
 
 .favorite-btn.active {
   color: #ef4444; /* Red Heart */
+}
+
+.inactive-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #ef4444;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.card.inactive {
+  opacity: 0.6;
 }
 
 .favorite-btn:active {

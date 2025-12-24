@@ -84,4 +84,12 @@ public class ReservationController {
         reservationService.deletePendingReservation(reservationId);
         return ResponseEntity.noContent().build();
     }
+
+
+    // 객실별 예약 목록 조회
+    @GetMapping("/room/{roomId}")
+    public ResponseEntity<List<ReservationResponseDto>> getReservationsByRoom(@PathVariable Long roomId) {
+        List<ReservationResponseDto> responses = reservationService.getMyReservations();
+        return ResponseEntity.ok(responses);
+    }
 }

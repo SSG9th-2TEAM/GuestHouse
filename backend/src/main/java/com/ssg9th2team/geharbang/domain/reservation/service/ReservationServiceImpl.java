@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,8 +24,8 @@ public class ReservationServiceImpl implements ReservationService {
         private final ReservationJpaRepository reservationRepository;
         private final com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository accommodationRepository;
         private final com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper accommodationMapper;
-        private final com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository roomRepository;
         private final UserRepository userRepository;
+        private final ReservationJpaRepository reservationJpaRepository;
 
         @Override
         @Transactional
@@ -38,13 +39,9 @@ public class ReservationServiceImpl implements ReservationService {
 
                 System.out.println("DEBUG: createReservation called for user: " + email + " (ID: " + userId + ")");
 
-                // Room 재고(maxGuests) 차감 (동시성 제어)
+                // Room ID 필수 확인
                 if (requestDto.roomId() == null) {
                         throw new IllegalArgumentException("Room ID is required for reservation.");
-                }
-                int updatedRows = roomRepository.decreaseMaxGuests(requestDto.roomId(), requestDto.guestCount());
-                if (updatedRows == 0) {
-                        throw new IllegalStateException("객실 정원이 초과되어 예약할 수 없습니다.");
                 }
 
                 // Instant를 LocalDateTime으로 변환 (시스템 기본 시간대 사용)
@@ -52,6 +49,13 @@ public class ReservationServiceImpl implements ReservationService {
                                 requestDto.checkin(), java.time.ZoneId.systemDefault());
                 java.time.LocalDateTime checkoutDateTime = java.time.LocalDateTime.ofInstant(
                                 requestDto.checkout(), java.time.ZoneId.systemDefault());
+
+                // 날짜 겹침 체크 (해당 객실에 같은 날짜에 확정된 예약이 있는지)
+                boolean hasConflict = reservationRepository.hasConflictingReservation(
+                                requestDto.roomId(), checkinDateTime, checkoutDateTime);
+                if (hasConflict) {
+                        throw new IllegalStateException("해당 객실은 선택한 날짜에 이미 예약이 있습니다.");
+                }
 
                 // 숙박 박수 계산
                 int stayNights = (int) ChronoUnit.DAYS.between(
@@ -68,6 +72,7 @@ public class ReservationServiceImpl implements ReservationService {
 
                 Reservation reservation = Reservation.builder()
                                 .accommodationsId(requestDto.accommodationsId())
+                                .roomId(requestDto.roomId())
                                 .userId(userId)
                                 .checkin(checkinDateTime)
                                 .checkout(checkoutDateTime)
@@ -178,5 +183,15 @@ public class ReservationServiceImpl implements ReservationService {
                 // 30분 전 시간 계산
                 java.time.LocalDateTime cutoffTime = java.time.LocalDateTime.now().minusMinutes(30);
                 return reservationRepository.deleteOldPendingReservations(cutoffTime);
+        }
+
+
+        // 객실별 예약 조회
+        @Override
+        public List<ReservationResponseDto> getReservationByUserId(Long roomId) {
+                List<Reservation> reservations = reservationJpaRepository.findByRoomId(roomId);
+                return reservations.stream()
+                        .map(ReservationResponseDto::from)
+                        .collect(Collectors.toList());
         }
 }

@@ -1,6 +1,10 @@
 package com.ssg9th2team.geharbang.domain.auth.service;
 
+import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailRequest;
+import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailResponse;
+import com.ssg9th2team.geharbang.domain.auth.dto.FindPasswordRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.LoginRequest;
+import com.ssg9th2team.geharbang.domain.auth.dto.ResetPasswordRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.SignupRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.TokenResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.UserResponse;
@@ -13,6 +17,15 @@ public interface AuthService {
 
     // 로그인
     TokenResponse login(LoginRequest loginRequest);
+
+    // 이메일 찾기
+    FindEmailResponse findEmail(FindEmailRequest findEmailRequest);
+
+    // 비밀번호 찾기 - 사용자 확인 및 인증 코드 전송
+    void findPassword(FindPasswordRequest findPasswordRequest);
+
+    // 비밀번호 재설정
+    void resetPassword(ResetPasswordRequest resetPasswordRequest);
 
     // 이메일 중복 확인
     boolean checkEmailDuplicate(String email);

@@ -57,20 +57,22 @@ const buildAddress = (data) => {
 
 const normalizeRooms = (rooms, fallbackPrice) => {
   if (!Array.isArray(rooms)) return []
-  return rooms.map((room) => {
-    const price = toNumber(room?.price ?? room?.weekendPrice ?? fallbackPrice, fallbackPrice)
-    const roomStatus = room?.roomStatus
-    const available = roomStatus == null ? true : roomStatus === 1
-    return {
-      id: room?.roomId ?? room?.id,
-      name: room?.roomName ?? room?.name ?? '',
-      desc: room?.roomDescription ?? room?.description ?? '',
-      capacity: toNumber(room?.maxGuests ?? room?.capacity ?? 0, 0),
-      price,
-      available,
-      imageUrl: room?.mainImageUrl || DEFAULT_IMAGE
-    }
-  })
+  return rooms
+    .filter((room) => room?.roomStatus === 1)
+    .map((room) => {
+      const price = toNumber(room?.price ?? room?.weekendPrice ?? fallbackPrice, fallbackPrice)
+      const roomStatus = room?.roomStatus
+      const available = roomStatus == null ? true : roomStatus === 1
+      return {
+        id: room?.roomId ?? room?.id,
+        name: room?.roomName ?? room?.name ?? '',
+        desc: room?.roomDescription ?? room?.description ?? '',
+        capacity: toNumber(room?.maxGuests ?? room?.capacity ?? 0, 0),
+        price,
+        available,
+        imageUrl: room?.mainImageUrl || DEFAULT_IMAGE
+      }
+    })
 }
 
 const normalizeAmenities = (data) => {
@@ -756,12 +758,13 @@ watch(() => [guesthouse.value.latitude, guesthouse.value.longitude], () => {
 
       <!-- Room List -->
       <div class="room-list">
-        <div v-for="room in guesthouse.rooms" :key="room.id" 
-             class="room-card" 
-             :class="{ selected: selectedRoom?.id === room.id }"
-             @click="selectRoom(room)">
+        <div v-for="room in guesthouse.rooms" :key="room.id"
+             class="room-card"
+             :class="{ selected: selectedRoom?.id === room.id, unavailable: !room.available }"
+             @click="room.available && selectRoom(room)">
           <div class="room-media">
             <img :src="room.imageUrl" :alt="room.name" loading="lazy" />
+            <span v-if="!room.available" class="room-unavailable-badge">사용 중지</span>
           </div>
           <div class="room-content">
             <div class="room-info">
@@ -771,8 +774,12 @@ watch(() => [guesthouse.value.latitude, guesthouse.value.longitude], () => {
             </div>
             <div class="room-action">
               <div class="price">₩{{ formatPrice(room.price) }}</div>
-              <button class="select-btn" :class="{ active: selectedRoom?.id === room.id }">
-                {{ selectedRoom?.id === room.id ? '선택됨' : '객실' }}
+              <button
+                class="select-btn"
+                :class="{ active: selectedRoom?.id === room.id }"
+                :disabled="!room.available"
+              >
+                {{ !room.available ? '사용 중지' : (selectedRoom?.id === room.id ? '선택됨' : '객실') }}
               </button>
             </div>
           </div>
@@ -1311,6 +1318,34 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 .select-btn.active {
   background: var(--primary);
   color: #000;
+}
+.select-btn:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Room unavailable state */
+.room-card.unavailable {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.room-card.unavailable:hover {
+  border-color: #ddd;
+}
+.room-media {
+  position: relative;
+}
+.room-unavailable-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: #ef4444;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 /* Reviews */
