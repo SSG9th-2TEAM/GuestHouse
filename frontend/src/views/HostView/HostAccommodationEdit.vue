@@ -465,6 +465,12 @@ const validateForm = () => {
         isValid = false
     }
 
+    // 테마 검사
+    if (!form.value.themes || form.value.themes.length === 0) {
+        errorMessages.push('테마 (최소 1개 선택)')
+        isValid = false
+    }
+
     // Room Validation at Submit
     // 유효성 검사 로직 보완
     if (rooms.value.length === 0) {
@@ -980,6 +986,9 @@ const handleDetailImagesUpload = (event) => {
           isNew: true
       })
   })
+  
+  // 입력값 초기화
+  event.target.value = ''
 }
 
 // 상세 이미지 삭제

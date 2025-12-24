@@ -260,6 +260,46 @@ public class AccommodationServiceImpl implements AccommodationService {
         // 3-3. DB에는 있는데 요청에는 없는 ID 삭제
         for (RoomResponseListDto currentRoom : currentRooms) {
             if (!requestedRoomIds.contains(currentRoom.getRoomId())) {
+                // 객실 삭제 전 예약 확인 및 처리
+                List<Reservation> roomReservations = reservationJpaRepository.findByRoomId(currentRoom.getRoomId());
+                LocalDateTime now = LocalDateTime.now();
+                boolean hasActiveReservation = roomReservations.stream()
+                        .anyMatch(r -> (r.getReservationStatus() == 2 || r.getReservationStatus() == 3) // 2: 확정, 3: 체크인완료
+                                        && r.getCheckout().isAfter(now)); // 현재 시간보다 체크아웃이 미래인 경우만 Active로 간주
+
+                if (hasActiveReservation) {
+                    Reservation activeRes = roomReservations.stream()
+                            .filter(r -> (r.getReservationStatus() == 2 || r.getReservationStatus() == 3) && r.getCheckout().isAfter(now))
+                            .findFirst()
+                            .orElse(null);
+                    String debugInfo = activeRes != null ? "(예약ID: " + activeRes.getId() + ", 상태: " + activeRes.getReservationStatus() + ", 체크아웃: " + activeRes.getCheckout() + ")" : "";
+                    throw new IllegalStateException("아직 종료되지 않은 예약이 있는 객실은 삭제할 수 없습니다. " + debugInfo);
+                }
+
+                // 관련 데이터 삭제 (지난 예약, 취소된 예약 등)
+                if (!roomReservations.isEmpty()) {
+                    List<Long> reservationIds = roomReservations.stream().map(Reservation::getId).toList();
+                    
+                    if (!reservationIds.isEmpty()) {
+                        // 1. Payment & Refund 삭제
+                        List<Payment> payments = paymentJpaRepository.findByReservationIdIn(reservationIds);
+                        List<Long> paymentIds = payments.stream().map(Payment::getId).toList();
+
+                        if (!paymentIds.isEmpty()) {
+                            paymentRefundJpaRepository.deleteByPaymentIdIn(paymentIds);
+                            paymentRefundJpaRepository.flush();
+                        }
+
+
+                        paymentJpaRepository.deleteByReservationIdIn(reservationIds);
+                        paymentJpaRepository.flush();
+                    }
+
+                    // 3. Reservation 삭제
+                    reservationJpaRepository.deleteAllInBatch(roomReservations);
+                    reservationJpaRepository.flush();
+                }
+
                 roomMapper.deleteRoom(accommodationsId, currentRoom.getRoomId());
             }
         }

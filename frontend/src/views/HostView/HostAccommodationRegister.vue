@@ -411,9 +411,16 @@ const validateForm = () => {
     errors.value.accountNumber = '계좌번호를 입력해주세요.'
     errorMessages.push('계좌번호')
     isValid = false
-  } else if (!/^\d+$/.test(form.value.accountNumber)) {
     errors.value.accountNumber = '계좌번호는 숫자만 입력해주세요.'
     errorMessages.push('계좌번호 형식')
+    isValid = false
+  }
+
+  // 테마 검사
+  if (!form.value.themes || form.value.themes.length === 0) {
+    // errors object might not have 'themes' key defined in ref, but Vue handles new props reactivity usually or we can rely on errorMessages
+    // Assuming errors ref is just {}
+    errorMessages.push('테마 (최소 1개 선택)')
     isValid = false
   }
 
@@ -567,13 +574,16 @@ const handleBannerUpload = (event) => {
 
 const handleDetailImagesUpload = (event) => {
   const files = Array.from(event.target.files)
-  const remainingSlots = 30 - form.value.detailImages.length
+  const remainingSlots = 5 - form.value.detailImages.length
   const filesToAdd = files.slice(0, remainingSlots)
 
   filesToAdd.forEach(file => {
     form.value.detailImages.push(URL.createObjectURL(file))
     form.value.detailImageFiles.push(file)
   })
+  
+  // 입력값 초기화
+  event.target.value = ''
 }
 
 const removeDetailImage = (index) => {
