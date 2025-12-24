@@ -314,19 +314,15 @@ let kakaoMarker = null
 let kakaoMapPromise = null
 
 const loadKakaoMap = () => {
-  if (window.kakao?.maps?.LatLng) {
+  if (window.kakao?.maps?.load) {
     return Promise.resolve()
   }
   if (kakaoMapPromise) return kakaoMapPromise
 
   kakaoMapPromise = new Promise((resolve, reject) => {
     const loadMaps = () => {
-      if (window.kakao?.maps?.LatLng) {
-        resolve()
-        return
-      }
       if (window.kakao?.maps?.load) {
-        window.kakao.maps.load(resolve)
+        resolve()
         return
       }
       reject(new Error('Kakao map sdk not ready'))
@@ -363,22 +359,24 @@ const renderKakaoMap = async () => {
     return
   }
   await nextTick()
-  if (!kakaoMapRef.value || !window.kakao?.maps?.LatLng) return
-  const latitude = Number(guesthouse.value.latitude)
-  const longitude = Number(guesthouse.value.longitude)
-  const center = new window.kakao.maps.LatLng(latitude, longitude)
+  if (!kakaoMapRef.value || !window.kakao?.maps?.load) return
+  window.kakao.maps.load(() => {
+    const latitude = Number(guesthouse.value.latitude)
+    const longitude = Number(guesthouse.value.longitude)
+    const center = new window.kakao.maps.LatLng(latitude, longitude)
 
-  if (!kakaoMap) {
-    kakaoMap = new window.kakao.maps.Map(kakaoMapRef.value, {
-      center,
-      level: 3
-    })
-    kakaoMarker = new window.kakao.maps.Marker({ position: center })
-    kakaoMarker.setMap(kakaoMap)
-  } else {
-    kakaoMap.setCenter(center)
-    kakaoMarker?.setPosition(center)
-  }
+    if (!kakaoMap) {
+      kakaoMap = new window.kakao.maps.Map(kakaoMapRef.value, {
+        center,
+        level: 3
+      })
+      kakaoMarker = new window.kakao.maps.Marker({ position: center })
+      kakaoMarker.setMap(kakaoMap)
+    } else {
+      kakaoMap.setCenter(center)
+      kakaoMarker?.setPosition(center)
+    }
+  })
 }
 
 const getSnsType = (line, url) => {
