@@ -106,11 +106,9 @@ public class Accommodation {
     @PrePersist
     public void prePersist() {
         this.createdAt = LocalDateTime.now();
-        this.accommodationStatus = 1;
+        this.accommodationStatus = 0; // 승인 대기 시 운영 상태는 0 (비활성)
         this.approvalStatus = ApprovalStatus.PENDING;
     }
-
-
 
 
 
@@ -142,6 +140,11 @@ public class Accommodation {
     public void updateApprovalStatus(ApprovalStatus status, String rejectionReason) {
         this.approvalStatus = status;
         this.rejectionReason = rejectionReason;
+        
+        // 승인 시 운영 상태를 1(운영 중)로 변경
+        if (status == ApprovalStatus.APPROVED) {
+            this.accommodationStatus = 1;
+        }
     }
 
 }

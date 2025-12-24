@@ -8,6 +8,10 @@ import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.AccommodationsCategory;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
+import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationResponseDto;
+import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
+import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
+import com.ssg9th2team.geharbang.domain.reservation.service.ReservationService;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.mybatis.RoomMapper;
@@ -26,6 +30,7 @@ public class AccommodationServiceImpl implements AccommodationService {
     private final AccommodationMapper accommodationMapper;
     private final RoomMapper roomMapper;
     private final ObjectStorageService objectStorageService;
+    private final ReservationJpaRepository reservationJpaRepository;;
 
 
 
@@ -200,6 +205,20 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         // 이미지
         if (updateRequestDto.getImages() != null) {
+            // 이미지 업로드 로직 추가
+            try {
+                for (com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto img : updateRequestDto.getImages()) {
+                    if (img.getImageUrl() != null) {
+                        String savedUrl = objectStorageService.uploadBase64Image(
+                                img.getImageUrl(), "accommodations");
+                        img.setImageUrl(savedUrl);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw new RuntimeException("숙소 이미지 수정 중 오류가 발생했습니다: " + e.getMessage());
+            }
+
             accommodationMapper.deleteAccommodationImages(accommodationsId);
             if (!updateRequestDto.getImages().isEmpty()) {
                 accommodationMapper.insertAccommodationImages(accommodationsId, updateRequestDto.getImages());
@@ -243,6 +262,18 @@ public class AccommodationServiceImpl implements AccommodationService {
         // 3-4. 객실 추가/수정
         if (updateRequestDto.getRooms() != null) {
             for (AccommodationUpdateRequestDto.RoomData roomDto : updateRequestDto.getRooms()) {
+                // 객실 이미지 업로드 로직 추가
+                try {
+                    if (roomDto.getMainImageUrl() != null) {
+                        String savedUrl = objectStorageService.uploadBase64Image(
+                                roomDto.getMainImageUrl(), "rooms");
+                        roomDto.setMainImageUrl(savedUrl);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    throw new RuntimeException("객실 이미지 수정 중 오류가 발생했습니다: " + e.getMessage());
+                }
+
                 Room room = Room.builder()
                         .accommodationsId(accommodationsId)
                         .roomName(roomDto.getRoomName())
@@ -270,12 +301,20 @@ public class AccommodationServiceImpl implements AccommodationService {
     }
 
 
+
     // 숙소 삭제
     @Override
     @Transactional
     public void deleteAccommodation(Long accommodationsId) {
+        // 예약 확인
+        List<Reservation> reservations = reservationJpaRepository.findByAccommodationsId(accommodationsId);
+        boolean hasActiveReservation = reservations.stream().anyMatch(r -> r.getReservationStatus() == 2);
+
+        if(hasActiveReservation) {
+            throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다.");
+        }
+
         accommodationMapper.deleteAccommodation(accommodationsId);
 
-        // 객실 예약이 있다면 삭제 불가 코드
     }
 }

@@ -1,6 +1,8 @@
 package com.ssg9th2team.geharbang.domain.room.service;
 
 import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
+import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
+import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomCreateDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomUpdateDto;
@@ -18,6 +20,7 @@ public class RoomServiceImpl implements RoomService {
 
     private final RoomMapper roomMapper;
     private final AccommodationMapper accommodationMapper;
+    private final ReservationJpaRepository reservationJpaRepository;
 
     // 추가 객실 등록
     @Override
@@ -75,9 +78,8 @@ public class RoomServiceImpl implements RoomService {
     @Override
     @Transactional
     public void deleteRoom(Long accommodationsId, Long roomId) {
-        roomMapper.deleteRoom(accommodationsId, roomId);
 
-        // 예약된 객실이 있다면 삭제 불가
+        roomMapper.deleteRoom(accommodationsId, roomId);
 
         // 객실 삭제 후 숙소의 최소 가격 업데이트
         accommodationMapper.updateMinPrice(accommodationsId);

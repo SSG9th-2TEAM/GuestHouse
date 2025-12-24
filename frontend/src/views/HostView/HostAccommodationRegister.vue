@@ -1285,24 +1285,21 @@ const handleSubmit = async () => {
           <span v-if="errors.bannerImage" class="error-message">{{ errors.bannerImage }}</span>
         </div>
         
-        <div class="form-group">
-          <label>숙소 상세 이미지 <span class="required">*</span></label>
-          <div class="upload-box">
-            <div class="upload-placeholder" v-if="form.detailImages.length === 0">
-              <span class="upload-text">드래그하거나 클릭해 상세 이미지 추가</span>
-              <span class="upload-info">JPG, PNG, HEIC / 최대 20MB (최소 5장 권장)</span>
-              <span class="upload-hint">최소 1200px 권장</span>
-            </div>
-            <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
-          </div>
-          
-          <div v-if="form.detailImages.length > 0" class="detail-images-preview">
-            <div v-for="(img, idx) in form.detailImages" :key="idx" class="detail-image-item">
-              <img :src="img" />
-              <button class="remove-image-btn" @click="removeDetailImage(idx)">×</button>
+          <div class="form-group">
+            <label>숙소 상세 이미지 (최대 5장) <span class="required">*</span></label>
+            <div class="detail-images-container">
+               <div class="detail-images-preview">
+                  <div v-for="(img, idx) in form.detailImages" :key="idx" class="detail-image-item">
+                     <img :src="img" />
+                     <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
+                  </div>
+                  <label v-if="form.detailImages.length < 5" class="add-detail-image">
+                     <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
+                     <span>+</span>
+                  </label>
+               </div>
             </div>
           </div>
-        </div>
       </section>
 
       <!-- Section: 검색 최적화 정보 -->
@@ -2742,5 +2739,74 @@ input[type="number"]:focus {
 .time-separator {
     font-weight: bold;
     color: #333;
+}
+
+/* Detail Images Preview Code copied from Edit page */
+.detail-images-container {
+  width: 100%;
+}
+
+.detail-images-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.detail-image-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.detail-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.add-detail-image {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px dashed #BFE7DF;
+  border-radius: 8px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 2rem;
+  color: #BFE7DF;
+  transition: all 0.2s;
+  background: white;
+  padding-bottom: 4px; /* Center alignment tweak */
+  line-height: 1;
+}
+
+.add-detail-image:hover {
+  background: #f0fcfa;
+}
+
+.add-detail-image input {
+  display: none;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  padding: 0;
+  line-height: 1;
 }
 </style>
