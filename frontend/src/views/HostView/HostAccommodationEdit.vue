@@ -465,6 +465,12 @@ const validateForm = () => {
         isValid = false
     }
 
+    // 테마 검사
+    if (!form.value.themes || form.value.themes.length === 0) {
+        errorMessages.push('테마 (최소 1개 선택)')
+        isValid = false
+    }
+
     // Room Validation at Submit
     // 유효성 검사 로직 보완
     if (rooms.value.length === 0) {
@@ -607,14 +613,14 @@ const handleUpdate = async () => {
             imageList.push({
                 imageUrl: base64,
                 imageType: 'banner',
-                sortOrder: 1
+                sortOrder: 0
             })
         } else if (form.value.bannerImage) {
             // Existing Banner (URL) - Send as is
             imageList.push({
                 imageUrl: form.value.bannerImage,
                 imageType: 'banner',
-                sortOrder: 1
+                sortOrder: 0
             })
         }
 
@@ -626,13 +632,13 @@ const handleUpdate = async () => {
                  imageList.push({
                      imageUrl: base64,
                      imageType: 'detail',
-                     sortOrder: i + 2
+                     sortOrder: i + 1
                  })
             } else {
                  imageList.push({
                      imageUrl: item.url,
                      imageType: 'detail',
-                     sortOrder: i + 2
+                     sortOrder: i + 1
                  })
             }
         }
@@ -980,6 +986,9 @@ const handleDetailImagesUpload = (event) => {
           isNew: true
       })
   })
+  
+  // 입력값 초기화
+  event.target.value = ''
 }
 
 // 상세 이미지 삭제
