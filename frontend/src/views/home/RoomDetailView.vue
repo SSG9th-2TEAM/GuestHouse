@@ -1,5 +1,5 @@
-<script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+﻿<script setup>
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { fetchAccommodationDetail } from '@/api/accommodation'
@@ -34,6 +34,7 @@ const createEmptyGuesthouse = (id = null) => ({
   transportInfo: '',
   parkingInfo: '',
   sns: '',
+  phone: '',
   latitude: null,
   longitude: null,
   amenities: [],
@@ -98,7 +99,7 @@ const normalizeDetail = (data) => {
   return {
     id: data?.accommodationsId ?? null,
     name: data?.accommodationsName ?? '',
-    rating: Number.isFinite(ratingValue) ? ratingValue.toFixed(1) : '-',
+    rating: Number.isFinite(ratingValue) ? ratingValue.toFixed(2) : '-',
     reviewCount: toNumber(data?.reviewCount, 0),
     address: buildAddress(data),
     description: data?.accommodationsDescription ?? data?.shortDescription ?? '',
@@ -108,6 +109,7 @@ const normalizeDetail = (data) => {
     transportInfo: data?.transportInfo ?? '',
     parkingInfo: data?.parkingInfo ?? '',
     sns: data?.sns ?? '',
+    phone: data?.phone ?? '',
     latitude: data?.latitude ?? null,
     longitude: data?.longitude ?? null,
     amenities: normalizeAmenities(data),
@@ -129,6 +131,9 @@ const isCalendarOpen = ref(false)
 const showFullDescription = ref(false)
 const currentDate = ref(new Date())
 const datePickerRef = ref(null)
+const isImageModalOpen = ref(false)
+const selectedImageIndex = ref(0)
+const kakaoMapRef = ref(null)
 
 const canBook = computed(() => {
   return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
@@ -142,6 +147,10 @@ const currentMonth = computed(() => currentDate.value.getMonth())
 const nextMonthDate = computed(() => new Date(currentYear.value, currentMonth.value + 1, 1))
 const nextMonthYear = computed(() => nextMonthDate.value.getFullYear())
 const nextMonthMonth = computed(() => nextMonthDate.value.getMonth())
+const hasCoordinates = computed(() => {
+  return Number.isFinite(Number(guesthouse.value.latitude))
+    && Number.isFinite(Number(guesthouse.value.longitude))
+})
 
 const isDescriptionLong = computed(() => {
   return (guesthouse.value.description || '').length > 120
@@ -192,6 +201,9 @@ const getCalendarDays = (year, month) => {
 
 const calendarDays = computed(() => getCalendarDays(currentYear.value, currentMonth.value))
 const nextMonthDays = computed(() => getCalendarDays(nextMonthYear.value, nextMonthMonth.value))
+const currentModalImage = computed(() => {
+  return guesthouse.value.images[selectedImageIndex.value] || DEFAULT_IMAGE
+})
 
 const toggleCalendar = () => {
   isCalendarOpen.value = !isCalendarOpen.value
@@ -258,6 +270,30 @@ const selectRoom = (room) => {
   selectedRoom.value = room
 }
 
+const openImageModal = (index) => {
+  const images = guesthouse.value.images || []
+  if (!images.length) return
+  const nextIndex = Math.min(Math.max(index, 0), images.length - 1)
+  selectedImageIndex.value = nextIndex
+  isImageModalOpen.value = true
+}
+
+const closeImageModal = () => {
+  isImageModalOpen.value = false
+}
+
+const showPrevImage = () => {
+  const images = guesthouse.value.images || []
+  if (images.length <= 1) return
+  selectedImageIndex.value = (selectedImageIndex.value - 1 + images.length) % images.length
+}
+
+const showNextImage = () => {
+  const images = guesthouse.value.images || []
+  if (images.length <= 1) return
+  selectedImageIndex.value = (selectedImageIndex.value + 1) % images.length
+}
+
 const formatPrice = (price) => {
   if (price == null) return '-'
   const parsed = Number(price)
@@ -273,10 +309,76 @@ const formatDateParam = (date) => {
   return `${year}-${month}-${day}`
 }
 
-const formatCoordinate = (value) => {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return '-'
-  return parsed.toFixed(6)
+let kakaoMap = null
+let kakaoMarker = null
+let kakaoMapPromise = null
+
+const loadKakaoMap = () => {
+  if (window.kakao?.maps?.LatLng) {
+    return Promise.resolve()
+  }
+  if (kakaoMapPromise) return kakaoMapPromise
+
+  kakaoMapPromise = new Promise((resolve, reject) => {
+    const loadMaps = () => {
+      if (window.kakao?.maps?.LatLng) {
+        resolve()
+        return
+      }
+      if (window.kakao?.maps?.load) {
+        window.kakao.maps.load(resolve)
+        return
+      }
+      reject(new Error('Kakao map sdk not ready'))
+    }
+
+    if (window.kakao?.maps) {
+      loadMaps()
+      return
+    }
+
+    const appKey = import.meta.env.VITE_KAKAO_MAP_KEY
+    if (!appKey) {
+      reject(new Error('Kakao map key is missing'))
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`
+    script.async = true
+    script.onload = loadMaps
+    script.onerror = reject
+    document.head.appendChild(script)
+  })
+
+  return kakaoMapPromise
+}
+
+const renderKakaoMap = async () => {
+  if (!hasCoordinates.value) return
+  try {
+    await loadKakaoMap()
+  } catch (error) {
+    console.error('Kakao map load failed', error)
+    return
+  }
+  await nextTick()
+  if (!kakaoMapRef.value || !window.kakao?.maps?.LatLng) return
+  const latitude = Number(guesthouse.value.latitude)
+  const longitude = Number(guesthouse.value.longitude)
+  const center = new window.kakao.maps.LatLng(latitude, longitude)
+
+  if (!kakaoMap) {
+    kakaoMap = new window.kakao.maps.Map(kakaoMapRef.value, {
+      center,
+      level: 3
+    })
+    kakaoMarker = new window.kakao.maps.Marker({ position: center })
+    kakaoMarker.setMap(kakaoMap)
+  } else {
+    kakaoMap.setCenter(center)
+    kakaoMarker?.setPosition(center)
+  }
 }
 
 const getSnsType = (line, url) => {
@@ -381,14 +483,30 @@ const handleClickOutside = (event) => {
   isCalendarOpen.value = false
 }
 
+const handleModalKeyDown = (event) => {
+  if (!isImageModalOpen.value) return
+  if (event.key === 'Escape') {
+    closeImageModal()
+  } else if (event.key === 'ArrowLeft') {
+    showPrevImage()
+  } else if (event.key === 'ArrowRight') {
+    showNextImage()
+  }
+}
+
 onMounted(loadAccommodation)
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleModalKeyDown)
 })
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleModalKeyDown)
 })
 watch(() => route.params.id, loadAccommodation)
+watch(() => [guesthouse.value.latitude, guesthouse.value.longitude], () => {
+  renderKakaoMap()
+})
 </script>
 
 <template>
@@ -400,10 +518,22 @@ watch(() => route.params.id, loadAccommodation)
 
     <!-- Image Grid -->
     <div class="image-grid">
-      <div class="main-img" :style="{ backgroundImage: `url(${guesthouse.images[0]})` }"></div>
+      <div
+        class="main-img"
+        role="button"
+        tabindex="0"
+        :style="{ backgroundImage: `url(${guesthouse.images[0]})` }"
+        @click="openImageModal(0)"
+        @keydown.enter.prevent="openImageModal(0)"
+      ></div>
       <div class="sub-imgs">
         <div v-for="(img, idx) in guesthouse.images.slice(1, 5)" :key="idx" 
-             class="sub-img" :style="{ backgroundImage: `url(${img})` }"></div>
+             class="sub-img"
+             role="button"
+             tabindex="0"
+             :style="{ backgroundImage: `url(${img})` }"
+             @click="openImageModal(idx + 1)"
+             @keydown.enter.prevent="openImageModal(idx + 1)"></div>
       </div>
     </div>
 
@@ -427,27 +557,29 @@ watch(() => route.params.id, loadAccommodation)
           {{ showFullDescription ? '접기' : '더보기' }}
         </button>
       </div>
-      <div class="detail-meta">
-        <span class="meta-item">위치 {{ guesthouse.address || '-' }}</span>
-      </div>
       <div class="transport-info" v-if="guesthouse.transportInfo">
-        <h3>교통 정보</h3>
+        <h3 class="info-title">
+          <span class="info-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 11.5v6.3c0 .9.7 1.7 1.6 1.7h.7v1.1c0 .6.5 1.1 1.1 1.1s1.1-.5 1.1-1.1v-1.1h7.1v1.1c0 .6.5 1.1 1.1 1.1s1.1-.5 1.1-1.1v-1.1h.7c.9 0 1.6-.7 1.6-1.7v-6.3c0-2.5-2-4.5-4.5-4.5h-6.1c-2.5 0-4.5 2-4.5 4.5Zm12.1-2.6c1.5 0 2.7 1.2 2.7 2.6v.3H5.2v-.3c0-1.5 1.2-2.6 2.7-2.6h8.2Zm-9.6 7.4c-.5 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1Zm11.1 0c-.5 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1Z" />
+            </svg>
+          </span>
+          교통 정보
+        </h3>
         <p>{{ guesthouse.transportInfo }}</p>
       </div>
-    </section>
-
-    <hr />
-
-    <!-- Host -->
-    <section class="section host-section">
-      <div class="host-info">
-        <h3>호스트: {{ guesthouse.host.name }}</h3>
-        <p class="join-date">{{ guesthouse.host.joined }}</p>
+      <div class="contact-info" v-if="guesthouse.phone">
+        <h3 class="info-title">
+          <span class="info-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M6.6 3.5c.5-.4 1.2-.4 1.7 0l2 1.7c.6.5.7 1.4.3 2.1l-1 1.8c-.2.4-.2.9.1 1.3 1 1.6 2.4 3 4 4 .4.2.9.3 1.3.1l1.8-1c.7-.4 1.6-.3 2.1.3l1.7 2c.4.5.4 1.2 0 1.7l-1.3 1.5c-.5.6-1.2.9-2 .8-2.7-.4-5.3-1.8-7.7-4.2s-3.8-5-4.2-7.7c-.1-.8.2-1.5.8-2l1.5-1.3Z" />
+            </svg>
+          </span>
+          연락처
+        </h3>
+        <p>{{ guesthouse.phone }}</p>
       </div>
-      <img :src="guesthouse.host.image" alt="Host Profile" class="host-avatar" />
     </section>
-
-    <hr />
 
     <section class="section amenity-section">
       <h2>편의시설</h2>
@@ -678,8 +810,9 @@ watch(() => route.params.id, loadAccommodation)
     <!-- Map Placeholder -->
     <section class="section map-section">
       <h2>숙소 위치</h2>
-      <div class="map-placeholder">
-        <div class="map-coordinates">위도 {{ formatCoordinate(guesthouse.latitude) }} / 경도 {{ formatCoordinate(guesthouse.longitude) }}</div>
+      <div v-if="hasCoordinates" ref="kakaoMapRef" class="map-container"></div>
+      <div v-else class="map-placeholder">
+        <div class="map-text">위치 정보가 없습니다.</div>
       </div>
       <p class="mt-2">{{ guesthouse.transportInfo || '교통 정보가 없습니다.' }}</p>
     </section>
@@ -689,18 +822,11 @@ watch(() => route.params.id, loadAccommodation)
       <div class="rule-box">
         <h3>환불 규정</h3>
         <ul>
-          <li>체크인 7일 전까지 취소: 100% 환불</li>
-          <li>체크인 3일 전까지 취소: 50% 환불</li>
-          <li>체크인 3일 이내 취소: 환불 불가</li>
-        </ul>
-      </div>
-      <div class="rule-box mt-4">
-        <h3>이용 규칙</h3>
-        <ul>
-          <li>체크인: {{ guesthouse.checkInTime || '정보 없음' }}</li>
-          <li>체크아웃: {{ guesthouse.checkOutTime || '정보 없음' }}</li>
-          <li>흡연 금지</li>
-          <li>반려동물 동반 불가</li>
+          <li>체크인 7일 전 취소: 결제 금액 100% 환불</li>
+          <li>체크인 5~6일 전 취소: 결제 금액의 90% 환불</li>
+          <li>체크인 3~4일 전 취소: 결제 금액의 70% 환불</li>
+          <li>체크인 1~2일 전 취소: 결제 금액의 50% 환불</li>
+          <li>체크인 당일 취소 또는 노쇼(No-show): 환불 불가</li>
         </ul>
       </div>
     </section>
@@ -722,6 +848,36 @@ watch(() => route.params.id, loadAccommodation)
       <button type="button" class="booking-hint-btn" @click="openCalendarFromHint">
         날짜 선택하기
       </button>
+    </div>
+
+    <div v-if="isImageModalOpen" class="image-modal" @click="closeImageModal">
+      <div class="image-modal-content" @click.stop>
+        <div class="image-modal-header">
+          <button type="button" class="image-modal-close" @click="closeImageModal">닫기</button>
+        </div>
+        <div class="image-modal-body">
+          <button
+            v-if="guesthouse.images.length > 1"
+            type="button"
+            class="image-modal-nav prev"
+            @click="showPrevImage"
+            aria-label="이전 사진"
+          >
+            ‹
+          </button>
+          <img :src="currentModalImage" :alt="guesthouse.name" class="image-modal-image" />
+          <button
+            v-if="guesthouse.images.length > 1"
+            type="button"
+            class="image-modal-nav next"
+            @click="showNextImage"
+            aria-label="다음 사진"
+          >
+            ›
+          </button>
+        </div>
+        <div class="image-modal-caption">{{ selectedImageIndex + 1 }} / {{ guesthouse.images.length }}</div>
+      </div>
     </div>
 
   </div>
@@ -765,6 +921,7 @@ watch(() => route.params.id, loadAccommodation)
   background-size: cover;
   background-position: center;
   border-radius: var(--radius-md) 0 0 var(--radius-md);
+  cursor: pointer;
 }
 .sub-imgs {
   display: grid;
@@ -775,6 +932,7 @@ watch(() => route.params.id, loadAccommodation)
 .sub-img {
   background-size: cover;
   background-position: center;
+  cursor: pointer;
 }
 .sub-img:nth-child(2) {
   border-radius: 0 var(--radius-md) 0 0;
@@ -807,12 +965,14 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 .description-row {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 .description {
   line-height: 1.6;
   flex: 1;
+  margin: 0;
 }
 .description-clamped {
   display: -webkit-box;
@@ -822,7 +982,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 .more-btn {
   margin-top: 0.15rem;
-  margin-left: auto;
+  align-self: flex-end;
   background: #BFE7DF;
   border: 1px solid #8FCFC1;
   color: #0f4c44;
@@ -836,7 +996,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 0.75rem;
+  margin-top: 0;
   color: var(--text-sub);
   font-size: 0.9rem;
 }
@@ -852,6 +1012,34 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   margin-bottom: 0.4rem;
 }
 .transport-info p {
+  margin: 0;
+  color: var(--text-sub);
+  line-height: 1.5;
+}
+.info-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.info-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  color: #0f4c44;
+}
+.info-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: currentColor;
+}
+.contact-info {
+  margin-top: 1rem;
+}
+.contact-info h3 {
+  margin-bottom: 0.4rem;
+}
+.contact-info p {
   margin: 0;
   color: var(--text-sub);
   line-height: 1.5;
@@ -978,11 +1166,13 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 .picker-field label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 0.5rem; }
 .date-display, .guest-control {
   border: 1px solid #ddd;
-  padding: 0.8rem;
+  padding: 0 0.8rem;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 48px;
+  background: #fff;
 }
 .date-picker-wrapper {
   position: relative;
@@ -1157,14 +1347,16 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   color: var(--text-main);
   font-weight: 600;
 }
-.map-coordinates {
-  font-size: 0.85rem;
-  color: var(--text-sub);
+.map-container {
+  width: 100%;
+  height: 220px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 /* Rules */
 .rule-box h3 { margin-bottom: 0.8rem; }
-.rule-box ul { list-style: inside disc; color: var(--text-sub); font-size: 0.9rem; line-height: 1.6; }
+.rule-box ul { list-style: inside disc; color: var(--text-sub); font-size: 0.9rem; line-height: 1.6; padding-left: 0.75rem; }
 .mt-2 { margin-top: 0.5rem; }
 .mt-4 { margin-top: 1rem; }
 
@@ -1230,6 +1422,91 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   border-radius: 999px;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Image Modal */
+.image-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 0;
+}
+.image-modal-content {
+  background: #fff;
+  border-radius: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.image-modal-body {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  position: relative;
+  justify-content: center;
+  width: 100%;
+}
+.image-modal-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.92);
+}
+.image-modal-image {
+  width: 100%;
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 0;
+  background: #f3f4f6;
+  display: block;
+}
+.image-modal-close {
+  background: #BFE7DF;
+  border: 1px solid #8FCFC1;
+  color: #0f4c44;
+  font-weight: 700;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.image-modal-nav {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.image-modal-nav.prev {
+  left: 8px;
+}
+.image-modal-nav.next {
+  right: 8px;
+}
+.image-modal-caption {
+  text-align: center;
+  color: var(--text-sub);
+  font-size: 0.85rem;
+  padding: 0.5rem 0;
 }
 
 @media (max-width: 768px) {
@@ -1326,13 +1603,24 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
     transform: none;
     justify-content: space-between;
   }
-  .description-row {
-    flex-direction: column;
-    gap: 0.5rem;
+  .image-modal-content {
+    width: 100%;
   }
-
-  .more-btn {
-    align-self: flex-end;
+  .image-modal-image {
+    max-height: 60vh;
+  }
+  .image-modal-nav {
+    width: 32px;
+    height: 32px;
+    font-size: 1.2rem;
+  }
+  .image-modal-nav.prev {
+    left: 4px;
+  }
+  .image-modal-nav.next {
+    right: 4px;
   }
 }
 </style>
+
+

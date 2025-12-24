@@ -26,6 +26,7 @@ public class AccommodationDetailDto {
     private String transportInfo;
     private String parkingInfo;
     private String sns;
+    private String phone;
     private String checkInTime;
     private String checkOutTime;
     private Integer minPrice;
@@ -56,6 +57,7 @@ public class AccommodationDetailDto {
                 .transportInfo(dto.getTransportInfo())
                 .parkingInfo(dto.getParkingInfo())
                 .sns(dto.getSns())
+                .phone(dto.getPhone())
                 .checkInTime(dto.getCheckInTime())
                 .checkOutTime(dto.getCheckOutTime())
                 .minPrice(dto.getMinPrice())
