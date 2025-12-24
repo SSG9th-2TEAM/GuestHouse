@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.booking.host.controller;
 
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.booking.host.dto.HostBookingResponse;
 import com.ssg9th2team.geharbang.domain.booking.host.service.HostBookingService;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;

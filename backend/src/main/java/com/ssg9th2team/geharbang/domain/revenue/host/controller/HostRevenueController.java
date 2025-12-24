@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.revenue.host.controller;
 
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.revenue.host.dto.HostRevenueDetailResponse;
 import com.ssg9th2team.geharbang.domain.revenue.host.dto.HostRevenueSummaryResponse;
 import com.ssg9th2team.geharbang.domain.revenue.host.dto.HostRevenueTrendResponse;
@@ -25,7 +26,6 @@ public class HostRevenueController {
     private final UserRepository userRepository;
 
     @GetMapping("/summary")
-    // 월 요약: 체크아웃 기준 확정 예약 매출 + 다음달 예상 매출
     public HostRevenueSummaryResponse summary(
             @RequestParam int year,
             @RequestParam int month,
@@ -39,7 +39,6 @@ public class HostRevenueController {
     }
 
     @GetMapping("/trend")
-    // 연도별 월 매출 추이 (1~12월 고정)
     public List<HostRevenueTrendResponse> trend(
             @RequestParam int year,
             Authentication authentication
@@ -52,7 +51,6 @@ public class HostRevenueController {
     }
 
     @GetMapping("/details")
-    // 기간 내 월별 매출/점유율 상세
     public List<HostRevenueDetailResponse> details(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,

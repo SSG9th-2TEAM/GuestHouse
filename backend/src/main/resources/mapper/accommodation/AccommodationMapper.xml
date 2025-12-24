@@ -10,6 +10,7 @@
     <resultMap id="AccommodationDetailMap" type="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto" autoMapping="true">
         <id property="accommodationsId" column="accommodationsId"/>
         <collection property="amenities" column="accommodationsId" select="selectAmenitiesByAccommodationId"/>
+        <collection property="amenityDetails" column="accommodationsId" select="selectAmenityDetailsByAccommodationId"/>
         <collection property="themes" column="accommodationsId" select="selectThemesByAccommodationId"/>
         <collection property="rooms" column="accommodationsId" select="selectRoomsByAccommodationId"/>
         <collection property="images" column="accommodationsId" select="selectImagesByAccommodationId"/>
@@ -212,6 +213,16 @@
     <!-- 편의시설 조회 (Nested Select) -->
     <select id="selectAmenitiesByAccommodationId" resultType="string">
         SELECT am.amenity_name
+        FROM accommodation_amenity aa
+        JOIN amenity am ON aa.amenity_id = am.amenity_id
+        WHERE aa.accommodations_id = #{accommodationsId}
+    </select>
+
+    <select id="selectAmenityDetailsByAccommodationId"
+            resultType="com.ssg9th2team.geharbang.domain.accommodation.dto.AmenityDetailDto">
+        SELECT
+            am.amenity_name AS amenityName,
+            am.amenity_icon AS amenityIcon
         FROM accommodation_amenity aa
         JOIN amenity am ON aa.amenity_id = am.amenity_id
         WHERE aa.accommodations_id = #{accommodationsId}

@@ -78,7 +78,7 @@ public class Accommodation {
     @Column(name = "business_registration_number", length = 10, nullable = false)
     private String businessRegistrationNumber;
 
-    @Column(name = "business_registration_image", length = 255)
+    @Column(name = "business_registration_image", columnDefinition = "LONGTEXT")
     private String businessRegistrationImage;
 
     @Column(name = "parking_info", length = 100, nullable = false)

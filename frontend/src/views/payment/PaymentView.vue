@@ -3,12 +3,14 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getReservation } from '@/api/reservationApi'
 import { confirmPayment } from '@/api/paymentApi'
+import { getCurrentUser } from '@/api/userClient'
 
 const router = useRouter()
 const route = useRoute()
 
 const reservationId = computed(() => route.params.reservationId)
 const reservation = ref(null)
+const currentUser = ref(null)
 const isLoading = ref(true)
 const isPaymentLoading = ref(false)
 const errorMessage = ref('')
@@ -28,6 +30,12 @@ onMounted(async () => {
   try {
     // 예약 정보 조회
     reservation.value = await getReservation(reservationId.value)
+    
+    // 현재 로그인한 사용자 정보 조회
+    const userResponse = await getCurrentUser()
+    if (userResponse.ok && userResponse.data) {
+      currentUser.value = userResponse.data
+    }
     
     // 토스페이먼츠 SDK 로드
     await loadTossPaymentsSDK()
@@ -112,9 +120,9 @@ const handlePayment = async () => {
       orderName: `${reservation.value.accommodationName || '게스트하우스'} 예약`,
       successUrl: `${window.location.origin}/payment/success?reservationId=${reservationId.value}`,
       failUrl: `${window.location.origin}/payment/fail?reservationId=${reservationId.value}`,
-      customerEmail: 'guest@example.com',
-      customerName: reservation.value.reserverName || '홍길동',
-      customerMobilePhone: reservation.value.reserverPhone?.replace(/-/g, '') || '01012345678'
+      customerEmail: currentUser.value?.email || 'guest@example.com',
+      customerName: currentUser.value?.email || reservation.value.reserverName || '예약자',
+      customerMobilePhone: currentUser.value?.phone?.replace(/-/g, '') || '01000000000'
     })
 
   } catch (error) {
@@ -175,7 +183,7 @@ const goBack = async () => {
         </div>
         <div class="info-row">
           <span>예약자 연락처</span>
-          <span>{{ reservation.reserverPhone || '-' }}</span>
+          <span>{{ currentUser?.phone || reservation.reserverPhone || '-' }}</span>
         </div>
         <div class="info-row total">
           <span>결제 금액</span>

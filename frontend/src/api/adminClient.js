@@ -1,6 +1,8 @@
 // Lightweight admin API client scaffold using the admin base URL.
 // The base URL is configurable so user/admin servers can be split later.
-const adminBaseURL = (import.meta.env.VITE_ADMIN_API_BASE_URL || '/api/admin').replace(/\/$/, '')
+import { getAccessToken } from './authClient'
+
+const adminBaseURL = (import.meta.env.VITE_ADMIN_API_BASE_URL || '/admin-api').replace(/\/$/, '')
 
 let adminAuthToken = ''
 
@@ -15,9 +17,8 @@ export async function adminRequest(path, options = {}) {
     ...(options.headers || {})
   }
 
-  const token = adminAuthToken || localStorage.getItem('accessToken')
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
+  if (adminAuthToken) {
+    headers.Authorization = `Bearer ${adminAuthToken}`
   }
 
   const response = await fetch(url, {
@@ -53,7 +54,7 @@ export async function hostRequest(path, options = {}) {
     ...(options.headers || {})
   }
 
-  const token = hostAuthToken || localStorage.getItem('accessToken')
+  const token = getAccessToken()
   if (token) {
     headers.Authorization = `Bearer ${token}`
   }

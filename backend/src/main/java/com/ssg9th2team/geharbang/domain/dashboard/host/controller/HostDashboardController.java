@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.dashboard.host.controller;
 
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.dashboard.host.dto.HostDashboardSummaryResponse;
 import com.ssg9th2team.geharbang.domain.dashboard.host.dto.TodayScheduleItemResponse;
 import com.ssg9th2team.geharbang.domain.dashboard.host.service.HostDashboardService;
@@ -24,7 +25,6 @@ public class HostDashboardController {
     private final UserRepository userRepository;
 
     @GetMapping("/dashboard/summary")
-    // @PreAuthorize("hasRole('HOST')")
     public HostDashboardSummaryResponse summary(
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,

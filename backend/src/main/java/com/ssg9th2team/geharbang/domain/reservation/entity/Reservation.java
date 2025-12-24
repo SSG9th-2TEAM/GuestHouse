@@ -24,6 +24,9 @@ public class Reservation {
     @Column(name = "accommodations_id", nullable = false)
     private Long accommodationsId;
 
+    @Column(name = "room_id")
+    private Long roomId;
+
     @Column(name = "user_id", nullable = false)
     private Long userId;
 

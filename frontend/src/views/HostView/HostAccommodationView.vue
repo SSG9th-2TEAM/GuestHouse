@@ -3,6 +3,15 @@ import { ref, computed, onMounted } from 'vue'
 import HostAccommodationRegister from './HostAccommodationRegister.vue'
 import { fetchHostAccommodations, deleteHostAccommodation } from '@/api/hostAccommodation'
 
+const SERVER_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:8080'
+
+// 이미지 URL을 전체 경로로 변환
+const getFullImageUrl = (url) => {
+  if (!url) return 'https://via.placeholder.com/400x300'
+  if (url.startsWith('blob:') || url.startsWith('http')) return url
+  return `${SERVER_BASE_URL}${url}`
+}
+
 const viewMode = ref('list')
 const accommodations = ref([])
 const isLoading = ref(false)
@@ -119,7 +128,7 @@ onMounted(loadAccommodations)
             class="accommodation-card"
         >
           <div class="card-image">
-            <img :src="accommodation.images[0] || 'https://via.placeholder.com/400x300'" :alt="accommodation.name"/>
+            <img :src="getFullImageUrl(accommodation.images[0])" :alt="accommodation.name"/>
           </div>
 
           <div class="card-info">

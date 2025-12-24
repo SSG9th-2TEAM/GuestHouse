@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -22,8 +23,7 @@ public class AccommodationController {
 
     // 숙소 등록
     @PostMapping
-    public ResponseEntity<?> createAccommodation(@Valid @RequestBody AccommodationCreateRequestDto requestDto,
-                                                 org.springframework.security.core.Authentication authentication) {
+    public ResponseEntity<?> createAccommodation(@Valid @RequestBody AccommodationCreateRequestDto requestDto, Authentication authentication) {
         try {
             String email = authentication.getName();
             Long userId = userRepository.findByEmail(email)
