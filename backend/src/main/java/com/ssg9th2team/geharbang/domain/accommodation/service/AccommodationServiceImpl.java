@@ -147,6 +147,8 @@ public class AccommodationServiceImpl implements AccommodationService {
         return accommodationsId;
     }
 
+
+
     // 숙소 상세조회
     @Override
     public AccommodationResponseDto getAccommodation(Long accommodationsId) {
