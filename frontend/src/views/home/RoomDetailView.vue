@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
@@ -1330,7 +1330,9 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 /* Map */
 .map-placeholder {
   background: #eee;
-  height: 200px;
+  width: 100%;
+  max-width: 520px;
+  aspect-ratio: 1 / 1;
   border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
@@ -1340,6 +1342,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   color: #888;
   padding: 0 1rem;
   text-align: center;
+  margin: 0 auto;
 }
 .map-text {
   color: var(--text-main);
@@ -1347,9 +1350,19 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 .map-container {
   width: 100%;
-  height: 220px;
+  max-width: 520px;
+  aspect-ratio: 1 / 1;
   border-radius: var(--radius-md);
   overflow: hidden;
+  margin: 0 auto;
+}
+@media (min-width: 769px) {
+  .map-placeholder,
+  .map-container {
+    max-width: 100%;
+    aspect-ratio: auto;
+    height: 480px;
+  }
 }
 
 /* Rules */
