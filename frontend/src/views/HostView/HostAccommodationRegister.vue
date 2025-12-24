@@ -566,7 +566,7 @@ const handleBannerUpload = (event) => {
 
 const handleDetailImagesUpload = (event) => {
   const files = Array.from(event.target.files)
-  const remainingSlots = 5 - form.value.detailImages.length
+  const remainingSlots = 30 - form.value.detailImages.length
   const filesToAdd = files.slice(0, remainingSlots)
 
   filesToAdd.forEach(file => {
@@ -719,6 +719,11 @@ const initMap = async () => {
       map: map.value
     })
     marker.value.setVisible(false)
+
+    // 지도 relayout (크기 재계산)
+    setTimeout(() => {
+      if (map.value) map.value.relayout()
+    }, 100)
   })
 }
 
