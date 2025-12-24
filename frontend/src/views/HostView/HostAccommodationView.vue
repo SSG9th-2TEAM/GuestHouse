@@ -44,7 +44,7 @@ const handleDelete = async (id) => {
     if (response.ok) {
       accommodations.value = accommodations.value.filter((item) => item.id !== id)
     } else {
-      alert('숙소 삭제에 실패했습니다.')
+      alert('예약이 있는 객실입니다. 예약 내역을 확인해주세요.')
     }
   }
 }

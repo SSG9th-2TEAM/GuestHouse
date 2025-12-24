@@ -87,8 +87,6 @@ public class RoomServiceImpl implements RoomService {
         if(hasActiveReservation) {
             throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다");
         }
-
-
         roomMapper.deleteRoom(accommodationsId, roomId);
         accommodationMapper.updateMinPrice(accommodationsId);
     }

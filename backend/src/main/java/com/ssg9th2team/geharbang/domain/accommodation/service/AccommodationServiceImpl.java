@@ -18,6 +18,7 @@ import com.ssg9th2team.geharbang.domain.reservation.service.ReservationService;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.mybatis.RoomMapper;
+import com.ssg9th2team.geharbang.domain.wishlist.repository.mybatis.WishlistMapper;
 import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -105,8 +106,8 @@ public class AccommodationServiceImpl implements AccommodationService {
                 .latitude(createRequestDto.getLatitude())
                 .longitude(createRequestDto.getLongitude())
                 .transportInfo(createRequestDto.getTransportInfo())
-                .accommodationStatus(0)
-                .approvalStatus(ApprovalStatus.PENDING)
+                .accommodationStatus(1)   // 테스트할떄 1로 바꾸기
+                .approvalStatus(ApprovalStatus.APPROVED)  // 테스트할때 approved로 바꾸기
                 .createdAt(LocalDateTime.now())
                 .phone(createRequestDto.getPhone())
                 .businessRegistrationNumber(createRequestDto.getBusinessRegistrationNumber())
@@ -306,11 +307,13 @@ public class AccommodationServiceImpl implements AccommodationService {
 
 
 
+    private final WishlistMapper wishlistMapper;
+
     // 숙소 삭제
     @Override
     @Transactional
     public void deleteAccommodation(Long accommodationsId) {
-        // 예약 확인
+        // 예약 확인 ( stastus = 2 = 예약 완료)
         List<Reservation> reservations = reservationJpaRepository.findByAccommodationsId(accommodationsId);
         boolean hasActiveReservation = reservations.stream().anyMatch(r -> r.getReservationStatus() == 2);
 
@@ -339,6 +342,9 @@ public class AccommodationServiceImpl implements AccommodationService {
             reservationJpaRepository.deleteAllInBatch(reservations);
             reservationJpaRepository.flush(); // 예약 데이터 삭제 반영
         }
+        
+        // 4. Wishlist 삭제 (FK_WISHLIST_ACC 제약조건 해결)
+        wishlistMapper.deleteWishlistByAccommodationId(accommodationsId);
 
         accommodationMapper.deleteAccommodation(accommodationsId);
 

@@ -607,14 +607,14 @@ const handleUpdate = async () => {
             imageList.push({
                 imageUrl: base64,
                 imageType: 'banner',
-                sortOrder: 1
+                sortOrder: 0
             })
         } else if (form.value.bannerImage) {
             // Existing Banner (URL) - Send as is
             imageList.push({
                 imageUrl: form.value.bannerImage,
                 imageType: 'banner',
-                sortOrder: 1
+                sortOrder: 0
             })
         }
 
@@ -626,13 +626,13 @@ const handleUpdate = async () => {
                  imageList.push({
                      imageUrl: base64,
                      imageType: 'detail',
-                     sortOrder: i + 2
+                     sortOrder: i + 1
                  })
             } else {
                  imageList.push({
                      imageUrl: item.url,
                      imageType: 'detail',
-                     sortOrder: i + 2
+                     sortOrder: i + 1
                  })
             }
         }
