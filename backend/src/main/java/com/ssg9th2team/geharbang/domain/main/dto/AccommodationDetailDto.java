@@ -3,6 +3,7 @@ package com.ssg9th2team.geharbang.domain.main.dto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AmenityDetailDto;
+import com.ssg9th2team.geharbang.domain.review.dto.ReviewResponseDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
 import lombok.Builder;
 import lombok.Getter;
@@ -32,6 +33,7 @@ public class AccommodationDetailDto {
     private Integer minPrice;
     private Double rating;
     private Integer reviewCount;
+    private List<ReviewResponseDto> reviews;
     private List<String> amenities;
     private List<AmenityDetailDto> amenityDetails;
     private List<String> themes;
@@ -63,6 +65,7 @@ public class AccommodationDetailDto {
                 .minPrice(dto.getMinPrice())
                 .rating(dto.getRating())
                 .reviewCount(dto.getReviewCount())
+                .reviews(dto.getReviews())
                 .amenities(dto.getAmenities())
                 .amenityDetails(dto.getAmenityDetails())
                 .themes(dto.getThemes())

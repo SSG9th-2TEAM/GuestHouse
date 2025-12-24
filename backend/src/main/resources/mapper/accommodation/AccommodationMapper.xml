@@ -14,6 +14,7 @@
         <collection property="themes" column="accommodationsId" select="selectThemesByAccommodationId"/>
         <collection property="rooms" column="accommodationsId" select="selectRoomsByAccommodationId"/>
         <collection property="images" column="accommodationsId" select="selectImagesByAccommodationId"/>
+        <collection property="reviews" column="accommodationsId" select="com.ssg9th2team.geharbang.domain.review.repository.mybatis.ReviewMapper.selectReviewsByAccommodationId"/>
         <collection property="amenityIds" column="accommodationsId" select="selectAmenityIdsByAccommodationId"/>
         <collection property="themeIds" column="accommodationsId" select="selectThemeIdsByAccommodationId"/>
     </resultMap>

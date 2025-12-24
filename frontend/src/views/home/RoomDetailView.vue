@@ -1,8 +1,11 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { fetchAccommodationDetail } from '@/api/accommodation'
+import ImageGallery from './room-detail/features/ImageGallery.vue'
+import ReviewSection from './room-detail/features/ReviewSection.vue'
+import MapSection from './room-detail/features/MapSection.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -92,17 +95,53 @@ const normalizeAmenities = (data) => {
   return []
 }
 
+const formatReviewDate = (value) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}.${month}.${day}`
+}
+
+const normalizeReviews = (reviews) => {
+  if (!Array.isArray(reviews)) return []
+  return reviews.map((review) => {
+    const ratingValue = Number(review?.rating)
+    const rating = Number.isFinite(ratingValue) ? Math.round(ratingValue) : 0
+    const images = Array.isArray(review?.images) ? review.images : []
+    const imageUrls = images
+      .map((image) => image?.imageUrl ?? image)
+      .filter((url) => typeof url === 'string' && url.trim())
+    const tags = Array.isArray(review?.tags) ? review.tags : []
+    return {
+      id: review?.reviewId ?? review?.id,
+      author: review?.authorName ?? review?.reviewerEmail ?? review?.author ?? '',
+      date: formatReviewDate(review?.createdAt ?? review?.date),
+      rating,
+      content: review?.content ?? '',
+      image: imageUrls[0] ?? null,
+      images: imageUrls,
+      tags: tags
+        .map((tag) => tag?.reviewTagName ?? tag?.name ?? tag)
+        .filter((tag) => typeof tag === 'string' && tag.trim())
+    }
+  })
+}
+
 const normalizeDetail = (data) => {
   const imageUrls = Array.isArray(data?.images)
     ? data.images.map((image) => image?.imageUrl).filter(Boolean)
     : []
   const fallbackPrice = toNumber(data?.minPrice ?? 0, 0)
   const ratingValue = Number(data?.rating)
+  const reviews = normalizeReviews(data?.reviews)
   return {
     id: data?.accommodationsId ?? null,
     name: data?.accommodationsName ?? '',
     rating: Number.isFinite(ratingValue) ? ratingValue.toFixed(2) : '-',
-    reviewCount: toNumber(data?.reviewCount, 0),
+    reviewCount: toNumber(data?.reviewCount ?? reviews.length, 0),
     address: buildAddress(data),
     description: data?.accommodationsDescription ?? data?.shortDescription ?? '',
     minPrice: data?.minPrice ?? null,
@@ -123,7 +162,7 @@ const normalizeDetail = (data) => {
     },
     images: imageUrls.length ? imageUrls : [DEFAULT_IMAGE],
     rooms: normalizeRooms(data?.rooms, fallbackPrice),
-    reviews: []
+    reviews
   }
 }
 
@@ -133,9 +172,6 @@ const isCalendarOpen = ref(false)
 const showFullDescription = ref(false)
 const currentDate = ref(new Date())
 const datePickerRef = ref(null)
-const isImageModalOpen = ref(false)
-const selectedImageIndex = ref(0)
-const kakaoMapRef = ref(null)
 
 const canBook = computed(() => {
   return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
@@ -149,10 +185,6 @@ const currentMonth = computed(() => currentDate.value.getMonth())
 const nextMonthDate = computed(() => new Date(currentYear.value, currentMonth.value + 1, 1))
 const nextMonthYear = computed(() => nextMonthDate.value.getFullYear())
 const nextMonthMonth = computed(() => nextMonthDate.value.getMonth())
-const hasCoordinates = computed(() => {
-  return Number.isFinite(Number(guesthouse.value.latitude))
-    && Number.isFinite(Number(guesthouse.value.longitude))
-})
 
 const isDescriptionLong = computed(() => {
   return (guesthouse.value.description || '').length > 120
@@ -203,9 +235,6 @@ const getCalendarDays = (year, month) => {
 
 const calendarDays = computed(() => getCalendarDays(currentYear.value, currentMonth.value))
 const nextMonthDays = computed(() => getCalendarDays(nextMonthYear.value, nextMonthMonth.value))
-const currentModalImage = computed(() => {
-  return guesthouse.value.images[selectedImageIndex.value] || DEFAULT_IMAGE
-})
 
 const toggleCalendar = () => {
   isCalendarOpen.value = !isCalendarOpen.value
@@ -272,30 +301,6 @@ const selectRoom = (room) => {
   selectedRoom.value = room
 }
 
-const openImageModal = (index) => {
-  const images = guesthouse.value.images || []
-  if (!images.length) return
-  const nextIndex = Math.min(Math.max(index, 0), images.length - 1)
-  selectedImageIndex.value = nextIndex
-  isImageModalOpen.value = true
-}
-
-const closeImageModal = () => {
-  isImageModalOpen.value = false
-}
-
-const showPrevImage = () => {
-  const images = guesthouse.value.images || []
-  if (images.length <= 1) return
-  selectedImageIndex.value = (selectedImageIndex.value - 1 + images.length) % images.length
-}
-
-const showNextImage = () => {
-  const images = guesthouse.value.images || []
-  if (images.length <= 1) return
-  selectedImageIndex.value = (selectedImageIndex.value + 1) % images.length
-}
-
 const formatPrice = (price) => {
   if (price == null) return '-'
   const parsed = Number(price)
@@ -309,76 +314,6 @@ const formatDateParam = (date) => {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
-}
-
-let kakaoMap = null
-let kakaoMarker = null
-let kakaoMapPromise = null
-
-const loadKakaoMap = () => {
-  if (window.kakao?.maps?.load) {
-    return Promise.resolve()
-  }
-  if (kakaoMapPromise) return kakaoMapPromise
-
-  kakaoMapPromise = new Promise((resolve, reject) => {
-    const loadMaps = () => {
-      if (window.kakao?.maps?.load) {
-        resolve()
-        return
-      }
-      reject(new Error('Kakao map sdk not ready'))
-    }
-
-    if (window.kakao?.maps) {
-      loadMaps()
-      return
-    }
-
-    const appKey = import.meta.env.VITE_KAKAO_MAP_KEY
-    if (!appKey) {
-      reject(new Error('Kakao map key is missing'))
-      return
-    }
-
-    const script = document.createElement('script')
-    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`
-    script.async = true
-    script.onload = loadMaps
-    script.onerror = reject
-    document.head.appendChild(script)
-  })
-
-  return kakaoMapPromise
-}
-
-const renderKakaoMap = async () => {
-  if (!hasCoordinates.value) return
-  try {
-    await loadKakaoMap()
-  } catch (error) {
-    console.error('Kakao map load failed', error)
-    return
-  }
-  await nextTick()
-  if (!kakaoMapRef.value || !window.kakao?.maps?.load) return
-  window.kakao.maps.load(() => {
-    const latitude = Number(guesthouse.value.latitude)
-    const longitude = Number(guesthouse.value.longitude)
-    const center = new window.kakao.maps.LatLng(latitude, longitude)
-
-    if (!kakaoMap) {
-      kakaoMap = new window.kakao.maps.Map(kakaoMapRef.value, {
-        center,
-        level: 3
-      })
-      kakaoMarker = new window.kakao.maps.Marker({ position: center })
-      kakaoMarker.setMap(kakaoMap)
-    } else {
-      kakaoMap.setCenter(center)
-      kakaoMarker?.setPosition(center)
-    }
-  })
 }
 
 const getSnsType = (line, url) => {
@@ -483,30 +418,14 @@ const handleClickOutside = (event) => {
   isCalendarOpen.value = false
 }
 
-const handleModalKeyDown = (event) => {
-  if (!isImageModalOpen.value) return
-  if (event.key === 'Escape') {
-    closeImageModal()
-  } else if (event.key === 'ArrowLeft') {
-    showPrevImage()
-  } else if (event.key === 'ArrowRight') {
-    showNextImage()
-  }
-}
-
 onMounted(loadAccommodation)
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
-  document.addEventListener('keydown', handleModalKeyDown)
 })
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
-  document.removeEventListener('keydown', handleModalKeyDown)
 })
 watch(() => route.params.id, loadAccommodation)
-watch(() => [guesthouse.value.latitude, guesthouse.value.longitude], () => {
-  renderKakaoMap()
-})
 </script>
 
 <template>
@@ -517,31 +436,13 @@ watch(() => [guesthouse.value.latitude, guesthouse.value.longitude], () => {
     </div>
 
     <!-- Image Grid -->
-    <div class="image-grid">
-      <div
-        class="main-img"
-        role="button"
-        tabindex="0"
-        :style="{ backgroundImage: `url(${guesthouse.images[0]})` }"
-        @click="openImageModal(0)"
-        @keydown.enter.prevent="openImageModal(0)"
-      ></div>
-      <div class="sub-imgs">
-        <div v-for="(img, idx) in guesthouse.images.slice(1, 5)" :key="idx" 
-             class="sub-img"
-             role="button"
-             tabindex="0"
-             :style="{ backgroundImage: `url(${img})` }"
-             @click="openImageModal(idx + 1)"
-             @keydown.enter.prevent="openImageModal(idx + 1)"></div>
-      </div>
-    </div>
+    <ImageGallery :images="guesthouse.images" :name="guesthouse.name" />
 
     <!-- Title & Info -->
     <section class="section info-section">
       <h1>{{ guesthouse.name }}</h1>
       <div class="meta">
-        <span class="rating">★ {{ guesthouse.rating }} (후기 {{ guesthouse.reviewCount }}개)</span>
+        <span class="rating">★ {{ guesthouse.rating }} (리뷰 {{ guesthouse.reviewCount }}개)</span>
         <span class="location">{{ guesthouse.address }}</span>
       </div>
       <div class="description-row">
@@ -790,37 +691,15 @@ watch(() => [guesthouse.value.latitude, guesthouse.value.longitude], () => {
     <hr />
 
     <!-- Reviews -->
-    <section class="section reviews-section">
-      <h2>후기</h2>
-      <div class="review-stats">
-        <!-- Mock stats based on image -->
-        <div class="stat-row"><span>❤️ 친절해요</span> <span>316</span></div>
-        <div class="stat-row"><span>⭐ 깨끗해요</span> <span>265</span></div>
-        <div class="stat-row"><span>🛌 침구가 좋아요</span> <span>216</span></div>
-      </div>
-      
-      <div class="review-list">
-        <div v-for="review in guesthouse.reviews" :key="review.id" class="review-item">
-          <div class="review-header">
-            <span class="author">{{ review.author }}</span>
-            <span class="date">{{ review.date }}</span>
-          </div>
-          <div class="stars">{'⭐'.repeat(review.rating)}</div>
-          <p class="content">{{ review.content }}</p>
-          <img v-if="review.image" :src="review.image" class="review-img" />
-        </div>
-      </div>
-    </section>
+    <ReviewSection :reviews="guesthouse.reviews" :name="guesthouse.name" />
 
-    <!-- Map Placeholder -->
-    <section class="section map-section">
-      <h2>숙소 위치</h2>
-      <div v-if="hasCoordinates" ref="kakaoMapRef" class="map-container"></div>
-      <div v-else class="map-placeholder">
-        <div class="map-text">위치 정보가 없습니다.</div>
-      </div>
-      <p class="mt-2">{{ guesthouse.transportInfo || '교통 정보가 없습니다.' }}</p>
-    </section>
+    <!-- Map -->
+    <MapSection
+      :latitude="guesthouse.latitude"
+      :longitude="guesthouse.longitude"
+      :address="guesthouse.address"
+      :transport-info="guesthouse.transportInfo"
+    />
 
     <!-- Rules -->
     <section class="section rules-section">
@@ -836,9 +715,6 @@ watch(() => [guesthouse.value.latitude, guesthouse.value.longitude], () => {
       </div>
     </section>
 
-    <!-- Disclaimer / Bottom Spacer -->
-    <div style="height: 100px;"></div>
-
     <!-- Floating Bottom Bar -->
     <div class="bottom-bar">
       <div class="selection-summary">
@@ -853,36 +729,6 @@ watch(() => [guesthouse.value.latitude, guesthouse.value.longitude], () => {
       <button type="button" class="booking-hint-btn" @click="openCalendarFromHint">
         날짜 선택하기
       </button>
-    </div>
-
-    <div v-if="isImageModalOpen" class="image-modal" @click="closeImageModal">
-      <div class="image-modal-content" @click.stop>
-        <div class="image-modal-header">
-          <button type="button" class="image-modal-close" @click="closeImageModal">닫기</button>
-        </div>
-        <div class="image-modal-body">
-          <button
-            v-if="guesthouse.images.length > 1"
-            type="button"
-            class="image-modal-nav prev"
-            @click="showPrevImage"
-            aria-label="이전 사진"
-          >
-            ‹
-          </button>
-          <img :src="currentModalImage" :alt="guesthouse.name" class="image-modal-image" />
-          <button
-            v-if="guesthouse.images.length > 1"
-            type="button"
-            class="image-modal-nav next"
-            @click="showNextImage"
-            aria-label="다음 사진"
-          >
-            ›
-          </button>
-        </div>
-        <div class="image-modal-caption">{{ selectedImageIndex + 1 }} / {{ guesthouse.images.length }}</div>
-      </div>
     </div>
 
   </div>
@@ -912,43 +758,12 @@ watch(() => [guesthouse.value.latitude, guesthouse.value.longitude], () => {
   color: var(--primary);
 }
 
-/* Image Grid */
-.image-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  height: 500px;
-  gap: 8px;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  margin-bottom: 2rem;
-}
-.main-img {
-  background-size: cover;
-  background-position: center;
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
-  cursor: pointer;
-}
-.sub-imgs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 8px;
-}
-.sub-img {
-  background-size: cover;
-  background-position: center;
-  cursor: pointer;
-}
-.sub-img:nth-child(2) {
-  border-radius: 0 var(--radius-md) 0 0;
-}
-.sub-img:nth-child(4) {
-  border-radius: 0 0 var(--radius-md) 0;
-}
-
 /* Sections */
 .section {
   padding: 1.5rem 0;
+}
+.info-section {
+  padding-top: 0;
 }
 hr {
   border: 0;
@@ -1348,63 +1163,13 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   font-weight: 600;
 }
 
-/* Reviews */
-.review-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-.stat-row { display: flex; justify-content: space-between; font-size: 0.9rem; }
-.review-item { padding: 1rem 0; border-bottom: 1px solid #eee; }
-.review-header { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.3rem; }
-.date { color: var(--text-sub); }
-.stars { margin-bottom: 0.5rem; }
-.review-img { width: 80px; height: 80px; border-radius: 8px; margin-top: 0.5rem; object-fit: cover; }
-
-/* Map */
-.map-placeholder {
-  background: #eee;
-  width: 100%;
-  max-width: 520px;
-  aspect-ratio: 1 / 1;
-  border-radius: var(--radius-md);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  color: #888;
-  padding: 0 1rem;
-  text-align: center;
-  margin: 0 auto;
-}
-.map-text {
-  color: var(--text-main);
-  font-weight: 600;
-}
-.map-container {
-  width: 100%;
-  max-width: 520px;
-  aspect-ratio: 1 / 1;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  margin: 0 auto;
-}
-@media (min-width: 769px) {
-  .map-placeholder,
-  .map-container {
-    max-width: 100%;
-    aspect-ratio: auto;
-    height: 480px;
-  }
-}
-
 /* Rules */
+.rules-section {
+  padding-top: 0;
+  padding-bottom: 0;
+}
 .rule-box h3 { margin-bottom: 0.8rem; }
 .rule-box ul { list-style: inside disc; color: var(--text-sub); font-size: 0.9rem; line-height: 1.6; padding-left: 0.75rem; }
-.mt-2 { margin-top: 0.5rem; }
-.mt-4 { margin-top: 1rem; }
 
 /* Bottom Bar */
 .bottom-bar {
@@ -1470,125 +1235,10 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   cursor: pointer;
 }
 
-/* Image Modal */
-.image-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.72);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 0;
-}
-.image-modal-content {
-  background: #fff;
-  border-radius: 0;
-  padding: 0;
-  width: 100%;
-  max-width: 100%;
-  max-height: 100vh;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.image-modal-body {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  position: relative;
-  justify-content: center;
-  width: 100%;
-}
-.image-modal-header {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0.5rem 0.75rem;
-  background: rgba(255, 255, 255, 0.92);
-}
-.image-modal-image {
-  width: 100%;
-  max-width: 100%;
-  max-height: 70vh;
-  object-fit: contain;
-  border-radius: 0;
-  background: #f3f4f6;
-  display: block;
-}
-.image-modal-close {
-  background: #BFE7DF;
-  border: 1px solid #8FCFC1;
-  color: #0f4c44;
-  font-weight: 700;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  cursor: pointer;
-}
-.image-modal-nav {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-}
-.image-modal-nav.prev {
-  left: 8px;
-}
-.image-modal-nav.next {
-  right: 8px;
-}
-.image-modal-caption {
-  text-align: center;
-  color: var(--text-sub);
-  font-size: 0.85rem;
-  padding: 0.5rem 0;
-}
-
 @media (max-width: 768px) {
   .room-detail {
     max-width: 100%;
     padding: 0 16px;
-  }
-  
-  .image-grid {
-    grid-template-columns: 1fr;
-    height: auto;
-  }
-  
-  .main-img {
-    height: 250px;
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
-  }
-  
-  .sub-imgs {
-    height: 200px;
-  }
-  
-  .sub-img:nth-child(1) {
-    border-radius: 0;
-  }
-  
-  .sub-img:nth-child(2) {
-    border-radius: 0;
-  }
-  
-  .sub-img:nth-child(3) {
-    border-radius: 0 0 0 var(--radius-md);
-  }
-  
-  .sub-img:nth-child(4) {
-    border-radius: 0 0 var(--radius-md) 0;
   }
   
   .picker-row {
@@ -1648,23 +1298,6 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
     left: 16px;
     transform: none;
     justify-content: space-between;
-  }
-  .image-modal-content {
-    width: 100%;
-  }
-  .image-modal-image {
-    max-height: 60vh;
-  }
-  .image-modal-nav {
-    width: 32px;
-    height: 32px;
-    font-size: 1.2rem;
-  }
-  .image-modal-nav.prev {
-    left: 4px;
-  }
-  .image-modal-nav.next {
-    right: 4px;
   }
 }
 </style>

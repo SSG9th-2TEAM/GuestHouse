@@ -77,6 +77,29 @@
   - ccommodationsId: 숙소 ID
 - 응답: AccommodationDetailDto
 
+추가: 숙소 상세 응답에 리뷰 목록이 포함됩니다.
+```json
+{
+  "reviews": [
+    {
+      "reviewId": 1,
+      "accommodationsId": 10,
+      "userId": 3,
+      "authorName": "홍길동",
+      "rating": 4.5,
+      "content": "리뷰 본문",
+      "createdAt": "2025-12-24T11:22:33",
+      "images": [
+        { "reviewImageId": 5, "imageUrl": "https://...", "sortOrder": 1 }
+      ],
+      "tags": [
+        { "reviewTagId": 2, "reviewTagName": "깨끗해요" }
+      ]
+    }
+  ]
+}
+```
+
 ## 비고
 - 	hemeIds는 ?themeIds=1&themeIds=2 형태로 다중 전달 가능.
 - 필드명은 실제 응답 기준으로 작성됨 (ccomodationsId 오타 포함).
