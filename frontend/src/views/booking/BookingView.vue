@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { createReservation } from '@/api/reservationApi'
 import { fetchAccommodationDetail } from '@/api/accommodation'
+import { getCurrentUser } from '@/api/userClient'
 
 const router = useRouter()
 const route = useRoute()
@@ -18,6 +19,7 @@ const props = defineProps({
 // 숙소/객실 정보
 const accommodationData = ref(null)
 const selectedRoomData = ref(null)
+const currentUser = ref(null)
 const isDataLoading = ref(true)
 
 // 숙소 및 객실 정보 로드
@@ -42,6 +44,17 @@ onMounted(async () => {
       console.error('숙소 정보 로드 실패:', error)
     }
   }
+  
+  // 현재 로그인한 사용자 정보 조회
+  try {
+    const userResponse = await getCurrentUser()
+    if (userResponse.ok && userResponse.data) {
+      currentUser.value = userResponse.data
+    }
+  } catch (error) {
+    console.error('사용자 정보 조회 실패:', error)
+  }
+  
   isDataLoading.value = false
 })
 
@@ -190,8 +203,8 @@ const handlePayment = async () => {
       totalAmount: booking.value.price,
       couponId: selectedCoupon.value?.id || null,
       couponDiscountAmount: selectedCoupon.value?.discount || 0,
-      reserverName: '홍길동', // TODO: 실제 사용자 정보로 대체
-      reserverPhone: '010-1234-5678' // TODO: 실제 사용자 정보로 대체
+      reserverName: currentUser.value?.email || '예약자',
+      reserverPhone: currentUser.value?.phone || ''
     }
     
     console.log('Final Reservation Data Payload:', JSON.stringify(reservationData, null, 2))

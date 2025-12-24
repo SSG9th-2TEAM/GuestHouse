@@ -35,8 +35,15 @@ public class UserServiceImpl implements UserService {
         }
 
         // Log the reasons for deletion
-        log.info("사용자 {} 탈퇴. 사유: {}, 기타: {}", email, deleteAccountRequest.getReasons(), deleteAccountRequest.getOtherReason());
+        log.info("사용자 {} 탈퇴. 사유: {}, 기타: {}", email, deleteAccountRequest.getReasons(),
+                deleteAccountRequest.getOtherReason());
 
         userRepository.delete(user);
+    }
+
+    @Override
+    public User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
     }
 }
