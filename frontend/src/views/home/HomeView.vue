@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import { useRouter } from 'vue-router'
-import { fetchThemes } from '@/api/theme'
+import { fetchThemes, fetchUserThemes } from '@/api/theme'
 import { fetchList } from '@/api/list'
 import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
 import { isAuthenticated } from '@/api/authClient'
@@ -86,8 +86,23 @@ const loadSections = async () => {
     }
 
     const themeList = themeResponse.data
+    let preferredThemes = []
+
+    if (isAuthenticated()) {
+      const preferredResponse = await fetchUserThemes()
+      if (preferredResponse.ok && Array.isArray(preferredResponse.data)) {
+        preferredThemes = preferredResponse.data
+      }
+    }
+
+    const preferredThemeIds = new Set(preferredThemes.map((theme) => theme.id))
+    const orderedThemes = [
+      ...preferredThemes,
+      ...themeList.filter((theme) => !preferredThemeIds.has(theme.id))
+    ]
+
     const results = await Promise.all(
-      themeList.map(async (theme) => {
+      orderedThemes.map(async (theme) => {
         const response = await fetchList([theme.id])
         const payload = response.ok ? response.data : []
         const list = Array.isArray(payload)
