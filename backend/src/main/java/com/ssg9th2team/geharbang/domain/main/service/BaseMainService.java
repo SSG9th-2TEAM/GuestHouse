@@ -53,7 +53,7 @@ public class BaseMainService implements MainService {
                 .district(accommodation.getDistrict())
                 .township(accommodation.getTownship())
                 .minPrice(accommodation.getMinPrice() != null ? accommodation.getMinPrice().longValue() : null)
-                .rating(accommodation.getRating())
+                .rating(accommodation.getRating() != null ? accommodation.getRating().doubleValue() : 0.0)
                 .reviewCount(accommodation.getReviewCount())
                 .imageUrl(imageById.get(accommodation.getAccommodationsId()))
                 .build();

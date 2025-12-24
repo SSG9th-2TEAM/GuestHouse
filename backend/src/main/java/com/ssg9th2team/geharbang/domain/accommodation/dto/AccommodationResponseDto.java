@@ -5,6 +5,7 @@ import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -47,6 +49,11 @@ public class AccommodationResponseDto {
     private Double rating;
     private Integer reviewCount;
 
+
+    
+    // 대표 이미지 URL (리스트 조회용)
+    private String mainImageUrl;
+
     // 정산계좌 정보 (조인)
     private String bankName;
     private String accountNumber;
@@ -57,7 +64,7 @@ public class AccommodationResponseDto {
     private List<AmenityDetailDto> amenityDetails;
     private List<String> themes;
 
-    // 숙소 상세보기 -> 객실 리스트
+    // 숙소 상세보기에서 객실 리스트
     private List<RoomResponseListDto> rooms;
 
     // 숙소 이미지 (1:N 조인)
