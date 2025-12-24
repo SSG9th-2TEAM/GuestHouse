@@ -2,6 +2,7 @@ package com.ssg9th2team.geharbang.domain.auth.dto;
 
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
+import com.ssg9th2team.geharbang.domain.user.entity.Gender;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,8 +18,10 @@ public class UserResponse {
 
     private Long id;
     private String name;
+    private String nickname;
     private String email;
     private String phone;
+    private Gender gender;
     private UserRole role;
     private Boolean marketingAgreed;
     private Boolean hostApproved;
@@ -29,8 +32,10 @@ public class UserResponse {
         return UserResponse.builder()
                 .id(user.getId())
                 .name(user.getName())
+                .nickname(user.getNickname())
                 .email(user.getEmail())
                 .phone(user.getPhone())
+                .gender(user.getGender())
                 .role(user.getRole())
                 .marketingAgreed(user.getMarketingAgreed())
                 .hostApproved(user.getHostApproved())

@@ -1,13 +1,15 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { signup, checkEmailDuplicate, sendVerificationEmail, verifyEmailCode } from '@/api/authClient'
+import { signup, checkEmailDuplicate, checkNicknameDuplicate, sendVerificationEmail, verifyEmailCode } from '@/api/authClient'
 
 const router = useRouter()
 const currentStep = ref(1)
 const isLoading = ref(false)
 const isEmailChecked = ref(false)
 const emailCheckMessage = ref('')
+const isNicknameChecked = ref(false)
+const nicknameCheckMessage = ref('')
 
 // Step 1: Terms Agreement
 const allAgreed = ref(false)
@@ -124,6 +126,8 @@ const closeTermsModal = () => {
 
 // Step 2: User Info
 const name = ref('')
+const nickname = ref('')
+const gender = ref('')
 const email = ref('')
 const password = ref('')
 const passwordConfirm = ref('')
@@ -196,7 +200,7 @@ const validatePhone = () => {
   }
 }
 
-// Email Verification State
+// 이메일
 const verificationCode = ref('')
 const isCodeSent = ref(false)
 const isCodeVerified = ref(false)
@@ -205,6 +209,8 @@ let timerId = null
 
 const isStep2Valid = computed(() => {
   return name.value &&
+         isNicknameChecked.value &&
+         gender.value &&
          isEmailChecked.value &&
          isCodeVerified.value &&
          password.value &&
@@ -212,7 +218,7 @@ const isStep2Valid = computed(() => {
          allPasswordCriteriaMet.value &&
          isPhoneValid.value
 })
-// Step 3: Theme Selection
+// 테마 세션
 const themes = ref([
   { id: 1, label: '액티비티', selected: false },
   { id: 2, label: '맛집', selected: false },
@@ -232,7 +238,7 @@ const toggleTheme = (theme) => {
   theme.selected = !theme.selected
 }
 
-// Modal
+// 모달
 const showModal = ref(false)
 const modalMessage = ref('')
 const modalType = ref('info')
@@ -379,6 +385,38 @@ const handleSendCode = async () => {
   }
 }
 
+const handleCheckNickname = async () => {
+  if (!nickname.value) {
+    openModal('닉네임을 입력해주세요.', 'error');
+    return;
+  }
+  if (nickname.value.length < 2) {
+    openModal('닉네임은 2자 이상 입력해주세요.', 'error');
+    return;
+  }
+
+  try {
+    const response = await checkNicknameDuplicate(nickname.value);
+    if (response.ok && response.data === true) {
+      nicknameCheckMessage.value = '이미 사용 중인 닉네임입니다.';
+      isNicknameChecked.value = false;
+      openModal(nicknameCheckMessage.value, 'error');
+    } else if (response.ok && response.data === false) {
+      nicknameCheckMessage.value = '사용 가능한 닉네임입니다.';
+      isNicknameChecked.value = true;
+      openModal(nicknameCheckMessage.value, 'success');
+    } else {
+      nicknameCheckMessage.value = response.data?.message || '닉네임 중복 확인 중 오류가 발생했습니다.';
+      isNicknameChecked.value = false;
+      openModal(nicknameCheckMessage.value, 'error');
+    }
+  } catch (error) {
+    isNicknameChecked.value = false;
+    console.error('닉네임 중복 확인 에러:', error);
+    openModal('닉네임 중복 확인 중 오류가 발생했습니다.', 'error');
+  }
+};
+
 const handleComplete = async () => {
   if (!isEmailChecked.value) {
     openModal('이메일 중복 확인을 해주세요.', 'error')
@@ -400,6 +438,8 @@ const handleComplete = async () => {
     // 회원가입 데이터 생성
     const signupData = {
       name: name.value,
+      nickname: nickname.value,
+      gender: gender.value,
       email: email.value,
       password: password.value,
       phone: phone.value,
@@ -449,6 +489,8 @@ const handleSkip = async () => {
 
     const signupData = {
       name: name.value,
+      nickname: nickname.value,
+      gender: gender.value,
       email: email.value,
       password: password.value,
       phone: phone.value,
@@ -534,8 +576,33 @@ const handleSkip = async () => {
       <template v-if="currentStep === 2">
         <div class="form-section">
           <div class="input-group">
-            <label>이름 *</label>
+            <label>이름</label>
             <input type="text" v-model="name" placeholder="이름을 입력하세요" />
+          </div>
+
+          <div class="input-group">
+            <label>닉네임 *</label>
+            <div class="input-row">
+              <input type="text" v-model="nickname" placeholder="닉네임을 입력하세요" @input="isNicknameChecked = false" />
+              <button type="button" class="check-btn" @click="handleCheckNickname" :disabled="isNicknameChecked">
+                {{ isNicknameChecked ? '확인완료' : '중복 확인' }}
+              </button>
+            </div>
+            <span v-if="nicknameCheckMessage" class="email-check-message" :class="{ success: isNicknameChecked, error: !isNicknameChecked && nicknameCheckMessage }">
+              {{ nicknameCheckMessage }}
+            </span>
+          </div>
+
+          <div class="input-group">
+            <label>성별 *</label>
+            <div class="gender-group">
+              <label :class="{ 'selected': gender === 'MALE' }">
+                <input type="radio" v-model="gender" value="MALE" name="gender" /> 남
+              </label>
+              <label :class="{ 'selected': gender === 'FEMALE' }">
+                <input type="radio" v-model="gender" value="FEMALE" name="gender" /> 여
+              </label>
+            </div>
           </div>
 
           <div class="input-group">
@@ -971,6 +1038,35 @@ const handleSkip = async () => {
   width: 16px;
   height: 16px;
   stroke-width: 2.5; /* Make checkmark bolder */
+}
+
+.gender-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.gender-group label {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.gender-group label.selected {
+  border-color: var(--primary);
+  background-color: #f0f7f6;
+  color: #004d40;
+  font-weight: 700;
+}
+
+.gender-group input[type="radio"] {
+  display: none;
 }
 
 /* Theme Selection */

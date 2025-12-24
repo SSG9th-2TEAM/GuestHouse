@@ -130,6 +130,11 @@ const router = createRouter({
             component: () => import('../views/LoginView/ResetPasswordView.vue')
         },
         {
+            path: '/reset-password-success',
+            name: 'reset-password-success',
+            component: () => import('../views/LoginView/ResetPasswordSuccessView.vue')
+        },
+        {
             path: '/host',
             name: 'host-dashboard',
             component: () => import('../views/HostView/HostDashboardView.vue'),

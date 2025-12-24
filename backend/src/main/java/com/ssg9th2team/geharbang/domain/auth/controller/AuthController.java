@@ -75,6 +75,14 @@ public class AuthController {
         return ResponseEntity.ok(isDuplicate);
     }
 
+    // 닉네임 중복 확인
+    @GetMapping("/check-nickname")
+    public ResponseEntity<Boolean> checkNicknameDuplicate(@RequestParam String nickname) {
+        log.info("닉네임 중복 확인 요청: {}", nickname);
+        boolean isDuplicate = authService.checkNicknameDuplicate(nickname);
+        return ResponseEntity.ok(isDuplicate);
+    }
+
 
     //이메일 인증 코드 전송
     @PostMapping("/send-verification")
@@ -90,6 +98,14 @@ public class AuthController {
     public ResponseEntity<Boolean> verifyCode(@Valid @RequestBody VerifyCodeRequest verifyCodeRequest) {
         log.info("이메일 인증 코드 확인 요청: {} / 코드: {}", verifyCodeRequest.getEmail(), verifyCodeRequest.getCode());
         boolean isVerified = authService.verifyEmailCode(verifyCodeRequest);
+        return ResponseEntity.ok(isVerified);
+    }
+
+    //이메일 인증 코드 확인만 (삭제하지 않음) - 비밀번호 찾기용
+    @PostMapping("/verify-code-only")
+    public ResponseEntity<Boolean> verifyCodeOnly(@Valid @RequestBody VerifyCodeRequest verifyCodeRequest) {
+        log.info("이메일 인증 코드 확인만 요청: {} / 코드: {}", verifyCodeRequest.getEmail(), verifyCodeRequest.getCode());
+        boolean isVerified = authService.verifyEmailCodeOnly(verifyCodeRequest);
         return ResponseEntity.ok(isVerified);
     }
 

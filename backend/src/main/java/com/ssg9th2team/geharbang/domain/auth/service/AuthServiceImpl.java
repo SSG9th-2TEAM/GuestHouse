@@ -54,9 +54,12 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public UserResponse signup(SignupRequest signupRequest) {
-        // 1. 이메일 중복 체크
+        // 1. 이메일 및 닉네임 중복 체크
         if (userRepository.existsByEmail(signupRequest.getEmail())) {
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+        }
+        if (userRepository.existsByNickname(signupRequest.getNickname())) {
+            throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
         }
 
         // 2. 비밀번호 암호화
@@ -72,6 +75,8 @@ public class AuthServiceImpl implements AuthService {
         // 4. User 엔티티 생성
         User user = User.builder()
                 .name(signupRequest.getName())
+                .nickname(signupRequest.getNickname())
+                .gender(signupRequest.getGender())
                 .email(signupRequest.getEmail())
                 .password(encodedPassword)
                 .phone(signupRequest.getPhone())
@@ -218,6 +223,12 @@ public class AuthServiceImpl implements AuthService {
         return userRepository.existsByEmail(email);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public boolean checkNicknameDuplicate(String nickname) {
+        return userRepository.existsByNickname(nickname);
+    }
+
 
     //이메일 인증 코드 전송
     @Override
@@ -243,6 +254,13 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(readOnly = true)
     public boolean verifyEmailCode(VerifyCodeRequest verifyCodeRequest) {
         return verificationCodeService.verifyCode(verifyCodeRequest.getEmail(), verifyCodeRequest.getCode());
+    }
+
+    //이메일 인증 코드 확인만 (삭제하지 않음) - 비밀번호 찾기용
+    @Override
+    @Transactional(readOnly = true)
+    public boolean verifyEmailCodeOnly(VerifyCodeRequest verifyCodeRequest) {
+        return verificationCodeService.verifyCodeOnly(verifyCodeRequest.getEmail(), verifyCodeRequest.getCode());
     }
 
     @Override
