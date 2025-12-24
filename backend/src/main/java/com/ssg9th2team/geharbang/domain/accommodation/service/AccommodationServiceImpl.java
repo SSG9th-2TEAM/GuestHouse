@@ -8,6 +8,9 @@ import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.AccommodationsCategory;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
+import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationResponseDto;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
@@ -30,8 +33,9 @@ public class AccommodationServiceImpl implements AccommodationService {
     private final AccommodationMapper accommodationMapper;
     private final RoomMapper roomMapper;
     private final ObjectStorageService objectStorageService;
-    private final ReservationJpaRepository reservationJpaRepository;;
-
+    private final ReservationJpaRepository reservationJpaRepository;
+    private final PaymentJpaRepository paymentJpaRepository;
+    private final PaymentRefundJpaRepository paymentRefundJpaRepository;
 
 
     // 숙소 등록
@@ -101,7 +105,7 @@ public class AccommodationServiceImpl implements AccommodationService {
                 .latitude(createRequestDto.getLatitude())
                 .longitude(createRequestDto.getLongitude())
                 .transportInfo(createRequestDto.getTransportInfo())
-                .accommodationStatus(1)
+                .accommodationStatus(0)
                 .approvalStatus(ApprovalStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .phone(createRequestDto.getPhone())
@@ -312,6 +316,28 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         if(hasActiveReservation) {
             throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다.");
+        }
+
+        // 연관된 예약 정보 삭제 (취소/완료된 예약 등 Active하지 않은 예약들)
+        if (!reservations.isEmpty()) {
+            
+            // 1. Payment 삭제 전에 PaymentRefund 삭제 필요
+            List<Long> reservationIds = reservations.stream().map(Reservation::getId).toList();
+            if(!reservationIds.isEmpty()){
+                List<Payment> payments = paymentJpaRepository.findByReservationIdIn(reservationIds);
+                List<Long> paymentIds = payments.stream().map(Payment::getId).toList();
+                
+                if (!paymentIds.isEmpty()) {
+                    paymentRefundJpaRepository.deleteByPaymentIdIn(paymentIds);
+                    paymentRefundJpaRepository.flush(); // 환불 데이터 삭제 반영
+                }
+
+                paymentJpaRepository.deleteByReservationIdIn(reservationIds);
+                paymentJpaRepository.flush(); // 결제 데이터 삭제 반영
+            }
+
+            reservationJpaRepository.deleteAllInBatch(reservations);
+            reservationJpaRepository.flush(); // 예약 데이터 삭제 반영
         }
 
         accommodationMapper.deleteAccommodation(accommodationsId);

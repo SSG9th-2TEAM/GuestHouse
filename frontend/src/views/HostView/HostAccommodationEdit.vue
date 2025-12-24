@@ -214,7 +214,7 @@ const isThemeChecked = (themeName) => {
   return form.value.themes.includes(themeName)
 }
 
-// 예약 정보 확인
+// 예약 정보 확인 (숙소 전체)
 const checkHasReservations = async () => {
   try {
     const token = localStorage.getItem('accessToken')
@@ -233,6 +233,28 @@ const checkHasReservations = async () => {
     return false
   } catch (error) {
     console.error('예약 확인 오류:', error)
+    return false
+  }
+}
+
+// 특정 객실의 예약 정보 확인
+const checkRoomHasReservations = async (roomId) => {
+  try {
+    const token = localStorage.getItem('accessToken')
+    const response = await fetch(`${API_BASE_URL}/reservations/room/${roomId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    if (response.ok) {
+      const reservations = await response.json()
+      // 예약 상태가 확정(2)인 경우만 체크 (3은 취소)
+      const activeReservations = reservations.filter(r => r.reservationStatus === 2)
+      return activeReservations.length > 0
+    }
+    return false
+  } catch (error) {
+    console.error('객실 예약 확인 오류:', error)
     return false
   }
 }
@@ -834,8 +856,8 @@ const showNewRoomForm = () => {
 }
 
 const deleteRoom = async (id) => {
-    // 예약 정보 확인
-    const hasActiveReservations = await checkHasReservations()
+    // 해당 객실의 예약 정보 확인
+    const hasActiveReservations = await checkRoomHasReservations(id)
     if (hasActiveReservations) {
         alert('예약된 정보가 있어 삭제할 수 없습니다.')
         return
@@ -847,40 +869,28 @@ const deleteRoom = async (id) => {
 }
 
 // 숙소 운영상태 토글
-const toggleAccommodationStatus = async () => {
-    // 운영 중지로 변경하려는 경우에만 예약 확인
+const toggleAccommodationStatus = () => {
+    // 운영 중지로 변경하려는 경우 알럿 표시
     if (form.value.isActive) {
-        const hasActiveReservations = await checkHasReservations()
-        if (hasActiveReservations) {
-            alert('사용 중지')
-            return
-        }
+        alert('숙소 운영 상태가 비활성화 되었습니다')
     }
     form.value.isActive = !form.value.isActive
 }
 
 // 객실 운영상태 토글
-const toggleRoomStatus = async (room) => {
-    // 운영 중지로 변경하려는 경우에만 예약 확인
+const toggleRoomStatus = (room) => {
+    // 운영 중지로 변경하려는 경우 알럿 표시
     if (room.isActive) {
-        const hasActiveReservations = await checkHasReservations()
-        if (hasActiveReservations) {
-            alert('객실 사용 중지')
-            return
-        }
+        alert('객실 운영 상태가 비활성화 되었습니다 ')
     }
     room.isActive = !room.isActive
 }
 
 // 객실 폼 운영상태 토글 (수정 모드에서)
-const toggleRoomFormStatus = async () => {
-    // 운영 중지로 변경하려는 경우에만 예약 확인
+const toggleRoomFormStatus = () => {
+    // 운영 중지로 변경하려는 경우 알럿 표시
     if (roomForm.value.isActive) {
-        const hasActiveReservations = await checkHasReservations()
-        if (hasActiveReservations) {
-            alert('객실 사용 중지')
-            return
-        }
+        alert('객실 사용 중지')
     }
     roomForm.value.isActive = !roomForm.value.isActive
 }

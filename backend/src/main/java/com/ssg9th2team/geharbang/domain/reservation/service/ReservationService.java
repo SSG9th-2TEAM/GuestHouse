@@ -41,4 +41,7 @@ public interface ReservationService {
      * 오래된 대기 예약 정리 (스케줄러용)
      */
     int cleanupOldPendingReservations();
+
+    // 객실별 예약 조회
+    List<ReservationResponseDto> getReservationByUserId(Long userId);
 }

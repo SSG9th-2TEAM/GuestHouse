@@ -78,10 +78,18 @@ public class RoomServiceImpl implements RoomService {
     @Override
     @Transactional
     public void deleteRoom(Long accommodationsId, Long roomId) {
+        // 해당 객실의 예약 확인
+        List<Reservation> reservations = reservationJpaRepository.findByRoomId(roomId);
+        boolean hasActiveReservation = reservations.stream()
+                        .anyMatch(r -> r.getReservationStatus() == 2);
+
+        // 예약이 있다면 (status = 2)
+        if(hasActiveReservation) {
+            throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다");
+        }
+
 
         roomMapper.deleteRoom(accommodationsId, roomId);
-
-        // 객실 삭제 후 숙소의 최소 가격 업데이트
         accommodationMapper.updateMinPrice(accommodationsId);
     }
 

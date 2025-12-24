@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +25,7 @@ public class ReservationServiceImpl implements ReservationService {
         private final com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository accommodationRepository;
         private final com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper accommodationMapper;
         private final UserRepository userRepository;
+        private final ReservationJpaRepository reservationJpaRepository;
 
         @Override
         @Transactional
@@ -181,5 +183,15 @@ public class ReservationServiceImpl implements ReservationService {
                 // 30분 전 시간 계산
                 java.time.LocalDateTime cutoffTime = java.time.LocalDateTime.now().minusMinutes(30);
                 return reservationRepository.deleteOldPendingReservations(cutoffTime);
+        }
+
+
+        // 객실별 예약 조회
+        @Override
+        public List<ReservationResponseDto> getReservationByUserId(Long roomId) {
+                List<Reservation> reservations = reservationJpaRepository.findByRoomId(roomId);
+                return reservations.stream()
+                        .map(ReservationResponseDto::from)
+                        .collect(Collectors.toList());
         }
 }

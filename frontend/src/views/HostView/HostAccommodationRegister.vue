@@ -17,6 +17,7 @@ const businessRegistrationNumber = ref('')
 const extractedText = ref('')
 const isExtracting = ref(false)
 const isVerifying = ref(false)
+const isSubmitting = ref(false)
 
 const handleLicenseUpload = (event) => {
   const file = event.target.files[0]
@@ -824,6 +825,9 @@ const themeIdMap = {
 }
 
 const handleSubmit = async () => {
+  // 중복 제출 방지
+  if (isSubmitting.value) return
+
   // 전체 폼 유효성 검사
   const { isValid, errorMessages } = validateForm()
 
@@ -835,6 +839,8 @@ const handleSubmit = async () => {
     }
     return
   }
+
+  isSubmitting.value = true
 
   try {
     // 이미지 Base64 변환
@@ -964,6 +970,8 @@ const handleSubmit = async () => {
   } catch (error) {
     console.error('숙소 등록 오류:', error)
     openModal('숙소 등록 중 오류가 발생했습니다.')
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -997,7 +1005,7 @@ const handleSubmit = async () => {
         
         <div class="action-buttons">
           <button class="btn-outline" @click="handleTempSave">임시 저장</button>
-          <button class="btn-primary" @click="handleSubmit">저장하기</button>
+          <button class="btn-primary" @click="handleSubmit" :disabled="isSubmitting">{{ isSubmitting ? '등록 중...' : '저장하기' }}</button>
         </div>
       </div>
     </div>
@@ -1592,7 +1600,7 @@ const handleSubmit = async () => {
       <!-- Bottom Actions -->
       <div class="bottom-actions">
         <button class="btn-cancel" @click="$router.push('/host')">취소</button>
-        <button class="btn-submit" @click="handleSubmit">등록 완료</button>
+        <button class="btn-submit" @click="handleSubmit" :disabled="isSubmitting">{{ isSubmitting ? '등록 중...' : '등록 완료' }}</button>
       </div>
     </div>
     

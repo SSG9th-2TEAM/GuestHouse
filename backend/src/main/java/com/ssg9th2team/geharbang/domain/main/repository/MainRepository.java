@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.main.repository;
 
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
+import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,8 +14,13 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
             FROM accommodation a
             JOIN accommodation_theme at ON at.accommodations_id = a.accommodations_id
             WHERE at.theme_id IN (:themeIds)
+            AND a.accommodation_status = 1
+            AND a.approval_status = 'APPROVED'
             """, nativeQuery = true)
     List<Accommodation> findByThemeIds(@Param("themeIds") List<Long> themeIds);
+
+    List<Accommodation> findByAccommodationStatusAndApprovalStatus(
+            Integer accommodationStatus, ApprovalStatus approvalStatus);
 
     @Query(value = """
             SELECT
