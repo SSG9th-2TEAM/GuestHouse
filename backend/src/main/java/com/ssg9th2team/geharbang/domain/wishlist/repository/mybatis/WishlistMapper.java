@@ -14,4 +14,7 @@ public interface WishlistMapper {
 
     // 메인페이지용 : 내가 찜한 숙소 ID목록 (하트 색칠용)
     List<Long> selectWishlistAccommodationIds(Long userId);
+
+    // 숙소 삭제 전, 관련된 위시리스트 삭제
+    void deleteWishlistByAccommodationId(Long accommodationsId);
 }

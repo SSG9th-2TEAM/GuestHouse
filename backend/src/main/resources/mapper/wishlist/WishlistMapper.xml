@@ -58,4 +58,10 @@
         FROM wishlist
         WHERE user_id = #{userId}
     </select>
+
+    <!-- 숙소 삭제 시 연관된 위시리스트 삭제 -->
+    <delete id="deleteWishlistByAccommodationId">
+        DELETE FROM wishlist
+        WHERE accommodations_id = #{accommodationsId}
+    </delete>
 </mapper>
