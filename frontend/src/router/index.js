@@ -115,6 +115,21 @@ const router = createRouter({
             component: () => import('../views/RegisterView/RegisterView.vue')
         },
         {
+            path: '/find-email',
+            name: 'find-email',
+            component: () => import('../views/LoginView/FindEmailView.vue')
+        },
+        {
+            path: '/find-password',
+            name: 'find-password',
+            component: () => import('../views/LoginView/FindPasswordView.vue')
+        },
+        {
+            path: '/reset-password',
+            name: 'reset-password',
+            component: () => import('../views/LoginView/ResetPasswordView.vue')
+        },
+        {
             path: '/host',
             name: 'host-dashboard',
             component: () => import('../views/HostView/HostDashboardView.vue'),
