@@ -26,7 +26,7 @@ public class MainController {
         return mainService.findByTheme(themeIds);
     }
 
-    @GetMapping("/room/{accommodationsId}")
+    @GetMapping("/detail/{accommodationsId}")
     public AccommodationDetailDto accommodationDetail(@PathVariable Long accommodationsId) {
         return AccommodationDetailDto.from(accommodationService.getAccommodation(accommodationsId));
     }
