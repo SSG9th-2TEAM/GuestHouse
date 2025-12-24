@@ -1,44 +1,57 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { fetchMyWishlist, removeWishlist } from '@/api/wishlist'
 
 const router = useRouter()
+const wishlist = ref([])
+const isLoading = ref(true)
 
-// Mock data
-const wishlist = ref([
-  {
-    id: 1,
-    title: '제주 카약 체험',
-    location: '제주시 조천읍',
-    rating: 4.8,
-    image: 'https://picsum.photos/id/11/300/200'
-  },
-  {
-    id: 6,
-    title: '북촌 한옥마을 투어',
-    location: '서울시 종로구',
-    rating: 4.6,
-    image: 'https://picsum.photos/id/42/300/200'
-  },
-  {
-    id: 2,
-    title: '속초 맛집 투어',
-    location: '강원도 속초시',
-    rating: 4.9,
-    image: 'https://picsum.photos/id/15/300/200'
-  },
-  {
-    id: 3,
-    title: '경주 역사 탐방',
-    location: '경상북도 경주시',
-    rating: 4.7,
-    image: 'https://picsum.photos/id/18/300/200'
+const loadWishlist = async () => {
+  isLoading.value = true
+  try {
+    const res = await fetchMyWishlist()
+    if (res.ok) {
+      console.log('Wishlist API Response:', res.data) // Debugging log
+      wishlist.value = res.data.map(item => ({
+        id: item.accommodationsId,
+        title: item.accommodationsName,
+        location: [item.city, item.district, item.township].filter(Boolean).join(' '),
+        rating: item.rating || 0.0,
+        image: item.mainImageUrl || 'https://via.placeholder.com/300x200',
+        price: item.minPrice,
+        themes: item.themes || []
+      }))
+    }
+  } catch (e) {
+    console.error('Failed to load wishlist', e)
+  } finally {
+    isLoading.value = false
   }
-])
+}
+
+const handleRemove = async (e, id) => {
+  e.stopPropagation() // 카드 클릭 이벤트 방지
+  if (!confirm('위시리스트에서 삭제하시겠습니까?')) return
+
+  try {
+    const res = await removeWishlist(id)
+    if (res.ok) {
+      wishlist.value = wishlist.value.filter(item => item.id !== id)
+    }
+  } catch (err) {
+    console.error(err)
+    alert('삭제에 실패했습니다.')
+  }
+}
 
 const goToDetail = (id) => {
   router.push(`/room/${id}`)
 }
+
+onMounted(() => {
+  loadWishlist()
+})
 </script>
 
 <template>
@@ -58,7 +71,7 @@ const goToDetail = (id) => {
       >
         <div class="card-image-wrapper">
           <img :src="item.image" alt="thumbnail" class="card-img" />
-          <button class="heart-btn">
+          <button class="heart-btn" @click="(e) => handleRemove(e, item.id)">
             <span class="heart-icon">♥</span>
           </button>
         </div>
@@ -66,9 +79,16 @@ const goToDetail = (id) => {
         <div class="card-info">
           <div class="row-top">
             <h3 class="title">{{ item.title }}</h3>
-            <span class="rating">★ {{ item.rating }}</span>
+            <span class="rating">★ {{ item.rating ? item.rating.toFixed(1) : '0.0' }}</span>
           </div>
           <p class="location">{{ item.location }}</p>
+          <div class="meta-row">
+             <span class="price" v-if="item.price">{{ Number(item.price).toLocaleString() }}원</span>
+             <span class="price" v-else>가격 정보 없음</span>
+          </div>
+          <div class="themes" v-if="item.themes && item.themes.length">
+             <span v-for="(theme, idx) in item.themes" :key="idx" class="theme-tag">#{{ theme }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -143,7 +163,7 @@ const goToDetail = (id) => {
 }
 
 .heart-icon {
-  color: var(--primary); /* Theme Color Heart */
+  color: #ef4444; /* Red Heart */
   font-size: 1.2rem;
   line-height: 1;
 }
@@ -174,5 +194,30 @@ const goToDetail = (id) => {
 .location {
   font-size: 0.9rem;
   color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.meta-row {
+  margin-bottom: 0.5rem;
+}
+
+.price {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #111;
+}
+
+.themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.theme-tag {
+  font-size: 0.8rem;
+  color: #555;
+  background-color: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 </style>

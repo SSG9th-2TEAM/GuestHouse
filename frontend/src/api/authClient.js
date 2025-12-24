@@ -120,6 +120,24 @@ export async function checkEmailDuplicate(email) {
   })
 }
 
+// 이메일 인증 코드 전송
+export async function sendVerificationEmail(email) {
+  return apiRequest('/api/auth/send-verification', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+    skipAuth: true
+  })
+}
+
+// 이메일 인증 코드 확인
+export async function verifyEmailCode(email, code) {
+  return apiRequest('/api/auth/verify-code', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
+    skipAuth: true
+  })
+}
+
 // 토큰 갱신
 export async function refreshAccessToken() {
   const refreshToken = getRefreshToken()
@@ -171,6 +189,8 @@ export async function authenticatedRequest(endpoint, options = {}) {
 export default {
   signup,
   login,
+  sendVerificationEmail,
+  verifyEmailCode,
   logout,
   checkEmailDuplicate,
   refreshAccessToken,

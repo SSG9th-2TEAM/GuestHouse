@@ -27,22 +27,23 @@ public class AccommodationUpdateRequestDto {
     private BigDecimal latitude;
     private BigDecimal longitude;
 
-    // 정산계좌 정보 (조인)
-    private String bankName;
-    private String accountNumber;
-    private String accountHolder;
 
     // 편의시설 및 테마 (1:N 조인)
     private List<Long> amenityIds;
     private List<Long> themeIds;
     private List<AccommodationImageDto> images;
-
     // 객실 수정/추가 리스트
     private List<RoomData> rooms;
 
+    // 정산계좌 정보 (조인)
+    private String bankName;
+    private String accountNumber;
+    private String accountHolder;
 
 
 
+
+    // roomId가 있으면 수정 없으면 추가
     @Getter
     @Setter
     @NoArgsConstructor

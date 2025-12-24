@@ -41,7 +41,8 @@ public class AccommodationServiceImpl implements AccommodationService {
         accountNumberDto.setAccountHolder(createRequestDto.getAccountHolder());
 
         accommodationMapper.insertAccountNumber(accountNumberDto);
-        Long accountNumberId = accountNumberDto.getAccountNumberId(); // 계좌번호 등록 -> 정산 아이디 생성 -> accountNumberId에 저장
+
+        Long accountNumberId = accountNumberDto.getAccountNumberId(); // 정산계좌생성 -> 정산 아이디 생성 -> accountNumberId에 저장
 
         // 2. 숙소 엔티티 생성
         Accommodation accommodation = Accommodation.builder()
@@ -115,7 +116,6 @@ public class AccommodationServiceImpl implements AccommodationService {
     public AccommodationResponseDto getAccommodation(Long accommodationsId) {
         return accommodationMapper.selectAccommodationById(accommodationsId);
     }
-
 
 
 

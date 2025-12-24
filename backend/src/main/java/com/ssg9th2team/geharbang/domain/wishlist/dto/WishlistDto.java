@@ -6,4 +6,8 @@ import lombok.Getter;
 @Getter
 @Builder
 public class WishlistDto {
+
+    private Long wishId;
+    private Long accommodationsId;
+    private Long userId;
 }

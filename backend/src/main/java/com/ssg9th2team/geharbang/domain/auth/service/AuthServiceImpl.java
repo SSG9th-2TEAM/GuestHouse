@@ -4,12 +4,15 @@ import com.ssg9th2team.geharbang.domain.auth.dto.LoginRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.SignupRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.TokenResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.UserResponse;
+import com.ssg9th2team.geharbang.domain.auth.dto.VerifyCodeRequest;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import com.ssg9th2team.geharbang.domain.theme.repository.ThemeRepository;
 import com.ssg9th2team.geharbang.global.security.JwtTokenProvider;
+import com.ssg9th2team.geharbang.global.service.EmailService;
+import com.ssg9th2team.geharbang.global.util.VerificationCodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -40,11 +43,13 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final ThemeRepository themeRepository;
+    private final EmailService emailService; // 이메일 서비스 주입
+    private final VerificationCodeService verificationCodeService; // 인증 코드 관리 서비스 주입
 
     @Override
     @Transactional
     public UserResponse signup(SignupRequest signupRequest) {
-        // 1. 이메일 중복 체크
+        // 1. 이메일 중복 체크 (sendVerificationCode에서 이미 수행될 수 있지만, 최종 가입 시 다시 한번 확인)
         if (userRepository.existsByEmail(signupRequest.getEmail())) {
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
         }
@@ -100,6 +105,7 @@ public class AuthServiceImpl implements AuthService {
         return createUserToken(user);
     }
 
+    // 관리자 토큰 생성
     private TokenResponse createAdminToken(Admin admin) {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 admin.getUsername(),
@@ -120,6 +126,7 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
+    // 사용자 토큰 생성
     private TokenResponse createUserToken(User user) {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 user.getEmail(),
@@ -144,6 +151,33 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(readOnly = true)
     public boolean checkEmailDuplicate(String email) {
         return userRepository.existsByEmail(email);
+    }
+
+
+    //이메일 인증 코드 전송
+    @Override
+    public void sendVerificationCode(String email) {
+        // 1. 이메일 중복 체크
+        if (userRepository.existsByEmail(email)) {
+            // 이메일이 이미 사용 중인 경우
+            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+        }
+
+        // 2. 인증 코드 생성 및 저장
+        String verificationCode = verificationCodeService.generateAndSaveCode(email);
+
+        // 3. 이메일 전송
+        emailService.sendVerificationEmail(email, verificationCode);
+        log.info("인증 코드 전송 완료: {} (코드: {})", email, verificationCode);
+    }
+
+
+    //이메일 인증 코드 확인. -> verifyCodeRequest
+    //인증 코드가 유효하지 않거나 만료된 경우  -> IllegalArgumentException
+    @Override
+    @Transactional(readOnly = true)
+    public boolean verifyEmailCode(VerifyCodeRequest verifyCodeRequest) {
+        return verificationCodeService.verifyCode(verifyCodeRequest.getEmail(), verifyCodeRequest.getCode());
     }
 
     @Override
