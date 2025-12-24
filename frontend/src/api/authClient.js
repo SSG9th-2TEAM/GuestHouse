@@ -138,6 +138,33 @@ export async function verifyEmailCode(email, code) {
   })
 }
 
+// 이메일 찾기
+export async function findEmail(findEmailData) {
+  return apiRequest('/api/auth/find-email', {
+    method: 'POST',
+    body: JSON.stringify(findEmailData),
+    skipAuth: true
+  })
+}
+
+// 비밀번호 찾기 - 사용자 확인 및 인증 코드 전송
+export async function findPassword(findPasswordData) {
+  return apiRequest('/api/auth/find-password', {
+    method: 'POST',
+    body: JSON.stringify(findPasswordData),
+    skipAuth: true
+  })
+}
+
+// 비밀번호 재설정
+export async function resetPassword(resetPasswordData) {
+  return apiRequest('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(resetPasswordData),
+    skipAuth: true
+  })
+}
+
 // 토큰 갱신
 export async function refreshAccessToken() {
   const refreshToken = getRefreshToken()
@@ -189,6 +216,9 @@ export async function authenticatedRequest(endpoint, options = {}) {
 export default {
   signup,
   login,
+  findEmail,
+  findPassword,
+  resetPassword,
   sendVerificationEmail,
   verifyEmailCode,
   logout,
