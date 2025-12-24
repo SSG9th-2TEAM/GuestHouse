@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.main.service;
 
+import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.repository.AccommodationImageProjection;
@@ -20,7 +21,7 @@ public class BaseMainService implements MainService {
     @Override
     public List<ListDto> findByTheme(List<Long> themeIds) {
         List<Accommodation> accommodations = (themeIds == null || themeIds.isEmpty())
-                ? mainRepository.findAll()
+                ? mainRepository.findByAccommodationStatusAndApprovalStatus(1, ApprovalStatus.APPROVED)
                 : mainRepository.findByThemeIds(themeIds);
         Map<Long, String> imageById = loadRepresentativeImages(accommodations);
         return accommodations.stream()
