@@ -5,13 +5,17 @@ import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.Accommodati
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationRequestDto;
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
+import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ActiveProfiles;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -20,10 +24,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@ActiveProfiles("test")
 class ConcurrencyTest {
 
     @Autowired
     private ReservationService reservationService;
+
+    @MockBean
+    private ObjectStorageService objectStorageService;
 
     @Autowired
     private com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository reservationRepository;
@@ -89,8 +97,8 @@ class ConcurrencyTest {
                 accommodationId,
                 roomId,
                 1L, // userId
-                LocalDateTime.now().plusDays(1),
-                LocalDateTime.now().plusDays(2),
+                Instant.now().plus(1, ChronoUnit.DAYS),
+                Instant.now().plus(2, ChronoUnit.DAYS),
                 1, // guestCount (1명씩 예약)
                 10000,
                 0, // couponDiscount

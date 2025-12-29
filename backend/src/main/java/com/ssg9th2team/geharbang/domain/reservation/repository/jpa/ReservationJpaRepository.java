@@ -45,6 +45,7 @@ public interface ReservationJpaRepository extends JpaRepository<Reservation, Lon
             "AND r.reservationStatus = 2 " + // 확정된 예약만
             "AND r.checkin < :checkout " +
             "AND r.checkout > :checkin")
+
     boolean hasConflictingReservation(
             @Param("roomId") Long roomId,
             @Param("checkin") LocalDateTime checkin,
