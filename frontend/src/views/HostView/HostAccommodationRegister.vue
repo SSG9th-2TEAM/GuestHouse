@@ -17,6 +17,7 @@ const businessRegistrationNumber = ref('')
 const extractedText = ref('')
 const isExtracting = ref(false)
 const isVerifying = ref(false)
+const isSubmitting = ref(false)
 
 const handleLicenseUpload = (event) => {
   const file = event.target.files[0]
@@ -410,9 +411,16 @@ const validateForm = () => {
     errors.value.accountNumber = '계좌번호를 입력해주세요.'
     errorMessages.push('계좌번호')
     isValid = false
-  } else if (!/^\d+$/.test(form.value.accountNumber)) {
     errors.value.accountNumber = '계좌번호는 숫자만 입력해주세요.'
     errorMessages.push('계좌번호 형식')
+    isValid = false
+  }
+
+  // 테마 검사
+  if (!form.value.themes || form.value.themes.length === 0) {
+    // errors object might not have 'themes' key defined in ref, but Vue handles new props reactivity usually or we can rely on errorMessages
+    // Assuming errors ref is just {}
+    errorMessages.push('테마 (최소 1개 선택)')
     isValid = false
   }
 
@@ -566,13 +574,16 @@ const handleBannerUpload = (event) => {
 
 const handleDetailImagesUpload = (event) => {
   const files = Array.from(event.target.files)
-  const remainingSlots = 30 - form.value.detailImages.length
+  const remainingSlots = 5 - form.value.detailImages.length
   const filesToAdd = files.slice(0, remainingSlots)
 
   filesToAdd.forEach(file => {
     form.value.detailImages.push(URL.createObjectURL(file))
     form.value.detailImageFiles.push(file)
   })
+  
+  // 입력값 초기화
+  event.target.value = ''
 }
 
 const removeDetailImage = (index) => {
@@ -824,6 +835,9 @@ const themeIdMap = {
 }
 
 const handleSubmit = async () => {
+  // 중복 제출 방지
+  if (isSubmitting.value) return
+
   // 전체 폼 유효성 검사
   const { isValid, errorMessages } = validateForm()
 
@@ -835,6 +849,8 @@ const handleSubmit = async () => {
     }
     return
   }
+
+  isSubmitting.value = true
 
   try {
     // 이미지 Base64 변환
@@ -964,6 +980,8 @@ const handleSubmit = async () => {
   } catch (error) {
     console.error('숙소 등록 오류:', error)
     openModal('숙소 등록 중 오류가 발생했습니다.')
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -997,7 +1015,7 @@ const handleSubmit = async () => {
         
         <div class="action-buttons">
           <button class="btn-outline" @click="handleTempSave">임시 저장</button>
-          <button class="btn-primary" @click="handleSubmit">저장하기</button>
+          <button class="btn-primary" @click="handleSubmit" :disabled="isSubmitting">{{ isSubmitting ? '등록 중...' : '저장하기' }}</button>
         </div>
       </div>
     </div>
@@ -1285,24 +1303,21 @@ const handleSubmit = async () => {
           <span v-if="errors.bannerImage" class="error-message">{{ errors.bannerImage }}</span>
         </div>
         
-        <div class="form-group">
-          <label>숙소 상세 이미지 <span class="required">*</span></label>
-          <div class="upload-box">
-            <div class="upload-placeholder" v-if="form.detailImages.length === 0">
-              <span class="upload-text">드래그하거나 클릭해 상세 이미지 추가</span>
-              <span class="upload-info">JPG, PNG, HEIC / 최대 20MB (최소 5장 권장)</span>
-              <span class="upload-hint">최소 1200px 권장</span>
-            </div>
-            <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
-          </div>
-          
-          <div v-if="form.detailImages.length > 0" class="detail-images-preview">
-            <div v-for="(img, idx) in form.detailImages" :key="idx" class="detail-image-item">
-              <img :src="img" />
-              <button class="remove-image-btn" @click="removeDetailImage(idx)">×</button>
+          <div class="form-group">
+            <label>숙소 상세 이미지 (최대 5장) <span class="required">*</span></label>
+            <div class="detail-images-container">
+               <div class="detail-images-preview">
+                  <div v-for="(img, idx) in form.detailImages" :key="idx" class="detail-image-item">
+                     <img :src="img" />
+                     <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
+                  </div>
+                  <label v-if="form.detailImages.length < 5" class="add-detail-image">
+                     <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
+                     <span>+</span>
+                  </label>
+               </div>
             </div>
           </div>
-        </div>
       </section>
 
       <!-- Section: 검색 최적화 정보 -->
@@ -1595,7 +1610,7 @@ const handleSubmit = async () => {
       <!-- Bottom Actions -->
       <div class="bottom-actions">
         <button class="btn-cancel" @click="$router.push('/host')">취소</button>
-        <button class="btn-submit" @click="handleSubmit">등록 완료</button>
+        <button class="btn-submit" @click="handleSubmit" :disabled="isSubmitting">{{ isSubmitting ? '등록 중...' : '등록 완료' }}</button>
       </div>
     </div>
     
@@ -2742,5 +2757,74 @@ input[type="number"]:focus {
 .time-separator {
     font-weight: bold;
     color: #333;
+}
+
+/* Detail Images Preview Code copied from Edit page */
+.detail-images-container {
+  width: 100%;
+}
+
+.detail-images-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.detail-image-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.detail-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.add-detail-image {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px dashed #BFE7DF;
+  border-radius: 8px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 2rem;
+  color: #BFE7DF;
+  transition: all 0.2s;
+  background: white;
+  padding-bottom: 4px; /* Center alignment tweak */
+  line-height: 1;
+}
+
+.add-detail-image:hover {
+  background: #f0fcfa;
+}
+
+.add-detail-image input {
+  display: none;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  padding: 0;
+  line-height: 1;
 }
 </style>

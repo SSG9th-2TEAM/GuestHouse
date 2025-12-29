@@ -20,6 +20,9 @@ const getFullImageUrl = (url) => {
 const isLoading = ref(true)
 const loadError = ref('')
 
+// 예약 정보 상태
+const hasReservations = ref(false)
+
 // 모달 상태
 const showModal = ref(false)
 const modalMessage = ref('')
@@ -209,6 +212,51 @@ const isAmenityChecked = (id) => {
 // 테마 체크 여부 확인
 const isThemeChecked = (themeName) => {
   return form.value.themes.includes(themeName)
+}
+
+// 예약 정보 확인 (숙소 전체)
+const checkHasReservations = async () => {
+  try {
+    const token = localStorage.getItem('accessToken')
+    const response = await fetch(`${API_BASE_URL}/reservations/accommodation/${accommodationId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    if (response.ok) {
+      const reservations = await response.json()
+      // 예약 상태가 확정(2)인 경우만 체크 (3은 취소)
+      const activeReservations = reservations.filter(r => r.reservationStatus === 2)
+      hasReservations.value = activeReservations.length > 0
+      return hasReservations.value
+    }
+    return false
+  } catch (error) {
+    console.error('예약 확인 오류:', error)
+    return false
+  }
+}
+
+// 특정 객실의 예약 정보 확인
+const checkRoomHasReservations = async (roomId) => {
+  try {
+    const token = localStorage.getItem('accessToken')
+    const response = await fetch(`${API_BASE_URL}/reservations/room/${roomId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    if (response.ok) {
+      const reservations = await response.json()
+      // 예약 상태가 확정(2)인 경우만 체크 (3은 취소)
+      const activeReservations = reservations.filter(r => r.reservationStatus === 2)
+      return activeReservations.length > 0
+    }
+    return false
+  } catch (error) {
+    console.error('객실 예약 확인 오류:', error)
+    return false
+  }
 }
 
 // 데이터 로드
@@ -417,6 +465,12 @@ const validateForm = () => {
         isValid = false
     }
 
+    // 테마 검사
+    if (!form.value.themes || form.value.themes.length === 0) {
+        errorMessages.push('테마 (최소 1개 선택)')
+        isValid = false
+    }
+
     // Room Validation at Submit
     // 유효성 검사 로직 보완
     if (rooms.value.length === 0) {
@@ -559,14 +613,14 @@ const handleUpdate = async () => {
             imageList.push({
                 imageUrl: base64,
                 imageType: 'banner',
-                sortOrder: 1
+                sortOrder: 0
             })
         } else if (form.value.bannerImage) {
             // Existing Banner (URL) - Send as is
             imageList.push({
                 imageUrl: form.value.bannerImage,
                 imageType: 'banner',
-                sortOrder: 1
+                sortOrder: 0
             })
         }
 
@@ -578,13 +632,13 @@ const handleUpdate = async () => {
                  imageList.push({
                      imageUrl: base64,
                      imageType: 'detail',
-                     sortOrder: i + 2
+                     sortOrder: i + 1
                  })
             } else {
                  imageList.push({
                      imageUrl: item.url,
                      imageType: 'detail',
-                     sortOrder: i + 2
+                     sortOrder: i + 1
                  })
             }
         }
@@ -600,8 +654,7 @@ const handleUpdate = async () => {
             sns: form.value.sns || '',
             phone: form.value.phone, 
             checkInTime: form.value.checkInTime,
-            phone: form.value.phone, 
-            checkInTime: form.value.checkInTime,
+
             checkOutTime: form.value.checkOutTime,
             latitude: form.value.latitude,
             longitude: form.value.longitude,
@@ -808,9 +861,74 @@ const showNewRoomForm = () => {
     showRoomForm.value = true
 }
 
-const deleteRoom = (id) => {
+const deleteRoom = async (id) => {
+    // 해당 객실의 예약 정보 확인
+    const hasActiveReservations = await checkRoomHasReservations(id)
+    if (hasActiveReservations) {
+        alert('예약된 정보가 있어 삭제할 수 없습니다.')
+        return
+    }
+
     if(confirm('정말 삭제하시겠습니까?')) {
         rooms.value = rooms.value.filter(r => r.id !== id)
+    }
+}
+
+// 숙소 운영상태 토글
+const toggleAccommodationStatus = () => {
+    // 운영 중지로 변경하려는 경우 알럿 표시
+    if (form.value.isActive) {
+        alert('숙소 운영 상태가 비활성화 되었습니다')
+    }
+    form.value.isActive = !form.value.isActive
+}
+
+// 객실 운영상태 토글
+const toggleRoomStatus = (room) => {
+    // 운영 중지로 변경하려는 경우 알럿 표시
+    if (room.isActive) {
+        alert('객실 운영 상태가 비활성화 되었습니다 ')
+    }
+    room.isActive = !room.isActive
+}
+
+// 객실 폼 운영상태 토글 (수정 모드에서)
+const toggleRoomFormStatus = () => {
+    // 운영 중지로 변경하려는 경우 알럿 표시
+    if (roomForm.value.isActive) {
+        alert('객실 사용 중지')
+    }
+    roomForm.value.isActive = !roomForm.value.isActive
+}
+
+// 숙소 삭제
+const deleteAccommodation = async () => {
+    // 예약 정보 확인
+    const hasActiveReservations = await checkHasReservations()
+    if (hasActiveReservations) {
+        alert('예약된 정보가 있어 삭제할 수 없습니다.')
+        return
+    }
+
+    if(confirm('정말 숙소를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+        try {
+            const token = localStorage.getItem('accessToken')
+            const response = await fetch(`${API_BASE_URL}/accommodations/${accommodationId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            if (response.ok) {
+                alert('숙소가 삭제되었습니다.')
+                router.push('/host/accommodation')
+            } else {
+                alert('숙소 삭제에 실패했습니다.')
+            }
+        } catch (error) {
+            console.error('숙소 삭제 오류:', error)
+            alert('숙소 삭제 중 오류가 발생했습니다.')
+        }
     }
 }
 
@@ -858,7 +976,7 @@ const removeBannerImage = () => {
 // 상세 이미지 업로드
 const handleDetailImagesUpload = (event) => {
   const files = Array.from(event.target.files)
-  const remaining = 30 - displayImages.value.length
+  const remaining = 5 - displayImages.value.length
 
   files.slice(0, remaining).forEach(file => {
       displayImages.value.push({
@@ -868,6 +986,9 @@ const handleDetailImagesUpload = (event) => {
           isNew: true
       })
   })
+  
+  // 입력값 초기화
+  event.target.value = ''
 }
 
 // 상세 이미지 삭제
@@ -900,12 +1021,13 @@ onMounted(() => {
       <div class="header-controls">
         <div class="toggle-wrapper">
           <span class="toggle-label">{{ form.isActive ? '운영 중' : '운영 중지' }}</span>
-          <div class="toggle-switch" :class="{ active: form.isActive }" @click="form.isActive = !form.isActive">
+          <div class="toggle-switch" :class="{ active: form.isActive }" @click="toggleAccommodationStatus">
             <div class="toggle-slider"></div>
           </div>
         </div>
-        
+
         <div class="action-buttons">
+          <button class="btn-danger" @click="deleteAccommodation">숙소 삭제</button>
           <button class="btn-outline" @click="$router.push('/host/accommodation')">취소</button>
           <button class="btn-primary" @click="handleUpdate">수정 완료</button>
         </div>
@@ -1115,14 +1237,14 @@ onMounted(() => {
 
          <!-- 상세 이미지 -->
          <div class="form-group">
-            <label>상세 이미지 (최대 30장)</label>
+            <label>상세 이미지 (최대 5장)</label>
             <div class="detail-images-container">
                <div class="detail-images-preview">
                   <div v-for="(img, idx) in displayImages" :key="img.id" class="detail-image-item">
                      <img :src="img.url" />
                      <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
                   </div>
-                  <label v-if="displayImages.length < 30" class="add-detail-image">
+                  <label v-if="displayImages.length < 5" class="add-detail-image">
                      <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
                      <span>+</span>
                   </label>
@@ -1167,7 +1289,7 @@ onMounted(() => {
                   <div
                     class="toggle-switch small"
                     :class="{ active: room.isActive }"
-                    @click="room.isActive = !room.isActive"
+                    @click="toggleRoomStatus(room)"
                   >
                     <div class="toggle-slider"></div>
                   </div>
@@ -1237,7 +1359,7 @@ onMounted(() => {
                   <div
                     class="toggle-switch small"
                     :class="{ active: roomForm.isActive }"
-                    @click="roomForm.isActive = !roomForm.isActive"
+                    @click="toggleRoomFormStatus"
                   >
                     <div class="toggle-slider"></div>
                   </div>
@@ -1585,6 +1707,21 @@ onMounted(() => {
 
 .btn-primary:hover {
   background: #a8ddd2;
+}
+
+.btn-danger {
+  padding: 0.6rem 1rem;
+  border: none;
+  background: #ff5252;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: #ff1744;
 }
 
 /* Form Content */
@@ -2678,6 +2815,8 @@ input[type="number"]:focus {
   font-size: 2rem;
   color: #BFE7DF;
   transition: all 0.2s;
+  padding-bottom: 4px; /* Centering tweak */
+  line-height: 1;
 }
 
 .add-detail-image:hover {

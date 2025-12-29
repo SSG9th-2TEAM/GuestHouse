@@ -1,6 +1,10 @@
 package com.ssg9th2team.geharbang.domain.auth.service;
 
+import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailRequest;
+import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailResponse;
+import com.ssg9th2team.geharbang.domain.auth.dto.FindPasswordRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.LoginRequest;
+import com.ssg9th2team.geharbang.domain.auth.dto.ResetPasswordRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.SignupRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.TokenResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.UserResponse;
@@ -27,10 +31,11 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
+
 
 import com.ssg9th2team.geharbang.domain.auth.entity.Admin;
 import com.ssg9th2team.geharbang.domain.auth.repository.AdminRepository;
+
 import java.util.Optional;
 
 @Slf4j
@@ -43,15 +48,18 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final ThemeRepository themeRepository;
-    private final EmailService emailService; // 이메일 서비스 주입
-    private final VerificationCodeService verificationCodeService; // 인증 코드 관리 서비스 주입
+    private final EmailService emailService; // 이메일 서비스
+    private final VerificationCodeService verificationCodeService; // 인증 코드 관리 서비스
 
     @Override
     @Transactional
     public UserResponse signup(SignupRequest signupRequest) {
-        // 1. 이메일 중복 체크 (sendVerificationCode에서 이미 수행될 수 있지만, 최종 가입 시 다시 한번 확인)
+        // 1. 이메일 및 닉네임 중복 체크
         if (userRepository.existsByEmail(signupRequest.getEmail())) {
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+        }
+        if (userRepository.existsByNickname(signupRequest.getNickname())) {
+            throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
         }
 
         // 2. 비밀번호 암호화
@@ -67,6 +75,8 @@ public class AuthServiceImpl implements AuthService {
         // 4. User 엔티티 생성
         User user = User.builder()
                 .name(signupRequest.getName())
+                .nickname(signupRequest.getNickname())
+                .gender(signupRequest.getGender())
                 .email(signupRequest.getEmail())
                 .password(encodedPassword)
                 .phone(signupRequest.getPhone())
@@ -104,6 +114,65 @@ public class AuthServiceImpl implements AuthService {
         }
 
         return createUserToken(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FindEmailResponse findEmail(FindEmailRequest findEmailRequest) {
+        log.info("이메일 찾기 시도: name='{}', phone='{}'", findEmailRequest.getName(), findEmailRequest.getPhone());
+
+        User user = userRepository.findByNameAndPhone(findEmailRequest.getName(), findEmailRequest.getPhone())
+                .orElseThrow(() -> new IllegalArgumentException("일치하는 사용자 정보가 없습니다."));
+
+        return new FindEmailResponse(user.getEmail());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void findPassword(FindPasswordRequest findPasswordRequest) {
+        log.info("비밀번호 찾기 시도: email='{}', phone='{}'", findPasswordRequest.getEmail(), findPasswordRequest.getPhone());
+
+        // 1. 이메일과 전화번호로 사용자 존재 확인
+        User user = userRepository.findByEmail(findPasswordRequest.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("일치하는 사용자 정보가 없습니다."));
+
+        if (!user.getPhone().equals(findPasswordRequest.getPhone())) {
+            throw new IllegalArgumentException("일치하는 사용자 정보가 없습니다.");
+        }
+
+        // 2. 인증 코드 생성 및 저장
+        String verificationCode = verificationCodeService.generateAndSaveCode(user.getEmail());
+
+        // 3. 이메일 전송
+        emailService.sendVerificationEmail(user.getEmail(), verificationCode);
+        log.info("비밀번호 재설정 인증 코드 전송 완료: {} (코드: {})", user.getEmail(), verificationCode);
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequest resetPasswordRequest) {
+        log.info("비밀번호 재설정 시도: email='{}'", resetPasswordRequest.getEmail());
+
+        // 1. 인증 코드 확인
+        boolean isVerified = verificationCodeService.verifyCode(
+                resetPasswordRequest.getEmail(),
+                resetPasswordRequest.getCode()
+        );
+
+        if (!isVerified) {
+            throw new IllegalArgumentException("인증 코드가 유효하지 않거나 만료되었습니다.");
+        }
+
+        // 2. 사용자 조회
+        User user = userRepository.findByEmail(resetPasswordRequest.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        // 3. 비밀번호 암호화 및 업데이트
+        String encodedPassword = passwordEncoder.encode(resetPasswordRequest.getNewPassword());
+        user.updatePassword(encodedPassword);
+
+        userRepository.save(user);
+        log.info("비밀번호 재설정 완료: {}", user.getEmail());
     }
 
     // 관리자 토큰 생성
@@ -154,6 +223,12 @@ public class AuthServiceImpl implements AuthService {
         return userRepository.existsByEmail(email);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public boolean checkNicknameDuplicate(String nickname) {
+        return userRepository.existsByNickname(nickname);
+    }
+
 
     //이메일 인증 코드 전송
     @Override
@@ -179,6 +254,13 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(readOnly = true)
     public boolean verifyEmailCode(VerifyCodeRequest verifyCodeRequest) {
         return verificationCodeService.verifyCode(verifyCodeRequest.getEmail(), verifyCodeRequest.getCode());
+    }
+
+    //이메일 인증 코드 확인만 (삭제하지 않음) - 비밀번호 찾기용
+    @Override
+    @Transactional(readOnly = true)
+    public boolean verifyEmailCodeOnly(VerifyCodeRequest verifyCodeRequest) {
+        return verificationCodeService.verifyCodeOnly(verifyCodeRequest.getEmail(), verifyCodeRequest.getCode());
     }
 
     @Override

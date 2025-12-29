@@ -20,6 +20,8 @@ public interface ReservationJpaRepository extends JpaRepository<Reservation, Lon
 
     List<Reservation> findByUserIdOrderByCreatedAtDesc(Long userId);
 
+    List<Reservation> findByRoomId(Long roomId);  // roomId로 예약 조회
+
     /**
      * 30분 이상 경과한 대기(0) 상태 예약 삭제
      */

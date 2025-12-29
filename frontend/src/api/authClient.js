@@ -120,6 +120,14 @@ export async function checkEmailDuplicate(email) {
   })
 }
 
+// 닉네임 중복 확인
+export async function checkNicknameDuplicate(nickname) {
+  return apiRequest(`/api/auth/check-nickname?nickname=${encodeURIComponent(nickname)}`, {
+    method: 'GET',
+    skipAuth: true
+  });
+}
+
 // 이메일 인증 코드 전송
 export async function sendVerificationEmail(email) {
   return apiRequest('/api/auth/send-verification', {
@@ -134,6 +142,42 @@ export async function verifyEmailCode(email, code) {
   return apiRequest('/api/auth/verify-code', {
     method: 'POST',
     body: JSON.stringify({ email, code }),
+    skipAuth: true
+  })
+}
+
+// 이메일 인증 코드 확인만 (삭제하지 않음) - 비밀번호 찾기용
+export async function verifyEmailCodeOnly(email, code) {
+  return apiRequest('/api/auth/verify-code-only', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
+    skipAuth: true
+  })
+}
+
+// 이메일 찾기
+export async function findEmail(findEmailData) {
+  return apiRequest('/api/auth/find-email', {
+    method: 'POST',
+    body: JSON.stringify(findEmailData),
+    skipAuth: true
+  })
+}
+
+// 비밀번호 찾기 - 사용자 확인 및 인증 코드 전송
+export async function findPassword(findPasswordData) {
+  return apiRequest('/api/auth/find-password', {
+    method: 'POST',
+    body: JSON.stringify(findPasswordData),
+    skipAuth: true
+  })
+}
+
+// 비밀번호 재설정
+export async function resetPassword(resetPasswordData) {
+  return apiRequest('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(resetPasswordData),
     skipAuth: true
   })
 }
@@ -189,10 +233,15 @@ export async function authenticatedRequest(endpoint, options = {}) {
 export default {
   signup,
   login,
+  findEmail,
+  findPassword,
+  resetPassword,
   sendVerificationEmail,
   verifyEmailCode,
+  verifyEmailCodeOnly,
   logout,
   checkEmailDuplicate,
+  checkNicknameDuplicate,
   refreshAccessToken,
   authenticatedRequest,
   getAccessToken,

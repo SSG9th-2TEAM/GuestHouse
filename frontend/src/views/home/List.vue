@@ -132,8 +132,8 @@ onMounted(() => {
     </div>
 
     <div class="list-container">
-      <GuesthouseCard 
-        v-for="item in filteredItems" 
+      <GuesthouseCard
+        v-for="item in filteredItems"
         :key="item.id"
         :id="item.id"
         :title="item.title"

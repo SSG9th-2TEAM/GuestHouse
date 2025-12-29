@@ -130,6 +130,12 @@ const goToSignup = () => {
         <button class="login-btn" @click="handleLogin" :disabled="isLoading">
           {{ isLoading ? '로그인 중...' : '로그인' }}
         </button>
+
+        <div class="find-links">
+          <router-link to="/find-email" class="find-link">이메일 찾기</router-link>
+          <span class="link-divider">|</span>
+          <router-link to="/find-password" class="find-link">비밀번호 찾기</router-link>
+        </div>
       </div>
 
       <div class="divider">
@@ -386,6 +392,30 @@ const goToSignup = () => {
 
 .signup-link span:hover {
   color: #004d40;
+}
+
+.find-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.find-link {
+  color: #666;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.find-link:hover {
+  color: #004d40;
+  text-decoration: underline;
+}
+
+.link-divider {
+  color: #ccc;
+  margin: 0 0.5rem;
 }
 
 .modal-overlay {

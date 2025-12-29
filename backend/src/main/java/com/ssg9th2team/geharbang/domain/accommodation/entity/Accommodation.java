@@ -75,22 +75,22 @@ public class Accommodation {
     @Column(name = "phone" , nullable = false)
     private String phone;
 
-    @Column(name = "business_registration_number", length = 10, nullable = false)
+    @Column(name = "business_registration_number", length = 20, nullable = false)
     private String businessRegistrationNumber;
 
     @Column(name = "business_registration_image", columnDefinition = "LONGTEXT")
     private String businessRegistrationImage;
 
-    @Column(name = "parking_info", length = 100, nullable = false)
+    @Column(name = "parking_info", length = 500, nullable = false)
     private String parkingInfo;
 
-    @Column(name = "sns", length = 100)
+    @Column(name = "sns", length = 500)
     private String sns;
 
-    @Column(name = "check_in_time", length = 10, nullable = false)
+    @Column(name = "check_in_time", length = 20, nullable = false)
     private String checkInTime;
 
-    @Column(name = "check_out_time", length = 10, nullable = false)
+    @Column(name = "check_out_time", length = 20, nullable = false)
     private String checkOutTime;
 
     @Column(name = "min_price")
@@ -106,11 +106,9 @@ public class Accommodation {
     @PrePersist
     public void prePersist() {
         this.createdAt = LocalDateTime.now();
-        this.accommodationStatus = 1;
+        this.accommodationStatus = 0; // 승인 대기 시 운영 상태는 0 (비활성)
         this.approvalStatus = ApprovalStatus.PENDING;
     }
-
-
 
 
 
@@ -152,6 +150,11 @@ public class Accommodation {
     public void updateApprovalStatus(ApprovalStatus status, String rejectionReason) {
         this.approvalStatus = status;
         this.rejectionReason = rejectionReason;
+        
+        // 승인 시 운영 상태를 1(운영 중)로 변경
+        if (status == ApprovalStatus.APPROVED) {
+            this.accommodationStatus = 1;
+        }
     }
 
 }

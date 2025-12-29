@@ -8,9 +8,17 @@ import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.AccommodationsCategory;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
+import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository;
+import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationResponseDto;
+import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
+import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
+import com.ssg9th2team.geharbang.domain.reservation.service.ReservationService;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.mybatis.RoomMapper;
+import com.ssg9th2team.geharbang.domain.wishlist.repository.mybatis.WishlistMapper;
 import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,7 +34,9 @@ public class AccommodationServiceImpl implements AccommodationService {
     private final AccommodationMapper accommodationMapper;
     private final RoomMapper roomMapper;
     private final ObjectStorageService objectStorageService;
-
+    private final ReservationJpaRepository reservationJpaRepository;
+    private final PaymentJpaRepository paymentJpaRepository;
+    private final PaymentRefundJpaRepository paymentRefundJpaRepository;
 
 
     // 숙소 등록
@@ -96,8 +106,8 @@ public class AccommodationServiceImpl implements AccommodationService {
                 .latitude(createRequestDto.getLatitude())
                 .longitude(createRequestDto.getLongitude())
                 .transportInfo(createRequestDto.getTransportInfo())
-                .accommodationStatus(1)
-                .approvalStatus(ApprovalStatus.PENDING)
+                .accommodationStatus(1)   // 테스트할떄 1로 바꾸기
+                .approvalStatus(ApprovalStatus.APPROVED)  // 테스트할때 approved로 바꾸기
                 .createdAt(LocalDateTime.now())
                 .phone(createRequestDto.getPhone())
                 .businessRegistrationNumber(createRequestDto.getBusinessRegistrationNumber())
@@ -200,6 +210,20 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         // 이미지
         if (updateRequestDto.getImages() != null) {
+            // 이미지 업로드 로직 추가
+            try {
+                for (com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto img : updateRequestDto.getImages()) {
+                    if (img.getImageUrl() != null) {
+                        String savedUrl = objectStorageService.uploadBase64Image(
+                                img.getImageUrl(), "accommodations");
+                        img.setImageUrl(savedUrl);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw new RuntimeException("숙소 이미지 수정 중 오류가 발생했습니다: " + e.getMessage());
+            }
+
             accommodationMapper.deleteAccommodationImages(accommodationsId);
             if (!updateRequestDto.getImages().isEmpty()) {
                 accommodationMapper.insertAccommodationImages(accommodationsId, updateRequestDto.getImages());
@@ -236,6 +260,46 @@ public class AccommodationServiceImpl implements AccommodationService {
         // 3-3. DB에는 있는데 요청에는 없는 ID 삭제
         for (RoomResponseListDto currentRoom : currentRooms) {
             if (!requestedRoomIds.contains(currentRoom.getRoomId())) {
+                // 객실 삭제 전 예약 확인 및 처리
+                List<Reservation> roomReservations = reservationJpaRepository.findByRoomId(currentRoom.getRoomId());
+                LocalDateTime now = LocalDateTime.now();
+                boolean hasActiveReservation = roomReservations.stream()
+                        .anyMatch(r -> (r.getReservationStatus() == 2 || r.getReservationStatus() == 3) // 2: 확정, 3: 체크인완료
+                                        && r.getCheckout().isAfter(now)); // 현재 시간보다 체크아웃이 미래인 경우만 Active로 간주
+
+                if (hasActiveReservation) {
+                    Reservation activeRes = roomReservations.stream()
+                            .filter(r -> (r.getReservationStatus() == 2 || r.getReservationStatus() == 3) && r.getCheckout().isAfter(now))
+                            .findFirst()
+                            .orElse(null);
+                    String debugInfo = activeRes != null ? "(예약ID: " + activeRes.getId() + ", 상태: " + activeRes.getReservationStatus() + ", 체크아웃: " + activeRes.getCheckout() + ")" : "";
+                    throw new IllegalStateException("아직 종료되지 않은 예약이 있는 객실은 삭제할 수 없습니다. " + debugInfo);
+                }
+
+                // 관련 데이터 삭제 (지난 예약, 취소된 예약 등)
+                if (!roomReservations.isEmpty()) {
+                    List<Long> reservationIds = roomReservations.stream().map(Reservation::getId).toList();
+                    
+                    if (!reservationIds.isEmpty()) {
+                        // 1. Payment & Refund 삭제
+                        List<Payment> payments = paymentJpaRepository.findByReservationIdIn(reservationIds);
+                        List<Long> paymentIds = payments.stream().map(Payment::getId).toList();
+
+                        if (!paymentIds.isEmpty()) {
+                            paymentRefundJpaRepository.deleteByPaymentIdIn(paymentIds);
+                            paymentRefundJpaRepository.flush();
+                        }
+
+
+                        paymentJpaRepository.deleteByReservationIdIn(reservationIds);
+                        paymentJpaRepository.flush();
+                    }
+
+                    // 3. Reservation 삭제
+                    reservationJpaRepository.deleteAllInBatch(roomReservations);
+                    reservationJpaRepository.flush();
+                }
+
                 roomMapper.deleteRoom(accommodationsId, currentRoom.getRoomId());
             }
         }
@@ -243,6 +307,18 @@ public class AccommodationServiceImpl implements AccommodationService {
         // 3-4. 객실 추가/수정
         if (updateRequestDto.getRooms() != null) {
             for (AccommodationUpdateRequestDto.RoomData roomDto : updateRequestDto.getRooms()) {
+                // 객실 이미지 업로드 로직 추가
+                try {
+                    if (roomDto.getMainImageUrl() != null) {
+                        String savedUrl = objectStorageService.uploadBase64Image(
+                                roomDto.getMainImageUrl(), "rooms");
+                        roomDto.setMainImageUrl(savedUrl);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    throw new RuntimeException("객실 이미지 수정 중 오류가 발생했습니다: " + e.getMessage());
+                }
+
                 Room room = Room.builder()
                         .accommodationsId(accommodationsId)
                         .roomName(roomDto.getRoomName())
@@ -270,12 +346,47 @@ public class AccommodationServiceImpl implements AccommodationService {
     }
 
 
+
+    private final WishlistMapper wishlistMapper;
+
     // 숙소 삭제
     @Override
     @Transactional
     public void deleteAccommodation(Long accommodationsId) {
+        // 예약 확인 ( stastus = 2 = 예약 완료)
+        List<Reservation> reservations = reservationJpaRepository.findByAccommodationsId(accommodationsId);
+        boolean hasActiveReservation = reservations.stream().anyMatch(r -> r.getReservationStatus() == 2);
+
+        if(hasActiveReservation) {
+            throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다.");
+        }
+
+        // 연관된 예약 정보 삭제 (취소/완료된 예약 등 Active하지 않은 예약들)
+        if (!reservations.isEmpty()) {
+            
+            // 1. Payment 삭제 전에 PaymentRefund 삭제 필요
+            List<Long> reservationIds = reservations.stream().map(Reservation::getId).toList();
+            if(!reservationIds.isEmpty()){
+                List<Payment> payments = paymentJpaRepository.findByReservationIdIn(reservationIds);
+                List<Long> paymentIds = payments.stream().map(Payment::getId).toList();
+                
+                if (!paymentIds.isEmpty()) {
+                    paymentRefundJpaRepository.deleteByPaymentIdIn(paymentIds);
+                    paymentRefundJpaRepository.flush(); // 환불 데이터 삭제 반영
+                }
+
+                paymentJpaRepository.deleteByReservationIdIn(reservationIds);
+                paymentJpaRepository.flush(); // 결제 데이터 삭제 반영
+            }
+
+            reservationJpaRepository.deleteAllInBatch(reservations);
+            reservationJpaRepository.flush(); // 예약 데이터 삭제 반영
+        }
+        
+        // 4. Wishlist 삭제 (FK_WISHLIST_ACC 제약조건 해결)
+        wishlistMapper.deleteWishlistByAccommodationId(accommodationsId);
+
         accommodationMapper.deleteAccommodation(accommodationsId);
 
-        // 객실 예약이 있다면 삭제 불가 코드
     }
 }
