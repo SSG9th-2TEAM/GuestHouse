@@ -7,16 +7,12 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationSummary;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -32,17 +28,24 @@ public class AdminAccommodationService {
             int size,
             String sort
     ) {
-        Specification<Accommodation> spec = buildSpecification(status, keyword);
         Sort sorting = "oldest".equalsIgnoreCase(sort)
                 ? Sort.by(Sort.Direction.ASC, "createdAt")
                 : Sort.by(Sort.Direction.DESC, "createdAt");
 
-        Page<Accommodation> result = accommodationRepository.findAll(spec, PageRequest.of(page, size, sorting));
-        List<AdminAccommodationSummary> items = result.stream()
+        List<Accommodation> filtered = accommodationRepository.findAll(sorting).stream()
+                .filter(accommodation -> matchesStatus(accommodation, status))
+                .filter(accommodation -> matchesKeyword(accommodation, keyword))
+                .toList();
+
+        int totalElements = filtered.size();
+        int totalPages = size > 0 ? (int) Math.ceil(totalElements / (double) size) : 1;
+        int fromIndex = Math.min(page * size, totalElements);
+        int toIndex = Math.min(fromIndex + size, totalElements);
+        List<AdminAccommodationSummary> items = filtered.subList(fromIndex, toIndex).stream()
                 .map(this::toSummary)
                 .toList();
 
-        return AdminPageResponse.of(items, page, size, result.getTotalElements(), result.getTotalPages());
+        return AdminPageResponse.of(items, page, size, totalElements, totalPages);
     }
 
     public AdminAccommodationDetail getAccommodationDetail(Long accommodationId) {
@@ -65,25 +68,6 @@ public class AdminAccommodationService {
         return toDetail(accommodationRepository.save(accommodation));
     }
 
-    private Specification<Accommodation> buildSpecification(String status, String query) {
-        return (root, q, cb) -> {
-            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
-            ApprovalStatus approvalStatus = parseStatus(status);
-            if (approvalStatus != null) {
-                predicates.add(cb.equal(root.get("approvalStatus"), approvalStatus));
-            }
-            if (StringUtils.hasText(query)) {
-                String likeQuery = "%" + query.toLowerCase() + "%";
-                predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("accommodationsName")), likeQuery),
-                        cb.like(cb.lower(root.get("city")), likeQuery),
-                        cb.like(cb.lower(root.get("district")), likeQuery)
-                ));
-            }
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
-        };
-    }
-
     private ApprovalStatus parseStatus(String status) {
         if (!StringUtils.hasText(status) || "all".equalsIgnoreCase(status)) {
             return null;
@@ -95,6 +79,24 @@ public class AdminAccommodationService {
             case "REJECTED", "REJECT", "DENIED" -> ApprovalStatus.REJECTED;
             default -> null;
         };
+    }
+
+    private boolean matchesStatus(Accommodation accommodation, String status) {
+        ApprovalStatus approvalStatus = parseStatus(status);
+        return approvalStatus == null || approvalStatus == accommodation.getApprovalStatus();
+    }
+
+    private boolean matchesKeyword(Accommodation accommodation, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        String normalized = keyword.toLowerCase();
+        String name = accommodation.getAccommodationsName() != null
+                ? accommodation.getAccommodationsName().toLowerCase()
+                : "";
+        String city = accommodation.getCity() != null ? accommodation.getCity().toLowerCase() : "";
+        String district = accommodation.getDistrict() != null ? accommodation.getDistrict().toLowerCase() : "";
+        return name.contains(normalized) || city.contains(normalized) || district.contains(normalized);
     }
 
     private AdminAccommodationSummary toSummary(Accommodation accommodation) {

@@ -10,12 +10,8 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminTimeseriesPoint;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminTimeseriesResponse;
 import com.ssg9th2team.geharbang.domain.admin.entity.PlatformDailyStats;
 import com.ssg9th2team.geharbang.domain.admin.repository.PlatformDailyStatsRepository;
-import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository;
-import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
 import com.ssg9th2team.geharbang.domain.report.entity.ReviewReport;
 import com.ssg9th2team.geharbang.domain.report.repository.jpa.ReviewReportJpaRepository;
-import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
-import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -24,7 +20,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -35,27 +30,30 @@ public class AdminDashboardService {
     private double platformFeeRate;
 
     private final AccommodationJpaRepository accommodationRepository;
-    private final ReservationJpaRepository reservationRepository;
-    private final PaymentJpaRepository paymentRepository;
-    private final PaymentRefundJpaRepository refundRepository;
     private final ReviewReportJpaRepository reportRepository;
     private final PlatformDailyStatsRepository statsRepository;
 
     public AdminDashboardSummaryResponse getDashboardSummary(LocalDate from, LocalDate to) {
         LocalDate startDate = from != null ? from : LocalDate.now();
         LocalDate endDate = to != null ? to : LocalDate.now();
-        LocalDateTime start = startDate.atStartOfDay();
-        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+        List<PlatformDailyStats> stats = statsRepository.findByStatDateBetweenOrderByStatDateAsc(startDate, endDate);
+
+        long reservationCount = stats.stream()
+                .mapToLong(PlatformDailyStats::getTotalReservations)
+                .sum();
+        long paymentSuccessAmount = stats.stream()
+                .mapToLong(PlatformDailyStats::getTotalRevenue)
+                .sum();
+        long paymentFailureCount = stats.stream()
+                .mapToLong(PlatformDailyStats::getReservationsFailed)
+                .sum();
+        long refundRequestCount = stats.stream()
+                .mapToLong(PlatformDailyStats::getRefundCount)
+                .sum();
 
         long pendingAccommodations = accommodationRepository.count(approvalEquals(ApprovalStatus.PENDING));
-        long reservationCount = reservationRepository.count(createdBetween(start, end));
-        Long successAmount = paymentRepository.sumApprovedAmount(start, end);
-        long paymentSuccessAmount = successAmount != null ? successAmount : 0L;
-        long platformFeeAmount = Math.round(paymentSuccessAmount * platformFeeRate);
-        long paymentFailureCount = paymentRepository.countByPaymentStatusAndCreatedAtBetween(2, start, end)
-                + paymentRepository.countByPaymentStatusAndCreatedAtBetween(3, start, end);
-        long refundRequestCount = refundRepository.countByRefundStatusAndCreatedAtBetween(0, start, end);
         long openReports = reportRepository.count(reportStateEquals("WAIT"));
+        long platformFeeAmount = Math.round(paymentSuccessAmount * platformFeeRate);
 
         List<AdminAccommodationSummary> pendingList = accommodationRepository
                 .findAll(approvalEquals(ApprovalStatus.PENDING),
@@ -99,13 +97,6 @@ public class AdminDashboardService {
 
     private Specification<Accommodation> approvalEquals(ApprovalStatus status) {
         return (root, query, cb) -> cb.equal(root.get("approvalStatus"), status);
-    }
-
-    private Specification<Reservation> createdBetween(LocalDateTime start, LocalDateTime end) {
-        return (root, query, cb) -> cb.and(
-                cb.greaterThanOrEqualTo(root.get("createdAt"), start),
-                cb.lessThan(root.get("createdAt"), end)
-        );
     }
 
     private Specification<ReviewReport> reportStateEquals(String state) {

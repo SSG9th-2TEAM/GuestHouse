@@ -8,16 +8,12 @@ import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
 import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
 import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -34,15 +30,22 @@ public class AdminPaymentService {
             int size,
             String sort
     ) {
-        Specification<Payment> spec = buildSpecification(status, keyword);
         Sort sorting = "oldest".equalsIgnoreCase(sort)
                 ? Sort.by(Sort.Direction.ASC, "createdAt")
                 : Sort.by(Sort.Direction.DESC, "createdAt");
-        Page<Payment> result = paymentRepository.findAll(spec, PageRequest.of(page, size, sorting));
-        List<AdminPaymentSummary> items = result.stream()
+        List<Payment> filtered = paymentRepository.findAll(sorting).stream()
+                .filter(payment -> matchesStatus(payment, status))
+                .filter(payment -> matchesKeyword(payment, keyword))
+                .toList();
+
+        int totalElements = filtered.size();
+        int totalPages = size > 0 ? (int) Math.ceil(totalElements / (double) size) : 1;
+        int fromIndex = Math.min(page * size, totalElements);
+        int toIndex = Math.min(fromIndex + size, totalElements);
+        List<AdminPaymentSummary> items = filtered.subList(fromIndex, toIndex).stream()
                 .map(this::toSummary)
                 .toList();
-        return AdminPageResponse.of(items, page, size, result.getTotalElements(), result.getTotalPages());
+        return AdminPageResponse.of(items, page, size, totalElements, totalPages);
     }
 
     public AdminPaymentDetail getPaymentDetail(Long paymentId) {
@@ -57,24 +60,6 @@ public class AdminPaymentService {
         return paymentService.cancelPayment(payment.getReservationId(), reason, amount);
     }
 
-    private Specification<Payment> buildSpecification(String status, String keyword) {
-        return (root, q, cb) -> {
-            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
-            Integer statusCode = parseStatus(status);
-            if (statusCode != null) {
-                predicates.add(cb.equal(root.get("paymentStatus"), statusCode));
-            }
-            if (StringUtils.hasText(keyword)) {
-                String likeQuery = "%" + keyword.toLowerCase() + "%";
-                predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("orderId")), likeQuery),
-                        cb.like(cb.lower(root.get("pgPaymentKey")), likeQuery)
-                ));
-            }
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
-        };
-    }
-
     private Integer parseStatus(String status) {
         if (!StringUtils.hasText(status) || "all".equalsIgnoreCase(status)) {
             return null;
@@ -86,6 +71,21 @@ public class AdminPaymentService {
             case "refunded", "refund" -> 3;
             default -> null;
         };
+    }
+
+    private boolean matchesStatus(Payment payment, String status) {
+        Integer statusCode = parseStatus(status);
+        return statusCode == null || statusCode.equals(payment.getPaymentStatus());
+    }
+
+    private boolean matchesKeyword(Payment payment, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        String normalized = keyword.toLowerCase();
+        String orderId = payment.getOrderId() != null ? payment.getOrderId().toLowerCase() : "";
+        String pgPaymentKey = payment.getPgPaymentKey() != null ? payment.getPgPaymentKey().toLowerCase() : "";
+        return orderId.contains(normalized) || pgPaymentKey.contains(normalized);
     }
 
     private AdminPaymentSummary toSummary(Payment payment) {

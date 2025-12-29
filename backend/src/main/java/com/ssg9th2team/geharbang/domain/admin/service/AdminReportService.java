@@ -6,16 +6,12 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportSummary;
 import com.ssg9th2team.geharbang.domain.report.entity.ReviewReport;
 import com.ssg9th2team.geharbang.domain.report.repository.jpa.ReviewReportJpaRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -25,15 +21,24 @@ public class AdminReportService {
     private final ReviewReportJpaRepository reportRepository;
 
     public AdminPageResponse<AdminReportSummary> getReports(String status, String type, String query, int page, int size, String sort) {
-        Specification<ReviewReport> spec = buildSpecification(status, type, query);
         Sort sorting = "oldest".equalsIgnoreCase(sort)
                 ? Sort.by(Sort.Direction.ASC, "createdAt")
                 : Sort.by(Sort.Direction.DESC, "createdAt");
-        Page<ReviewReport> result = reportRepository.findAll(spec, PageRequest.of(page, size, sorting));
-        List<AdminReportSummary> items = result.stream()
+
+        List<ReviewReport> filtered = reportRepository.findAll(sorting).stream()
+                .filter(report -> matchesStatus(report, status))
+                .filter(report -> matchesType(type))
+                .filter(report -> matchesQuery(report, query))
+                .toList();
+
+        int totalElements = filtered.size();
+        int totalPages = size > 0 ? (int) Math.ceil(totalElements / (double) size) : 1;
+        int fromIndex = Math.min(page * size, totalElements);
+        int toIndex = Math.min(fromIndex + size, totalElements);
+        List<AdminReportSummary> items = filtered.subList(fromIndex, toIndex).stream()
                 .map(this::toSummary)
                 .toList();
-        return AdminPageResponse.of(items, page, size, result.getTotalElements(), result.getTotalPages());
+        return AdminPageResponse.of(items, page, size, totalElements, totalPages);
     }
 
     public AdminReportDetail getReportDetail(Long reportId) {
@@ -51,23 +56,27 @@ public class AdminReportService {
         return toDetail(reportRepository.save(report));
     }
 
-    private Specification<ReviewReport> buildSpecification(String status, String type, String query) {
-        return (root, q, cb) -> {
-            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
-            if (StringUtils.hasText(status) && !"all".equalsIgnoreCase(status)) {
-                predicates.add(cb.equal(root.get("state"), status.toUpperCase()));
-            }
-            if (StringUtils.hasText(type) && !"all".equalsIgnoreCase(type)) {
-                if (!"review".equalsIgnoreCase(type)) {
-                    predicates.add(cb.disjunction());
-                }
-            }
-            if (StringUtils.hasText(query)) {
-                String likeQuery = "%" + query.toLowerCase() + "%";
-                predicates.add(cb.like(cb.lower(root.get("reason")), likeQuery));
-            }
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
-        };
+    private boolean matchesStatus(ReviewReport report, String status) {
+        if (!StringUtils.hasText(status) || "all".equalsIgnoreCase(status)) {
+            return true;
+        }
+        return status.trim().equalsIgnoreCase(report.getState());
+    }
+
+    private boolean matchesType(String type) {
+        if (!StringUtils.hasText(type) || "all".equalsIgnoreCase(type)) {
+            return true;
+        }
+        return "review".equalsIgnoreCase(type);
+    }
+
+    private boolean matchesQuery(ReviewReport report, String query) {
+        if (!StringUtils.hasText(query)) {
+            return true;
+        }
+        String normalized = query.toLowerCase();
+        String reason = report.getReason() != null ? report.getReason().toLowerCase() : "";
+        return reason.contains(normalized);
     }
 
     private AdminReportSummary toSummary(ReviewReport report) {

@@ -6,10 +6,7 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,7 +14,6 @@ import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -34,36 +30,26 @@ public class AdminBookingService {
             int page,
             int size
     ) {
-        Specification<Reservation> spec = buildSpecification(status, from, to);
         Sort sorting = resolveSort(sort);
-        Page<Reservation> result = reservationRepository.findAll(spec, PageRequest.of(page, size, sorting));
-        List<AdminBookingSummary> items = result.stream()
+        List<Reservation> filtered = reservationRepository.findAll(sorting).stream()
+                .filter(reservation -> matchesStatus(reservation, status))
+                .filter(reservation -> matchesDateRange(reservation, from, to))
+                .toList();
+
+        int totalElements = filtered.size();
+        int totalPages = size > 0 ? (int) Math.ceil(totalElements / (double) size) : 1;
+        int fromIndex = Math.min(page * size, totalElements);
+        int toIndex = Math.min(fromIndex + size, totalElements);
+        List<AdminBookingSummary> items = filtered.subList(fromIndex, toIndex).stream()
                 .map(this::toSummary)
                 .toList();
-        return AdminPageResponse.of(items, page, size, result.getTotalElements(), result.getTotalPages());
+        return AdminPageResponse.of(items, page, size, totalElements, totalPages);
     }
 
     public AdminBookingDetail getBookingDetail(Long reservationId) {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Reservation not found"));
         return toDetail(reservation);
-    }
-
-    private Specification<Reservation> buildSpecification(String status, LocalDate from, LocalDate to) {
-        return (root, q, cb) -> {
-            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
-            Integer statusCode = parseStatus(status);
-            if (statusCode != null) {
-                predicates.add(cb.equal(root.get("reservationStatus"), statusCode));
-            }
-            if (from != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("checkin"), from.atStartOfDay()));
-            }
-            if (to != null) {
-                predicates.add(cb.lessThan(root.get("checkin"), to.plusDays(1).atStartOfDay()));
-            }
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
-        };
     }
 
     private Sort resolveSort(String sort) {
@@ -85,6 +71,25 @@ public class AdminBookingService {
             case "canceled", "cancelled", "refund" -> 9;
             default -> null;
         };
+    }
+
+    private boolean matchesStatus(Reservation reservation, String status) {
+        Integer statusCode = parseStatus(status);
+        return statusCode == null || statusCode.equals(reservation.getReservationStatus());
+    }
+
+    private boolean matchesDateRange(Reservation reservation, LocalDate from, LocalDate to) {
+        LocalDateTime checkin = reservation.getCheckin();
+        if (checkin == null) {
+            return false;
+        }
+        if (from != null && checkin.isBefore(from.atStartOfDay())) {
+            return false;
+        }
+        if (to != null && !checkin.isBefore(to.plusDays(1).atStartOfDay())) {
+            return false;
+        }
+        return true;
     }
 
     private AdminBookingSummary toSummary(Reservation reservation) {

@@ -6,6 +6,8 @@ import com.ssg9th2team.geharbang.domain.admin.entity.PlatformDailyStats;
 import com.ssg9th2team.geharbang.domain.admin.repository.PlatformDailyStatsRepository;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
+import com.ssg9th2team.geharbang.domain.payment.entity.PaymentRefund;
 import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
 import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository;
 import com.ssg9th2team.geharbang.domain.report.repository.jpa.ReviewReportJpaRepository;
@@ -46,14 +48,24 @@ public class PlatformDailyStatsService {
         long reservationsFailed = reservationRepository.count(paymentStatusInBetween(List.of(2, 3), start, end));
         long cancelCount = reservationRepository.count(reservationStatusBetween(9, start, end));
 
-        Long successAmount = paymentRepository.sumApprovedAmount(start, end);
-        long paymentSuccessAmount = successAmount != null ? successAmount : 0L;
-        long paymentFailureCount = paymentRepository.countByPaymentStatusAndCreatedAtBetween(2, start, end);
+        List<Payment> payments = paymentRepository.findAll();
+        long paymentSuccessAmount = payments.stream()
+                .filter(payment -> isBetween(payment.getCreatedAt(), start, end))
+                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 1)
+                .mapToLong(payment -> payment.getApprovedAmount() != null ? payment.getApprovedAmount() : 0L)
+                .sum();
 
-        long refundCount = refundRepository.countByRefundStatusAndCreatedAtBetween(0, start, end)
-                + refundRepository.countByRefundStatusAndCreatedAtBetween(1, start, end);
-        Long refundAmountValue = refundRepository.sumRefundAmount(start, end);
-        long refundAmount = refundAmountValue != null ? refundAmountValue : 0L;
+        List<PaymentRefund> refunds = refundRepository.findAll();
+        long refundCount = refunds.stream()
+                .filter(refund -> isBetween(refund.getCreatedAt(), start, end))
+                .filter(refund -> refund.getRefundStatus() != null
+                        && (refund.getRefundStatus() == 0 || refund.getRefundStatus() == 1))
+                .count();
+        long refundAmount = refunds.stream()
+                .filter(refund -> isBetween(refund.getCreatedAt(), start, end))
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
+                .mapToLong(refund -> refund.getRefundAmount() != null ? refund.getRefundAmount() : 0L)
+                .sum();
 
         long pendingAccommodations = accommodationRepository.count(approvalEquals(ApprovalStatus.PENDING));
         long openReports = reportRepository.count(reportStateEquals("WAIT"));
@@ -159,5 +171,12 @@ public class PlatformDailyStatsService {
 
     private Specification<com.ssg9th2team.geharbang.domain.report.entity.ReviewReport> reportStateEquals(String state) {
         return (root, query, cb) -> cb.equal(root.get("state"), state);
+    }
+
+    private boolean isBetween(LocalDateTime value, LocalDateTime start, LocalDateTime end) {
+        if (value == null) {
+            return false;
+        }
+        return !value.isBefore(start) && value.isBefore(end);
     }
 }

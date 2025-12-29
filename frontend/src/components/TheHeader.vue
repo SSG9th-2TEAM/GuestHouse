@@ -19,6 +19,11 @@ const isAdminRoute = computed(() => route.path.startsWith('/admin'))
 
 // Toggle host mode and persist to localStorage
 const toggleHostMode = () => {
+  if (!isAuthenticated()) {
+    router.push('/login')
+    isMenuOpen.value = false
+    return
+  }
   isHostMode.value = !isHostMode.value
   localStorage.setItem('isHostMode', isHostMode.value.toString())
   if (isHostMode.value) {

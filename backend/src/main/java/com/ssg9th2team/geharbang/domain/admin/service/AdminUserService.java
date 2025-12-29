@@ -6,14 +6,10 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -29,35 +25,24 @@ public class AdminUserService {
             int size,
             String sort
     ) {
-        Specification<User> spec = buildSpecification(role, query);
         Sort sorting = "oldest".equalsIgnoreCase(sort)
                 ? Sort.by(Sort.Direction.ASC, "createdAt")
                 : Sort.by(Sort.Direction.DESC, "createdAt");
 
-        Page<User> result = userRepository.findAll(spec, PageRequest.of(page, size, sorting));
-        List<AdminUserSummary> items = result.stream()
+        List<User> filtered = userRepository.findAll(sorting).stream()
+                .filter(user -> matchesRole(user, role))
+                .filter(user -> matchesQuery(user, query))
+                .toList();
+
+        int totalElements = filtered.size();
+        int totalPages = size > 0 ? (int) Math.ceil(totalElements / (double) size) : 1;
+        int fromIndex = Math.min(page * size, totalElements);
+        int toIndex = Math.min(fromIndex + size, totalElements);
+        List<AdminUserSummary> items = filtered.subList(fromIndex, toIndex).stream()
                 .map(this::toSummary)
                 .toList();
 
-        return AdminPageResponse.of(items, page, size, result.getTotalElements(), result.getTotalPages());
-    }
-
-    private Specification<User> buildSpecification(String role, String query) {
-        return (root, q, cb) -> {
-            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
-            UserRole userRole = parseRole(role);
-            if (userRole != null) {
-                predicates.add(cb.equal(root.get("role"), userRole));
-            }
-            if (StringUtils.hasText(query)) {
-                String likeQuery = "%" + query.toLowerCase() + "%";
-                predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("email")), likeQuery),
-                        cb.like(cb.lower(root.get("phone")), likeQuery)
-                ));
-            }
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
-        };
+        return AdminPageResponse.of(items, page, size, totalElements, totalPages);
     }
 
     private UserRole parseRole(String role) {
@@ -70,6 +55,21 @@ public class AdminUserService {
             case "USER", "ROLE_USER", "GUEST" -> UserRole.USER;
             default -> null;
         };
+    }
+
+    private boolean matchesRole(User user, String role) {
+        UserRole userRole = parseRole(role);
+        return userRole == null || userRole == user.getRole();
+    }
+
+    private boolean matchesQuery(User user, String query) {
+        if (!StringUtils.hasText(query)) {
+            return true;
+        }
+        String normalized = query.toLowerCase();
+        String email = user.getEmail() != null ? user.getEmail().toLowerCase() : "";
+        String phone = user.getPhone() != null ? user.getPhone().toLowerCase() : "";
+        return email.contains(normalized) || phone.contains(normalized);
     }
 
     private AdminUserSummary toSummary(User user) {
