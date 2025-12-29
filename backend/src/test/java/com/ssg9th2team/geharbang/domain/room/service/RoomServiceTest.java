@@ -6,11 +6,15 @@ import com.ssg9th2team.geharbang.domain.accommodation.service.AccommodationServi
 import com.ssg9th2team.geharbang.domain.room.dto.RoomCreateDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomUpdateDto;
+import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -20,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @Transactional
 public class RoomServiceTest {
 
@@ -29,10 +34,16 @@ public class RoomServiceTest {
     @Autowired
     private AccommodationServiceImpl accommodationService;
 
+    @MockBean
+    private ObjectStorageService objectStorageService;
+
     private Long testAccommodationId;
 
     @BeforeEach
     void setUp() {
+        // ObjectStorageService Mock 설정
+        Mockito.when(objectStorageService.uploadBase64Image(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn("https://test-storage.com/test-image.jpg");
         // 테스트용 숙소 먼저 생성
         Long userId = 1L;
 

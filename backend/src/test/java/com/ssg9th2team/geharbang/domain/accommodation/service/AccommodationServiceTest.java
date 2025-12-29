@@ -5,10 +5,15 @@ import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationUpdateRequestDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomCreateDto;
+import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -21,11 +26,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @Transactional // 테스트 후 DB 롤백 (데이터 오염 방지)
 public class AccommodationServiceTest {
 
     @Autowired
     private AccommodationServiceImpl accommodationService;
+
+    @MockBean
+    private ObjectStorageService objectStorageService;
+
+    @BeforeEach
+    void setUp() {
+        // ObjectStorageService Mock 설정 - 실제 업로드 대신 더미 URL 반환
+        Mockito.when(objectStorageService.uploadBase64Image(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn("https://test-storage.com/test-image.jpg");
+    }
 
     @Test
     @DisplayName("숙소 등록 통합 테스트 - 긴 이미지 문자열과 다양한 Enum 값 검증")
