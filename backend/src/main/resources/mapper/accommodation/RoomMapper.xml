@@ -13,7 +13,7 @@
                          room_description, main_image_url, room_status, bathroom_count, room_type, bed_count)
         VALUES (#{room.accommodationsId}, #{room.roomName}, #{room.price}, #{room.weekendPrice},
                 #{room.minGuests}, #{room.maxGuests}, #{room.roomDescription}, #{room.mainImageUrl},
-                1, #{room.bathroomCount}, #{room.roomType}, #{room.bedCount})
+                COALESCE(#{room.roomStatus}, 1), #{room.bathroomCount}, #{room.roomType}, #{room.bedCount})
 
     </insert>
 
@@ -26,7 +26,7 @@
         <foreach collection="rooms" item="room" separator=",">
             (#{accommodationsId}, #{room.roomName}, #{room.price}, #{room.weekendPrice},
             #{room.minGuests}, #{room.maxGuests}, #{room.roomDescription}, #{room.mainImageUrl},
-            1, #{room.bathroomCount}, #{room.roomType}, #{room.bedCount})
+            COALESCE(#{room.roomStatus}, 1), #{room.bathroomCount}, #{room.roomType}, #{room.bedCount})
         </foreach>
     </insert>
 
@@ -66,7 +66,7 @@
             max_guests = #{room.maxGuests},
             room_description = #{room.roomDescription},
             main_image_url = #{room.mainImageUrl},
-            room_status = #{room.roomStatus},
+            room_status = COALESCE(#{room.roomStatus}, 1),
             bathroom_count = #{room.bathroomCount},
             room_type = #{room.roomType},
             bed_count = #{room.bedCount},

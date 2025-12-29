@@ -2,10 +2,13 @@ package com.ssg9th2team.geharbang.domain.dashboard.host.service;
 
 import com.ssg9th2team.geharbang.domain.dashboard.host.dto.HostDashboardSummaryResponse;
 import com.ssg9th2team.geharbang.domain.dashboard.host.dto.TodayScheduleItemResponse;
+import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @Transactional
 @Sql(statements = {
         "DELETE FROM reservation WHERE reservation_id IN (9200001, 9200002)",
@@ -53,6 +57,9 @@ class HostDashboardServiceTest {
 
     @Autowired
     private HostDashboardService hostDashboardService;
+
+    @MockBean
+    private ObjectStorageService objectStorageService;
 
     @Test
     @DisplayName("Host dashboard summary aggregates stats and operating accommodations")

@@ -127,13 +127,13 @@ onMounted(loadAccommodations)
             :key="accommodation.id"
             class="accommodation-card"
         >
-          <div class="card-image">
+          <div class="card-image clickable" @click="$router.push(`/room/${accommodation.id}`)">
             <img :src="getFullImageUrl(accommodation.images[0])" :alt="accommodation.name"/>
           </div>
 
           <div class="card-info">
             <div class="info-header">
-              <h3 class="accommodation-name">{{ accommodation.name }}</h3>
+              <h3 class="accommodation-name clickable" @click="$router.push(`/room/${accommodation.id}`)">{{ accommodation.name }}</h3>
               <span
                   class="status-badge"
                   :class="{ active: accommodation.status === 'active', inactive: accommodation.status === 'inactive' }"
@@ -157,7 +157,6 @@ onMounted(loadAccommodations)
                 <button class="action-btn edit-btn"
                         @click="$router.push(`/host/accommodation/edit/${accommodation.id}`)">수정
                 </button>
-                <button class="action-btn delete-btn" @click="handleDelete(accommodation.id)">삭제</button>
               </div>
             </div>
           </div>
@@ -271,6 +270,19 @@ onMounted(loadAccommodations)
   font-weight: 900;
   color: var(--text-main, #0f172a);
   margin: 0;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  opacity: 0.85;
+}
+
+.accommodation-name.clickable:hover {
+  color: var(--host-accent, #0f766e);
+  text-decoration: underline;
 }
 
 .status-badge {
