@@ -2,20 +2,27 @@ package com.ssg9th2team.geharbang.domain.accommodation.repository;
 
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
+import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@ActiveProfiles("test")
 class AccommodationJpaRepositoryTest {
 
     @Autowired
     private AccommodationJpaRepository accommodationJpaRepository;
+
+    @MockBean
+    private ObjectStorageService objectStorageService;
 
     @Test
     @DisplayName("DB에서 숙소 1개 조회 테스트")

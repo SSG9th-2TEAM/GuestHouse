@@ -203,7 +203,7 @@ const handlePayment = async () => {
       totalAmount: booking.value.price,
       couponId: selectedCoupon.value?.id || null,
       couponDiscountAmount: selectedCoupon.value?.discount || 0,
-      reserverName: currentUser.value?.name || '예약자',
+      reserverName: currentUser.value?.email || '예약자',
       reserverPhone: currentUser.value?.phone || ''
     }
     

@@ -2,12 +2,18 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchHostBookings, fetchHostBookingCalendar } from '@/api/hostBooking'
+import { fetchHostAccommodations } from '@/api/hostAccommodation'
+import { deriveHostState } from '@/composables/useHostState'
 import { formatCurrency, formatDate, formatDateRange, formatDateTime } from '@/utils/formatters'
+import HostPendingLock from '@/components/host/HostPendingLock.vue'
 
 const bookings = ref([])
 const calendarBookings = ref([])
 const isLoading = ref(false)
 const loadError = ref('')
+const hostState = ref('loading')
+const hostCounts = ref({ total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 })
+const pendingOnly = computed(() => hostState.value === 'pending-only')
 
 const statusColor = {
   요청: 'badge-gray',
@@ -238,6 +244,7 @@ const filteredBookings = computed(() => {
 const calendarLegend = computed(() => '표시된 건수는 해당 날짜에 포함된 예약 수입니다.')
 
 const loadBookings = async () => {
+  if (pendingOnly.value) return
   isLoading.value = true
   loadError.value = ''
   const response = await fetchHostBookings()
@@ -254,6 +261,7 @@ const loadBookings = async () => {
 }
 
 const loadCalendar = async (month) => {
+  if (pendingOnly.value) return
   const response = await fetchHostBookingCalendar(month)
   if (response.ok) {
     const payload = response.data
@@ -269,14 +277,34 @@ const loadCalendar = async (month) => {
 const toMonthParam = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 
+const loadHostState = async () => {
+  const response = await fetchHostAccommodations()
+  if (response.ok) {
+    const payload = response.data
+    const list = Array.isArray(payload)
+      ? payload
+      : payload?.items ?? payload?.content ?? payload?.data ?? []
+    const snapshot = deriveHostState(list)
+    hostState.value = snapshot.hostState
+    hostCounts.value = snapshot.counts
+  } else {
+    hostState.value = 'empty'
+  }
+}
+
 onMounted(async () => {
-  await loadBookings()
-  await loadCalendar(toMonthParam(currentMonth.value))
+  await loadHostState()
+  if (!pendingOnly.value) {
+    await loadBookings()
+    await loadCalendar(toMonthParam(currentMonth.value))
+  }
 })
 
 watch(currentMonth, (value) => {
   selectedDate.value = null
-  loadCalendar(toMonthParam(value))
+  if (!pendingOnly.value) {
+    loadCalendar(toMonthParam(value))
+  }
 })
 
 watch(
@@ -323,6 +351,18 @@ const setView = (view) => {
 
 <template>
   <div class="booking-page">
+    <HostPendingLock
+      v-if="pendingOnly"
+      title="승인 후 예약 관리를 할 수 있어요"
+      description="숙소 승인 완료 후 예약 목록과 체크인/체크아웃 관리가 활성화됩니다."
+      primary-cta-text="숙소 관리"
+      primary-cta-to="/host/accommodation"
+      secondary-cta-text="추가 등록"
+      secondary-cta-to="/host/accommodation/register"
+      :badge-text="`검수중 ${hostCounts.pending}건`"
+    />
+
+    <template v-else>
     <header class="view-header">
       <div>
         <h2>예약 관리</h2>
@@ -401,7 +441,7 @@ const setView = (view) => {
           <p class="period">{{ formatScheduleRange(booking) }}</p>
           <p class="period-meta">{{ formatBookingMeta(booking) }}</p>
           <p class="amount">{{ formatAmount(booking.amount) }}</p>
-          <button class="ghost-btn" @click="openModal(booking)">예약 상세</button>
+          <button class="ghost-btn detail-btn" aria-label="예약 상세" @click="openModal(booking)"><span class="detail-btn__text"></span></button>
         </article>
       </div>
 
@@ -409,7 +449,7 @@ const setView = (view) => {
         <table>
           <thead>
           <tr>
-            <th>예약번호</th><th>게스트</th><th>숙소</th><th>체크인</th><th>체크아웃</th><th>인원</th><th>금액</th><th>상태</th><th></th>
+            <th>예약번호</th><th>게스트</th><th>숙소</th><th>체크인</th><th>체크아웃</th><th class="nowrap-cell">인원</th><th>금액</th><th>상태</th><th></th>
           </tr>
           </thead>
           <tbody>
@@ -419,10 +459,10 @@ const setView = (view) => {
             <td>{{ booking.property }}</td>
             <td>{{ formatDateTime(booking.checkIn) }}</td>
             <td>{{ formatDateTime(booking.checkOut) }}</td>
-            <td>{{ booking.guests }}명</td>
+            <td class="nowrap-cell">{{ booking.guests }}명</td>
             <td class="strong">{{ formatAmount(booking.amount) }}</td>
             <td><span class="pill" :class="statusColor[booking.status]">{{ booking.status }}</span></td>
-            <td><button class="ghost-btn" @click="openModal(booking)">예약 상세</button></td>
+            <td><button class="ghost-btn detail-btn" aria-label="예약 상세" @click="openModal(booking)"><span class="detail-btn__text"></span></button></td>
           </tr>
           </tbody>
         </table>
@@ -523,6 +563,7 @@ const setView = (view) => {
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -708,6 +749,32 @@ const setView = (view) => {
   font-weight: 900;
   min-height: 44px;
   cursor: pointer;
+}
+
+.nowrap-cell {
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.detail-btn {
+  min-width: 72px;
+  width: auto;
+  white-space: nowrap;
+  padding: 0.55rem 0.75rem;
+}
+
+.detail-btn__text {
+  display: inline-block;
+}
+
+.detail-btn__text::after {
+  content: '예약 상세';
+}
+
+@media (max-width: 767px) {
+  .detail-btn__text::after {
+    content: '상세';
+  }
 }
 
 .fade-item {

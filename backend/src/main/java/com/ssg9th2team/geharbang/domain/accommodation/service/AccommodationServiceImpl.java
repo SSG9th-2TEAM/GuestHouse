@@ -1,9 +1,6 @@
 package com.ssg9th2team.geharbang.domain.accommodation.service;
 
-import com.ssg9th2team.geharbang.domain.accommodation.dto.AccountNumberDto;
-import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationCreateRequestDto;
-import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
-import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationUpdateRequestDto;
+import com.ssg9th2team.geharbang.domain.accommodation.dto.*;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.AccommodationsCategory;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
@@ -15,6 +12,7 @@ import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationResponseDto;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import com.ssg9th2team.geharbang.domain.reservation.service.ReservationService;
+import com.ssg9th2team.geharbang.domain.room.dto.RoomCreateDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.mybatis.RoomMapper;
@@ -25,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -37,6 +36,7 @@ public class AccommodationServiceImpl implements AccommodationService {
     private final ReservationJpaRepository reservationJpaRepository;
     private final PaymentJpaRepository paymentJpaRepository;
     private final PaymentRefundJpaRepository paymentRefundJpaRepository;
+    private final WishlistMapper wishlistMapper;
 
 
     // 숙소 등록
@@ -55,7 +55,7 @@ public class AccommodationServiceImpl implements AccommodationService {
 
             // 2. 숙소 이미지 리스트
             if (createRequestDto.getImages() != null) {
-                for (com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto img : createRequestDto.getImages()) {
+                for (AccommodationImageDto img : createRequestDto.getImages()) {
                     if (img.getImageUrl() != null) {
                         String savedUrl = objectStorageService.uploadBase64Image(
                                 img.getImageUrl(), "accommodations");
@@ -66,7 +66,7 @@ public class AccommodationServiceImpl implements AccommodationService {
 
             // 3. 객실 대표 이미지
             if (createRequestDto.getRooms() != null) {
-                for (com.ssg9th2team.geharbang.domain.room.dto.RoomCreateDto room : createRequestDto.getRooms()) {
+                for (RoomCreateDto room : createRequestDto.getRooms()) {
                     if (room.getMainImageUrl() != null) {
                         String savedUrl = objectStorageService.uploadBase64Image(
                                 room.getMainImageUrl(), "rooms");
@@ -87,13 +87,15 @@ public class AccommodationServiceImpl implements AccommodationService {
         accountNumberDto.setAccountNumber(createRequestDto.getAccountNumber());
         accountNumberDto.setAccountHolder(createRequestDto.getAccountHolder());
 
+        // 정산계좌 아이디 생성
         accommodationMapper.insertAccountNumber(accountNumberDto);
 
-        Long accountNumberId = accountNumberDto.getAccountNumberId(); // 정산계좌생성 -> 정산 아이디 생성 -> accountNumberId에 저장
+        // 생성된 정산계좌 아이디를 accountNumberId에 저장
+        Long accountNumberId = accountNumberDto.getAccountNumberId();
 
         // 2. 숙소 엔티티 생성
         Accommodation accommodation = Accommodation.builder()
-                .accountNumberId(accountNumberId) // PK들은 그냥 가져오기
+                .accountNumberId(accountNumberId) // 정산계좌 아이디 accountNumberId
                 .userId(userId)
                 .accommodationsName(createRequestDto.getAccommodationsName())  // 컬럼들은 Dto에서 가져오기
                 .accommodationsCategory(AccommodationsCategory.valueOf(createRequestDto.getAccommodationsCategory()))  // dto로 받은 값(String)을 enum타입으로 변경
@@ -106,8 +108,8 @@ public class AccommodationServiceImpl implements AccommodationService {
                 .latitude(createRequestDto.getLatitude())
                 .longitude(createRequestDto.getLongitude())
                 .transportInfo(createRequestDto.getTransportInfo())
-                .accommodationStatus(1)   // 테스트할떄 1로 바꾸기
-                .approvalStatus(ApprovalStatus.APPROVED)  // 테스트할때 approved로 바꾸기
+                .accommodationStatus(0)   // (1) = 운영중 , (0) = 운영 중지 (승인 대기)
+                .approvalStatus(ApprovalStatus.PENDING)  // APPROVED = 승인 , PENDING = 검수중
                 .createdAt(LocalDateTime.now())
                 .phone(createRequestDto.getPhone())
                 .businessRegistrationNumber(createRequestDto.getBusinessRegistrationNumber())
@@ -129,7 +131,7 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         // ===================== 4. 연관 테이블 저장 ==========================
 
-        // 이미지가 없거나 비어있지 않다면 실행
+        // 이미지
         if (createRequestDto.getImages() != null && !createRequestDto.getImages().isEmpty()) {
             accommodationMapper.insertAccommodationImages(accommodationsId, createRequestDto.getImages());
         }
@@ -146,8 +148,6 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         // 객실
         if (createRequestDto.getRooms() != null && !createRequestDto.getRooms().isEmpty()) {
-            System.out.println("DEBUG: Inserting rooms for accommodationId: " + accommodationsId);
-            System.out.println("DEBUG: Number of rooms to insert: " + createRequestDto.getRooms().size());
             roomMapper.insertRooms(accommodationsId, createRequestDto.getRooms());
 
             // 객실 등록 후 숙소의 최소 가격 업데이트
@@ -188,15 +188,18 @@ public class AccommodationServiceImpl implements AccommodationService {
                 .longitude(updateRequestDto.getLongitude())
                 .build();
 
+        // 업데이트 쿼리에 숙소 아이디 , 업데이트 된 숙소 정보 주입
         accommodationMapper.updateAccommodation(accommodationsId, accommodation);
 
         // 2. 연관 데이터 업데이트 (삭제 후 재등록)
         
         // 편의시설
-        if (updateRequestDto.getAmenityIds() != null) {
-            accommodationMapper.deleteAccommodationAmenities(accommodationsId);
-            if (!updateRequestDto.getAmenityIds().isEmpty()) {
-                accommodationMapper.insertAccommodationAmenities(accommodationsId, updateRequestDto.getAmenityIds());
+        // 편의시설 수정된 값이 없다면 이 로직 실행 안됨
+        if (updateRequestDto.getAmenityIds() != null) {  // 수정 요청이 들어오면
+            accommodationMapper.deleteAccommodationAmenities(accommodationsId);  // 전체 삭제한다 (삭제만 하고 추가 안 할시 이 로직 실행)
+
+            if (!updateRequestDto.getAmenityIds().isEmpty()) { // 삭제 후 추가 할때 이 로직 (삭제 후 재등록)
+                accommodationMapper.insertAccommodationAmenities(accommodationsId, updateRequestDto.getAmenityIds()); // 다시 등록
             }
         }
 
@@ -212,7 +215,7 @@ public class AccommodationServiceImpl implements AccommodationService {
         if (updateRequestDto.getImages() != null) {
             // 이미지 업로드 로직 추가
             try {
-                for (com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto img : updateRequestDto.getImages()) {
+                for (AccommodationImageDto img : updateRequestDto.getImages()) {
                     if (img.getImageUrl() != null) {
                         String savedUrl = objectStorageService.uploadBase64Image(
                                 img.getImageUrl(), "accommodations");
@@ -224,13 +227,17 @@ public class AccommodationServiceImpl implements AccommodationService {
                 throw new RuntimeException("숙소 이미지 수정 중 오류가 발생했습니다: " + e.getMessage());
             }
 
+            // 이미지도 삭제 후 재등록
             accommodationMapper.deleteAccommodationImages(accommodationsId);
             if (!updateRequestDto.getImages().isEmpty()) {
                 accommodationMapper.insertAccommodationImages(accommodationsId, updateRequestDto.getImages());
             }
         }
 
+
         // 먼저 현재 숙소 정보를 조회하여 연결된 계좌 ID(accountNumberId)를 가져옵니다.
+        // 숙소 정보 업데이트는 숙소 테이블(자기자신) 업데이트니까 따로 조회가 필요 하지 않음
+        // 객실, 정산계좌는 숙소에 포함된 외래키니까 숙소 정보를 조회하고 원하는 값을 가져와야함
         AccommodationResponseDto accountNumber = accommodationMapper.selectAccommodationById(accommodationsId);
         Long accountNumberId = accountNumber.getAccountNumberId();
 
@@ -248,7 +255,7 @@ public class AccommodationServiceImpl implements AccommodationService {
         List<RoomResponseListDto> currentRooms = accommodationMapper.selectRoomsByAccommodationId(accommodationsId);
         
         // 3-2. 요청된 객실 ID 목록 추출
-        List<Long> requestedRoomIds = new java.util.ArrayList<>();
+        List<Long> requestedRoomIds = new ArrayList<>();
         if (updateRequestDto.getRooms() != null) {
             for (AccommodationUpdateRequestDto.RoomData r : updateRequestDto.getRooms()) {
                 if (r.getRoomId() != null) {
@@ -346,16 +353,15 @@ public class AccommodationServiceImpl implements AccommodationService {
     }
 
 
-
-    private final WishlistMapper wishlistMapper;
-
     // 숙소 삭제
     @Override
     @Transactional
     public void deleteAccommodation(Long accommodationsId) {
         // 예약 확인 ( stastus = 2 = 예약 완료)
+        // 숙소 결제 정보가 있는지 조회
         List<Reservation> reservations = reservationJpaRepository.findByAccommodationsId(accommodationsId);
-        boolean hasActiveReservation = reservations.stream().anyMatch(r -> r.getReservationStatus() == 2);
+        boolean hasActiveReservation = reservations.stream(). //stramAPI사용
+                anyMatch(r -> r.getReservationStatus() == 2); // anymatch = 리스트에 '상태가 2(확정)'인 예약이 하나라도 있는지 확인
 
         if(hasActiveReservation) {
             throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다.");

@@ -121,7 +121,7 @@ const handlePayment = async () => {
       successUrl: `${window.location.origin}/payment/success?reservationId=${reservationId.value}`,
       failUrl: `${window.location.origin}/payment/fail?reservationId=${reservationId.value}`,
       customerEmail: currentUser.value?.email || 'guest@example.com',
-      customerName: currentUser.value?.name || reservation.value.reserverName || '예약자',
+      customerName: currentUser.value?.email || reservation.value.reserverName || '예약자',
       customerMobilePhone: currentUser.value?.phone?.replace(/-/g, '') || '01000000000'
     })
 
@@ -179,7 +179,7 @@ const goBack = async () => {
         <div class="divider"></div>
         <div class="info-row">
           <span>예약자 이름</span>
-          <span>{{ currentUser?.name || reservation.reserverName || '-' }}</span>
+          <span>{{ reservation.reserverName || '-' }}</span>
         </div>
         <div class="info-row">
           <span>예약자 연락처</span>

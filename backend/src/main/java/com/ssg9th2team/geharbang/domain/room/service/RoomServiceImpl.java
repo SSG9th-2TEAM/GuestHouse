@@ -35,7 +35,7 @@ public class RoomServiceImpl implements RoomService {
                 .maxGuests(roomCreateDto.getMaxGuests())
                 .roomDescription(roomCreateDto.getRoomDescription())
                 .mainImageUrl(roomCreateDto.getMainImageUrl())
-                .roomStatus(1)
+                .roomStatus(roomCreateDto.getRoomStatus() != null ? roomCreateDto.getRoomStatus() : 1)
                 .bathroomCount(roomCreateDto.getBathroomCount())
                 .roomType(roomCreateDto.getRoomType())
                 .bedCount(roomCreateDto.getBedCount())
@@ -78,7 +78,7 @@ public class RoomServiceImpl implements RoomService {
     @Override
     @Transactional
     public void deleteRoom(Long accommodationsId, Long roomId) {
-        // 해당 객실의 예약 확인
+        // 해당 객실의 예약정보 있는지확인
         List<Reservation> reservations = reservationJpaRepository.findByRoomId(roomId);
         boolean hasActiveReservation = reservations.stream()
                         .anyMatch(r -> r.getReservationStatus() == 2);
@@ -87,7 +87,10 @@ public class RoomServiceImpl implements RoomService {
         if(hasActiveReservation) {
             throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다");
         }
+
+        // 예약이 없다면 객실 삭제
         roomMapper.deleteRoom(accommodationsId, roomId);
+        // 객실 최소금액 업데이트
         accommodationMapper.updateMinPrice(accommodationsId);
     }
 

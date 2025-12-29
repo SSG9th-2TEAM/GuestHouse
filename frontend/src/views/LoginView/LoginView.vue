@@ -72,18 +72,21 @@ const handleLogin = async () => {
 }
 
 const socialLogin = (provider) => {
-  // 실제 구현 시 각 provider의 OAuth URL로 리다이렉트
+  // 백엔드 OAuth2 URL로 리다이렉트
+  const baseUrl = 'http://localhost:8080'
   const urls = {
-    Google: 'https://accounts.google.com/o/oauth2/v2/auth', // 예시 URL 추가해야됨
-    Kakao: 'https://kauth.kakao.com/oauth/authorize', // 예시 URL
-    Naver: 'https://nid.naver.com/oauth2.0/authorize' // 예시 URL
+    Google: `${baseUrl}/oauth2/authorization/google`, // Google OAuth2 (구현 필요)
+    Kakao: `${baseUrl}/oauth2/authorization/kakao`, // Kakao OAuth2 (구현 필요)
+    Naver: `${baseUrl}/oauth2/authorization/naver` // Naver OAuth2 (구현 완료)
   }
 
-  // 개발 중에는 모달로 표시
-  openModal(`${provider} 로그인으로 이동합니다.`, 'info')
-
-  // 실제 구현 시 주석 해제
-  // window.location.href = urls[provider]
+  if (provider === 'Naver') {
+    // 네이버 로그인은 구현되어 있으므로 바로 리다이렉트
+    window.location.href = urls[provider]
+  } else {
+    // 다른 소셜 로그인은 아직 구현되지 않음
+    openModal(`${provider} 로그인은 준비 중입니다.`, 'info')
+  }
 }
 
 const goToSignup = () => {

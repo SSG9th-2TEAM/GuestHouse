@@ -7,6 +7,14 @@ export async function getCurrentUser() {
   });
 }
 
+// 사용자 프로필(닉네임, 전화번호) 업데이트
+export async function updateUserProfile(profileData) {
+  return authenticatedRequest('/api/users/me/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(profileData),
+  });
+}
+
 // 본인 계정 삭제
 export async function deleteSelf(reasons, otherReason) {
   return authenticatedRequest('/api/users/me', {

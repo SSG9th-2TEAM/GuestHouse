@@ -1521,6 +1521,7 @@ onMounted(() => {
       <!-- Bottom Actions -->
       <div class="bottom-actions">
         <button class="btn-cancel" @click="$router.push('/host/accommodation')">취소</button>
+        <button class="btn-delete" @click="deleteAccommodation">숙소 삭제</button>
         <button class="btn-submit" @click="handleUpdate">수정 완료</button>
       </div>
     </div>
@@ -1870,6 +1871,22 @@ select {
   font-weight: 600;
   color: #666;
   cursor: pointer;
+}
+
+.btn-delete {
+  flex: 1;
+  padding: 1rem;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ef4444;
+  cursor: pointer;
+}
+
+.btn-delete:hover {
+  background: #fee2e2;
 }
 
 .btn-submit {

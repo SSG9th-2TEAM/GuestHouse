@@ -1,0 +1,46 @@
+import { adminGet, adminRequest } from './adminClient'
+
+export const fetchAdminDashboardSummary = (params = {}) => adminGet('/dashboard/summary', params)
+export const fetchAdminDashboardTimeseries = (params = {}) => adminGet('/dashboard/timeseries', params)
+
+export const fetchAdminAccommodations = (params = {}) => adminGet('/accommodations', params)
+
+export const approveAccommodation = (accommodationId) =>
+  adminRequest(`/accommodations/${accommodationId}/approve`, { method: 'POST' })
+
+export const rejectAccommodation = (accommodationId, reason) =>
+  adminRequest(`/accommodations/${accommodationId}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason })
+  })
+
+export const fetchAdminUsers = (params = {}) => adminGet('/users', params)
+
+export const fetchAdminUserDetail = (userId) => adminGet(`/users/${userId}`)
+export const suspendAdminUser = (userId) =>
+  adminRequest(`/users/${userId}/suspend`, { method: 'POST' })
+export const unsuspendAdminUser = (userId) =>
+  adminRequest(`/users/${userId}/unsuspend`, { method: 'POST' })
+
+export const fetchAdminBookings = (params = {}) => adminGet('/bookings', params)
+
+export const fetchAdminBookingDetail = (reservationId) => adminGet(`/bookings/${reservationId}`)
+
+export const fetchAdminPayments = (params = {}) => adminGet('/payments', params)
+
+export const fetchAdminPaymentDetail = (paymentId) => adminGet(`/payments/${paymentId}`)
+
+export const refundPayment = (paymentId, payload) =>
+  adminRequest(`/payments/${paymentId}/refund`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+
+export const fetchAdminReports = (params = {}) => adminGet('/reports', params)
+
+export const fetchAdminReportDetail = (reportId) => adminGet(`/reports/${reportId}`)
+export const resolveAdminReport = (reportId, payload) =>
+  adminRequest(`/reports/${reportId}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
