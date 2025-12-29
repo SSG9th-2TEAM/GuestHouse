@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.accommodation.dto;
 
+import com.ssg9th2team.geharbang.domain.review.dto.ReviewResponseDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
 
 import lombok.AllArgsConstructor;
@@ -47,6 +48,7 @@ public class AccommodationResponseDto {
     private Integer minPrice;
     private Double rating;
     private Integer reviewCount;
+    private List<ReviewResponseDto> reviews;
 
 
     // 대표 이미지 URL (리스트 조회용)

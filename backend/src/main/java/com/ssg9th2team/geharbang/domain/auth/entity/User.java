@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.auth.entity;
 
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
+import com.ssg9th2team.geharbang.domain.user.entity.Gender;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -26,8 +27,14 @@ public class User {
     @Column(name = "user_id")
     private Long id;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100) // nullable = true is default
     private String name;
+
+    @Column(nullable = false, unique = true, length = 50)
+    private String nickname;
+
+    @Column(nullable = false)
+    private Gender gender;
 
     @Column(nullable = false, unique = true, length = 50)
     private String email;
@@ -65,8 +72,10 @@ public class User {
     private Set<Theme> themes = new HashSet<>();
 
     @Builder
-    public User(String name, String email, String password, String phone, UserRole role, Boolean marketingAgreed, Boolean hostApproved, Set<Theme> themes) {
+    public User(String name, String nickname, Gender gender, String email, String password, String phone, UserRole role, Boolean marketingAgreed, Boolean hostApproved, Set<Theme> themes) {
         this.name = name;
+        this.nickname = nickname;
+        this.gender = gender;
         this.email = email;
         this.password = password;
         this.phone = phone;
@@ -82,7 +91,9 @@ public class User {
     }
 
     // 프로필 업데이트
-    public void updateProfile(String phone) {
+    public void updateProfile(String name, String nickname, String phone) {
+        this.name = name;
+        this.nickname = nickname;
         this.phone = phone;
     }
 

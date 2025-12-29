@@ -168,3 +168,6 @@ Icon?
 *.gz
 logs/
 log/
+
+# Test results
+docs/test-results-*.md
