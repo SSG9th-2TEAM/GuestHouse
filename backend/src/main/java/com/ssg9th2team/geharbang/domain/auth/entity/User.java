@@ -33,7 +33,7 @@ public class User {
     @Column(nullable = false, unique = true, length = 50)
     private String nickname;
 
-    @Column(nullable = false)
+    @Column // nullable = true (소셜 로그인 시 NULL 가능)
     private Gender gender;
 
     @Column(nullable = false, unique = true, length = 50)
@@ -42,8 +42,15 @@ public class User {
     @Column(length = 255) // BCrypt 암호화를 위해 255로 설정
     private String password; // 소셜 로그인 시 NULL 가능
 
-    @Column(nullable = false, length = 50)
+    @Column(length = 50) // 소셜 로그인 시 NULL 가능
     private String phone;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "social_provider", length = 20)
+    private SocialProvider socialProvider; // 소셜 로그인 제공자 (NAVER, KAKAO, GOOGLE, LOCAL)
+
+    @Column(name = "social_id", length = 100)
+    private String socialId; // 소셜 로그인 ID
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -72,7 +79,7 @@ public class User {
     private Set<Theme> themes = new HashSet<>();
 
     @Builder
-    public User(String name, String nickname, Gender gender, String email, String password, String phone, UserRole role, Boolean marketingAgreed, Boolean hostApproved, Set<Theme> themes) {
+    public User(String name, String nickname, Gender gender, String email, String password, String phone, UserRole role, Boolean marketingAgreed, Boolean hostApproved, Set<Theme> themes, SocialProvider socialProvider, String socialId) {
         this.name = name;
         this.nickname = nickname;
         this.gender = gender;
@@ -83,6 +90,8 @@ public class User {
         this.marketingAgreed = marketingAgreed != null ? marketingAgreed : false;
         this.hostApproved = hostApproved;
         this.themes = themes;
+        this.socialProvider = socialProvider;
+        this.socialId = socialId;
     }
 
     // 비밀번호 업데이트
@@ -93,6 +102,12 @@ public class User {
     // 프로필 업데이트
     public void updateProfile(String name, String nickname, String phone) {
         this.name = name;
+        this.nickname = nickname;
+        this.phone = phone;
+    }
+
+    // 닉네임, 전화번호만 업데이트
+    public void updateProfile(String nickname, String phone) {
         this.nickname = nickname;
         this.phone = phone;
     }
