@@ -855,14 +855,14 @@ onUnmounted(() => {
 /* Desktop styles */
 @media (min-width: 769px) {
   .header-container {
-    padding: 16px 40px;
+    padding: 8px 24px;
   }
 
   .header-content {
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
-    gap: 32px;
+    column-gap: 16px;
   }
 
   .header-top {
@@ -873,19 +873,23 @@ onUnmounted(() => {
     height: 48px;
     flex-shrink: 0;
     order: 1;
+    justify-self: start;
+    grid-column: 1;
   }
 
   .search-bar {
     max-width: 850px;
-    flex: 1;
+    width: min(850px, 100%);
     order: 2;
+    justify-self: center;
+    grid-column: 2;
     border-radius: 40px;
-    padding: 14px 28px;
-    gap: 24px;
+    padding: 8px 16px;
+    gap: 12px;
   }
 
   .search-item {
-    padding: 10px 16px;
+    padding: 6px 10px;
     min-width: 150px;
   }
 
@@ -900,22 +904,24 @@ onUnmounted(() => {
 
   .search-divider {
     display: block !important;
-    height: 32px;
+    height: 20px;
   }
 
   .search-btn {
-    width: 48px;
-    height: 48px;
+    width: 32px;
+    height: 32px;
   }
 
   .search-btn svg {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
   }
 
   .right-menu {
     flex-shrink: 0;
     order: 3;
+    justify-self: end;
+    grid-column: 3;
   }
 
   .hamburger-btn {
