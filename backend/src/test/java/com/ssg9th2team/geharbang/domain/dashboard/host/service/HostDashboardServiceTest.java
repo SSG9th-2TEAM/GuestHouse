@@ -26,17 +26,20 @@ import static org.assertj.core.api.Assertions.within;
         "DELETE FROM host_daily_stats WHERE user_id = 99001",
         "DELETE FROM accommodation WHERE accommodations_id IN (9100001, 9100002, 9100003)",
         "DELETE FROM users WHERE user_id IN (9000001, 99001)",
+        "DELETE FROM account_number WHERE account_number_id = 99001",
+        "INSERT IGNORE INTO account_number (account_number_id, bank_name, account_number, account_holder) " +
+                "VALUES (99001, '테스트은행', '000-0000-0000', '테스트계좌')",
         "INSERT INTO users (user_id, email, password, phone, role, marketing_agree, created_at, updated_at, host_approved) " +
                 "VALUES (9000001, 'test-user-9000001@example.com', NULL, '010-0000-0001', 'USER', 0, " +
                 "'2025-01-01 00:00:00', '2025-01-01 00:00:00', NULL)",
         "INSERT INTO users (user_id, email, password, phone, role, marketing_agree, created_at, updated_at, host_approved) " +
                 "VALUES (99001, 'test-host-99001@example.com', NULL, '010-0000-9901', 'HOST', 0, " +
                 "'2025-01-01 00:00:00', '2025-01-01 00:00:00', 1)",
-        "INSERT INTO accommodation (accommodations_id, user_id, accommodations_name, accommodations_category, accommodation_status, approval_status, created_at) " +
+        "INSERT INTO accommodation (accommodations_id, account_number_id, user_id, accommodations_name, accommodations_category, accommodation_status, approval_status, created_at) " +
                 "VALUES " +
-                "(9100001, 99001, 'Host A', 'GUESTHOUSE', 1, 'APPROVED', '2025-01-01 00:00:00'), " +
-                "(9100002, 99001, 'Host B', 'GUESTHOUSE', 1, 'APPROVED', '2025-01-01 00:00:00'), " +
-                "(9100003, 99001, 'Host C', 'GUESTHOUSE', 0, 'APPROVED', '2025-01-01 00:00:00')",
+                "(9100001, 99001, 99001, 'Host A', 'GUESTHOUSE', 1, 'APPROVED', '2025-01-01 00:00:00'), " +
+                "(9100002, 99001, 99001, 'Host B', 'GUESTHOUSE', 1, 'APPROVED', '2025-01-01 00:00:00'), " +
+                "(9100003, 99001, 99001, 'Host C', 'GUESTHOUSE', 0, 'APPROVED', '2025-01-01 00:00:00')",
         "INSERT INTO host_daily_stats (stat_date, user_id, reservation_count, reserved_nights, total_guests, revenue, " +
                 "canceled_count, avg_price, review_count, avg_rating, occupancy_rate, created_at, updated_at) " +
                 "VALUES " +
