@@ -170,11 +170,22 @@ const guesthouse = ref(createEmptyGuesthouse(getAccommodationId()))
 const selectedRoom = ref(null)
 const isCalendarOpen = ref(false)
 const showFullDescription = ref(false)
+const showAllRooms = ref(false)
 const currentDate = ref(new Date())
 const datePickerRef = ref(null)
 
 const canBook = computed(() => {
   return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
+})
+
+const visibleRooms = computed(() => {
+  const rooms = guesthouse.value.rooms || []
+  return showAllRooms.value ? rooms : rooms.slice(0, 4)
+})
+
+const hasMoreRooms = computed(() => {
+  const rooms = guesthouse.value.rooms || []
+  return rooms.length > 4
 })
 
 const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
@@ -278,6 +289,7 @@ const loadAccommodation = async () => {
 
   selectedRoom.value = null
   showFullDescription.value = false
+  showAllRooms.value = false
   guesthouse.value = createEmptyGuesthouse(accommodationsId)
 
   try {
@@ -659,7 +671,7 @@ watch(() => route.params.id, loadAccommodation)
 
       <!-- Room List -->
       <div class="room-list">
-        <div v-for="room in guesthouse.rooms" :key="room.id"
+        <div v-for="room in visibleRooms" :key="room.id"
              class="room-card"
              :class="{ selected: selectedRoom?.id === room.id, unavailable: !room.available }"
              @click="room.available && selectRoom(room)">
@@ -685,6 +697,11 @@ watch(() => route.params.id, loadAccommodation)
             </div>
           </div>
         </div>
+      </div>
+      <div v-if="hasMoreRooms" class="room-toggle-row">
+        <button type="button" class="room-toggle-btn" @click="showAllRooms = !showAllRooms">
+          {{ showAllRooms ? '접기' : '더보기' }}
+        </button>
       </div>
     </section>
 
@@ -1161,6 +1178,21 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 600;
+}
+.room-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+.room-toggle-btn {
+  background: #BFE7DF;
+  border: 1px solid #8FCFC1;
+  color: #0f4c44;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 /* Rules */
