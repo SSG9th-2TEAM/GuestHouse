@@ -11,7 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -89,8 +90,8 @@ class ConcurrencyTest {
                 accommodationId,
                 roomId,
                 1L, // userId
-                LocalDateTime.now().plusDays(1),
-                LocalDateTime.now().plusDays(2),
+                Instant.now().plus(1, ChronoUnit.DAYS),
+                Instant.now().plus(2, ChronoUnit.DAYS),
                 1, // guestCount (1명씩 예약)
                 10000,
                 0, // couponDiscount

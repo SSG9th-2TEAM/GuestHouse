@@ -18,7 +18,6 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class AccommodationResponseDto {
-
     // 숙소 조회용 DTO
     private Long accommodationsId;
     private Long accountNumberId;
@@ -50,7 +49,6 @@ public class AccommodationResponseDto {
     private Integer reviewCount;
 
 
-    
     // 대표 이미지 URL (리스트 조회용)
     private String mainImageUrl;
 
@@ -60,9 +58,10 @@ public class AccommodationResponseDto {
     private String accountHolder;
 
     // 편의시설 및 테마 (1:N 조인)
-    private List<String> amenities;
+    // 프론트엔드가 화면에 표시할 때는 ID가 아니라 실제 이름이 필요하니까 request랑 다르게 String타입으로 받기
+    private List<String> amenities;  //AmenityDetailDto안에 amenities(편의시설이름)있음 중복됨
     private List<AmenityDetailDto> amenityDetails;
-    private List<String> themes;
+    private List<String> themes;  // 테마 이름
 
     // 숙소 상세보기에서 객실 리스트
     private List<RoomResponseListDto> rooms;

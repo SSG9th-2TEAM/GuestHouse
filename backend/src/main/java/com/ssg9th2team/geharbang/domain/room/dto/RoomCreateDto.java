@@ -39,4 +39,6 @@ public class RoomCreateDto {
 
     @NotNull
     private Integer bedCount;
+
+    private Integer roomStatus;
 }
