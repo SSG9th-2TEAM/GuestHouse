@@ -44,7 +44,7 @@ public class Accommodation {
     @Column(name = "district", length = 50 , nullable = false)
     private String district;
 
-    @Column(name = "township", length = 50)
+    @Column(name = "township", length = 50, nullable = false)
     private String township;
 
     @Column(name = "address_detail", length = 200, nullable = false)
@@ -65,8 +65,8 @@ public class Accommodation {
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
-    @Convert(converter = ApprovalStatusConverter.class)
-    @Column(name = "approval_status")   // 숙소 승인 상태
+    @Enumerated(EnumType.STRING)
+    @Column(name = "approval_status", nullable = false)   // 숙소 승인 상태
     private ApprovalStatus approvalStatus;
 
     @Column(name = "created_at")
