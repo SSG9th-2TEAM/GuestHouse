@@ -48,7 +48,15 @@ dependencies {
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'com.h2database:h2'
+
+	// TestContainers (테스트용 Docker MySQL)
+	testImplementation 'org.testcontainers:testcontainers:1.19.3'
+	testImplementation 'org.testcontainers:mysql:1.19.3'
+	testImplementation 'org.testcontainers:junit-jupiter:1.19.3'
+
+	// Flyway
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-mysql'
 	testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.5'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
