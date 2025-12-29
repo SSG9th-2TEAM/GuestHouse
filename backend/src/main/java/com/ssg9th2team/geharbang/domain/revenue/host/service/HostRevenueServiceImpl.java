@@ -65,6 +65,9 @@ public class HostRevenueServiceImpl implements HostRevenueService {
         LocalDate end = start.plusYears(1);
         // Monthly trend is sourced from host_daily_stats for performance.
         List<HostRevenueTrendResponse> raw = hostRevenueMapper.selectRevenueTrend(hostId, start, end);
+        if (raw == null || raw.isEmpty() || !hasNonZeroTrend(raw)) {
+            raw = hostRevenueMapper.selectRevenueTrendFromReservations(hostId, start, end);
+        }
         Map<Integer, HostRevenueTrendResponse> byMonth = raw.stream()
                 .collect(Collectors.toMap(HostRevenueTrendResponse::getMonth, item -> item));
 
@@ -79,6 +82,9 @@ public class HostRevenueServiceImpl implements HostRevenueService {
 
         if ("day".equals(normalized)) {
             List<HostRevenueDetailResponse> raw = hostRevenueMapper.selectRevenueDailyDetails(hostId, from, end);
+            if (raw == null || raw.isEmpty() || !hasNonZeroDetails(raw)) {
+                raw = hostRevenueMapper.selectRevenueDailyDetailsFromReservations(hostId, from, end);
+            }
             Map<String, HostRevenueDetailResponse> byPeriod = new HashMap<>();
             for (HostRevenueDetailResponse item : raw) {
                 byPeriod.put(item.getPeriod(), item);
@@ -87,6 +93,9 @@ public class HostRevenueServiceImpl implements HostRevenueService {
         }
 
         List<HostRevenueDetailResponse> raw = hostRevenueMapper.selectRevenueDetails(hostId, from, end);
+        if (raw == null || raw.isEmpty() || !hasNonZeroDetails(raw)) {
+            raw = hostRevenueMapper.selectRevenueDetailsFromReservations(hostId, from, end);
+        }
         Map<String, HostRevenueDetailResponse> byPeriod = new HashMap<>();
         for (HostRevenueDetailResponse item : raw) {
             byPeriod.put(item.getPeriod(), item);
@@ -152,5 +161,14 @@ public class HostRevenueServiceImpl implements HostRevenueService {
             cursor = cursor.plusDays(1);
         }
         return result;
+    }
+
+    private boolean hasNonZeroTrend(List<HostRevenueTrendResponse> rows) {
+        return rows.stream().anyMatch(item ->
+                item.getRevenue() > 0 || item.getReservationCount() > 0);
+    }
+
+    private boolean hasNonZeroDetails(List<HostRevenueDetailResponse> rows) {
+        return rows.stream().anyMatch(item -> item.getRevenue() > 0);
     }
 }

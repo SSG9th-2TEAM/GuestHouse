@@ -6,6 +6,7 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportResolveRequest;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportSummary;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminReportService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,7 +31,14 @@ public class AdminReportController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "latest") String sort
     ) {
-        return reportService.getReports(status, type, keyword, page, size, sort);
+        return reportService.getReports(
+                normalizeFilter(status),
+                normalizeFilter(type),
+                normalizeFilter(keyword),
+                page,
+                size,
+                sort
+        );
     }
 
     @GetMapping("/{reportId}")
@@ -45,5 +53,18 @@ public class AdminReportController {
     ) {
         String action = request != null ? request.action() : null;
         return reportService.resolveReport(reportId, action);
+    }
+
+    private String normalizeFilter(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        if ("all".equalsIgnoreCase(normalized)
+                || "undefined".equalsIgnoreCase(normalized)
+                || "null".equalsIgnoreCase(normalized)) {
+            return null;
+        }
+        return normalized;
     }
 }

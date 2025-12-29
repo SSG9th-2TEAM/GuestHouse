@@ -6,6 +6,7 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminRejectRequest;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminAccommodationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,7 +30,13 @@ public class AdminAccommodationController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "latest") String sort
     ) {
-        return accommodationService.getAccommodations(status, keyword, page, size, sort);
+        return accommodationService.getAccommodations(
+                normalizeFilter(status),
+                normalizeFilter(keyword),
+                page,
+                size,
+                sort
+        );
     }
 
     @GetMapping("/{accommodationId}")
@@ -46,5 +53,18 @@ public class AdminAccommodationController {
     public AdminAccommodationDetail rejectAccommodation(@PathVariable Long accommodationId,
                                                         @RequestBody AdminRejectRequest request) {
         return accommodationService.rejectAccommodation(accommodationId, request != null ? request.reason() : null);
+    }
+
+    private String normalizeFilter(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        if ("all".equalsIgnoreCase(normalized)
+                || "undefined".equalsIgnoreCase(normalized)
+                || "null".equalsIgnoreCase(normalized)) {
+            return null;
+        }
+        return normalized;
     }
 }

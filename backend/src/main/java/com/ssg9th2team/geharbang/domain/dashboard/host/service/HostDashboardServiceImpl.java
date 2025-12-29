@@ -23,16 +23,12 @@ public class HostDashboardServiceImpl implements HostDashboardService {
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end = start.plusMonths(1);
 
-        return HostDashboardSummaryResponse.from(
-                hostDashboardMapper.selectHostSummary(hostId, start, end)
-        );
+        return resolveSummary(hostId, start, end);
     }
 
     @Override
     public HostDashboardSummaryResponse getSummaryByRange(Long hostId, LocalDate start, LocalDate end) {
-        return HostDashboardSummaryResponse.from(
-                hostDashboardMapper.selectHostSummary(hostId, start, end)
-        );
+        return resolveSummary(hostId, start, end);
     }
 
     @Override
@@ -40,5 +36,23 @@ public class HostDashboardServiceImpl implements HostDashboardService {
         LocalDateTime start = date.atStartOfDay();
         LocalDateTime end = start.plusDays(1);
         return hostDashboardMapper.selectTodaySchedule(hostId, start, end);
+    }
+
+    private HostDashboardSummaryResponse resolveSummary(Long hostId, LocalDate start, LocalDate end) {
+        var statsRow = hostDashboardMapper.selectHostSummary(hostId, start, end);
+        if (statsRow == null) {
+            return HostDashboardSummaryResponse.from(
+                    hostDashboardMapper.selectHostSummaryFallback(hostId, start, end)
+            );
+        }
+        boolean hasMetrics = statsRow.getConfirmedRevenue() > 0
+                || statsRow.getConfirmedReservations() > 0
+                || statsRow.getAvgRating() > 0.0;
+        if (!hasMetrics) {
+            return HostDashboardSummaryResponse.from(
+                    hostDashboardMapper.selectHostSummaryFallback(hostId, start, end)
+            );
+        }
+        return HostDashboardSummaryResponse.from(statsRow);
     }
 }

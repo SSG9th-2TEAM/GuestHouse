@@ -3,6 +3,9 @@ package com.ssg9th2team.geharbang.domain.admin.service;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
+import com.ssg9th2team.geharbang.domain.auth.entity.User;
+import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationSummary;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
@@ -20,6 +23,7 @@ import java.util.List;
 public class AdminAccommodationService {
 
     private final AccommodationJpaRepository accommodationRepository;
+    private final UserRepository userRepository;
 
     public AdminPageResponse<AdminAccommodationSummary> getAccommodations(
             String status,
@@ -57,7 +61,8 @@ public class AdminAccommodationService {
     public AdminAccommodationDetail approveAccommodation(Long accommodationId) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
-        accommodation.approve();
+        accommodation.updateApprovalStatus(ApprovalStatus.APPROVED, null);
+        promoteUserToHost(accommodation.getUserId());
         return toDetail(accommodationRepository.save(accommodation));
     }
 
@@ -125,5 +130,18 @@ public class AdminAccommodationService {
                 accommodation.getRejectionReason(),
                 accommodation.getCreatedAt()
         );
+    }
+
+    private void promoteUserToHost(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        if (user.getRole() != UserRole.HOST) {
+            user.updateRole(UserRole.HOST);
+        }
+        user.updateHostApproved(true);
+        userRepository.save(user);
     }
 }

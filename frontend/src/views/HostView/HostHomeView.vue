@@ -3,7 +3,7 @@ import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
 import {fetchHostDashboardSummary, fetchHostTodaySchedule} from '@/api/hostDashboard'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
-import { getUserInfo } from '@/api/authClient'
+import { deriveHostState, normalizeApprovalStatus } from '@/composables/useHostState'
 import NavStay from '@/components/nav-icons/NavStay.vue'
 import { formatCurrency, formatDate, formatNumber, formatShortTime } from '@/utils/formatters'
 
@@ -22,8 +22,6 @@ const accommodations = ref([])
 const accommodationsLoading = ref(false)
 const accommodationsError = ref('')
 const hostAccessDenied = ref(false)
-const userInfo = ref(getUserInfo())
-
 const todayLabel = ref('')
 const isLoading = ref(false)
 const summaryError = ref('')
@@ -163,37 +161,45 @@ const formatTimeShort = (time) => {
 
 const kpis = computed(() => ([
   {
+    key: 'confirmedRevenue',
     label: `${periodPrefix.value} 확정 매출`,
     value: animatedSummary.value.confirmedRevenue ?? 0,
     unit: '₩',
     tone: 'positive',
     delta: null,
-    target: '/host/revenue'
+    target: '/host/revenue',
+    disabled: pendingOnly.value
   },
   {
+    key: 'confirmedReservations',
     label: `${periodPrefix.value} 예약 확정`,
     value: animatedSummary.value.confirmedReservations ?? 0,
     unit: '건',
     tone: 'positive',
     delta: null,
-    target: '/host/booking'
+    target: '/host/booking',
+    disabled: pendingOnly.value
   },
   {
+    key: 'avgRating',
     label: `${periodPrefix.value} 평균 평점`,
     value: animatedSummary.value.avgRating ?? 0,
     unit: '/5.0',
     tone: 'neutral',
     delta: null,
-    target: '/host/review'
+    target: '/host/review',
+    disabled: pendingOnly.value
   },
   {
+    key: 'operatingAccommodations',
     label: '내 숙소 운영 상태',
     value: animatedSummary.value.operatingAccommodations ?? 0,
     total: animatedSummary.value.totalAccommodations ?? 0,
     unit: '운영중',
     tone: 'warning',
     delta: null,
-    target: '/host/accommodation'
+    target: '/host/accommodation',
+    disabled: false
   }
 ]))
 
@@ -227,18 +233,6 @@ const emptyMessage = computed(() => {
     : '선택한 조건의 일정이 없습니다.'
 })
 
-const normalizeApprovalStatus = (status) => {
-  if (status === null || status === undefined) return 'unknown'
-  const value = String(status).trim().toLowerCase()
-  if (value === 'approved' || value === 'approve') return 'approved'
-  if (value === 'pending' || value === 'inspection' || value === 'review') return 'pending'
-  if (value === 'rejected' || value === 'reject' || value === 'denied') return 'rejected'
-  if (value === '1' || value === 'true') return 'approved'
-  if (value === '2') return 'pending'
-  if (value === '3' || value === '0') return 'rejected'
-  return 'unknown'
-}
-
 const normalizeAccommodation = (item) => {
   const statusSource = item.approvalStatus ?? item.status ?? item.accommodationStatus ?? item.reviewStatus
   return {
@@ -249,9 +243,12 @@ const normalizeAccommodation = (item) => {
   }
 }
 
-const approvedCount = computed(() =>
-  accommodations.value.filter((item) => item.approvalStatus === 'approved').length
-)
+const hostStateSnapshot = computed(() => deriveHostState(accommodations.value))
+const counts = computed(() => hostStateSnapshot.value.counts)
+const approvedCount = computed(() => counts.value.approved)
+const pendingCount = computed(() => counts.value.pending)
+const totalCount = computed(() => counts.value.total)
+const pendingOnly = computed(() => hostStateSnapshot.value.hostState === 'pending-only')
 
 const rejectedItem = computed(() =>
   accommodations.value.find((item) => item.approvalStatus === 'rejected')
@@ -265,10 +262,10 @@ const rejectedReasonText = computed(() => {
 const hostState = computed(() => {
   if (accommodationsLoading.value) return 'loading'
   if (hostAccessDenied.value) return 'empty'
-  if (!accommodations.value.length) return 'empty'
-  if (approvedCount.value > 0) return 'approved'
-  if (rejectedItem.value) return 'rejected'
-  return 'pending'
+  if (rejectedItem.value && totalCount.value > 0 && approvedCount.value === 0 && pendingCount.value === 0) {
+    return 'rejected'
+  }
+  return hostStateSnapshot.value.hostState
 })
 
 const goToRegister = () => router.push('/host/accommodation/register')
@@ -276,7 +273,7 @@ const goToManage = () => router.push('/host/accommodation')
 
 const syncNavVisibility = (state) => {
   if (typeof document === 'undefined') return
-  document.body.classList.toggle('host-nav-locked', state === 'empty' || state === 'pending' || state === 'rejected')
+  document.body.classList.toggle('host-nav-locked', state === 'empty' || state === 'rejected')
 }
 
 const goTo = (path) => {
@@ -416,15 +413,11 @@ const loadAccommodations = async () => {
 
 onMounted(async () => {
   prefersReducedMotion.value = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-  const role = userInfo.value?.role ?? ''
-  if (typeof role === 'string' && role.includes('HOST')) {
-    await loadAccommodations()
-    if (!hostAccessDenied.value) {
-      loadDashboard()
-      setupKpiIndicator()
-    }
-  } else {
-    hostAccessDenied.value = true
+  hostAccessDenied.value = false
+  await loadAccommodations()
+  if (!hostAccessDenied.value) {
+    loadDashboard()
+    setupKpiIndicator()
   }
 })
 
@@ -446,18 +439,18 @@ watch(selectedPeriod, () => {
 
 <template>
   <div class="dashboard-home">
-    <section v-if="hostState !== 'approved'" class="host-state">
+    <section v-if="hostState === 'empty' || hostState === 'rejected'" class="host-state">
       <div class="state-card host-card">
         <div class="state-icon">
           <NavStay />
         </div>
         <div class="state-text">
           <h3 v-if="hostState === 'empty'">숙소를 등록하세요!</h3>
-          <h3 v-else-if="hostState === 'pending'">숙소 심사중이에요</h3>
+          <h3 v-else-if="hostState === 'pending-only'">숙소 심사중이에요</h3>
           <h3 v-else-if="hostState === 'rejected'">숙소 심사가 반려되었어요</h3>
           <h3 v-else>숙소 상태를 확인 중이에요</h3>
           <p v-if="hostState === 'empty'">숙소를 등록하면 예약/매출뿐 아니라 리뷰, 일정, 통계까지 한 곳에서 관리할 수 있어요.</p>
-          <p v-else-if="hostState === 'pending'">
+          <p v-else-if="hostState === 'pending-only'">
             등록하신 숙소를 확인하고 있어요. 평균 영업일 1~2일 내에 결과를 안내합니다.
           </p>
           <p v-else-if="hostState === 'rejected'">
@@ -495,6 +488,17 @@ watch(selectedPeriod, () => {
           <p class="subtitle">{{ periodLabel }} 기준 운영 현황을 빠르게 확인하세요.</p>
         </div>
       </header>
+
+      <section v-if="pendingCount > 0" class="pending-banner host-card" :class="{ 'pending-banner--only': pendingOnly }">
+        <div class="pending-banner__text">
+          <h3>숙소 심사중이에요 ({{ pendingCount }}개)</h3>
+          <p>관리자 승인 후 예약/매출/리뷰가 활성화됩니다. 평균 영업일 1~2일 내에 결과를 안내합니다.</p>
+        </div>
+        <div class="pending-banner__actions">
+          <button class="ghost-btn" type="button" @click="goToManage">숙소 관리</button>
+          <button class="ghost-btn pending-cta" type="button" @click="goToRegister">추가 등록</button>
+        </div>
+      </section>
 
       <button
         v-if="todayInsight"
@@ -540,7 +544,7 @@ watch(selectedPeriod, () => {
           <p>데이터를 불러오지 못했어요.</p>
           <button class="ghost-btn" type="button" @click="loadDashboard">다시 시도</button>
         </div>
-        <div v-else-if="!hasKpiData" class="status-card">
+        <div v-else-if="!hasKpiData && !pendingOnly" class="status-card">
           <p>선택한 기간에 확정 매출이 없습니다.</p>
           <button class="ghost-btn" type="button" @click="selectedPeriod = 'month'">기간 변경</button>
         </div>
@@ -548,12 +552,13 @@ watch(selectedPeriod, () => {
             v-for="item in kpis"
             :key="item.label"
             class="kpi-card"
-            :class="{ 'fade-item': !isLoading }"
+            :class="{ 'fade-item': !isLoading, 'is-disabled': item.disabled }"
             :style="{ animationDelay: `${Math.min(kpis.indexOf(item), 5) * 60}ms` }"
             role="button"
-            tabindex="0"
-            @click="goTo(item.target)"
-            @keypress.enter="goTo(item.target)"
+            :tabindex="item.disabled ? -1 : 0"
+            :aria-disabled="item.disabled ? 'true' : 'false'"
+            @click="!item.disabled && goTo(item.target)"
+            @keypress.enter="!item.disabled && goTo(item.target)"
         >
           <div class="kpi-top">
             <p class="kpi-label">{{ item.label }}</p>
@@ -565,6 +570,7 @@ watch(selectedPeriod, () => {
             </span>
             <span v-else>{{ formatKpiValue(item.value, item.unit) }}</span>
           </p>
+          <p v-if="item.disabled" class="kpi-sub">승인 후 집계됩니다.</p>
           <div class="kpi-delta" :class="{ hidden: !item.delta }">
             <span v-if="item.delta">{{ item.delta }}</span>
           </div>
@@ -780,6 +786,49 @@ watch(selectedPeriod, () => {
   outline-offset: 2px;
 }
 
+.pending-banner {
+  width: 100%;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+  border-radius: 16px;
+  padding: 0.95rem 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.pending-banner__text h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.pending-banner__text p {
+  margin: 0;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.pending-banner__actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pending-banner__actions .ghost-btn {
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.pending-cta {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
 .insight-card {
   width: 100%;
   border: 1px solid var(--brand-primary-strong);
@@ -969,6 +1018,12 @@ watch(selectedPeriod, () => {
   scroll-snap-align: start;
 }
 
+.kpi-card.is-disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
 .kpi-top {
   display: flex;
   align-items: center;
@@ -987,6 +1042,13 @@ watch(selectedPeriod, () => {
   font-weight: 800;
   color: #0f172a;
   margin: 0;
+}
+
+.kpi-sub {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-weight: 700;
 }
 
 .kpi-delta {
@@ -1278,6 +1340,10 @@ watch(selectedPeriod, () => {
 @media (min-width: 768px) {
   .dashboard-home {
     padding: 1.5rem 1.5rem calc(2rem + var(--bn-h, 0px) + (var(--bn-pad, 0px) * 2) + env(safe-area-inset-bottom));
+  }
+
+  .pending-banner__actions {
+    flex-direction: row;
   }
 
   .period-segment {

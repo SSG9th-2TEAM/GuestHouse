@@ -7,6 +7,7 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminRefundRequest;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminPaymentService;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentResponseDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,7 +31,13 @@ public class AdminPaymentController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "latest") String sort
     ) {
-        return paymentService.getPayments(status, keyword, page, size, sort);
+        return paymentService.getPayments(
+                normalizeFilter(status),
+                normalizeFilter(keyword),
+                page,
+                size,
+                sort
+        );
     }
 
     @GetMapping("/{paymentId}")
@@ -46,5 +53,18 @@ public class AdminPaymentController {
         String reason = request != null ? request.reason() : null;
         Integer amount = request != null ? request.amount() : null;
         return paymentService.refundPayment(paymentId, reason, amount);
+    }
+
+    private String normalizeFilter(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        if ("all".equalsIgnoreCase(normalized)
+                || "undefined".equalsIgnoreCase(normalized)
+                || "null".equalsIgnoreCase(normalized)) {
+            return null;
+        }
+        return normalized;
     }
 }
