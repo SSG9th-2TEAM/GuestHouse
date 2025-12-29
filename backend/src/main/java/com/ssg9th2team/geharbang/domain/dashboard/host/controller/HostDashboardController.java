@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.dashboard.host.dto.HostDashboardSummaryResponse;
 import com.ssg9th2team.geharbang.domain.dashboard.host.dto.TodayScheduleItemResponse;
 import com.ssg9th2team.geharbang.domain.dashboard.host.service.HostDashboardService;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;

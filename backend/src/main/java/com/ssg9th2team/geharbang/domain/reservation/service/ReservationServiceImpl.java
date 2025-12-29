@@ -97,7 +97,7 @@ public class ReservationServiceImpl implements ReservationService {
                 String accName = (accommodation != null) ? accommodation.getAccommodationsName() : null;
                 String accAddress = (accommodation != null)
                                 ? accommodation.getCity() + " " + accommodation.getDistrict() + " "
-                                                + accommodation.getTownship() + " " + accommodation.getAddressDetail()
+                                                + accommodation.getAddressDetail()
                                 : null;
 
                 return ReservationResponseDto.from(saved, accName, accAddress);
@@ -114,7 +114,7 @@ public class ReservationServiceImpl implements ReservationService {
                                                 "숙소를 찾을 수 없습니다: " + reservation.getAccommodationsId()));
 
                 String address = accommodation.getCity() + " " + accommodation.getDistrict() + " "
-                                + accommodation.getTownship() + " " + accommodation.getAddressDetail();
+                                + accommodation.getAddressDetail();
 
                 return ReservationResponseDto.from(reservation, accommodation.getAccommodationsName(), address);
         }
@@ -154,9 +154,7 @@ public class ReservationServiceImpl implements ReservationService {
                                                         : null;
                                         String accAddress = (accommodation != null)
                                                         ? accommodation.getCity() + " " + accommodation.getDistrict()
-                                                                        + " "
-                                                                        + accommodation.getTownship() + " "
-                                                                        + accommodation.getAddressDetail()
+                                                                        + " " + accommodation.getAddressDetail()
                                                         : null;
 
                                         // 숙소 대표 이미지 조회 (sort_order = 0)

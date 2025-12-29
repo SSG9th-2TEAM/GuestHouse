@@ -1,34 +1,74 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AdminStatCard from '../../components/admin/AdminStatCard.vue'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
-import { adminUsers, usersStats } from '../../mocks/adminMockData'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
+import { fetchAdminUsers } from '../../api/adminApi'
+import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 
 const stats = ref([])
 const users = ref([])
 const searchQuery = ref('')
-const statusFilter = ref('all')
 const typeFilter = ref('all')
+const page = ref(0)
+const size = ref(20)
+const totalPages = ref(0)
+const totalElements = ref(0)
+const isLoading = ref(false)
+const loadError = ref('')
+const route = useRoute()
+const router = useRouter()
 
-const loadUsers = () => {
-  stats.value = [
-    { label: '전체 사용자', value: usersStats.total, sub: '지난 30일 +2.1%', tone: 'primary' },
-    { label: '게스트', value: usersStats.guests, sub: '활성 비율 83%', tone: 'success' },
-    { label: '호스트', value: usersStats.hosts, sub: '신규 호스트 +38', tone: 'accent' }
-  ]
-  users.value = adminUsers
+const loadUsers = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  const response = await fetchAdminUsers({
+    role: typeFilter.value === 'all' ? undefined : typeFilter.value,
+    keyword: searchQuery.value || undefined,
+    page: page.value,
+    size: size.value,
+    sort: 'latest'
+  })
+  if (response.ok && response.data) {
+    const payload = response.data
+    users.value = extractItems(payload)
+    const meta = extractPageMeta(payload)
+    page.value = meta.page
+    size.value = meta.size
+    totalPages.value = meta.totalPages
+    totalElements.value = meta.totalElements
+    const hostCount = users.value.filter((item) => item.role === 'HOST' || item.role === 'ROLE_HOST').length
+    const guestCount = users.value.filter((item) => item.role === 'USER' || item.role === 'ROLE_USER').length
+    stats.value = [
+      { label: '전체 사용자', value: `${totalElements.value}명`, sub: '전체 계정 기준', tone: 'primary' },
+      { label: '게스트', value: `${guestCount}명`, sub: '현재 페이지 기준', tone: 'success' },
+      { label: '호스트', value: `${hostCount}명`, sub: '현재 페이지 기준', tone: 'accent' }
+    ]
+  } else {
+    loadError.value = '회원 목록을 불러오지 못했습니다.'
+  }
+  isLoading.value = false
 }
 
-onMounted(loadUsers)
-
-const statusVariant = (status) => {
-  if (status === '활성') return 'success'
-  if (status === '휴면') return 'warning'
-  if (status === '정지') return 'danger'
-  return 'neutral'
+const syncQuery = (next) => {
+  const params = { ...route.query, ...next }
+  const normalized = toQueryParams(params)
+  const current = toQueryParams(route.query)
+  const isSame = Object.keys({ ...normalized, ...current })
+    .every((key) => String(normalized[key] ?? '') === String(current[key] ?? ''))
+  if (!isSame) {
+    router.replace({ query: normalized })
+  }
 }
+
+onMounted(() => {
+  typeFilter.value = route.query.role ?? 'all'
+  searchQuery.value = route.query.keyword ?? ''
+  page.value = Number(route.query.page ?? 0)
+  loadUsers()
+})
 
 const riskVariant = (risk) => {
   if (risk === '높음') return 'danger'
@@ -40,14 +80,18 @@ const filteredUsers = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   return users.value.filter((user) => {
     const matchesQuery = !query ||
-      user.name.toLowerCase().includes(query) ||
-      user.email.toLowerCase().includes(query) ||
-      user.phone.includes(query) ||
-      user.id.toLowerCase().includes(query)
-    const matchesStatus = statusFilter.value === 'all' || user.status === statusFilter.value
-    const matchesType = typeFilter.value === 'all' || user.type === typeFilter.value
-    return matchesQuery && matchesStatus && matchesType
+      String(user.userId ?? '').includes(query) ||
+      (user.email ?? '').toLowerCase().includes(query) ||
+      (user.phone ?? '').includes(query)
+    const matchesType = typeFilter.value === 'all' || user.role === typeFilter.value || user.role === `ROLE_${typeFilter.value}`
+    return matchesQuery && matchesType
   })
+})
+
+watch([searchQuery, typeFilter], () => {
+  page.value = 0
+  syncQuery({ role: typeFilter.value, keyword: searchQuery.value || undefined, page: page.value })
+  loadUsers()
 })
 
 const downloadReport = (format) => {
@@ -97,6 +141,11 @@ const downloadReport = (format) => {
         :sub="card.sub"
         :tone="card.tone"
       />
+      <div v-if="isLoading" class="admin-status">불러오는 중...</div>
+      <div v-else-if="loadError" class="admin-status">
+        <span>{{ loadError }}</span>
+        <button class="admin-btn admin-btn--ghost" type="button" @click="loadUsers">다시 시도</button>
+      </div>
     </div>
 
     <div class="admin-filter-bar">
@@ -113,14 +162,8 @@ const downloadReport = (format) => {
         <span class="admin-chip">필터</span>
         <select v-model="typeFilter" class="admin-select">
           <option value="all">전체 유형</option>
-          <option value="게스트">게스트</option>
-          <option value="호스트">호스트</option>
-        </select>
-        <select v-model="statusFilter" class="admin-select">
-          <option value="all">전체 상태</option>
-          <option value="활성">활성</option>
-          <option value="휴면">휴면</option>
-          <option value="정지">정지</option>
+          <option value="USER">게스트</option>
+          <option value="HOST">호스트</option>
         </select>
       </div>
       <div class="admin-filter-group">
@@ -143,61 +186,36 @@ const downloadReport = (format) => {
         <thead>
           <tr>
             <th>ID</th>
-            <th>사용자</th>
-            <th>연락처</th>
             <th>이메일</th>
+            <th>연락처</th>
             <th>유형</th>
             <th>가입일</th>
-            <th>최근 접속</th>
-            <th>활동</th>
-            <th>리스크</th>
-            <th>상태</th>
-            <th>관리</th>
+            <th>호스트 승인</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in filteredUsers" :key="user.id">
-            <td class="admin-strong">{{ user.id }}</td>
-            <td>
-              <div class="admin-user">
-                <div class="admin-avatar">{{ user.name.slice(0, 1) }}</div>
-                <span class="admin-strong">{{ user.name }} · {{ user.email }}</span>
-              </div>
-            </td>
+          <tr v-for="user in filteredUsers" :key="user.userId">
+            <td class="admin-strong">#{{ user.userId }}</td>
+            <td class="admin-strong">{{ user.email }}</td>
             <td>{{ user.phone }}</td>
-            <td>{{ user.email }}</td>
-            <td>{{ user.type }}</td>
-            <td>{{ user.joinedAt }}</td>
-            <td>{{ user.lastLogin }}</td>
-            <td>{{ user.activity }}</td>
+            <td>{{ user.role }}</td>
+            <td>{{ user.createdAt?.slice?.(0, 10) ?? '-' }}</td>
             <td>
-              <AdminBadge :text="user.risk" :variant="riskVariant(user.risk)" />
-            </td>
-            <td>
-              <AdminBadge :text="user.status" :variant="statusVariant(user.status)" />
-            </td>
-            <td>
-              <div class="admin-inline-actions admin-inline-actions--nowrap">
-                <button class="admin-btn admin-btn--ghost" type="button">상세</button>
-                <button
-                  v-if="user.status === '정지'"
-                  class="admin-btn admin-btn--primary"
-                  type="button"
-                >
-                  복구
-                </button>
-                <button
-                  v-else
-                  class="admin-btn admin-btn--danger"
-                  type="button"
-                >
-                  정지
-                </button>
-              </div>
+              <AdminBadge :text="user.hostApproved ? '승인' : '미승인'" :variant="user.hostApproved ? 'success' : 'warning'" />
             </td>
           </tr>
         </tbody>
       </table>
+      <div v-if="!isLoading && !loadError && !filteredUsers.length" class="admin-status">데이터가 없습니다.</div>
+      <div class="admin-pagination">
+        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page <= 0" @click="page = page - 1; loadUsers()">
+          이전
+        </button>
+        <span>{{ page + 1 }} / {{ Math.max(totalPages, 1) }}</span>
+        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page + 1 >= totalPages" @click="page = page + 1; loadUsers()">
+          다음
+        </button>
+      </div>
     </AdminTableCard>
   </section>
 </template>
@@ -232,6 +250,24 @@ const downloadReport = (format) => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
+}
+
+.admin-status {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--text-sub, #6b7280);
+  font-weight: 700;
+}
+
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  color: var(--text-sub, #6b7280);
+  font-weight: 700;
 }
 
 .admin-user {

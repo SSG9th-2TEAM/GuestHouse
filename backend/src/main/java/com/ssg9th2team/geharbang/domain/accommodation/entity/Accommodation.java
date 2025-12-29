@@ -66,7 +66,7 @@ public class Accommodation {
     private String rejectionReason;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "approval_status")   // 숙소 승인 상태
+    @Column(name = "approval_status", nullable = false)   // 숙소 승인 상태
     private ApprovalStatus approvalStatus;
 
     @Column(name = "created_at")
@@ -133,6 +133,16 @@ public class Accommodation {
         this.phone = phone;
         this.checkInTime = checkInTime;
         this.checkOutTime = checkOutTime;
+    }
+
+    public void approve() {
+        this.approvalStatus = ApprovalStatus.APPROVED;
+        this.rejectionReason = null;
+    }
+
+    public void reject(String reason) {
+        this.approvalStatus = ApprovalStatus.REJECTED;
+        this.rejectionReason = reason;
     }
 
 
