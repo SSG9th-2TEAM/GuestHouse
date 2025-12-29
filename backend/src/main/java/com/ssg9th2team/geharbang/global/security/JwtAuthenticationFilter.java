@@ -12,12 +12,35 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+
+    // JWT 검증을 건너뛸 경로 목록
+    private static final List<String> EXCLUDE_PATHS = Arrays.asList(
+            "/api/auth/",
+            "/api/public/",
+            "/api/themes",
+            "/uploads/",
+            "/error",
+            "/oauth2/",
+            "/login/oauth2/",
+            "/swagger-ui/",
+            "/v3/api-docs/"
+    );
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        
+        // EXCLUDE_PATHS에 포함된 경로는 JWT 필터링 건너뛰기
+        return EXCLUDE_PATHS.stream().anyMatch(path::startsWith);
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -33,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(authentication);
             log.debug("Security Context에 '{}' 인증 정보를 저장했습니다.", authentication.getName());
         } else {
-            log.debug("유효한 JWT 토큰이 없습니다.");
+            log.debug("유효한 JWT 토큰이 없습니다. URI: {}", request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);

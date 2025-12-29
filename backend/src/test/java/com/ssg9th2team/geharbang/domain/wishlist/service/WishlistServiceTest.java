@@ -3,7 +3,9 @@ package com.ssg9th2team.geharbang.domain.wishlist.service;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationCreateRequestDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
 import com.ssg9th2team.geharbang.domain.accommodation.service.AccommodationServiceImpl;
+import com.ssg9th2team.geharbang.domain.wishlist.repository.jpa.WishlistJpaRepository;
 import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -24,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
+@Sql(scripts = "/sql/test-base-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
 public class WishlistServiceTest {
 
     @Autowired
@@ -34,6 +38,12 @@ public class WishlistServiceTest {
 
     @MockBean
     private ObjectStorageService objectStorageService;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private WishlistJpaRepository wishlistJpaRepository;
 
     private Long testUserId;
     private Long testAccommodationId;
@@ -119,17 +129,16 @@ public class WishlistServiceTest {
         // given
         Long userId = 4L;
         wishlistService.addWishlist(userId, testAccommodationId);
+        entityManager.flush();
 
-        // 추가 확인
-        List<Long> beforeRemove = wishlistService.getMyWishlistAccommodationIds(userId);
-        assertThat(beforeRemove).contains(testAccommodationId);
+        // 추가 확인 (JPA로)
+        assertThat(wishlistJpaRepository.existsByUserIdAndAccommodationsId(userId, testAccommodationId)).isTrue();
 
         // when
         wishlistService.removeWishlist(userId, testAccommodationId);
 
-        // then
-        List<Long> afterRemove = wishlistService.getMyWishlistAccommodationIds(userId);
-        assertThat(afterRemove).doesNotContain(testAccommodationId);
+        // then (JPA로 검증)
+        assertThat(wishlistJpaRepository.existsByUserIdAndAccommodationsId(userId, testAccommodationId)).isFalse();
 
         System.out.println("위시리스트 삭제 성공");
     }
@@ -194,15 +203,17 @@ public class WishlistServiceTest {
 
         // 1. 추가
         wishlistService.addWishlist(userId, testAccommodationId);
-        assertThat(wishlistService.getMyWishlistAccommodationIds(userId)).contains(testAccommodationId);
+        entityManager.flush();
+        assertThat(wishlistJpaRepository.existsByUserIdAndAccommodationsId(userId, testAccommodationId)).isTrue();
 
         // 2. 삭제
         wishlistService.removeWishlist(userId, testAccommodationId);
-        assertThat(wishlistService.getMyWishlistAccommodationIds(userId)).doesNotContain(testAccommodationId);
+        assertThat(wishlistJpaRepository.existsByUserIdAndAccommodationsId(userId, testAccommodationId)).isFalse();
 
         // 3. 재추가 (예외 없이 성공해야 함)
         wishlistService.addWishlist(userId, testAccommodationId);
-        assertThat(wishlistService.getMyWishlistAccommodationIds(userId)).contains(testAccommodationId);
+        entityManager.flush();
+        assertThat(wishlistJpaRepository.existsByUserIdAndAccommodationsId(userId, testAccommodationId)).isTrue();
 
         System.out.println("위시리스트 추가/삭제/재추가 테스트 성공");
     }

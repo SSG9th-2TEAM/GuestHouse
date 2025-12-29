@@ -4,6 +4,8 @@ import com.ssg9th2team.geharbang.domain.auth.dto.UserResponse;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.user.dto.DeleteAccountRequest;
 import com.ssg9th2team.geharbang.domain.user.service.UserService;
+import com.ssg9th2team.geharbang.domain.user.dto.UpdateProfileRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -22,6 +24,13 @@ public class UserController {
         String email = authentication.getName();
         User user = userService.getUserByEmail(email);
         return ResponseEntity.ok(UserResponse.from(user));
+    }
+
+    @PatchMapping("/me/profile")
+    public ResponseEntity<Void> updateUserProfile(Authentication authentication, @Valid @RequestBody UpdateProfileRequest request) {
+        String email = authentication.getName();
+        userService.updateUserProfile(email, request);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/me")

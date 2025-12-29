@@ -13,4 +13,7 @@ public class AccountNumberDto {
     private String bankName;       // 은행명
     private String accountNumber;  // 계좌번호
     private String accountHolder;  // 예금주
+
+
+    // sg
 }

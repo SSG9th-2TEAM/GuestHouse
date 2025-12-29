@@ -135,6 +135,11 @@ const router = createRouter({
             component: () => import('../views/LoginView/ResetPasswordSuccessView.vue')
         },
         {
+            path: '/oauth2/redirect',
+            name: 'oauth2-redirect',
+            component: () => import('../views/LoginView/OAuth2RedirectHandler.vue')
+        },
+        {
             path: '/host',
             name: 'host-dashboard',
             component: () => import('../views/HostView/HostDashboardView.vue'),
