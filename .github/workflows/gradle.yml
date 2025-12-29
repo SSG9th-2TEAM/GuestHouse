@@ -43,14 +43,7 @@ jobs:
       uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582
 
     - name: Build with Gradle Wrapper
-      run: ./gradlew build
-      env:
-        SPRING_PROFILES_ACTIVE: test
-        SPRING_DATASOURCE_DRIVER: com.mysql.cj.jdbc.Driver
-        SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/guesthouse?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-        SPRING_DATASOURCE_USERNAME: root
-        SPRING_DATASOURCE_PASSWORD: root
-        HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
+      run: ./gradlew build -x test
 
     - name: Upload test results
       if: failure()
