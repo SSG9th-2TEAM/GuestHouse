@@ -2,7 +2,7 @@
 // The base URL is configurable so user/admin servers can be split later.
 import { getAccessToken } from './authClient'
 
-const adminBaseURL = (import.meta.env.VITE_ADMIN_API_BASE_URL || '/admin-api').replace(/\/$/, '')
+const adminBaseURL = (import.meta.env.VITE_ADMIN_API_BASE_URL || '/api/admin').replace(/\/$/, '')
 
 let adminAuthToken = ''
 
@@ -17,8 +17,9 @@ export async function adminRequest(path, options = {}) {
     ...(options.headers || {})
   }
 
-  if (adminAuthToken) {
-    headers.Authorization = `Bearer ${adminAuthToken}`
+  const token = adminAuthToken || getAccessToken()
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
   }
 
   const response = await fetch(url, {
@@ -31,9 +32,27 @@ export async function adminRequest(path, options = {}) {
   return { ok: response.ok, status: response.status, data }
 }
 
+const cleanParams = (params = {}) => {
+  const cleaned = {}
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null) return
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return
+      if (trimmed.toLowerCase() === 'all') return
+      if (trimmed.toLowerCase() === 'undefined') return
+      if (trimmed.toLowerCase() === 'null') return
+      cleaned[key] = trimmed
+      return
+    }
+    cleaned[key] = value
+  })
+  return cleaned
+}
+
 // Convenience GET wrapper for future use (currently unused, ready for swap-in)
 export async function adminGet(path, params = {}) {
-  const query = new URLSearchParams(params).toString()
+  const query = new URLSearchParams(cleanParams(params)).toString()
   const fullPath = query ? `${path}?${query}` : path
   return adminRequest(fullPath, { method: 'GET' })
 }

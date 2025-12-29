@@ -5,6 +5,7 @@ import com.ssg9th2team.geharbang.domain.revenue.host.dto.HostRevenueDetailRespon
 import com.ssg9th2team.geharbang.domain.revenue.host.dto.HostRevenueSummaryResponse;
 import com.ssg9th2team.geharbang.domain.revenue.host.dto.HostRevenueTrendResponse;
 import com.ssg9th2team.geharbang.domain.revenue.host.service.HostRevenueService;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;

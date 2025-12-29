@@ -18,6 +18,12 @@ public interface HostDashboardMapper {
             @Param("end") LocalDate end
     );
 
+    HostSummaryRow selectHostSummaryFallback(
+            @Param("hostId") Long hostId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end
+    );
+
     List<TodayScheduleItemResponse> selectTodaySchedule(
             @Param("hostId") Long hostId,
             @Param("dateStart") LocalDateTime dateStart,

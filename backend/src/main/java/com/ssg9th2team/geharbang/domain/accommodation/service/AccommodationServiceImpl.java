@@ -108,8 +108,8 @@ public class AccommodationServiceImpl implements AccommodationService {
                 .latitude(createRequestDto.getLatitude())
                 .longitude(createRequestDto.getLongitude())
                 .transportInfo(createRequestDto.getTransportInfo())
-                .accommodationStatus(1)   // (1) = 운영중 , (0) = 운영 중지
-                .approvalStatus(ApprovalStatus.APPROVED)  // APPROVED = 승인 , PENDDING = 검수중
+                .accommodationStatus(0)   // (1) = 운영중 , (0) = 운영 중지 (승인 대기)
+                .approvalStatus(ApprovalStatus.PENDING)  // APPROVED = 승인 , PENDING = 검수중
                 .createdAt(LocalDateTime.now())
                 .phone(createRequestDto.getPhone())
                 .businessRegistrationNumber(createRequestDto.getBusinessRegistrationNumber())

@@ -15,9 +15,15 @@ const isCalendarOpen = ref(false)
 const isGuestOpen = ref(false)
 const isLoggedIn = ref(isAuthenticated())
 const isHostRoute = computed(() => route.path.startsWith('/host'))
+const isAdminRoute = computed(() => route.path.startsWith('/admin'))
 
 // Toggle host mode and persist to localStorage
 const toggleHostMode = () => {
+  if (!isAuthenticated()) {
+    router.push('/login')
+    isMenuOpen.value = false
+    return
+  }
   isHostMode.value = !isHostMode.value
   localStorage.setItem('isHostMode', isHostMode.value.toString())
   if (isHostMode.value) {
@@ -263,7 +269,7 @@ onUnmounted(() => {
         </div>
 
         <div
-          v-if="!isHostRoute"
+          v-if="!isHostRoute && !isAdminRoute"
           class="search-bar"
           :class="{ expanded: isSearchExpanded }"
         >

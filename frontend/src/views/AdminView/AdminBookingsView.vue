@@ -1,47 +1,105 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
-import { bookings } from '../../mocks/adminMockData'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
+import { fetchAdminBookings } from '../../api/adminApi'
+import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 
 const bookingList = ref([])
 const searchQuery = ref('')
 const statusFilter = ref('all')
 const channelFilter = ref('all')
+const page = ref(0)
+const size = ref(20)
+const totalPages = ref(0)
+const totalElements = ref(0)
+const isLoading = ref(false)
+const loadError = ref('')
+const route = useRoute()
+const router = useRouter()
 
-const loadBookings = () => {
-  bookingList.value = bookings
+const loadBookings = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  const response = await fetchAdminBookings({
+    status: statusFilter.value,
+    sort: statusFilter.value === 'checkin' ? 'checkin' : 'latest',
+    page: page.value,
+    size: size.value
+  })
+  if (response.ok && response.data) {
+    const payload = response.data
+    bookingList.value = extractItems(payload)
+    const meta = extractPageMeta(payload)
+    page.value = meta.page
+    size.value = meta.size
+    totalPages.value = meta.totalPages
+    totalElements.value = meta.totalElements
+  } else {
+    loadError.value = '예약 목록을 불러오지 못했습니다.'
+  }
+  isLoading.value = false
 }
 
-onMounted(loadBookings)
+const syncQuery = (next) => {
+  const params = { ...route.query, ...next }
+  const normalized = toQueryParams(params)
+  const current = toQueryParams(route.query)
+  const isSame = Object.keys({ ...normalized, ...current })
+    .every((key) => String(normalized[key] ?? '') === String(current[key] ?? ''))
+  if (!isSame) {
+    router.replace({ query: normalized })
+  }
+}
+
+onMounted(() => {
+  statusFilter.value = route.query.status ?? 'all'
+  searchQuery.value = route.query.keyword ?? ''
+  page.value = Number(route.query.page ?? 0)
+  loadBookings()
+})
 
 const statusVariant = (status) => {
-  if (status === '확정' || status === '체크인') return 'success'
-  if (status === '대기') return 'warning'
-  if (status === '취소') return 'danger'
+  if (status === 2) return 'success'
+  if (status === 1) return 'warning'
+  if (status === 3) return 'success'
+  if (status === 9) return 'danger'
   return 'neutral'
 }
 
 const paymentVariant = (status) => {
-  if (status === '완료') return 'success'
-  if (status === '보류') return 'warning'
-  if (status === '환불') return 'danger'
+  if (status === 1) return 'success'
+  if (status === 2) return 'danger'
+  if (status === 3) return 'warning'
   return 'neutral'
+}
+
+const mapStatusFilter = (filter) => {
+  if (filter === 'confirmed') return '2'
+  if (filter === 'pending') return '1'
+  if (filter === 'canceled') return '9'
+  return filter
 }
 
 const filteredBookings = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   return bookingList.value.filter((item) => {
     const matchesQuery = !query ||
-      item.id.toLowerCase().includes(query) ||
-      item.accommodation.toLowerCase().includes(query) ||
-      item.host.toLowerCase().includes(query) ||
-      item.guest.toLowerCase().includes(query)
-    const matchesStatus = statusFilter.value === 'all' || item.status === statusFilter.value
-    const matchesChannel = channelFilter.value === 'all' || item.channel === channelFilter.value
+      String(item.reservationId ?? '').includes(query) ||
+      String(item.accommodationsId ?? '').includes(query) ||
+      String(item.userId ?? '').includes(query)
+    const matchesStatus = statusFilter.value === 'all' || String(item.reservationStatus) === mapStatusFilter(statusFilter.value)
+    const matchesChannel = channelFilter.value === 'all'
     return matchesQuery && matchesStatus && matchesChannel
   })
+})
+
+watch([searchQuery, statusFilter], () => {
+  page.value = 0
+  syncQuery({ status: statusFilter.value, keyword: searchQuery.value || undefined, page: page.value })
+  loadBookings()
 })
 
 const downloadReport = (format) => {
@@ -98,10 +156,9 @@ const downloadReport = (format) => {
         <span class="admin-chip">필터</span>
         <select v-model="statusFilter" class="admin-select">
           <option value="all">전체 상태</option>
-          <option value="확정">확정</option>
-          <option value="대기">대기</option>
-          <option value="체크인">체크인</option>
-          <option value="취소">취소</option>
+          <option value="confirmed">확정</option>
+          <option value="pending">대기</option>
+          <option value="canceled">취소</option>
         </select>
         <select v-model="channelFilter" class="admin-select">
           <option value="all">전체 채널</option>
@@ -131,7 +188,6 @@ const downloadReport = (format) => {
           <tr>
             <th>예약번호</th>
             <th>숙소</th>
-            <th>호스트</th>
             <th>게스트</th>
             <th>체크인</th>
             <th>체크아웃</th>
@@ -139,39 +195,51 @@ const downloadReport = (format) => {
             <th>금액</th>
             <th>상태</th>
             <th>결제</th>
-            <th>채널</th>
             <th>등록일</th>
             <th>관리</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredBookings" :key="item.id">
-            <td class="admin-strong">{{ item.id }}</td>
-            <td>{{ item.accommodation }}</td>
-            <td>{{ item.host }}</td>
-            <td>{{ item.guest }}</td>
-            <td>{{ item.checkIn }}</td>
-            <td>{{ item.checkOut }}</td>
-            <td>{{ item.people }}명</td>
-            <td>{{ item.price }}</td>
+          <tr v-for="item in filteredBookings" :key="item.reservationId">
+            <td class="admin-strong">#{{ item.reservationId }}</td>
+            <td>{{ item.accommodationsId }}</td>
+            <td>{{ item.userId }}</td>
+            <td>{{ item.checkin?.slice?.(0, 10) ?? '-' }}</td>
+            <td>{{ item.checkout?.slice?.(0, 10) ?? '-' }}</td>
+            <td>-</td>
+            <td>{{ item.finalPaymentAmount ?? '-' }}</td>
             <td>
-              <AdminBadge :text="item.status" :variant="statusVariant(item.status)" />
+              <AdminBadge :text="item.reservationStatus" :variant="statusVariant(item.reservationStatus)" />
             </td>
             <td>
               <AdminBadge :text="item.paymentStatus" :variant="paymentVariant(item.paymentStatus)" />
             </td>
-            <td>{{ item.channel }}</td>
-            <td>{{ item.createdAt }}</td>
+            <td>{{ item.createdAt?.slice?.(0, 10) ?? '-' }}</td>
             <td>
               <div class="admin-inline-actions admin-inline-actions--nowrap">
                 <button class="admin-btn admin-btn--ghost" type="button">상세</button>
-                <button class="admin-btn admin-btn--muted" type="button">변경</button>
-                <button class="admin-btn admin-btn--danger" type="button">환불</button>
+                <button class="admin-btn admin-btn--muted" type="button" disabled>변경</button>
+                <button class="admin-btn admin-btn--danger" type="button" disabled>환불</button>
               </div>
             </td>
           </tr>
         </tbody>
       </table>
+      <div v-if="isLoading" class="admin-status">불러오는 중...</div>
+      <div v-else-if="loadError" class="admin-status">
+        <span>{{ loadError }}</span>
+        <button class="admin-btn admin-btn--ghost" type="button" @click="loadBookings">다시 시도</button>
+      </div>
+      <div v-else-if="!filteredBookings.length" class="admin-status">데이터가 없습니다.</div>
+      <div class="admin-pagination">
+        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page <= 0" @click="page = page - 1; loadBookings()">
+          이전
+        </button>
+        <span>{{ page + 1 }} / {{ Math.max(totalPages, 1) }}</span>
+        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page + 1 >= totalPages" @click="page = page + 1; loadBookings()">
+          다음
+        </button>
+      </div>
     </AdminTableCard>
   </section>
 </template>
@@ -200,6 +268,25 @@ const downloadReport = (format) => {
   margin: 6px 0 0;
   color: var(--text-sub);
   font-weight: 600;
+}
+
+.admin-status {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--text-sub, #6b7280);
+  font-weight: 700;
+  margin-top: 12px;
+}
+
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  color: var(--text-sub, #6b7280);
+  font-weight: 700;
 }
 
 .admin-strong {
