@@ -9,6 +9,7 @@ import com.ssg9th2team.geharbang.domain.auth.dto.SignupRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.TokenResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.UserResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.VerifyCodeRequest;
+import com.ssg9th2team.geharbang.domain.auth.entity.SocialProvider;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
@@ -85,6 +86,8 @@ public class AuthServiceImpl implements AuthService {
                         signupRequest.getMarketingAgreed() != null ? signupRequest.getMarketingAgreed() : false)
                 .hostApproved(null)
                 .themes(themes)
+                .socialProvider(SocialProvider.LOCAL)
+                .socialId(null)
                 .build();
 
         User savedUser = userRepository.save(user);

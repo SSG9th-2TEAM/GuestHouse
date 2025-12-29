@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { onMounted, ref } from 'vue'
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import { useRouter } from 'vue-router'
@@ -89,9 +89,14 @@ const loadSections = async () => {
     let preferredThemes = []
 
     if (isAuthenticated()) {
-      const preferredResponse = await fetchUserThemes()
-      if (preferredResponse.ok && Array.isArray(preferredResponse.data)) {
-        preferredThemes = preferredResponse.data
+      try {
+        const preferredResponse = await fetchUserThemes()
+        if (preferredResponse.ok && Array.isArray(preferredResponse.data)) {
+          preferredThemes = preferredResponse.data
+        }
+      } catch (err) {
+        console.warn('Failed to fetch user themes, continuing with all themes:', err)
+        // 사용자 선호 테마를 불러오지 못해도 전체 테마 목록은 표시
       }
     }
 
