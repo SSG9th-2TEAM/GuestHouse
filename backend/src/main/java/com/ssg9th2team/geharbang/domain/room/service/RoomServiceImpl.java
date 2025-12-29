@@ -35,7 +35,7 @@ public class RoomServiceImpl implements RoomService {
                 .maxGuests(roomCreateDto.getMaxGuests())
                 .roomDescription(roomCreateDto.getRoomDescription())
                 .mainImageUrl(roomCreateDto.getMainImageUrl())
-                .roomStatus(1)
+                .roomStatus(roomCreateDto.getRoomStatus() != null ? roomCreateDto.getRoomStatus() : 1)
                 .bathroomCount(roomCreateDto.getBathroomCount())
                 .roomType(roomCreateDto.getRoomType())
                 .bedCount(roomCreateDto.getBedCount())

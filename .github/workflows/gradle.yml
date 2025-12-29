@@ -12,20 +12,6 @@ jobs:
     permissions:
       contents: read
 
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: guesthouse
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
-
     defaults:
       run:
         working-directory: backend
@@ -42,8 +28,10 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582
 
-    - name: Build with Gradle Wrapper
-      run: ./gradlew build -x test
+    - name: Build and Test with Gradle
+      run: ./gradlew build
+      env:
+        SPRING_PROFILES_ACTIVE: test
 
     - name: Upload test results
       if: failure()
