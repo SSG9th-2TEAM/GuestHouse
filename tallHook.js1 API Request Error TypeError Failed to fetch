@@ -1,0 +1,173 @@
+[1mdiff --git a/backend/src/main/java/com/ssg9th2team/geharbang/domain/main/dto/ListDto.java b/backend/src/main/java/com/ssg9th2team/geharbang/domain/main/dto/ListDto.java[m
+[1mindex ff9b409..648ece2 100644[m
+[1m--- a/backend/src/main/java/com/ssg9th2team/geharbang/domain/main/dto/ListDto.java[m
+[1m+++ b/backend/src/main/java/com/ssg9th2team/geharbang/domain/main/dto/ListDto.java[m
+[36m@@ -13,6 +13,8 @@[m [mpublic class ListDto {[m
+     private String city;[m
+     private String district;[m
+     private String township;[m
+[32m+[m[32m    private Double latitude;[m
+[32m+[m[32m    private Double longitude;[m
+     private Long minPrice;[m
+     private Double rating;[m
+     private Integer reviewCount;[m
+[1mdiff --git a/backend/src/main/java/com/ssg9th2team/geharbang/domain/main/service/BaseMainService.java b/backend/src/main/java/com/ssg9th2team/geharbang/domain/main/service/BaseMainService.java[m
+[1mindex b436457..5fff278 100644[m
+[1m--- a/backend/src/main/java/com/ssg9th2team/geharbang/domain/main/service/BaseMainService.java[m
+[1m+++ b/backend/src/main/java/com/ssg9th2team/geharbang/domain/main/service/BaseMainService.java[m
+[36m@@ -53,6 +53,8 @@[m [mpublic class BaseMainService implements MainService {[m
+                 .city(accommodation.getCity())[m
+                 .district(accommodation.getDistrict())[m
+                 .township(accommodation.getTownship())[m
+[32m+[m[32m                .latitude(accommodation.getLatitude() != null ? accommodation.getLatitude().doubleValue() : null)[m
+[32m+[m[32m                .longitude(accommodation.getLongitude() != null ? accommodation.getLongitude().doubleValue() : null)[m
+                 .minPrice(accommodation.getMinPrice() != null ? accommodation.getMinPrice().longValue() : null)[m
+                 .rating(accommodation.getRating() != null ? accommodation.getRating().doubleValue() : 0.0)[m
+                 .reviewCount(accommodation.getReviewCount())[m
+[1mdiff --git a/frontend/src/views/home/List.vue b/frontend/src/views/home/List.vue[m
+[1mindex 055a743..1123226 100644[m
+[1m--- a/frontend/src/views/home/List.vue[m
+[1m+++ b/frontend/src/views/home/List.vue[m
+[36m@@ -1,4 +1,4 @@[m
+[31m-﻿<script setup>[m
+[32m+[m[32m<script setup>[m
+ import GuesthouseCard from '../../components/GuesthouseCard.vue'[m
+ import FilterModal from '../../components/FilterModal.vue'[m
+ import { useRouter, useRoute } from 'vue-router'[m
+[36m@@ -103,6 +103,25 @@[m [mconst handleApplyFilter = ({ min, max, themeIds = [] }) => {[m
+   loadList(themeIds)[m
+ }[m
+ [m
+[32m+[m[32mconst buildFilterQuery = () => {[m
+[32m+[m[32m  const query = {}[m
+[32m+[m[32m  if (minPrice.value !== null) query.min = String(minPrice.value)[m
+[32m+[m[32m  if (maxPrice.value !== null) query.max = String(maxPrice.value)[m
+[32m+[m[32m  if (selectedThemeIds.value.length) query.themeIds = selectedThemeIds.value.join(',')[m
+[32m+[m[32m  return query[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mconst goToMap = () => {[m
+[32m+[m[32m  router.push({ path: '/map', query: buildFilterQuery() })[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mconst parseNumberParam = (value) => {[m
+[32m+[m[32m  if (value === undefined || value === null || value === '') return null[m
+[32m+[m[32m  const raw = Array.isArray(value) ? value[0] : value[m
+[32m+[m[32m  const numberValue = Number(raw)[m
+[32m+[m[32m  return Number.isFinite(numberValue) ? numberValue : null[m
+[32m+[m[32m}[m
+[32m+[m
+ const parseThemeIds = (value) => {[m
+   if (!value) return [][m
+   const raw = Array.isArray(value) ? value.join(',') : String(value)[m
+[36m@@ -112,12 +131,17 @@[m [mconst parseThemeIds = (value) => {[m
+     .filter((item) => Number.isFinite(item))[m
+ }[m
+ [m
+[32m+[m[32mconst applyRouteFilters = () => {[m
+[32m+[m[32m  minPrice.value = parseNumberParam(route.query.min ?? route.query.minPrice)[m
+[32m+[m[32m  maxPrice.value = parseNumberParam(route.query.max ?? route.query.maxPrice)[m
+[32m+[m[32m  selectedThemeIds.value = parseThemeIds(route.query.themeIds)[m
+[32m+[m[32m}[m
+[32m+[m
+ onMounted(() => {[m
+   loadWishlist()[m
+[31m-  const initialThemeIds = parseThemeIds(route.query.themeIds)[m
+[31m-  if (initialThemeIds.length) {[m
+[31m-    selectedThemeIds.value = initialThemeIds[m
+[31m-    loadList(initialThemeIds)[m
+[32m+[m[32m  applyRouteFilters()[m
+[32m+[m[32m  if (selectedThemeIds.value.length) {[m
+[32m+[m[32m    loadList(selectedThemeIds.value)[m
+     return[m
+   }[m
+   loadList()[m
+[36m@@ -151,7 +175,7 @@[m [monMounted(() => {[m
+ [m
+     <!-- Floating Map Button -->[m
+     <div class="map-btn-wrapper">[m
+[31m-      <button class="map-floating-btn" @click="router.push('/map')">[m
+[32m+[m[32m      <button class="map-floating-btn" @click="goToMap">[m
+         <span class="text">지도에서 보기</span>[m
+       </button>[m
+     </div>[m
+[36m@@ -170,16 +194,17 @@[m [monMounted(() => {[m
+ [m
+ <style scoped>[m
+ .main-content {[m
+[31m-  padding-top: 2rem;[m
+[32m+[m[32m  padding-top: 1rem;[m
+   padding-bottom: 6rem; /* Extra padding for floating button */[m
+   max-width: 1280px; [m
+   margin: 0 auto;[m
+   padding-left: 1rem;[m
+   padding-right: 1rem;[m
+[32m+[m[32m  --card-width: 340px;[m
+ }[m
+ [m
+ .header {[m
+[31m-  margin-bottom: 2rem;[m
+[32m+[m[32m  margin-bottom: 0;[m
+   padding-bottom: 1rem;[m
+   border-bottom: 1px solid #eee;[m
+   display: flex;[m
+[36m@@ -215,7 +240,7 @@[m [monMounted(() => {[m
+   display: grid;[m
+   grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 280px), var(--card-width, 280px))); [m
+   gap: 2rem;[m
+[31m-  justify-content: start;[m
+[32m+[m[32m  justify-content: center;[m
+ }[m
+ [m
+ .list-item {[m
+[1mdiff --git a/frontend/src/views/home/MapView.vue b/frontend/src/views/home/MapView.vue[m
+[1mindex bdbfe78..b35d3d7 100644[m
+[1m--- a/frontend/src/views/home/MapView.vue[m
+[1m+++ b/frontend/src/views/home/MapView.vue[m
+[36m@@ -1,11 +1,13 @@[m
+ <script setup>[m
+[31m-import { onMounted, ref, watch } from 'vue'[m
+[31m-import { useRouter } from 'vue-router'[m
+[31m-import { guesthouses } from '../../data/guesthouses'[m
+[32m+[m[32mimport { onMounted, ref } from 'vue'[m
+[32m+[m[32mimport { useRouter, useRoute } from 'vue-router'[m
+[32m+[m[32mimport { fetchList } from '@/api/list'[m
+ import FilterModal from '../../components/FilterModal.vue'[m
+ [m
+ const router = useRouter()[m
+[31m-const items = guesthouses[m
+[32m+[m[32mconst route = useRoute()[m
+[32m+[m[32mconst items = ref([])[m
+[32m+[m[32mconst selectedItem = ref(null)[m
+ const mapContainer = ref(null)[m
+ const mapInstance = ref(null)[m
+ const activeOverlays = ref([])[m
+[36m@@ -16,6 +18,85 @@[m [mconst minPrice = ref(null)[m
+ const maxPrice = ref(null)[m
+ const selectedThemeIds = ref([])[m
+ [m
+[32m+[m[32mconst parseNumberParam = (value) => {[m
+[32m+[m[32m  if (value === undefined || value === null || value === '') return null[m
+[32m+[m[32m  const raw = Array.isArray(value) ? value[0] : value[m
+[32m+[m[32m  const numberValue = Number(raw)[m
+[32m+[m[32m  return Number.isFinite(numberValue) ? numberValue : null[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mconst parseThemeIds = (value) => {[m
+[32m+[m[32m  if (!value) return [][m
+[32m+[m[32m  const raw = Array.isArray(value) ? value.join(',') : String(value)[m
+[32m+[m[32m  return raw[m
+[32m+[m[32m    .split(',')[m
+[32m+[m[32m    .map((item) => Number(item))[m
+[32m+[m[32m    .filter((item) => Number.isFinite(item))[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mconst applyRouteFilters = () => {[m
+[32m+[m[32m  minPrice.value = parseNumberParam(route.query.min ?? route.query.minPrice)[m
+[32m+[m[32m  maxPrice.value = parseNumberParam(route.query.max ?? route.query.maxPrice)[m
+[32m+[m[32m  selectedThemeIds.value = parseThemeIds(route.query.themeIds)[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mconst normalizeItem = (item) => {[m
+[32m+[m[32m  const id = item.accomodationsId ?? item.accommodationsId ?? item.id[m
+[32
