@@ -200,10 +200,11 @@ onMounted(() => {
   margin: 0 auto;
   padding-left: 1rem;
   padding-right: 1rem;
+  --card-width: 340px;
 }
 
 .header {
-  margin-bottom: 2rem;
+  margin-bottom: 0;
   padding-bottom: 1rem;
   border-bottom: 1px solid #eee;
   display: flex;
@@ -239,7 +240,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 280px), var(--card-width, 280px))); 
   gap: 2rem;
-  justify-content: start;
+  justify-content: center;
 }
 
 .list-item {
