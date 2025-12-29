@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import FilterModal from '../../components/FilterModal.vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -103,6 +103,25 @@ const handleApplyFilter = ({ min, max, themeIds = [] }) => {
   loadList(themeIds)
 }
 
+const buildFilterQuery = () => {
+  const query = {}
+  if (minPrice.value !== null) query.min = String(minPrice.value)
+  if (maxPrice.value !== null) query.max = String(maxPrice.value)
+  if (selectedThemeIds.value.length) query.themeIds = selectedThemeIds.value.join(',')
+  return query
+}
+
+const goToMap = () => {
+  router.push({ path: '/map', query: buildFilterQuery() })
+}
+
+const parseNumberParam = (value) => {
+  if (value === undefined || value === null || value === '') return null
+  const raw = Array.isArray(value) ? value[0] : value
+  const numberValue = Number(raw)
+  return Number.isFinite(numberValue) ? numberValue : null
+}
+
 const parseThemeIds = (value) => {
   if (!value) return []
   const raw = Array.isArray(value) ? value.join(',') : String(value)
@@ -112,12 +131,17 @@ const parseThemeIds = (value) => {
     .filter((item) => Number.isFinite(item))
 }
 
+const applyRouteFilters = () => {
+  minPrice.value = parseNumberParam(route.query.min ?? route.query.minPrice)
+  maxPrice.value = parseNumberParam(route.query.max ?? route.query.maxPrice)
+  selectedThemeIds.value = parseThemeIds(route.query.themeIds)
+}
+
 onMounted(() => {
   loadWishlist()
-  const initialThemeIds = parseThemeIds(route.query.themeIds)
-  if (initialThemeIds.length) {
-    selectedThemeIds.value = initialThemeIds
-    loadList(initialThemeIds)
+  applyRouteFilters()
+  if (selectedThemeIds.value.length) {
+    loadList(selectedThemeIds.value)
     return
   }
   loadList()
@@ -151,7 +175,7 @@ onMounted(() => {
 
     <!-- Floating Map Button -->
     <div class="map-btn-wrapper">
-      <button class="map-floating-btn" @click="router.push('/map')">
+      <button class="map-floating-btn" @click="goToMap">
         <span class="text">지도에서 보기</span>
       </button>
     </div>
@@ -170,7 +194,7 @@ onMounted(() => {
 
 <style scoped>
 .main-content {
-  padding-top: 2rem;
+  padding-top: 1rem;
   padding-bottom: 6rem; /* Extra padding for floating button */
   max-width: 1280px; 
   margin: 0 auto;
