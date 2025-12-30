@@ -22,6 +22,8 @@ public class ReviewResponseDto {
     private Double rating;
     private String content;
     private LocalDateTime createdAt;
+    private String replyContent;
+    private LocalDateTime replyUpdatedAt;
     private List<ReviewImageDto> images;
     private List<ReviewTagDto> tags;
     private String visitDate;

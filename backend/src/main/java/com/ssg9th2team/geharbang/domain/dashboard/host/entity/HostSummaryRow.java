@@ -7,6 +7,8 @@ public class HostSummaryRow {
     private long confirmedRevenue;
     private int confirmedReservations;
     private double avgRating;
+    private int reviewCount;
     private int operatingAccommodations;
     private int totalAccommodations;
+    private int statsCount;
 }

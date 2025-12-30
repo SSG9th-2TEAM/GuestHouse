@@ -100,11 +100,11 @@ public class Reservation {
 
     /**
      * 환불 시 상태 업데이트
-     * - 예약상태: 3 (취소)
+     * - 예약상태: 9 (취소)
      * - 결제상태: 3 (환불)
      */
     public void updateRefunded() {
-        this.reservationStatus = 3; // 예약 취소
+        this.reservationStatus = 9; // 예약 취소
         this.paymentStatus = 3; // 환불
     }
 }

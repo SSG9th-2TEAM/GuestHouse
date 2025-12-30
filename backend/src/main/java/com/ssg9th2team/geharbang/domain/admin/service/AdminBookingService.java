@@ -4,6 +4,13 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminBookingDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminBookingSummary;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
+import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
+import com.ssg9th2team.geharbang.domain.auth.entity.User;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
+import com.ssg9th2team.geharbang.domain.payment.entity.PaymentRefund;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
@@ -21,6 +28,10 @@ import java.util.List;
 public class AdminBookingService {
 
     private final ReservationJpaRepository reservationRepository;
+    private final AccommodationJpaRepository accommodationRepository;
+    private final UserRepository userRepository;
+    private final PaymentJpaRepository paymentRepository;
+    private final PaymentRefundJpaRepository refundRepository;
 
     public AdminPageResponse<AdminBookingSummary> getBookings(
             String status,
@@ -107,15 +118,62 @@ public class AdminBookingService {
     }
 
     private AdminBookingDetail toDetail(Reservation reservation) {
+        String accommodationName = reservation.getAccommodationsId() != null
+                ? accommodationRepository.findById(reservation.getAccommodationsId())
+                .map(acc -> acc.getAccommodationsName())
+                .orElse(null)
+                : null;
+        Long hostUserId = reservation.getAccommodationsId() != null
+                ? accommodationRepository.findById(reservation.getAccommodationsId())
+                .map(acc -> acc.getUserId())
+                .orElse(null)
+                : null;
+
+        User guest = reservation.getUserId() != null
+                ? userRepository.findById(reservation.getUserId()).orElse(null)
+                : null;
+
+        Payment payment = reservation.getId() != null
+                ? paymentRepository.findByReservationId(reservation.getId()).orElse(null)
+                : null;
+
+        PaymentRefund refund = null;
+        if (payment != null) {
+            refund = refundRepository.findByPaymentId(payment.getId()).stream()
+                    .max((a, b) -> {
+                        if (a.getApprovedAt() != null && b.getApprovedAt() != null) {
+                            return a.getApprovedAt().compareTo(b.getApprovedAt());
+                        }
+                        if (a.getApprovedAt() != null) return 1;
+                        if (b.getApprovedAt() != null) return -1;
+                        return a.getCreatedAt().compareTo(b.getCreatedAt());
+                    })
+                    .orElse(null);
+        }
+
         return new AdminBookingDetail(
                 reservation.getId(),
                 reservation.getAccommodationsId(),
+                accommodationName,
+                hostUserId,
                 reservation.getUserId(),
+                guest != null ? guest.getEmail() : null,
+                guest != null ? guest.getPhone() : null,
                 reservation.getCheckin(),
                 reservation.getCheckout(),
+                reservation.getGuestCount(),
                 reservation.getReservationStatus(),
                 reservation.getPaymentStatus(),
                 reservation.getFinalPaymentAmount(),
+                payment != null ? payment.getId() : null,
+                payment != null ? payment.getOrderId() : null,
+                payment != null ? payment.getPgPaymentKey() : null,
+                payment != null ? payment.getApprovedAmount() : null,
+                payment != null ? payment.getApprovedAt() : null,
+                refund != null ? refund.getRefundStatus() : null,
+                refund != null ? refund.getRefundAmount() : null,
+                refund != null ? refund.getApprovedAt() : null,
+                refund != null ? refund.getReasonMessage() : null,
                 reservation.getCreatedAt(),
                 reservation.getUpdatedAt()
         );

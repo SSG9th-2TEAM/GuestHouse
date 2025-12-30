@@ -8,15 +8,23 @@ import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationSummary;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationMetrics;
+import com.ssg9th2team.geharbang.domain.admin.repository.mybatis.AdminAccommodationMapper;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
+import com.ssg9th2team.geharbang.domain.admin.log.AdminLogConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
+import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
+import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomStats;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +32,9 @@ public class AdminAccommodationService {
 
     private final AccommodationJpaRepository accommodationRepository;
     private final UserRepository userRepository;
+    private final AdminAccommodationMapper accommodationMapper;
+    private final RoomJpaRepository roomRepository;
+    private final AdminLogService adminLogService;
 
     public AdminPageResponse<AdminAccommodationSummary> getAccommodations(
             String status,
@@ -45,8 +56,10 @@ public class AdminAccommodationService {
         int totalPages = size > 0 ? (int) Math.ceil(totalElements / (double) size) : 1;
         int fromIndex = Math.min(page * size, totalElements);
         int toIndex = Math.min(fromIndex + size, totalElements);
-        List<AdminAccommodationSummary> items = filtered.subList(fromIndex, toIndex).stream()
-                .map(this::toSummary)
+        List<Accommodation> pageItems = filtered.subList(fromIndex, toIndex);
+        Map<Long, AdminAccommodationMetrics> metricsMap = loadMetrics(pageItems);
+        List<AdminAccommodationSummary> items = pageItems.stream()
+                .map(item -> toSummary(item, metricsMap.get(item.getAccommodationsId())))
                 .toList();
 
         return AdminPageResponse.of(items, page, size, totalElements, totalPages);
@@ -55,7 +68,9 @@ public class AdminAccommodationService {
     public AdminAccommodationDetail getAccommodationDetail(Long accommodationId) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
-        return toDetail(accommodation);
+        AdminAccommodationMetrics metrics = loadMetrics(List.of(accommodation))
+                .get(accommodation.getAccommodationsId());
+        return toDetail(accommodation, metrics);
     }
 
     public AdminAccommodationDetail approveAccommodation(Long accommodationId) {
@@ -63,14 +78,22 @@ public class AdminAccommodationService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
         accommodation.updateApprovalStatus(ApprovalStatus.APPROVED, null);
         promoteUserToHost(accommodation.getUserId());
-        return toDetail(accommodationRepository.save(accommodation));
+        Accommodation saved = accommodationRepository.save(accommodation);
+        adminLogService.writeLog(AdminLogConstants.TARGET_ACCOMMODATION, accommodationId, AdminLogConstants.ACTION_APPROVE, null);
+        AdminAccommodationMetrics metrics = loadMetrics(List.of(saved))
+                .get(saved.getAccommodationsId());
+        return toDetail(saved, metrics);
     }
 
     public AdminAccommodationDetail rejectAccommodation(Long accommodationId, String reason) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
         accommodation.reject(reason);
-        return toDetail(accommodationRepository.save(accommodation));
+        Accommodation saved = accommodationRepository.save(accommodation);
+        adminLogService.writeLog(AdminLogConstants.TARGET_ACCOMMODATION, accommodationId, AdminLogConstants.ACTION_REJECT, reason);
+        AdminAccommodationMetrics metrics = loadMetrics(List.of(saved))
+                .get(saved.getAccommodationsId());
+        return toDetail(saved, metrics);
     }
 
     private ApprovalStatus parseStatus(String status) {
@@ -104,7 +127,8 @@ public class AdminAccommodationService {
         return name.contains(normalized) || city.contains(normalized) || district.contains(normalized);
     }
 
-    private AdminAccommodationSummary toSummary(Accommodation accommodation) {
+    private AdminAccommodationSummary toSummary(Accommodation accommodation, AdminAccommodationMetrics metrics) {
+        MetricsSnapshot snapshot = MetricsSnapshot.from(metrics);
         return new AdminAccommodationSummary(
                 accommodation.getAccommodationsId(),
                 accommodation.getUserId(),
@@ -114,22 +138,93 @@ public class AdminAccommodationService {
                 accommodation.getDistrict(),
                 accommodation.getApprovalStatus() != null ? accommodation.getApprovalStatus().name() : null,
                 accommodation.getRejectionReason(),
-                accommodation.getCreatedAt()
+                accommodation.getCreatedAt(),
+                accommodation.getRating(),
+                accommodation.getReviewCount(),
+                null,
+                null,
+                null,
+                snapshot.reservationCount(),
+                snapshot.occupancyRate(),
+                snapshot.cancellationRate(),
+                snapshot.totalRevenue()
         );
     }
 
-    private AdminAccommodationDetail toDetail(Accommodation accommodation) {
+    private AdminAccommodationDetail toDetail(Accommodation accommodation, AdminAccommodationMetrics metrics) {
+        MetricsSnapshot snapshot = MetricsSnapshot.from(metrics);
+        RoomStats roomStats = roomRepository.findRoomStats(accommodation.getAccommodationsId());
+        User host = accommodation.getUserId() != null
+                ? userRepository.findById(accommodation.getUserId()).orElse(null)
+                : null;
+
+        Integer minPrice = Optional.ofNullable(roomStats)
+                .map(RoomStats::getMinPrice)
+                .orElse(accommodation.getMinPrice());
+        Integer roomCount = Optional.ofNullable(roomStats)
+                .map(stats -> stats.getRoomCount() != null ? stats.getRoomCount().intValue() : null)
+                .orElse(null);
+        Integer maxGuests = Optional.ofNullable(roomStats)
+                .map(RoomStats::getMaxGuests)
+                .orElse(null);
+
         return new AdminAccommodationDetail(
                 accommodation.getAccommodationsId(),
                 accommodation.getUserId(),
+                host != null ? host.getName() : null,
+                host != null ? host.getPhone() : null,
                 accommodation.getAccommodationsName(),
                 accommodation.getAccommodationsCategory() != null ? accommodation.getAccommodationsCategory().name() : null,
                 accommodation.getCity(),
                 accommodation.getDistrict(),
+                accommodation.getTownship(),
+                accommodation.getAddressDetail(),
                 accommodation.getApprovalStatus() != null ? accommodation.getApprovalStatus().name() : null,
+                accommodation.getAccommodationStatus(),
                 accommodation.getRejectionReason(),
-                accommodation.getCreatedAt()
+                accommodation.getCreatedAt(),
+                minPrice,
+                roomCount,
+                maxGuests,
+                accommodation.getRating(),
+                accommodation.getReviewCount(),
+                snapshot.reservationCount(),
+                snapshot.occupancyRate(),
+                snapshot.cancellationRate(),
+                snapshot.totalRevenue()
         );
+    }
+
+    private Map<Long, AdminAccommodationMetrics> loadMetrics(List<Accommodation> accommodations) {
+        List<Long> ids = accommodations.stream()
+                .map(Accommodation::getAccommodationsId)
+                .filter(id -> id != null)
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return accommodationMapper.selectAccommodationMetrics(ids).stream()
+                .collect(Collectors.toMap(AdminAccommodationMetrics::accommodationsId, metric -> metric));
+    }
+
+    private record MetricsSnapshot(
+            int reservationCount,
+            Double occupancyRate,
+            Double cancellationRate,
+            long totalRevenue
+    ) {
+        static MetricsSnapshot from(AdminAccommodationMetrics metrics) {
+            if (metrics == null) {
+                return new MetricsSnapshot(0, 0.0, 0.0, 0L);
+            }
+            int reservationCount = Optional.ofNullable(metrics.reservationCount()).orElse(0);
+            int canceledCount = Optional.ofNullable(metrics.canceledCount()).orElse(0);
+            int totalCount = Optional.ofNullable(metrics.totalCount()).orElse(0);
+            long totalRevenue = Optional.ofNullable(metrics.totalRevenue()).orElse(0L);
+            Double occupancyRate = totalCount > 0 ? (reservationCount * 100.0) / totalCount : 0.0;
+            Double cancellationRate = totalCount > 0 ? (canceledCount * 100.0) / totalCount : 0.0;
+            return new MetricsSnapshot(reservationCount, occupancyRate, cancellationRate, totalRevenue);
+        }
     }
 
     private void promoteUserToHost(Long userId) {
