@@ -1,10 +1,12 @@
 package com.ssg9th2team.geharbang.domain.main.controller;
 
 import com.ssg9th2team.geharbang.domain.accommodation.service.AccommodationService;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.main.dto.AccommodationDetailDto;
-import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
+import com.ssg9th2team.geharbang.domain.main.dto.MainAccommodationListResponse;
 import com.ssg9th2team.geharbang.domain.main.service.MainService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,10 +22,21 @@ public class MainController {
 
     private final MainService mainService;
     private final AccommodationService accommodationService;
+    private final UserRepository userRepository; // Inject UserRepository
 
     @GetMapping("/list")
-    public List<ListDto> list(@RequestParam(name = "themeIds", required = false) List<Long> themeIds) {
-        return mainService.findByTheme(themeIds);
+    public MainAccommodationListResponse list(
+            Authentication authentication, // Inject Authentication object
+            @RequestParam(name = "themeIds", required = false) List<Long> themeIds) {
+
+        Long userId = null;
+        if (authentication != null && authentication.isAuthenticated()) {
+            String userEmail = authentication.getName();
+            userId = userRepository.findByEmail(userEmail)
+                    .map(com.ssg9th2team.geharbang.domain.auth.entity.User::getId)
+                    .orElse(null); // If user not found, userId remains null
+        }
+        return mainService.getMainAccommodationList(userId, themeIds);
     }
 
     @GetMapping("/detail/{accommodationsId}")

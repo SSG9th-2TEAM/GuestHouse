@@ -862,15 +862,29 @@ const showNewRoomForm = () => {
 }
 
 const deleteRoom = async (id) => {
-    // 해당 객실의 예약 정보 확인
-    const hasActiveReservations = await checkRoomHasReservations(id)
-    if (hasActiveReservations) {
-        alert('예약된 정보가 있어 삭제할 수 없습니다.')
+    if(!confirm('정말 삭제하시겠습니까?')) {
         return
     }
 
-    if(confirm('정말 삭제하시겠습니까?')) {
-        rooms.value = rooms.value.filter(r => r.id !== id)
+    try {
+        const token = localStorage.getItem('accessToken')
+        const response = await fetch(`${API_BASE_URL}/rooms/${accommodationId}/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        })
+
+        if (response.ok) {
+            rooms.value = rooms.value.filter(r => r.id !== id)
+            alert('객실이 삭제되었습니다.')
+        } else {
+            const errorData = await response.json().catch(() => ({}))
+            alert(errorData.message || '객실 삭제에 실패했습니다.')
+        }
+    } catch (error) {
+        console.error('객실 삭제 오류:', error)
+        alert('객실 삭제 중 오류가 발생했습니다.')
     }
 }
 
