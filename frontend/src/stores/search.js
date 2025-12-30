@@ -9,6 +9,9 @@ export const useSearchStore = defineStore('search', () => {
     // Guest state
     const guestCount = ref(0)
 
+    // Keyword state (location or guesthouse name)
+    const keyword = ref('')
+
     // Computed display texts
     const dateDisplayText = computed(() => {
         if (!startDate.value) return '날짜 선택'
@@ -67,10 +70,19 @@ export const useSearchStore = defineStore('search', () => {
         endDate.value = null
     }
 
+    const setKeyword = (value) => {
+        if (value === undefined || value === null) {
+            keyword.value = ''
+            return
+        }
+        keyword.value = String(value)
+    }
+
     return {
         startDate,
         endDate,
         guestCount,
+        keyword,
         dateDisplayText,
         guestDisplayText,
         checkInOutText,
@@ -79,6 +91,7 @@ export const useSearchStore = defineStore('search', () => {
         setGuestCount,
         increaseGuest,
         decreaseGuest,
-        resetDates
+        resetDates,
+        setKeyword
     }
 })

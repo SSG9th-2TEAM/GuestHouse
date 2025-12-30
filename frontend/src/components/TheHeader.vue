@@ -171,8 +171,29 @@ const selectDate = (dayObj) => {
   }
 }
 
+const buildSearchQuery = () => {
+  const query = {}
+  const keyword = (searchStore.keyword || '').trim()
+  if (keyword) {
+    searchStore.setKeyword(keyword)
+    query.keyword = keyword
+  }
+
+  if (route.path === '/list' || route.path === '/map') {
+    const keys = ['min', 'max', 'minPrice', 'maxPrice', 'themeIds']
+    keys.forEach((key) => {
+      const value = route.query[key]
+      if (value !== undefined) {
+        query[key] = value
+      }
+    })
+  }
+
+  return query
+}
+
 const handleSearch = () => {
-  router.push('/list')
+  router.push({ path: '/list', query: buildSearchQuery() })
   isSearchExpanded.value = false
 }
 
@@ -280,7 +301,7 @@ onUnmounted(() => {
             <span class="collapsed-text">{{ searchStore.dateDisplayText }}</span>
             <span class="collapsed-divider">|</span>
             <span class="collapsed-text">{{ searchStore.guestDisplayText }}</span>
-            <button class="search-btn-mini" aria-label="검색">
+            <button class="search-btn-mini" aria-label="검색" @click.stop="handleSearch">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
               </svg>
@@ -292,7 +313,7 @@ onUnmounted(() => {
             <div class="expanded-close" @click="isSearchExpanded = false">×</div>
             <div class="search-item-full">
               <label>여행지</label>
-              <input type="text" placeholder="어디로 갈까?">
+              <input v-model="searchStore.keyword" type="text" placeholder="어디로 갈까?" @keydown.enter.prevent="handleSearch">
             </div>
 
             <div class="search-item-full" @click="toggleCalendar">
@@ -379,7 +400,7 @@ onUnmounted(() => {
           <div class="search-bar-desktop">
             <div class="search-item">
               <label>여행지</label>
-              <input type="text" placeholder="어디로 갈까?">
+              <input v-model="searchStore.keyword" type="text" placeholder="어디로 갈까?" @keydown.enter.prevent="handleSearch">
             </div>
 
           <div class="search-divider"></div>
