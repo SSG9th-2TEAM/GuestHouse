@@ -18,7 +18,7 @@ public class HolidayController {
     @GetMapping("/holidays")
     public HolidayMonthResponse getHolidays(
             @RequestParam int year,
-            @RequestParam int month
+            @RequestParam(required = false) Integer month
     ) {
         return HolidayMonthResponse.builder()
                 .year(year)

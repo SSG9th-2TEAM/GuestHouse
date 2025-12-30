@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { useHolidayStore } from '@/stores/holiday'
+import { useCalendarStore } from '@/stores/calendar'
 import { fetchAccommodationDetail } from '@/api/accommodation'
 import ImageGallery from './room-detail/features/ImageGallery.vue'
 import ReviewSection from './room-detail/features/ReviewSection.vue'
@@ -12,6 +13,7 @@ const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
 const holidayStore = useHolidayStore()
+const calendarStore = useCalendarStore()
 
 const DEFAULT_IMAGE = 'https://via.placeholder.com/800x600'
 const DEFAULT_HOST_IMAGE = 'https://picsum.photos/seed/host/100/100'
@@ -199,7 +201,7 @@ const normalizeDetail = (data) => {
 
 const guesthouse = ref(createEmptyGuesthouse(getAccommodationId()))
 const selectedRoom = ref(null)
-const isCalendarOpen = ref(false)
+const isCalendarOpen = computed(() => calendarStore.activeCalendar === 'room-detail')
 const showFullDescription = ref(false)
 const showAllRooms = ref(false)
 const currentDate = ref(new Date())
@@ -258,6 +260,8 @@ const getCalendarDays = (year, month) => {
   const lastDay = new Date(year, month + 1, 0)
   const daysInMonth = lastDay.getDate()
   const startingDay = firstDay.getDay()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
   const days = []
   for (let i = 0; i < startingDay; i += 1) {
@@ -271,6 +275,7 @@ const getCalendarDays = (year, month) => {
     const isInRange = isDateInRange(date)
     const hasEndDate = searchStore.endDate !== null
     const holidayInfo = getHolidayInfo(date)
+    const isDisabled = date.getTime() < today.getTime()
 
     days.push({
       day,
@@ -281,6 +286,7 @@ const getCalendarDays = (year, month) => {
       isEndDate,
       isInRange,
       hasEndDate,
+      isDisabled,
       isSunday: dayOfWeek === 0,
       isSaturday: dayOfWeek === 6,
       isHoliday: Boolean(holidayInfo),
@@ -303,7 +309,7 @@ watch(
 )
 
 const toggleCalendar = () => {
-  isCalendarOpen.value = !isCalendarOpen.value
+  calendarStore.toggleCalendar('room-detail')
 }
 
 const prevMonth = () => {
@@ -315,7 +321,7 @@ const nextMonth = () => {
 }
 
 const selectDate = (dayObj) => {
-  if (dayObj.isEmpty) return
+  if (dayObj.isEmpty || dayObj.isDisabled) return
 
   const clickedDate = dayObj.date
   if (!searchStore.startDate || (searchStore.startDate && searchStore.endDate)) {
@@ -327,12 +333,12 @@ const selectDate = (dayObj) => {
   if (clickedDate.getTime() < searchStore.startDate.getTime()) {
     searchStore.setEndDate(searchStore.startDate)
     searchStore.setStartDate(clickedDate)
-    isCalendarOpen.value = false
+    calendarStore.closeCalendar('room-detail')
     return
   }
 
   searchStore.setEndDate(clickedDate)
-  isCalendarOpen.value = false
+  calendarStore.closeCalendar('room-detail')
 }
 
 const loadAccommodation = async () => {
@@ -476,13 +482,13 @@ const openCalendarFromHint = (event) => {
   if (datePickerRef.value?.scrollIntoView) {
     datePickerRef.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
-  isCalendarOpen.value = true
+  calendarStore.openCalendar('room-detail')
 }
 
 const handleClickOutside = (event) => {
   if (event.target.closest('.date-picker-wrapper')) return
   if (event.target.closest('.booking-hint')) return
-  isCalendarOpen.value = false
+  calendarStore.closeCalendar('room-detail')
 }
 
 onMounted(loadAccommodation)
@@ -679,6 +685,7 @@ watch(() => route.params.id, loadAccommodation)
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
                         'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                        disabled: dayObj.isDisabled,
                         sunday: dayObj.isSunday,
                         saturday: dayObj.isSaturday,
                         holiday: dayObj.isHoliday
@@ -713,6 +720,7 @@ watch(() => route.params.id, loadAccommodation)
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
                         'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                        disabled: dayObj.isDisabled,
                         sunday: dayObj.isSunday,
                         saturday: dayObj.isSaturday,
                         holiday: dayObj.isHoliday
@@ -1104,34 +1112,66 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 
 .calendar-popup {
   position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 50;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1001;
   background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
-  padding: 1rem;
-  width: 100%;
+  border: 1px solid #f0f0f0;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  padding: 24px;
+  width: min(680px, 100%);
+  max-width: 100%;
+  font-family: 'Noto Sans KR', sans-serif;
+  animation: calendarFadeIn 0.2s ease;
+  box-sizing: border-box;
+}
+
+@keyframes calendarFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 .calendar-container {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
 }
 .calendar-month {
-  width: 220px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
 }
 .calendar-month-title {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1f36;
+  text-align: center;
+  margin-bottom: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  font-size: 0.75rem;
-  color: var(--text-sub);
-  margin-bottom: 0.25rem;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  padding: 8px 0;
 }
 .weekday.sunday {
   color: #ef4444;
@@ -1145,48 +1185,96 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   gap: 4px;
 }
 .calendar-day {
-  width: 28px;
-  height: 28px;
-  line-height: 28px;
   text-align: center;
-  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  padding: 12px 0;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 0.8rem;
   position: relative;
+  transition: all 0.2s ease;
 }
-.calendar-day.sunday:not(.range-start):not(.range-end) {
+.calendar-day.disabled {
+  color: #b4b8bf;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.calendar-day.sunday:not(.range-start):not(.range-end):not(.disabled) {
   color: #ef4444;
 }
-.calendar-day.holiday:not(.range-start):not(.range-end) {
+.calendar-day.holiday:not(.range-start):not(.range-end):not(.disabled) {
   color: #ef4444;
   font-weight: 600;
 }
-.calendar-day.saturday:not(.range-start):not(.range-end) {
+.calendar-day.saturday:not(.range-start):not(.range-end):not(.disabled) {
   color: #2563eb;
 }
+.calendar-day:not(.empty):not(.disabled):hover {
+  background-color: #f0f7f6;
+  color: #6DC3BB;
+}
 .calendar-day.empty {
-  visibility: hidden;
   cursor: default;
 }
-.calendar-day.today {
-  border: 1px solid var(--primary);
+.calendar-day.today:not(.range-start):not(.range-end):not(.in-range):not(.disabled) {
+  color: #6DC3BB;
+  font-weight: 700;
 }
 .calendar-day.in-range {
-  background: #e6f4f1;
+  background-color: #BFE7DF;
+  color: #2d7a73;
+  border-radius: 0;
 }
 .calendar-day.range-start,
 .calendar-day.range-end {
-  background: var(--primary);
-  color: #000;
-  font-weight: 600;
+  background-color: #5CC5B3;
+  color: #fff;
+  font-weight: 700;
+  position: relative;
+}
+.calendar-day.range-start.has-end::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 100%;
+  background-color: #BFE7DF;
+  z-index: -1;
+}
+.calendar-day.range-end::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background-color: #BFE7DF;
+  z-index: -1;
+}
+.calendar-day.range-start:hover,
+.calendar-day.range-end:hover {
+  background-color: #49B5A3;
+  color: #fff;
 }
 .calendar-nav-btn {
-  background: none;
+  background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 1.4rem;
-  padding: 0.25rem 0.5rem;
-  color: var(--text-main);
+  padding: 8px;
+  border-radius: 8px;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.calendar-nav-btn:hover {
+  background-color: #f0f7f6;
+  color: #6DC3BB;
 }
 
 /* Room Card */
@@ -1379,6 +1467,17 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   .calendar-month {
     width: 100%;
   }
+  .calendar-popup {
+    width: 100%;
+    left: 0;
+    transform: none;
+    padding: 16px;
+    animation: calendarFadeInMobile 0.2s ease;
+  }
+  .calendar-day {
+    padding: 10px 0;
+    font-size: 13px;
+  }
   .room-card {
     flex-direction: column;
     padding: 1rem;
@@ -1425,6 +1524,17 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
     left: 16px;
     transform: none;
     justify-content: space-between;
+  }
+}
+
+@keyframes calendarFadeInMobile {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

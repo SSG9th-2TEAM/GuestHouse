@@ -1,5 +1,7 @@
 package com.ssg9th2team.geharbang.domain.holiday.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssg9th2team.geharbang.domain.holiday.dto.HolidayItemResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,11 +11,10 @@ import org.springframework.web.util.UriComponentsBuilder;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
-
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.StringReader;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ public class HolidayServiceImpl implements HolidayService {
     private static final int MAX_ROWS = 50;
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${holiday.api-base-url:https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService}")
     private String apiBaseUrl;
@@ -35,29 +37,30 @@ public class HolidayServiceImpl implements HolidayService {
     private String serviceKey;
 
     @Override
-    public List<HolidayItemResponse> getHolidays(int year, int month) {
+    public List<HolidayItemResponse> getHolidays(int year, Integer month) {
         validateRequest(year, month);
         if (serviceKey == null || serviceKey.isBlank()) {
             throw new IllegalStateException("Holiday service key is not configured.");
         }
 
-        String url = UriComponentsBuilder.fromHttpUrl(apiBaseUrl)
+        UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(apiBaseUrl)
                 .path("/getRestDeInfo")
                 .queryParam("ServiceKey", serviceKey)
                 .queryParam("solYear", String.format("%04d", year))
-                .queryParam("solMonth", String.format("%02d", month))
                 .queryParam("numOfRows", MAX_ROWS)
-                .queryParam("pageNo", 1)
-                .build()
-                .encode()
-                .toUriString();
+                .queryParam("pageNo", 1);
+        if (month != null) {
+            uriBuilder.queryParam("solMonth", String.format("%02d", month));
+        }
 
-        String xml = restTemplate.getForObject(url, String.class);
-        return parseHolidayXml(xml);
+        String url = buildHolidayUrl(uriBuilder);
+
+        byte[] responseBytes = restTemplate.getForObject(url, byte[].class);
+        return parseHolidayResponse(responseBytes);
     }
 
-    private void validateRequest(int year, int month) {
-        if (month < 1 || month > 12) {
+    private void validateRequest(int year, Integer month) {
+        if (month != null && (month < 1 || month > 12)) {
             throw new IllegalArgumentException("month must be between 1 and 12");
         }
         if (year < 1900 || year > 2100) {
@@ -65,11 +68,25 @@ public class HolidayServiceImpl implements HolidayService {
         }
     }
 
-    private List<HolidayItemResponse> parseHolidayXml(String xml) {
-        if (xml == null || xml.isBlank()) {
+    private List<HolidayItemResponse> parseHolidayResponse(byte[] responseBytes) {
+        if (responseBytes == null || responseBytes.length == 0) {
             return List.of();
         }
 
+        Character marker = findFirstNonWhitespace(responseBytes);
+        if (marker == null) {
+            return List.of();
+        }
+        if (marker == '<') {
+            return parseHolidayXml(responseBytes);
+        }
+        if (marker == '{' || marker == '[') {
+            return parseHolidayJson(responseBytes);
+        }
+        throw new IllegalStateException("Holiday API response format not recognized. snippet=" + buildSnippet(responseBytes));
+    }
+
+    private List<HolidayItemResponse> parseHolidayXml(byte[] xmlBytes) {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
@@ -78,37 +95,52 @@ public class HolidayServiceImpl implements HolidayService {
             factory.setExpandEntityReferences(false);
 
             DocumentBuilder builder = factory.newDocumentBuilder();
-            InputSource inputSource = new InputSource(new StringReader(xml));
-            NodeList items = builder.parse(inputSource).getElementsByTagName("item");
-
-            List<HolidayItemResponse> results = new ArrayList<>();
-            for (int i = 0; i < items.getLength(); i++) {
-                Node itemNode = items.item(i);
-                if (!(itemNode instanceof Element item)) {
-                    continue;
+            try (ByteArrayInputStream inputStream = new ByteArrayInputStream(xmlBytes)) {
+                var document = builder.parse(inputStream);
+                String resultCode = getDocumentTagText(document, "resultCode");
+                String resultMsg = getDocumentTagText(document, "resultMsg");
+                if (resultCode == null || resultCode.isBlank()) {
+                    throw new IllegalStateException("Holiday API response missing resultCode.");
+                }
+                if (!"00".equals(resultCode.trim())) {
+                    String message = resultMsg != null ? resultMsg.trim() : "Unknown error";
+                    throw new IllegalStateException("Holiday API error: " + resultCode + " " + message);
                 }
 
-                String locdate = getChildText(item, "locdate");
-                if (locdate == null || locdate.isBlank()) {
-                    continue;
+                NodeList items = document.getElementsByTagName("item");
+
+                List<HolidayItemResponse> results = new ArrayList<>();
+                for (int i = 0; i < items.getLength(); i++) {
+                    Node itemNode = items.item(i);
+                    if (!(itemNode instanceof Element item)) {
+                        continue;
+                    }
+
+                    String locdate = getChildText(item, "locdate");
+                    if (locdate == null || locdate.isBlank()) {
+                        continue;
+                    }
+
+                    LocalDate date = LocalDate.parse(locdate.trim(), DATE_FORMAT);
+                    String name = getChildText(item, "dateName");
+                    String holidayFlag = getChildText(item, "isHoliday");
+                    boolean isHoliday = "Y".equalsIgnoreCase(holidayFlag);
+
+                    results.add(HolidayItemResponse.builder()
+                            .date(date.toString())
+                            .name(name)
+                            .isHoliday(isHoliday)
+                            .build());
                 }
 
-                LocalDate date = LocalDate.parse(locdate.trim(), DATE_FORMAT);
-                String name = getChildText(item, "dateName");
-                String holidayFlag = getChildText(item, "isHoliday");
-                boolean isHoliday = "Y".equalsIgnoreCase(holidayFlag);
-
-                results.add(HolidayItemResponse.builder()
-                        .date(date.toString())
-                        .name(name)
-                        .isHoliday(isHoliday)
-                        .build());
+                return results;
             }
-
-            return results;
+        } catch (IllegalStateException ex) {
+            throw ex;
         } catch (Exception ex) {
+            String snippet = buildSnippet(xmlBytes);
             log.error("Failed to parse holiday response", ex);
-            return List.of();
+            throw new IllegalStateException("Holiday API response parsing failed. snippet=" + snippet, ex);
         }
     }
 
@@ -119,5 +151,115 @@ public class HolidayServiceImpl implements HolidayService {
         }
         Node node = nodes.item(0);
         return node != null ? node.getTextContent() : null;
+    }
+
+    private String getDocumentTagText(org.w3c.dom.Document document, String tagName) {
+        NodeList nodes = document.getElementsByTagName(tagName);
+        if (nodes == null || nodes.getLength() == 0) {
+            return null;
+        }
+        Node node = nodes.item(0);
+        return node != null ? node.getTextContent() : null;
+    }
+
+    private List<HolidayItemResponse> parseHolidayJson(byte[] jsonBytes) {
+        try {
+            JsonNode root = objectMapper.readTree(jsonBytes);
+            JsonNode response = root.path("response");
+            JsonNode header = response.path("header");
+            String resultCode = getJsonText(header, "resultCode");
+            String resultMsg = getJsonText(header, "resultMsg");
+            if (resultCode == null || resultCode.isBlank()) {
+                throw new IllegalStateException("Holiday API response missing resultCode.");
+            }
+            if (!"00".equals(resultCode.trim())) {
+                String message = resultMsg != null ? resultMsg.trim() : "Unknown error";
+                throw new IllegalStateException("Holiday API error: " + resultCode + " " + message);
+            }
+
+            JsonNode itemsNode = response.path("body").path("items").path("item");
+            List<HolidayItemResponse> results = new ArrayList<>();
+            if (itemsNode.isMissingNode() || itemsNode.isNull()) {
+                return results;
+            }
+
+            if (itemsNode.isArray()) {
+                for (JsonNode item : itemsNode) {
+                    appendHolidayFromJson(results, item);
+                }
+            } else if (itemsNode.isObject()) {
+                appendHolidayFromJson(results, itemsNode);
+            }
+
+            return results;
+        } catch (IllegalStateException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            String snippet = buildSnippet(jsonBytes);
+            log.error("Failed to parse holiday response", ex);
+            throw new IllegalStateException("Holiday API response parsing failed. snippet=" + snippet, ex);
+        }
+    }
+
+    private void appendHolidayFromJson(List<HolidayItemResponse> results, JsonNode item) {
+        String locdate = getJsonText(item, "locdate");
+        if (locdate == null || locdate.isBlank()) {
+            return;
+        }
+        String dateName = getJsonText(item, "dateName");
+        String holidayFlag = getJsonText(item, "isHoliday");
+        if (holidayFlag == null || holidayFlag.isBlank()) {
+            holidayFlag = getJsonText(item, "ishHoliday");
+        }
+
+        LocalDate date = LocalDate.parse(locdate.trim(), DATE_FORMAT);
+        boolean isHoliday = "Y".equalsIgnoreCase(holidayFlag);
+        results.add(HolidayItemResponse.builder()
+                .date(date.toString())
+                .name(dateName)
+                .isHoliday(isHoliday)
+                .build());
+    }
+
+    private String getJsonText(JsonNode node, String fieldName) {
+        if (node == null || node.isMissingNode()) {
+            return null;
+        }
+        JsonNode value = node.get(fieldName);
+        if (value == null || value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        return value.asText();
+    }
+
+    private String buildHolidayUrl(UriComponentsBuilder uriBuilder) {
+        if (isLikelyEncodedKey(serviceKey)) {
+            return uriBuilder.build(true).toUriString();
+        }
+        return uriBuilder.build().encode().toUriString();
+    }
+
+    private boolean isLikelyEncodedKey(String key) {
+        if (key == null) {
+            return false;
+        }
+        String upper = key.toUpperCase();
+        return upper.contains("%2B") || upper.contains("%2F") || upper.contains("%3D");
+    }
+
+    private String buildSnippet(byte[] bytes) {
+        int length = Math.min(bytes.length, 200);
+        String snippet = new String(bytes, 0, length, StandardCharsets.UTF_8);
+        return snippet.replaceAll("\\s+", " ").trim();
+    }
+
+    private Character findFirstNonWhitespace(byte[] bytes) {
+        for (byte value : bytes) {
+            char candidate = (char) value;
+            if (!Character.isWhitespace(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 }

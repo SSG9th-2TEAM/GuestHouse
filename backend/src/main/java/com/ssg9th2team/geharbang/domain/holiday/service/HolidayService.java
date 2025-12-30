@@ -5,5 +5,5 @@ import com.ssg9th2team.geharbang.domain.holiday.dto.HolidayItemResponse;
 import java.util.List;
 
 public interface HolidayService {
-    List<HolidayItemResponse> getHolidays(int year, int month);
+    List<HolidayItemResponse> getHolidays(int year, Integer month);
 }

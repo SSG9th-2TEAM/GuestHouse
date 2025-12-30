@@ -9,6 +9,6 @@ import java.util.List;
 @Builder
 public class HolidayMonthResponse {
     private int year;
-    private int month;
+    private Integer month;
     private List<HolidayItemResponse> holidays;
 }

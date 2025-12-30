@@ -3,22 +3,15 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { useHolidayStore } from '@/stores/holiday'
+import { useCalendarStore } from '@/stores/calendar'
 import { isAuthenticated, logout } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
 const holidayStore = useHolidayStore()
+const calendarStore = useCalendarStore()
 const searchKeyword = ref(searchStore.keyword || '')
-
-const isMenuOpen = ref(false)
-const isSearchExpanded = ref(false)
-const isHostMode = ref(localStorage.getItem('isHostMode') === 'true')
-const isCalendarOpen = ref(false)
-const isGuestOpen = ref(false)
-const isLoggedIn = ref(isAuthenticated())
-const isHostRoute = computed(() => route.path.startsWith('/host'))
-const isAdminRoute = computed(() => route.path.startsWith('/admin'))
 
 watch(
   () => searchStore.keyword,
@@ -29,6 +22,16 @@ watch(
     }
   }
 )
+
+const isMenuOpen = ref(false)
+const isSearchExpanded = ref(false)
+const isHostMode = ref(localStorage.getItem('isHostMode') === 'true')
+const isCalendarOpen = computed(() => calendarStore.activeCalendar === 'header')
+const isGuestOpen = ref(false)
+const isLoggedIn = ref(isAuthenticated())
+const isHostRoute = computed(() => route.path.startsWith('/host'))
+const isAdminRoute = computed(() => route.path.startsWith('/admin'))
+
 
 // Toggle host mode and persist to localStorage
 const toggleHostMode = () => {
@@ -71,7 +74,7 @@ const isMobile = () => window.innerWidth <= 768
 const toggleGuestPicker = (e) => {
   e.stopPropagation()
   isGuestOpen.value = !isGuestOpen.value
-  isCalendarOpen.value = false
+  calendarStore.closeCalendar('header')
 }
 
 const increaseGuest = () => {
@@ -109,6 +112,8 @@ const getCalendarDays = (year, month) => {
   const lastDay = new Date(year, month + 1, 0)
   const daysInMonth = lastDay.getDate()
   const startingDay = firstDay.getDay()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
   
   const days = []
   
@@ -126,6 +131,7 @@ const getCalendarDays = (year, month) => {
     const isInRange = isDateInRange(date)
     const hasEndDate = searchStore.endDate !== null
     const holidayInfo = getHolidayInfo(date)
+    const isDisabled = date.getTime() < today.getTime()
     
     days.push({
       day,
@@ -136,6 +142,7 @@ const getCalendarDays = (year, month) => {
       isEndDate,
       isInRange,
       hasEndDate,
+      isDisabled,
       isSunday: dayOfWeek === 0,
       isSaturday: dayOfWeek === 6,
       isHoliday: Boolean(holidayInfo),
@@ -175,7 +182,7 @@ const isDateInRange = (date) => {
 
 const toggleCalendar = (e) => {
   e.stopPropagation()
-  isCalendarOpen.value = !isCalendarOpen.value
+  calendarStore.toggleCalendar('header')
   isGuestOpen.value = false
 }
 
@@ -188,7 +195,7 @@ const nextMonth = () => {
 }
 
 const selectDate = (dayObj) => {
-  if (dayObj.isEmpty) return
+  if (dayObj.isEmpty || dayObj.isDisabled) return
   
   const clickedDate = dayObj.date
   
@@ -248,7 +255,7 @@ const handleClickOutside = (e) => {
     isMenuOpen.value = false
   }
   if (!e.target.closest('.date-picker-wrapper')) {
-    isCalendarOpen.value = false
+    calendarStore.closeCalendar('header')
   }
   if (!e.target.closest('.guest-picker-wrapper')) {
     isGuestOpen.value = false
@@ -393,6 +400,7 @@ onUnmounted(() => {
                     'range-end': dayObj.isEndDate,
                     'in-range': dayObj.isInRange,
                     'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                    'disabled': dayObj.isDisabled,
                     'sunday': dayObj.isSunday,
                     'saturday': dayObj.isSaturday,
                     'holiday': dayObj.isHoliday
@@ -489,6 +497,7 @@ onUnmounted(() => {
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
                         'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                        'disabled': dayObj.isDisabled,
                         'sunday': dayObj.isSunday,
                         'saturday': dayObj.isSaturday,
                         'holiday': dayObj.isHoliday
@@ -524,6 +533,7 @@ onUnmounted(() => {
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
                         'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                        'disabled': dayObj.isDisabled,
                         'sunday': dayObj.isSunday,
                         'saturday': dayObj.isSaturday,
                         'holiday': dayObj.isHoliday
@@ -1404,20 +1414,26 @@ onUnmounted(() => {
   position: relative;
 }
 
-.calendar-day.sunday:not(.range-start):not(.range-end) {
+.calendar-day.disabled {
+  color: #b4b8bf;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.calendar-day.sunday:not(.range-start):not(.range-end):not(.disabled) {
   color: #ef4444;
 }
 
-.calendar-day.holiday:not(.range-start):not(.range-end) {
+.calendar-day.holiday:not(.range-start):not(.range-end):not(.disabled) {
   color: #ef4444;
   font-weight: 600;
 }
 
-.calendar-day.saturday:not(.range-start):not(.range-end) {
+.calendar-day.saturday:not(.range-start):not(.range-end):not(.disabled) {
   color: #2563eb;
 }
 
-.calendar-day:not(.empty):hover {
+.calendar-day:not(.empty):not(.disabled):hover {
   background-color: #f0f7f6;
   color: #6DC3BB;
 }
@@ -1426,7 +1442,7 @@ onUnmounted(() => {
   cursor: default;
 }
 
-.calendar-day.today:not(.range-start):not(.range-end):not(.in-range) {
+.calendar-day.today:not(.range-start):not(.range-end):not(.in-range):not(.disabled) {
   color: #6DC3BB;
   font-weight: 700;
 }
@@ -1434,7 +1450,7 @@ onUnmounted(() => {
 /* Range selection styles - using theme color #6DC3BB */
 .calendar-day.range-start,
 .calendar-day.range-end {
-  background-color: #4a9e96;
+  background-color: #5CC5B3;
   color: white;
   font-weight: 700;
   position: relative;
@@ -1448,7 +1464,7 @@ onUnmounted(() => {
   right: 0;
   width: 50%;
   height: 100%;
-  background-color: #d4f0ed;
+  background-color: #BFE7DF;
   z-index: -1;
 }
 
@@ -1460,18 +1476,18 @@ onUnmounted(() => {
   left: 0;
   width: 50%;
   height: 100%;
-  background-color: #d4f0ed;
+  background-color: #BFE7DF;
   z-index: -1;
 }
 
 .calendar-day.range-start:hover,
 .calendar-day.range-end:hover {
-  background-color: #3d8a82;
+  background-color: #49B5A3;
   color: white;
 }
 
 .calendar-day.in-range {
-  background-color: #d4f0ed;
+  background-color: #BFE7DF;
   color: #2d7a73;
   border-radius: 0;
 }
