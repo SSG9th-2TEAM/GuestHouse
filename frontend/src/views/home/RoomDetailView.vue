@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
+import { useHolidayStore } from '@/stores/holiday'
 import { fetchAccommodationDetail } from '@/api/accommodation'
 import ImageGallery from './room-detail/features/ImageGallery.vue'
 import ReviewSection from './room-detail/features/ReviewSection.vue'
@@ -10,6 +11,7 @@ import MapSection from './room-detail/features/MapSection.vue'
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
+const holidayStore = useHolidayStore()
 
 const DEFAULT_IMAGE = 'https://via.placeholder.com/800x600'
 const DEFAULT_HOST_IMAGE = 'https://picsum.photos/seed/host/100/100'
@@ -209,6 +211,15 @@ const hasMoreRooms = computed(() => {
 const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
 const weekDays = ['일', '월', '화', '수', '목', '금', '토']
 
+const toDateKey = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getHolidayInfo = (date) => holidayStore.getHolidayInfo(toDateKey(date))
+
 const currentYear = computed(() => currentDate.value.getFullYear())
 const currentMonth = computed(() => currentDate.value.getMonth())
 const nextMonthDate = computed(() => new Date(currentYear.value, currentMonth.value + 1, 1))
@@ -243,10 +254,12 @@ const getCalendarDays = (year, month) => {
   }
   for (let day = 1; day <= daysInMonth; day += 1) {
     const date = new Date(year, month, day)
+    const dayOfWeek = date.getDay()
     const isStartDate = searchStore.startDate && isSameDay(date, searchStore.startDate)
     const isEndDate = searchStore.endDate && isSameDay(date, searchStore.endDate)
     const isInRange = isDateInRange(date)
     const hasEndDate = searchStore.endDate !== null
+    const holidayInfo = getHolidayInfo(date)
 
     days.push({
       day,
@@ -256,7 +269,11 @@ const getCalendarDays = (year, month) => {
       isStartDate,
       isEndDate,
       isInRange,
-      hasEndDate
+      hasEndDate,
+      isSunday: dayOfWeek === 0,
+      isSaturday: dayOfWeek === 6,
+      isHoliday: Boolean(holidayInfo),
+      holidayName: holidayInfo?.name || ''
     })
   }
   return days
@@ -264,6 +281,15 @@ const getCalendarDays = (year, month) => {
 
 const calendarDays = computed(() => getCalendarDays(currentYear.value, currentMonth.value))
 const nextMonthDays = computed(() => getCalendarDays(nextMonthYear.value, nextMonthMonth.value))
+
+watch(
+  [currentYear, currentMonth],
+  () => {
+    holidayStore.loadMonth(currentYear.value, currentMonth.value + 1)
+    holidayStore.loadMonth(nextMonthYear.value, nextMonthMonth.value + 1)
+  },
+  { immediate: true }
+)
 
 const toggleCalendar = () => {
   isCalendarOpen.value = !isCalendarOpen.value
@@ -623,7 +649,12 @@ watch(() => route.params.id, loadAccommodation)
                 <div class="calendar-month">
                   <div class="calendar-month-title">{{ currentYear }}년 {{ monthNames[currentMonth] }}</div>
                   <div class="calendar-weekdays">
-                    <span v-for="day in weekDays" :key="'current-' + day" class="weekday">{{ day }}</span>
+                    <span
+                      v-for="(day, index) in weekDays"
+                      :key="'current-' + day"
+                      class="weekday"
+                      :class="{ sunday: index === 0, saturday: index === 6 }"
+                    >{{ day }}</span>
                   </div>
                   <div class="calendar-days">
                     <span
@@ -636,8 +667,12 @@ watch(() => route.params.id, loadAccommodation)
                         'range-start': dayObj.isStartDate,
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
-                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                        sunday: dayObj.isSunday,
+                        saturday: dayObj.isSaturday,
+                        holiday: dayObj.isHoliday
                       }"
+                      :title="dayObj.holidayName || null"
                       @click="selectDate(dayObj)"
                     >
                       {{ dayObj.day }}
@@ -648,7 +683,12 @@ watch(() => route.params.id, loadAccommodation)
                 <div class="calendar-month">
                   <div class="calendar-month-title">{{ nextMonthYear }}년 {{ monthNames[nextMonthMonth] }}</div>
                   <div class="calendar-weekdays">
-                    <span v-for="day in weekDays" :key="'next-' + day" class="weekday">{{ day }}</span>
+                    <span
+                      v-for="(day, index) in weekDays"
+                      :key="'next-' + day"
+                      class="weekday"
+                      :class="{ sunday: index === 0, saturday: index === 6 }"
+                    >{{ day }}</span>
                   </div>
                   <div class="calendar-days">
                     <span
@@ -661,8 +701,12 @@ watch(() => route.params.id, loadAccommodation)
                         'range-start': dayObj.isStartDate,
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
-                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                        sunday: dayObj.isSunday,
+                        saturday: dayObj.isSaturday,
+                        holiday: dayObj.isHoliday
                       }"
+                      :title="dayObj.holidayName || null"
                       @click="selectDate(dayObj)"
                     >
                       {{ dayObj.day }}
@@ -1077,6 +1121,12 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   color: var(--text-sub);
   margin-bottom: 0.25rem;
 }
+.weekday.sunday {
+  color: #ef4444;
+}
+.weekday.saturday {
+  color: #2563eb;
+}
 .calendar-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1090,6 +1140,17 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   border-radius: 50%;
   cursor: pointer;
   font-size: 0.8rem;
+  position: relative;
+}
+.calendar-day.sunday:not(.range-start):not(.range-end) {
+  color: #ef4444;
+}
+.calendar-day.holiday:not(.range-start):not(.range-end) {
+  color: #ef4444;
+  font-weight: 600;
+}
+.calendar-day.saturday:not(.range-start):not(.range-end) {
+  color: #2563eb;
 }
 .calendar-day.empty {
   visibility: hidden;

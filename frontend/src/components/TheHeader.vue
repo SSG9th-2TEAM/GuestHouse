@@ -1,12 +1,15 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
+import { useHolidayStore } from '@/stores/holiday'
 import { isAuthenticated, logout } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
+const holidayStore = useHolidayStore()
+const searchKeyword = ref(searchStore.keyword || '')
 
 const isMenuOpen = ref(false)
 const isSearchExpanded = ref(false)
@@ -16,6 +19,16 @@ const isGuestOpen = ref(false)
 const isLoggedIn = ref(isAuthenticated())
 const isHostRoute = computed(() => route.path.startsWith('/host'))
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
+
+watch(
+  () => searchStore.keyword,
+  (value) => {
+    const next = value || ''
+    if (next !== searchKeyword.value) {
+      searchKeyword.value = next
+    }
+  }
+)
 
 // Toggle host mode and persist to localStorage
 const toggleHostMode = () => {
@@ -81,6 +94,15 @@ const nextMonthMonth = computed(() => nextMonthDate.value.getMonth())
 const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
 const weekDays = ['일', '월', '화', '수', '목', '금', '토']
 
+const toDateKey = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getHolidayInfo = (date) => holidayStore.getHolidayInfo(toDateKey(date))
+
 // Function to generate calendar days for any month
 const getCalendarDays = (year, month) => {
   const firstDay = new Date(year, month, 1)
@@ -98,10 +120,12 @@ const getCalendarDays = (year, month) => {
   // Days of the month
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, month, day)
+    const dayOfWeek = date.getDay()
     const isStartDate = searchStore.startDate && isSameDay(date, searchStore.startDate)
     const isEndDate = searchStore.endDate && isSameDay(date, searchStore.endDate)
     const isInRange = isDateInRange(date)
     const hasEndDate = searchStore.endDate !== null
+    const holidayInfo = getHolidayInfo(date)
     
     days.push({
       day,
@@ -111,7 +135,11 @@ const getCalendarDays = (year, month) => {
       isStartDate,
       isEndDate,
       isInRange,
-      hasEndDate
+      hasEndDate,
+      isSunday: dayOfWeek === 0,
+      isSaturday: dayOfWeek === 6,
+      isHoliday: Boolean(holidayInfo),
+      holidayName: holidayInfo?.name || ''
     })
   }
   
@@ -123,6 +151,15 @@ const calendarDays = computed(() => getCalendarDays(currentYear.value, currentMo
 
 // Next month calendar days
 const nextMonthDays = computed(() => getCalendarDays(nextMonthYear.value, nextMonthMonth.value))
+
+watch(
+  [currentYear, currentMonth],
+  () => {
+    holidayStore.loadMonth(currentYear.value, currentMonth.value + 1)
+    holidayStore.loadMonth(nextMonthYear.value, nextMonthMonth.value + 1)
+  },
+  { immediate: true }
+)
 
 const isSameDay = (date1, date2) => {
   return date1.getFullYear() === date2.getFullYear() &&
@@ -173,11 +210,10 @@ const selectDate = (dayObj) => {
 
 const buildSearchQuery = () => {
   const query = {}
-  const keyword = (searchStore.keyword || '').trim()
-  if (keyword) {
-    searchStore.setKeyword(keyword)
-    query.keyword = keyword
-  }
+  const keyword = String(searchKeyword.value ?? '').trim()
+  searchStore.setKeyword(keyword)
+  searchKeyword.value = keyword
+  if (keyword) query.keyword = keyword
 
   if (route.path === '/list' || route.path === '/map') {
     const keys = ['min', 'max', 'minPrice', 'maxPrice', 'themeIds']
@@ -313,7 +349,7 @@ onUnmounted(() => {
             <div class="expanded-close" @click="isSearchExpanded = false">×</div>
             <div class="search-item-full">
               <label>여행지</label>
-              <input v-model="searchStore.keyword" type="text" placeholder="어디로 갈까?" @keydown.enter.prevent="handleSearch">
+              <input v-model="searchKeyword" type="text" placeholder="어디로 갈까?" @keydown.enter.prevent="handleSearch">
             </div>
 
             <div class="search-item-full" @click="toggleCalendar">
@@ -338,7 +374,12 @@ onUnmounted(() => {
               </div>
               
               <div class="calendar-weekdays">
-                <span v-for="day in weekDays" :key="'mobile-current-' + day" class="weekday">{{ day }}</span>
+                <span
+                  v-for="(day, index) in weekDays"
+                  :key="'mobile-current-' + day"
+                  class="weekday"
+                  :class="{ sunday: index === 0, saturday: index === 6 }"
+                >{{ day }}</span>
               </div>
               <div class="calendar-days">
                 <span
@@ -351,8 +392,12 @@ onUnmounted(() => {
                     'range-start': dayObj.isStartDate,
                     'range-end': dayObj.isEndDate,
                     'in-range': dayObj.isInRange,
-                    'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                    'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                    'sunday': dayObj.isSunday,
+                    'saturday': dayObj.isSaturday,
+                    'holiday': dayObj.isHoliday
                   }"
+                  :title="dayObj.holidayName || null"
                   @click.stop="selectDate(dayObj)"
                 >
                   {{ dayObj.day }}
@@ -400,7 +445,7 @@ onUnmounted(() => {
           <div class="search-bar-desktop">
             <div class="search-item">
               <label>여행지</label>
-              <input v-model="searchStore.keyword" type="text" placeholder="어디로 갈까?" @keydown.enter.prevent="handleSearch">
+              <input v-model="searchKeyword" type="text" placeholder="어디로 갈까?" @keydown.enter.prevent="handleSearch">
             </div>
 
           <div class="search-divider"></div>
@@ -425,7 +470,12 @@ onUnmounted(() => {
                 <div class="calendar-month">
                   <div class="calendar-month-title">{{ currentYear }}년 {{ monthNames[currentMonth] }}</div>
                   <div class="calendar-weekdays">
-                    <span v-for="day in weekDays" :key="'current-' + day" class="weekday">{{ day }}</span>
+                    <span
+                      v-for="(day, index) in weekDays"
+                      :key="'current-' + day"
+                      class="weekday"
+                      :class="{ sunday: index === 0, saturday: index === 6 }"
+                    >{{ day }}</span>
                   </div>
                   <div class="calendar-days">
                     <span
@@ -438,8 +488,12 @@ onUnmounted(() => {
                         'range-start': dayObj.isStartDate,
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
-                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                        'sunday': dayObj.isSunday,
+                        'saturday': dayObj.isSaturday,
+                        'holiday': dayObj.isHoliday
                       }"
+                      :title="dayObj.holidayName || null"
                       @click="selectDate(dayObj)"
                     >
                       {{ dayObj.day }}
@@ -451,7 +505,12 @@ onUnmounted(() => {
                 <div class="calendar-month">
                   <div class="calendar-month-title">{{ nextMonthYear }}년 {{ monthNames[nextMonthMonth] }}</div>
                   <div class="calendar-weekdays">
-                    <span v-for="day in weekDays" :key="'next-' + day" class="weekday">{{ day }}</span>
+                    <span
+                      v-for="(day, index) in weekDays"
+                      :key="'next-' + day"
+                      class="weekday"
+                      :class="{ sunday: index === 0, saturday: index === 6 }"
+                    >{{ day }}</span>
                   </div>
                   <div class="calendar-days">
                     <span
@@ -464,8 +523,12 @@ onUnmounted(() => {
                         'range-start': dayObj.isStartDate,
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
-                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                        'sunday': dayObj.isSunday,
+                        'saturday': dayObj.isSaturday,
+                        'holiday': dayObj.isHoliday
                       }"
+                      :title="dayObj.holidayName || null"
                       @click="selectDate(dayObj)"
                     >
                       {{ dayObj.day }}
@@ -1315,6 +1378,14 @@ onUnmounted(() => {
   padding: 8px 0;
 }
 
+.weekday.sunday {
+  color: #ef4444;
+}
+
+.weekday.saturday {
+  color: #2563eb;
+}
+
 .calendar-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1330,6 +1401,20 @@ onUnmounted(() => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
+}
+
+.calendar-day.sunday:not(.range-start):not(.range-end) {
+  color: #ef4444;
+}
+
+.calendar-day.holiday:not(.range-start):not(.range-end) {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.calendar-day.saturday:not(.range-start):not(.range-end) {
+  color: #2563eb;
 }
 
 .calendar-day:not(.empty):hover {
