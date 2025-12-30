@@ -17,6 +17,8 @@ const isLoading = ref(true)
 const isEditMode = ref(false)
 const error = ref('')
 const validationErrors = ref({ nickname: '', phone: '' })
+const updateMessage = ref('')
+const updateMessageType = ref('') // 'success' or 'error'
 
 watch(() => editableUser.value.phone, (newVal, oldVal) => {
   if (typeof newVal !== 'string') return;
@@ -63,10 +65,14 @@ const loadUserData = async () => {
 const startEdit = () => {
   editableUser.value = { ...user.value }
   validationErrors.value = { nickname: '', phone: '' } // Clear previous errors
+  updateMessage.value = '' // Clear update message
+  updateMessageType.value = ''
   isEditMode.value = true
 }
 
 const cancelEdit = () => {
+  updateMessage.value = '' // Clear update message
+  updateMessageType.value = ''
   isEditMode.value = false
 }
 
@@ -92,6 +98,9 @@ const validateProfile = () => {
 }
 
 const handleProfileUpdate = async () => {
+  updateMessage.value = '' // Clear previous message
+  updateMessageType.value = ''
+
   if (!validateProfile()) {
     // If validation fails, do not proceed
     return;
@@ -106,16 +115,24 @@ const handleProfileUpdate = async () => {
     if (response.ok) {
       user.value.nickname = editableUser.value.nickname
       user.value.phone = editableUser.value.phone
-      isEditMode.value = false
-      alert('프로필이 성공적으로 업데이트되었습니다.')
+      updateMessage.value = '변경에 성공했습니다.'
+      updateMessageType.value = 'success'
+      // 2초 후 편집 모드 종료
+      setTimeout(() => {
+        isEditMode.value = false
+        updateMessage.value = ''
+        updateMessageType.value = ''
+      }, 2000)
     } else {
       // 백엔드에서 보낸 에러 메시지 표시
       const errorMessage = response.data?.message || '프로필 업데이트에 실패했습니다.'
-      alert(`오류: ${errorMessage}`)
+      updateMessage.value = errorMessage
+      updateMessageType.value = 'error'
     }
   } catch (err) {
     console.error('Failed to update profile:', err)
-    alert('프로필 업데이트 중 오류가 발생했습니다.')
+    updateMessage.value = '프로필 업데이트 중 오류가 발생했습니다.'
+    updateMessageType.value = 'error'
   }
 }
 
@@ -190,6 +207,10 @@ onMounted(() => {
         <template v-else>
           <input id="nickname-input" v-model="editableUser.nickname" type="text" class="info-input" />
           <p v-if="validationErrors.nickname" class="error-text">{{ validationErrors.nickname }}</p>
+          <!-- Update Message -->
+          <div v-if="updateMessage && isEditMode" class="update-message" :class="updateMessageType">
+            {{ updateMessage }}
+          </div>
         </template>
       </div>
 
@@ -377,5 +398,25 @@ onMounted(() => {
   font-size: 0.95rem;
   cursor: pointer;
   font-weight: 600;
+}
+
+.update-message {
+  padding: 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.update-message.success {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.update-message.error {
+  background-color: #fee2e2;
+  color: #dc2626;
 }
 </style>

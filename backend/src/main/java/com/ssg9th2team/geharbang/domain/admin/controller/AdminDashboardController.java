@@ -1,7 +1,9 @@
 package com.ssg9th2team.geharbang.domain.admin.controller;
 
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminDashboardSummaryResponse;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminIssueCenterResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminTimeseriesResponse;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminWeeklyReportResponse;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminDashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -34,5 +36,22 @@ public class AdminDashboardController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
         return dashboardService.getTimeseries(metric, from, to);
+    }
+
+    @GetMapping("/issues")
+    public AdminIssueCenterResponse getIssueCenter(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        return dashboardService.getIssueCenter(from, to);
+    }
+
+    @GetMapping("/weekly")
+    public AdminWeeklyReportResponse getWeeklyReport(
+            @RequestParam(defaultValue = "7") int days,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        return dashboardService.getWeeklyReport(days, from, to);
     }
 }

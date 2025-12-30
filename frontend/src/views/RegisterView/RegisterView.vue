@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { signup, checkEmailDuplicate, checkNicknameDuplicate, sendVerificationEmail, verifyEmailCode } from '@/api/authClient'
+import { fetchThemes } from '@/api/theme'
 
 const router = useRouter()
 const currentStep = ref(1)
@@ -219,24 +220,42 @@ const isStep2Valid = computed(() => {
          isPhoneValid.value
 })
 // 테마 세션
-const themes = ref([
-  { id: 1, label: '액티비티', selected: false },
-  { id: 2, label: '맛집', selected: false },
-  { id: 3, label: '카페', selected: false },
-  { id: 4, label: '문화/예술', selected: false },
-  { id: 5, label: '자연/힐링', selected: false },
-  { id: 6, label: '쇼핑', selected: false },
-  { id: 7, label: '역사/관광', selected: false },
-  { id: 8, label: '엔터테인먼트', selected: false },
-  { id: 9, label: '스포츠', selected: false },
-  { id: 10, label: '음악', selected: false },
-  { id: 11, label: '반려동물', selected: false },
-  { id: 12, label: '기타', selected: false }
-])
+const themes = ref([])
+const themesLoading = ref(false)
+const themesError = ref('')
+
+const loadThemes = async () => {
+  themesLoading.value = true
+  themesError.value = ''
+  try {
+    const response = await fetchThemes()
+    if (response.ok && Array.isArray(response.data)) {
+      // 백엔드에서 받은 테마를 프론트엔드 형식으로 변환
+      themes.value = response.data.map(theme => ({
+        id: theme.id,
+        label: theme.themeName,
+        selected: false
+      }))
+    } else {
+      themesError.value = '테마 목록을 불러오지 못했습니다.'
+      console.error('테마 목록 로드 실패:', response)
+    }
+  } catch (error) {
+    themesError.value = '테마 목록을 불러오는 중 오류가 발생했습니다.'
+    console.error('테마 목록 로드 에러:', error)
+  } finally {
+    themesLoading.value = false
+  }
+}
 
 const toggleTheme = (theme) => {
   theme.selected = !theme.selected
 }
+
+// 페이지 로드 시 테마 목록 불러오기
+onMounted(() => {
+  loadThemes()
+})
 
 // 모달
 const showModal = ref(false)
@@ -678,10 +697,12 @@ const handleSkip = async () => {
         <div class="theme-section">
           <p class="theme-desc">관심있는 테마를 선택하시면 맞춤형 추천을 받으실 수 있습니다.<br/>(복수 선택 가능)</p>
           
-          <div class="theme-grid">
-            <button 
-              v-for="theme in themes" 
-              :key="theme.id" 
+          <div v-if="themesLoading" class="theme-loading">테마 목록을 불러오는 중...</div>
+          <div v-else-if="themesError" class="theme-error">{{ themesError }}</div>
+          <div v-else class="theme-grid">
+            <button
+              v-for="theme in themes"
+              :key="theme.id"
               class="theme-btn"
               :class="{ selected: theme.selected }"
               @click="toggleTheme(theme)"
@@ -693,10 +714,10 @@ const handleSkip = async () => {
         </div>
 
         <div class="final-actions">
-          <button class="complete-btn" @click="handleComplete" :disabled="isLoading">
+          <button class="complete-btn" @click="handleComplete" :disabled="isLoading || themesLoading">
             {{ isLoading ? '처리 중...' : '완료' }}
           </button>
-          <button class="skip-btn" @click="handleSkip" :disabled="isLoading">
+          <button class="skip-btn" @click="handleSkip" :disabled="isLoading || themesLoading">
             {{ isLoading ? '처리 중...' : '건너뛰기' }}
           </button>
         </div>
@@ -1079,6 +1100,21 @@ const handleSkip = async () => {
   color: #2563eb;
   margin-bottom: 1.5rem;
   line-height: 1.5;
+}
+
+.theme-loading,
+.theme-error {
+  text-align: center;
+  padding: 2rem;
+  font-size: 0.95rem;
+}
+
+.theme-loading {
+  color: #6b7280;
+}
+
+.theme-error {
+  color: #dc2626;
 }
 
 .theme-grid {

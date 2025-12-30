@@ -11,4 +11,13 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
     @Modifying
     @Query("UPDATE Room r SET r.maxGuests = r.maxGuests - :guestCount WHERE r.roomId = :roomId AND r.maxGuests >= :guestCount")
     int decreaseMaxGuests(@Param("roomId") Long roomId, @Param("guestCount") Integer guestCount);
+
+    @Query("""
+            SELECT COUNT(r) AS roomCount,
+                   MAX(r.maxGuests) AS maxGuests,
+                   MIN(r.price) AS minPrice
+            FROM Room r
+            WHERE r.accommodationsId = :accommodationId
+            """)
+    RoomStats findRoomStats(@Param("accommodationId") Long accommodationId);
 }

@@ -5,7 +5,7 @@ import { ref } from 'vue'
 const route = useRoute()
 
 const navItems = [
-  { to: '/admin', label: '대시보드', exact: true },
+  { to: '/admin/dashboard', label: '대시보드' },
   { to: '/admin/users', label: '회원 관리' },
   { to: '/admin/accommodations', label: '숙소 관리' },
   { to: '/admin/bookings', label: '예약 관리' },

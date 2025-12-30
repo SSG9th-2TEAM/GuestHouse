@@ -45,10 +45,7 @@ public class HostDashboardServiceImpl implements HostDashboardService {
                     hostDashboardMapper.selectHostSummaryFallback(hostId, start, end)
             );
         }
-        boolean hasMetrics = statsRow.getConfirmedRevenue() > 0
-                || statsRow.getConfirmedReservations() > 0
-                || statsRow.getAvgRating() > 0.0;
-        if (!hasMetrics) {
+        if (statsRow.getStatsCount() == 0) {
             return HostDashboardSummaryResponse.from(
                     hostDashboardMapper.selectHostSummaryFallback(hostId, start, end)
             );

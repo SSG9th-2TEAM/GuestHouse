@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { fetchHostReviews, createHostReviewReply, reportHostReview } from '@/api/hostReview'
+import { fetchHostReviews, fetchHostReviewSummary, upsertHostReviewReply, reportHostReview } from '@/api/hostReview'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
 import { deriveHostState } from '@/composables/useHostState'
 import { formatDate } from '@/utils/formatters'
@@ -15,49 +15,35 @@ const hostState = ref('loading')
 const hostCounts = ref({ total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 })
 const pendingOnly = computed(() => hostState.value === 'pending-only')
 
-const averageRating = computed(() => {
-  if (!reviews.value.length) return '0.0'
-  const sum = reviews.value.reduce((acc, curr) => acc + curr.rating, 0)
-  return (sum / reviews.value.length).toFixed(1)
-})
+const summary = ref({ avgRating: 0, reviewCount: 0 })
+const summaryError = ref('')
+const summaryLoading = ref(false)
+const accommodations = ref([])
+const accommodationLoading = ref(false)
+const accommodationError = ref('')
+const selectedAccommodationId = ref('all')
+const selectedSort = ref('latest')
 
-const replyText = ref({})
+const sortOptions = [
+  { value: 'latest', label: '최신순' },
+  { value: 'oldest', label: '오래된순' }
+]
 
-const toggleReplyForm = (reviewId) => {
-  const review = reviews.value.find(r => r.id === reviewId)
-  if (review) {
-    review.showReplyForm = !review.showReplyForm
-    if (review.showReplyForm && !replyText.value[reviewId]) {
-      replyText.value[reviewId] = review.reply || ''
-    }
-  }
-}
+const activeReplyId = ref(null)
+const replyDraft = ref('')
+const replyError = ref('')
+const replySaving = ref(false)
 
-const submitReply = async (reviewId) => {
-  const review = reviews.value.find(r => r.id === reviewId)
-  const content = replyText.value[reviewId]?.trim()
-  if (review && content) {
-    const response = await createHostReviewReply(reviewId, { content })
-    if (response.ok) {
-      review.reply = content
-      review.showReplyForm = false
-      alert('답변이 등록되었습니다.')
-      return
-    }
-    alert('답변 등록에 실패했습니다.')
-  }
-}
+const reportTarget = ref(null)
+const reportReason = ref('')
+const reportError = ref('')
+const reportSaving = ref(false)
 
-const cancelReply = (reviewId) => {
-  const review = reviews.value.find(r => r.id === reviewId)
-  if (review) {
-    review.showReplyForm = false
-    replyText.value[reviewId] = review.reply || ''
-  }
-}
+const averageRating = computed(() => Number(summary.value.avgRating ?? 0).toFixed(1))
+const reviewCount = computed(() => summary.value.reviewCount ?? 0)
 
 const normalizeReview = (item) => {
-  const userName = item.userName ?? item.reviewerName ?? item.name ?? ''
+  const userName = item.authorName ?? item.userName ?? item.reviewerName ?? item.name ?? ''
   return {
     id: item.reviewId ?? item.id,
     userName,
@@ -65,10 +51,11 @@ const normalizeReview = (item) => {
     accommodationName: item.accommodationName ?? item.property ?? '',
     rating: item.rating ?? 0,
     date: formatDate(item.createdAt ?? item.date, true),
+    visitDate: item.visitDate ?? '',
     content: item.content ?? item.reviewContent ?? '',
-    reply: item.reply ?? item.replyContent ?? '',
-    showReplyForm: false,
-    reported: Boolean(item.reported)
+    isCrawled: Boolean(item.isCrawled),
+    replyContent: item.replyContent ?? '',
+    replyUpdatedAt: item.replyUpdatedAt ?? null
   }
 }
 
@@ -76,7 +63,15 @@ const loadReviews = async () => {
   if (pendingOnly.value) return
   isLoading.value = true
   loadError.value = ''
-  const response = await fetchHostReviews({ periodDays: 30 })
+  const params = {
+    page: 0,
+    size: 20,
+    sort: selectedSort.value
+  }
+  if (selectedAccommodationId.value !== 'all') {
+    params.accommodationId = selectedAccommodationId.value
+  }
+  const response = await fetchHostReviews(params)
   if (response.ok) {
     const payload = response.data
     const list = Array.isArray(payload)
@@ -89,18 +84,94 @@ const loadReviews = async () => {
   isLoading.value = false
 }
 
-const reportReview = async (reviewId) => {
-  const review = reviews.value.find(r => r.id === reviewId)
-  if (!review || review.reported) return
-  const reason = prompt('신고 사유를 입력해주세요.')
-  if (!reason) return
-  const response = await reportHostReview(reviewId, { reason })
-  if (response.ok) {
-    review.reported = true
-    alert('리뷰가 신고되었습니다.')
+const openReply = (review) => {
+  activeReplyId.value = review.id
+  replyDraft.value = review.replyContent || ''
+  replyError.value = ''
+}
+
+const closeReply = () => {
+  activeReplyId.value = null
+  replyDraft.value = ''
+  replyError.value = ''
+}
+
+const submitReply = async (review) => {
+  const trimmed = replyDraft.value.trim()
+  if (!trimmed) {
+    replyError.value = '답글 내용을 입력해주세요.'
     return
   }
-  alert('리뷰 신고에 실패했습니다.')
+  replySaving.value = true
+  replyError.value = ''
+  const response = await upsertHostReviewReply(review.id, { content: trimmed })
+  if (response.ok) {
+    review.replyContent = response.data?.content ?? trimmed
+    review.replyUpdatedAt = response.data?.updatedAt ?? new Date().toISOString()
+    closeReply()
+  } else {
+    replyError.value = response.data?.message || '답글 저장에 실패했습니다.'
+  }
+  replySaving.value = false
+}
+
+const openReport = (review) => {
+  reportTarget.value = review
+  reportReason.value = ''
+  reportError.value = ''
+}
+
+const closeReport = () => {
+  reportTarget.value = null
+  reportReason.value = ''
+  reportError.value = ''
+}
+
+const submitReport = async () => {
+  if (!reportTarget.value) return
+  const trimmed = reportReason.value.trim()
+  if (!trimmed) {
+    reportError.value = '신고 사유를 입력해주세요.'
+    return
+  }
+  reportSaving.value = true
+  reportError.value = ''
+  const response = await reportHostReview(reportTarget.value.id, { reason: trimmed })
+  if (response.ok) {
+    closeReport()
+    window.alert('신고가 접수되었습니다.')
+  } else {
+    reportError.value = response.data?.message || '신고 처리에 실패했습니다.'
+  }
+  reportSaving.value = false
+}
+
+const loadSummary = async () => {
+  if (pendingOnly.value) return
+  summaryLoading.value = true
+  summaryError.value = ''
+  const response = await fetchHostReviewSummary()
+  if (response.ok) {
+    summary.value = response.data ?? { avgRating: 0, reviewCount: 0 }
+  } else {
+    summaryError.value = '요약 정보를 불러오지 못했습니다.'
+  }
+  summaryLoading.value = false
+}
+
+const loadAccommodations = async () => {
+  accommodationLoading.value = true
+  accommodationError.value = ''
+  const response = await fetchHostAccommodations()
+  if (response.ok) {
+    const payload = response.data
+    accommodations.value = Array.isArray(payload)
+      ? payload
+      : payload?.items ?? payload?.content ?? payload?.data ?? []
+  } else {
+    accommodationError.value = '숙소 목록을 불러오지 못했습니다.'
+  }
+  accommodationLoading.value = false
 }
 
 const loadHostState = async () => {
@@ -120,6 +191,13 @@ const loadHostState = async () => {
 
 onMounted(async () => {
   await loadHostState()
+  if (!pendingOnly.value) {
+    await Promise.all([loadAccommodations(), loadSummary()])
+    loadReviews()
+  }
+})
+
+watch([selectedAccommodationId, selectedSort], () => {
   if (!pendingOnly.value) {
     loadReviews()
   }
@@ -141,12 +219,35 @@ onMounted(async () => {
 
     <template v-else>
     <div class="view-header">
-      <h2>리뷰 관리</h2>
-      <p class="subtitle">평균 평점 {{ averageRating }} · 총 {{ reviews.length }}개의 리뷰</p>
+      <div>
+        <h2>리뷰 관리</h2>
+        <p class="subtitle">
+          평균 평점 {{ averageRating }} · 총 {{ reviewCount }}개의 리뷰
+        </p>
+        <p v-if="summaryError" class="muted">요약 정보를 불러오지 못했습니다.</p>
+      </div>
+      <div class="filters">
+        <select v-model="selectedAccommodationId" class="filter-select" aria-label="숙소 선택">
+          <option value="all">전체 숙소</option>
+          <option v-for="acc in accommodations" :key="acc.accommodationsId ?? acc.id" :value="acc.accommodationsId ?? acc.id">
+            {{ acc.accommodationsName ?? acc.name ?? acc.accommodationName ?? '숙소' }}
+          </option>
+        </select>
+        <select v-model="selectedSort" class="filter-select" aria-label="정렬 선택">
+          <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </div>
+    </div>
+
+    <div v-if="accommodationError" class="empty-box">
+      <p>숙소 목록을 불러오지 못했어요.</p>
+      <button class="ghost-btn" @click="loadAccommodations">다시 시도</button>
     </div>
 
     <div class="review-list">
-      <div v-if="isLoading" class="review-skeleton">
+      <div v-if="isLoading || summaryLoading || accommodationLoading" class="review-skeleton">
         <div v-for="i in 3" :key="i" class="skeleton-card" />
       </div>
       <div v-else-if="loadError" class="empty-box">
@@ -154,11 +255,10 @@ onMounted(async () => {
         <button class="ghost-btn" @click="loadReviews">다시 시도</button>
       </div>
       <div v-else-if="!reviews.length" class="empty-box">
-        <p>아직 리뷰가 없습니다.</p>
+        <p>조건에 맞는 리뷰가 없습니다.</p>
         <button class="ghost-btn" @click="router.push('/host/booking')">예약 확인하기</button>
       </div>
       <div v-for="review in reviews" :key="review.id" class="review-card">
-        <!-- User Header -->
         <div class="card-header">
           <div class="user-profile">
             <div class="avatar">{{ review.userInitial }}</div>
@@ -176,49 +276,55 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Review Content -->
         <div class="review-content">
           <p>{{ review.content }}</p>
         </div>
 
-        <!-- Host Reply Section -->
-        <div class="reply-section">
-          <!-- Existing Reply -->
-          <div v-if="review.reply && !review.showReplyForm" class="existing-reply">
-            <div class="reply-header">
-              <span class="host-label">호스트의 답글</span>
-              <button class="edit-reply-btn" @click="toggleReplyForm(review.id)">수정</button>
-            </div>
-            <p class="reply-text">{{ review.reply }}</p>
-          </div>
-
-          <!-- Reply Form -->
-          <div v-else-if="review.showReplyForm" class="reply-form">
-            <textarea
-                v-model="replyText[review.id]"
-                placeholder="답변을 작성하세요..."
-                rows="3"
-            ></textarea>
-            <div class="form-actions">
-              <button class="btn-cancel" @click="cancelReply(review.id)">취소</button>
-              <button class="btn-submit host-btn--primary" @click="submitReply(review.id)">답변 등록</button>
-            </div>
-          </div>
-
-          <!-- Reply Button (If no reply and form closed) -->
-          <button
-            v-else
-            class="btn-reply-toggle"
-            @click="toggleReplyForm(review.id)"
-          >
-            답글 달기
-          </button>
+        <div v-if="review.replyContent && activeReplyId !== review.id" class="reply-box">
+          <p class="reply-title">호스트 답글</p>
+          <p>{{ review.replyContent }}</p>
+          <p v-if="review.replyUpdatedAt" class="reply-date">
+            {{ formatDate(review.replyUpdatedAt, true) }}
+          </p>
         </div>
 
-        <!-- Report Button -->
+        <div v-if="activeReplyId === review.id" class="reply-editor">
+          <textarea v-model="replyDraft" rows="4" placeholder="답글을 입력해주세요." />
+          <p v-if="replyError" class="muted error">{{ replyError }}</p>
+          <div class="reply-actions">
+            <button class="ghost-btn" type="button" @click="closeReply">취소</button>
+            <button class="primary-btn" type="button" :disabled="replySaving" @click="submitReply(review)">
+              {{ replySaving ? '저장 중...' : '답글 저장' }}
+            </button>
+          </div>
+        </div>
+
         <div class="card-footer">
-          <button class="btn-report" :disabled="review.reported" @click="reportReview(review.id)">
-            <span class="icon">🚩</span> {{ review.reported ? '신고 완료' : '신고하기' }}
+          <span class="review-chip" :class="{ crawled: review.isCrawled }">
+            {{ review.isCrawled ? '크롤링 리뷰' : '직접 작성' }}
+          </span>
+          <span v-if="review.visitDate" class="visit-date">방문일 {{ review.visitDate }}</span>
+        </div>
+
+        <div class="card-actions">
+          <button class="ghost-btn" type="button" @click="openReply(review)">
+            {{ review.replyContent ? '답글 수정' : '답글 달기' }}
+          </button>
+          <button class="ghost-btn danger" type="button" @click="openReport(review)">신고</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="reportTarget" class="modal-overlay" @click.self="closeReport">
+      <div class="modal-card">
+        <h3>리뷰 신고</h3>
+        <p class="muted">신고 사유를 입력해주세요.</p>
+        <textarea v-model="reportReason" rows="4" placeholder="예: 욕설/광고/허위 내용" />
+        <p v-if="reportError" class="muted error">{{ reportError }}</p>
+        <div class="modal-actions">
+          <button class="ghost-btn" type="button" @click="closeReport">취소</button>
+          <button class="primary-btn" type="button" :disabled="reportSaving" @click="submitReport">
+            {{ reportSaving ? '접수 중...' : '신고 접수' }}
           </button>
         </div>
       </div>
@@ -236,6 +342,23 @@ onMounted(async () => {
 /* ✅ 대시보드 톤 헤더 */
 .view-header {
   margin-bottom: 1.25rem;
+}
+
+.filters {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.filter-select {
+  border: 1px solid var(--brand-border);
+  border-radius: 12px;
+  padding: 0.55rem 0.85rem;
+  font-weight: 800;
+  min-height: 44px;
+  background: #ffffff;
+  color: #111827;
 }
 
 .view-header h2 {
@@ -263,6 +386,79 @@ onMounted(async () => {
   border: 1px solid var(--brand-border);
 }
 
+.reply-box {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 0.85rem;
+  color: #0f172a;
+}
+
+.reply-title {
+  font-weight: 800;
+  margin: 0 0 0.35rem;
+}
+
+.reply-date {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.reply-editor textarea,
+.modal-card textarea {
+  width: 100%;
+  border: 1px solid var(--brand-border);
+  border-radius: 12px;
+  padding: 0.7rem;
+  font-weight: 600;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.reply-actions,
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.ghost-btn.danger {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.error {
+  color: #b91c1c;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 50;
+}
+
+.modal-card {
+  width: min(520px, 92vw);
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.25rem;
+  border: 1px solid var(--brand-border);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+}
+
 .empty-box {
   margin-top: 1rem;
   color: #6b7280;
@@ -282,6 +478,17 @@ onMounted(async () => {
   padding: 0.55rem 0.9rem;
   font-weight: 800;
   min-height: 44px;
+  cursor: pointer;
+}
+
+.primary-btn {
+  background: var(--brand-primary, #BFE7DF);
+  color: #0f172a;
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 800;
+  min-height: 44px;
+  border: 1px solid var(--brand-primary-strong, #0f766e);
   cursor: pointer;
 }
 
@@ -505,7 +712,36 @@ onMounted(async () => {
 .card-footer {
   margin-top: 0.9rem;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.review-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #f8fafc;
+  font-size: 0.8rem;
+  font-weight: 900;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.review-chip.crawled {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.visit-date {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #6b7280;
 }
 
 .btn-report {

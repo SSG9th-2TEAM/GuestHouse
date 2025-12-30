@@ -30,6 +30,16 @@ public class HostBookingServiceImpl implements HostBookingService {
     }
 
     @Override
+    public List<HostBookingResponse> getBookingsByRange(Long hostId, LocalDateTime start, LocalDateTime end) {
+        return hostBookingMapper.selectHostBookingsByRange(hostId, start, end);
+    }
+
+    @Override
+    public List<HostBookingResponse> getUpcomingBookings(Long hostId, LocalDateTime start) {
+        return hostBookingMapper.selectHostBookingsUpcoming(hostId, start);
+    }
+
+    @Override
     public HostBookingResponse getBooking(Long hostId, Long reservationId) {
         return hostBookingMapper.selectHostBookingById(hostId, reservationId);
     }

@@ -12,3 +12,7 @@ export async function fetchHostBookingCalendar(month) {
   const params = { month, class: 'calendar' }
   return hostGet('/host/booking', params)
 }
+
+export async function fetchRefundQuote(reservationId) {
+  return hostGet('/refunds/quote', { reservationId })
+}
