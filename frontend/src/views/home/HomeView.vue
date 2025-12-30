@@ -37,6 +37,11 @@ const goToThemeList = (themeId) => {
 }
 
 const loadWishlist = async () => {
+  // 로그인하지 않은 경우 위시리스트를 로드하지 않음
+  if (!isAuthenticated()) {
+    return
+  }
+
   try {
     const res = await fetchWishlistIds()
     if (res.status === 200 && Array.isArray(res.data)) {

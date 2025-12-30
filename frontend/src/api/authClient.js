@@ -1,12 +1,11 @@
-// Auth API client for login, signup, token management
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
-// LocalStorage keys
+
 const ACCESS_TOKEN_KEY = 'accessToken'
 const REFRESH_TOKEN_KEY = 'refreshToken'
 const USER_INFO_KEY = 'userInfo'
 
-// Get tokens from localStorage
 export function getAccessToken() {
   return localStorage.getItem(ACCESS_TOKEN_KEY)
 }
@@ -20,30 +19,30 @@ export function getUserInfo() {
   return userInfo ? JSON.parse(userInfo) : null
 }
 
-// Save tokens to localStorage
+
 export function saveTokens(accessToken, refreshToken) {
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
   localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
 }
 
-// Save user info to localStorage
+
 export function saveUserInfo(userInfo) {
   localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo))
 }
 
-// Clear all auth data
+
 export function clearAuth() {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
   localStorage.removeItem(USER_INFO_KEY)
 }
 
-// Check if user is logged in
+
 export function isAuthenticated() {
   return !!getAccessToken()
 }
 
-// API request helper
+
 async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`
   const headers = {
@@ -51,7 +50,7 @@ async function apiRequest(endpoint, options = {}) {
     ...(options.headers || {})
   }
 
-  // Add Authorization header if access token exists
+
   const accessToken = getAccessToken()
   if (accessToken && !options.skipAuth) {
     headers.Authorization = `Bearer ${accessToken}`
@@ -237,6 +236,14 @@ export async function getCurrentUser() {
   })
 }
 
+// 소셜 회원가입 완료
+export async function completeSocialSignup(signupData) {
+  return authenticatedRequest('/api/auth/complete-social-signup', {
+    method: 'POST',
+    body: JSON.stringify(signupData)
+  })
+}
+
 export default {
   signup,
   login,
@@ -252,6 +259,7 @@ export default {
   refreshAccessToken,
   authenticatedRequest,
   getCurrentUser,
+  completeSocialSignup,
   getAccessToken,
   getRefreshToken,
   getUserInfo,
