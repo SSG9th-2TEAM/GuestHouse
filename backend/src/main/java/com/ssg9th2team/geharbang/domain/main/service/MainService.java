@@ -1,10 +1,10 @@
 package com.ssg9th2team.geharbang.domain.main.service;
 
-import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
+import com.ssg9th2team.geharbang.domain.main.dto.MainAccommodationListResponse;
 
 import java.util.List;
 
 public interface MainService {
 
-    List<ListDto> findByTheme(List<Long> themeIds);
+    MainAccommodationListResponse getMainAccommodationList(Long userId, List<Long> filterThemeIds);
 }
