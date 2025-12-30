@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -78,12 +79,14 @@ public class RoomServiceImpl implements RoomService {
     @Override
     @Transactional
     public void deleteRoom(Long accommodationsId, Long roomId) {
-        // 해당 객실의 예약정보 있는지확인
+        // 해당 객실의 예약정보 있는지 확인 (아직 체크아웃 안 된 확정 예약만)
         List<Reservation> reservations = reservationJpaRepository.findByRoomId(roomId);
-        boolean hasActiveReservation = reservations.stream()
-                        .anyMatch(r -> r.getReservationStatus() == 2);
+        LocalDateTime now = LocalDateTime.now();
 
-        // 예약이 있다면 (status = 2)
+        boolean hasActiveReservation = reservations.stream()
+                        .anyMatch(r -> r.getReservationStatus() == 2 && r.getCheckout().isAfter(now));
+
+        // 아직 체크아웃 안 된 확정 예약이 있다면
         if(hasActiveReservation) {
             throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다");
         }

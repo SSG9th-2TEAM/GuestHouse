@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ReservationJpaRepository
@@ -50,14 +51,17 @@ public interface ReservationJpaRepository
          */
         @Query("SELECT COUNT(r) > 0 FROM Reservation r " +
                         "WHERE r.roomId = :roomId " +
-                        "AND r.reservationStatus = 2 " + // 확정된 예약만
+                        "AND r.reservationStatus = 2 " +
                         "AND r.checkin < :checkout " +
                         "AND r.checkout > :checkin")
-
         boolean hasConflictingReservation(
                         @Param("roomId") Long roomId,
                         @Param("checkin") LocalDateTime checkin,
                         @Param("checkout") LocalDateTime checkout);
+
+        // 리뷰 작성용 조회 메서드 (체크아웃 완료된 예약 중 가장 최근 1개)
+        Optional<Reservation> findFirstByUserIdAndAccommodationsIdAndReservationStatusAndCheckoutBeforeOrderByCheckoutDesc(
+                        Long userId, Long accommodationsId, Integer reservationStatus, LocalDateTime checkoutBefore);
 
         @Query("select count(distinct r.userId) from Reservation r " +
                         "where r.createdAt >= :start and r.createdAt < :end")
@@ -67,4 +71,5 @@ public interface ReservationJpaRepository
                         "join Accommodation a on r.accommodationsId = a.accommodationsId " +
                         "where r.createdAt >= :start and r.createdAt < :end")
         long countDistinctHost(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
 }

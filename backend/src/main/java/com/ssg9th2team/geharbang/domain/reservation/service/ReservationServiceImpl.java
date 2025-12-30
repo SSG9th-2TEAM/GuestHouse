@@ -1,11 +1,13 @@
 package com.ssg9th2team.geharbang.domain.reservation.service;
 
+import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationRequestDto;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationResponseDto;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
+import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,6 +28,7 @@ public class ReservationServiceImpl implements ReservationService {
         private final com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper accommodationMapper;
         private final UserRepository userRepository;
         private final ReservationJpaRepository reservationJpaRepository;
+        private final ReviewJpaRepository reviewJpaRepository;
 
         @Override
         @Transactional
@@ -143,11 +146,13 @@ public class ReservationServiceImpl implements ReservationService {
                 User user = userRepository.findByEmail(email)
                                 .orElseThrow(() -> new IllegalStateException("인증된 사용자를 찾을 수 없습니다: " + email));
 
-                // 사용자의 예약 목록 조회 (숙소 정보 + 이미지 포함)
-                return reservationRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
+                Long userId = user.getId();
+
+                // 사용자의 예약 목록 조회 (숙소 정보 + 이미지 + 리뷰 작성 여부 포함)
+                return reservationRepository.findByUserIdOrderByCreatedAtDesc(userId)
                                 .stream()
                                 .map(reservation -> {
-                                        com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation accommodation = accommodationRepository
+                                      Accommodation accommodation = accommodationRepository
                                                         .findById(reservation.getAccommodationsId()).orElse(null);
 
                                         String accName = (accommodation != null) ? accommodation.getAccommodationsName()
@@ -161,7 +166,11 @@ public class ReservationServiceImpl implements ReservationService {
                                         String imageUrl = accommodationMapper
                                                         .selectMainImageUrl(reservation.getAccommodationsId());
 
-                                        return ReservationResponseDto.from(reservation, accName, accAddress, imageUrl);
+                                        // 해당 숙소에 리뷰 작성 여부 확인
+                                        Boolean hasReview = reviewJpaRepository.existsByUserIdAndAccommodationsIdAndIsDeletedFalse(
+                                                        userId, reservation.getAccommodationsId());
+
+                                        return ReservationResponseDto.from(reservation, accName, accAddress, imageUrl, hasReview);
                                 })
                                 .toList();
         }
