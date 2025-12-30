@@ -33,6 +33,21 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
         run: |
+          # API 키 확인
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "GEMINI_API_KEY is not set"
+            echo "review=API 키가 설정되지 않았습니다. Repository Settings > Secrets에서 GEMINI_API_KEY를 추가해주세요." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # diff 내용 확인
+          if [ -z "$DIFF_CONTENT" ]; then
+            echo "review=변경된 코드가 없습니다." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Diff length: ${#DIFF_CONTENT}"
+
           # JSON 페이로드 생성
           PAYLOAD=$(jq -n --arg diff "$DIFF_CONTENT" '{
             "contents": [{
@@ -49,6 +64,16 @@ jobs:
           RESPONSE=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD")
+
+          # 응답 디버깅
+          echo "API Response: $RESPONSE"
+
+          # 에러 확인
+          ERROR=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+          if [ -n "$ERROR" ]; then
+            echo "review=API 오류: $ERROR" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
           REVIEW=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "리뷰 생성 실패"')
           echo "review<<EOF" >> $GITHUB_OUTPUT
