@@ -19,8 +19,11 @@
             r.author_name AS authorName,
             r.rating,
             r.content,
-            r.created_at AS createdAt
+            r.created_at AS createdAt,
+            rr.content AS replyContent,
+            COALESCE(rr.updated_at, rr.created_at) AS replyUpdatedAt
         FROM review r
+        LEFT JOIN review_replies rr ON rr.review_id = r.review_id
         WHERE r.accommodations_id = #{accommodationsId}
           AND r.is_deleted = 0
         ORDER BY r.created_at DESC

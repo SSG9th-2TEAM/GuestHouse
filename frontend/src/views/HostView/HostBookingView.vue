@@ -40,6 +40,22 @@ const refundQuoteLoading = ref(false)
 const refundQuoteError = ref('')
 const refundQuote = ref(null)
 const includePast = ref(false)
+const toStartOfDay = (value) => {
+  const date = value ? new Date(value) : new Date()
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+const rangeAnchorDate = ref(toStartOfDay(new Date()))
+const selectedRange = ref('upcoming')
+const customRange = ref({ start: '', end: '' })
+
+const rangeOptions = [
+  { value: 'upcoming', label: '예정/진행' },
+  { value: 'today', label: '오늘' },
+  { value: 'tomorrow', label: '내일' },
+  { value: '7days', label: '7일' },
+  { value: '30days', label: '30일' },
+  { value: 'custom', label: '기간선택' }
+]
 
 const currentMonth = ref(new Date())
 
@@ -121,8 +137,7 @@ const toDateOnly = (value) => {
 }
 
 const todayDate = () => {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return toStartOfDay(new Date())
 }
 
 const calendarCells = computed(() => {
@@ -216,6 +231,9 @@ const resetFilters = () => {
   selectedStatus.value = 'all'
   selectedSort.value = 'latest'
   includePast.value = false
+  selectedRange.value = 'upcoming'
+  customRange.value = { start: '', end: '' }
+  rangeAnchorDate.value = todayDate()
 }
 
 const normalizeStatus = (status) => {
@@ -279,7 +297,7 @@ const normalizeIncludePastQuery = (value) => {
   return normalized === '1' || normalized === 'true' || normalized === 'yes'
 }
 
-const normalizeScopeQuery = (value) => {
+const normalizeModeQuery = (value) => {
   const normalized = String(value ?? '').toLowerCase()
   if (normalized === 'today') return 'today'
   return null
@@ -288,7 +306,65 @@ const normalizeScopeQuery = (value) => {
 const parseDateQuery = (value) => {
   if (!value) return null
   const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? null : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+  return Number.isNaN(parsed.getTime()) ? null : toStartOfDay(parsed)
+}
+
+const toDateParam = (date) => {
+  if (!date) return null
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const addDays = (date, amount) => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + amount)
+  return toStartOfDay(next)
+}
+
+const resolveRangeDates = () => {
+  const anchor = rangeAnchorDate.value
+  if (selectedRange.value === 'today') {
+    return { start: anchor, end: anchor }
+  }
+  if (selectedRange.value === 'tomorrow') {
+    const target = addDays(anchor, 1)
+    return { start: target, end: target }
+  }
+  if (selectedRange.value === '7days') {
+    return { start: anchor, end: addDays(anchor, 6) }
+  }
+  if (selectedRange.value === '30days') {
+    return { start: anchor, end: addDays(anchor, 29) }
+  }
+  if (selectedRange.value === 'custom') {
+    const start = parseDateQuery(customRange.value.start)
+    const end = parseDateQuery(customRange.value.end)
+    return { start, end }
+  }
+  return { start: null, end: null }
+}
+
+const buildBookingParams = () => {
+  if (selectedRange.value === 'upcoming') {
+    if (!includePast.value) {
+      return {
+        upcomingOnly: true,
+        startDate: toDateParam(rangeAnchorDate.value)
+      }
+    }
+    return {}
+  }
+
+  const { start, end } = resolveRangeDates()
+  if (!start || !end) {
+    return null
+  }
+  return {
+    startDate: toDateParam(start),
+    endDate: toDateParam(end)
+  }
 }
 
 const filteredBookings = computed(() => {
@@ -296,19 +372,8 @@ const filteredBookings = computed(() => {
   const filter = statusFilters.find((item) => item.value === selectedStatus.value)
   let filtered = filter ? base.filter((booking) => filter.statuses.includes(booking.reservationStatus)) : base
 
-  const scope = normalizeScopeQuery(route.query.scope)
-  const scopeDate = parseDateQuery(route.query.date)
-  if (scope === 'today' && scopeDate) {
-    filtered = filtered.filter((booking) => {
-      const checkInDate = toDateOnly(booking.checkIn)
-      const checkOutDate = toDateOnly(booking.checkOut)
-      return (checkInDate && isSameDate(checkInDate, scopeDate))
-        || (checkOutDate && isSameDate(checkOutDate, scopeDate))
-    })
-  }
-
-  if (!includePast.value) {
-    const today = todayDate().getTime()
+  const today = todayDate().getTime()
+  if (selectedRange.value === 'upcoming' && !includePast.value) {
     filtered = filtered.filter((booking) => {
       const checkIn = toDateOnly(booking.checkIn)
       if (!checkIn) return true
@@ -316,39 +381,66 @@ const filteredBookings = computed(() => {
     })
   }
 
-  if (selectedSort.value === 'checkin') {
-    const today = todayDate().getTime()
-    return [...filtered].sort((a, b) => {
-      const aCheckIn = toDate(a.checkIn)
-      const bCheckIn = toDate(b.checkIn)
-      const aDay = toDateOnly(aCheckIn)
-      const bDay = toDateOnly(bCheckIn)
-      const aUpcoming = aDay ? aDay.getTime() >= today : true
-      const bUpcoming = bDay ? bDay.getTime() >= today : true
-      if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1
-      if (aUpcoming) {
-        return (aCheckIn?.getTime() ?? 0) - (bCheckIn?.getTime() ?? 0)
-      }
-      return (bCheckIn?.getTime() ?? 0) - (aCheckIn?.getTime() ?? 0)
-    })
-  }
-  if (selectedSort.value === 'checkout') {
-    return [...filtered].sort((a, b) => {
-      return (toDate(a.checkOut)?.getTime() ?? 0) - (toDate(b.checkOut)?.getTime() ?? 0)
-    })
-  }
-  return [...filtered].sort((a, b) => {
+  const sortByCheckInAsc = (list) => [...list].sort((a, b) => {
+    return (toDate(a.checkIn)?.getTime() ?? 0) - (toDate(b.checkIn)?.getTime() ?? 0)
+  })
+  const sortByCheckInDesc = (list) => [...list].sort((a, b) => {
+    return (toDate(b.checkIn)?.getTime() ?? 0) - (toDate(a.checkIn)?.getTime() ?? 0)
+  })
+  const sortByCheckoutAsc = (list) => [...list].sort((a, b) => {
+    return (toDate(a.checkOut)?.getTime() ?? 0) - (toDate(b.checkOut)?.getTime() ?? 0)
+  })
+  const sortByCheckoutDesc = (list) => [...list].sort((a, b) => {
+    return (toDate(b.checkOut)?.getTime() ?? 0) - (toDate(a.checkOut)?.getTime() ?? 0)
+  })
+  const sortByCreatedDesc = (list) => [...list].sort((a, b) => {
     return (toDate(b.createdAt)?.getTime() ?? 0) - (toDate(a.createdAt)?.getTime() ?? 0)
   })
+
+  if (selectedRange.value === 'upcoming' && includePast.value) {
+    const upcoming = []
+    const past = []
+    filtered.forEach((booking) => {
+      const checkIn = toDateOnly(booking.checkIn)
+      const isUpcoming = checkIn ? checkIn.getTime() >= today : true
+      if (isUpcoming) {
+        upcoming.push(booking)
+      } else {
+        past.push(booking)
+      }
+    })
+    if (selectedSort.value === 'checkin') {
+      return [...sortByCheckInAsc(upcoming), ...sortByCheckInDesc(past)]
+    }
+    if (selectedSort.value === 'checkout') {
+      return [...sortByCheckoutAsc(upcoming), ...sortByCheckoutDesc(past)]
+    }
+    return [...sortByCreatedDesc(upcoming), ...sortByCreatedDesc(past)]
+  }
+
+  if (selectedSort.value === 'checkin') {
+    return sortByCheckInAsc(filtered)
+  }
+  if (selectedSort.value === 'checkout') {
+    return sortByCheckoutAsc(filtered)
+  }
+  return sortByCreatedDesc(filtered)
 })
 
 const calendarLegend = computed(() => '표시된 건수는 해당 날짜에 포함된 예약 수입니다.')
 
 const loadBookings = async () => {
   if (pendingOnly.value) return
+  const params = buildBookingParams()
+  if (params === null) {
+    bookings.value = []
+    loadError.value = ''
+    isLoading.value = false
+    return
+  }
   isLoading.value = true
   loadError.value = ''
-  const response = await fetchHostBookings()
+  const response = await fetchHostBookings(params)
   if (response.ok) {
     const payload = response.data
     const list = Array.isArray(payload)
@@ -420,6 +512,16 @@ watch(
     const status = normalizeStatusQuery(query.status)
     if (status) selectedStatus.value = status
     includePast.value = normalizeIncludePastQuery(query.includePast)
+
+    const mode = normalizeModeQuery(query.mode)
+    if (mode === 'today') {
+      selectedRange.value = 'today'
+      const anchor = parseDateQuery(query.date) ?? todayDate()
+      rangeAnchorDate.value = anchor
+    } else if (!query.mode && selectedRange.value === 'today') {
+      selectedRange.value = 'upcoming'
+      rangeAnchorDate.value = todayDate()
+    }
   },
   { immediate: true }
 )
@@ -437,6 +539,22 @@ const syncQuery = (next) => {
   }
 }
 
+const syncRangeQuery = () => {
+  if (selectedRange.value === 'today') {
+    syncQuery({
+      mode: 'today',
+      date: toDateParam(rangeAnchorDate.value)
+    })
+    return
+  }
+  if (route.query.mode || route.query.date) {
+    const cleaned = { ...route.query }
+    delete cleaned.mode
+    delete cleaned.date
+    router.replace({ query: cleaned })
+  }
+}
+
 watch(selectedStatus, (value) => {
   syncQuery({ status: value })
 })
@@ -447,7 +565,33 @@ watch(selectedSort, (value) => {
 
 watch(includePast, (value) => {
   syncQuery({ includePast: value ? 1 : 0 })
+  if (selectedRange.value === 'upcoming') {
+    loadBookings()
+  }
 })
+
+watch(selectedRange, () => {
+  if (selectedRange.value !== 'custom') {
+    customRange.value = { start: '', end: '' }
+  }
+  syncRangeQuery()
+  loadBookings()
+})
+
+watch(rangeAnchorDate, () => {
+  syncRangeQuery()
+  loadBookings()
+})
+
+watch(
+  () => ({ ...customRange.value }),
+  () => {
+    if (selectedRange.value === 'custom') {
+      loadBookings()
+    }
+  }
+)
+
 
 const setView = (view) => {
   if (view === activeTab.value) return
@@ -502,6 +646,31 @@ const setView = (view) => {
     </header>
 
     <section v-if="activeTab === 'list'" class="list-section">
+      <div class="range-row">
+        <div class="filter-chips">
+          <button
+            v-for="option in rangeOptions"
+            :key="option.value"
+            class="filter-chip host-chip"
+            :class="{ 'host-chip--active': selectedRange === option.value }"
+            type="button"
+            @click="selectedRange = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+        <div v-if="selectedRange === 'custom'" class="range-custom">
+          <label>
+            시작일
+            <input v-model="customRange.start" type="date" />
+          </label>
+          <label>
+            종료일
+            <input v-model="customRange.end" type="date" />
+          </label>
+        </div>
+      </div>
+
       <div class="filter-row">
         <div class="filter-chips">
           <button
@@ -516,7 +685,7 @@ const setView = (view) => {
           </button>
         </div>
         <label class="past-toggle">
-          <input v-model="includePast" type="checkbox" />
+          <input v-model="includePast" type="checkbox" :disabled="selectedRange !== 'upcoming'" />
           <span>지난 일정 포함</span>
         </label>
         <select v-model="selectedSort" class="sort-select" aria-label="정렬 선택">
@@ -709,6 +878,32 @@ const setView = (view) => {
   font-weight: 600;
 }
 
+.range-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.range-custom {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  font-weight: 700;
+  color: #475569;
+}
+
+.range-custom input {
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
+  padding: 0.4rem 0.6rem;
+  min-height: 40px;
+  font-weight: 700;
+}
+
 .filter-row {
   display: flex;
   align-items: center;
@@ -760,6 +955,14 @@ const setView = (view) => {
 
 .past-toggle input {
   accent-color: var(--brand-primary-strong, #0f766e);
+}
+
+.past-toggle input:disabled {
+  cursor: not-allowed;
+}
+
+.past-toggle input:disabled + span {
+  opacity: 0.6;
 }
 
 .tab-switch {

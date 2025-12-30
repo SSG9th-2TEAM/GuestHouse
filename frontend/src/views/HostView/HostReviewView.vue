@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { fetchHostReviews, fetchHostReviewSummary } from '@/api/hostReview'
+import { fetchHostReviews, fetchHostReviewSummary, upsertHostReviewReply, reportHostReview } from '@/api/hostReview'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
 import { deriveHostState } from '@/composables/useHostState'
 import { formatDate } from '@/utils/formatters'
@@ -29,6 +29,16 @@ const sortOptions = [
   { value: 'oldest', label: '오래된순' }
 ]
 
+const activeReplyId = ref(null)
+const replyDraft = ref('')
+const replyError = ref('')
+const replySaving = ref(false)
+
+const reportTarget = ref(null)
+const reportReason = ref('')
+const reportError = ref('')
+const reportSaving = ref(false)
+
 const averageRating = computed(() => Number(summary.value.avgRating ?? 0).toFixed(1))
 const reviewCount = computed(() => summary.value.reviewCount ?? 0)
 
@@ -43,7 +53,9 @@ const normalizeReview = (item) => {
     date: formatDate(item.createdAt ?? item.date, true),
     visitDate: item.visitDate ?? '',
     content: item.content ?? item.reviewContent ?? '',
-    isCrawled: Boolean(item.isCrawled)
+    isCrawled: Boolean(item.isCrawled),
+    replyContent: item.replyContent ?? '',
+    replyUpdatedAt: item.replyUpdatedAt ?? null
   }
 }
 
@@ -70,6 +82,68 @@ const loadReviews = async () => {
     loadError.value = '리뷰를 불러오지 못했습니다.'
   }
   isLoading.value = false
+}
+
+const openReply = (review) => {
+  activeReplyId.value = review.id
+  replyDraft.value = review.replyContent || ''
+  replyError.value = ''
+}
+
+const closeReply = () => {
+  activeReplyId.value = null
+  replyDraft.value = ''
+  replyError.value = ''
+}
+
+const submitReply = async (review) => {
+  const trimmed = replyDraft.value.trim()
+  if (!trimmed) {
+    replyError.value = '답글 내용을 입력해주세요.'
+    return
+  }
+  replySaving.value = true
+  replyError.value = ''
+  const response = await upsertHostReviewReply(review.id, { content: trimmed })
+  if (response.ok) {
+    review.replyContent = response.data?.content ?? trimmed
+    review.replyUpdatedAt = response.data?.updatedAt ?? new Date().toISOString()
+    closeReply()
+  } else {
+    replyError.value = response.data?.message || '답글 저장에 실패했습니다.'
+  }
+  replySaving.value = false
+}
+
+const openReport = (review) => {
+  reportTarget.value = review
+  reportReason.value = ''
+  reportError.value = ''
+}
+
+const closeReport = () => {
+  reportTarget.value = null
+  reportReason.value = ''
+  reportError.value = ''
+}
+
+const submitReport = async () => {
+  if (!reportTarget.value) return
+  const trimmed = reportReason.value.trim()
+  if (!trimmed) {
+    reportError.value = '신고 사유를 입력해주세요.'
+    return
+  }
+  reportSaving.value = true
+  reportError.value = ''
+  const response = await reportHostReview(reportTarget.value.id, { reason: trimmed })
+  if (response.ok) {
+    closeReport()
+    window.alert('신고가 접수되었습니다.')
+  } else {
+    reportError.value = response.data?.message || '신고 처리에 실패했습니다.'
+  }
+  reportSaving.value = false
 }
 
 const loadSummary = async () => {
@@ -206,11 +280,52 @@ watch([selectedAccommodationId, selectedSort], () => {
           <p>{{ review.content }}</p>
         </div>
 
+        <div v-if="review.replyContent && activeReplyId !== review.id" class="reply-box">
+          <p class="reply-title">호스트 답글</p>
+          <p>{{ review.replyContent }}</p>
+          <p v-if="review.replyUpdatedAt" class="reply-date">
+            {{ formatDate(review.replyUpdatedAt, true) }}
+          </p>
+        </div>
+
+        <div v-if="activeReplyId === review.id" class="reply-editor">
+          <textarea v-model="replyDraft" rows="4" placeholder="답글을 입력해주세요." />
+          <p v-if="replyError" class="muted error">{{ replyError }}</p>
+          <div class="reply-actions">
+            <button class="ghost-btn" type="button" @click="closeReply">취소</button>
+            <button class="primary-btn" type="button" :disabled="replySaving" @click="submitReply(review)">
+              {{ replySaving ? '저장 중...' : '답글 저장' }}
+            </button>
+          </div>
+        </div>
+
         <div class="card-footer">
           <span class="review-chip" :class="{ crawled: review.isCrawled }">
             {{ review.isCrawled ? '크롤링 리뷰' : '직접 작성' }}
           </span>
           <span v-if="review.visitDate" class="visit-date">방문일 {{ review.visitDate }}</span>
+        </div>
+
+        <div class="card-actions">
+          <button class="ghost-btn" type="button" @click="openReply(review)">
+            {{ review.replyContent ? '답글 수정' : '답글 달기' }}
+          </button>
+          <button class="ghost-btn danger" type="button" @click="openReport(review)">신고</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="reportTarget" class="modal-overlay" @click.self="closeReport">
+      <div class="modal-card">
+        <h3>리뷰 신고</h3>
+        <p class="muted">신고 사유를 입력해주세요.</p>
+        <textarea v-model="reportReason" rows="4" placeholder="예: 욕설/광고/허위 내용" />
+        <p v-if="reportError" class="muted error">{{ reportError }}</p>
+        <div class="modal-actions">
+          <button class="ghost-btn" type="button" @click="closeReport">취소</button>
+          <button class="primary-btn" type="button" :disabled="reportSaving" @click="submitReport">
+            {{ reportSaving ? '접수 중...' : '신고 접수' }}
+          </button>
         </div>
       </div>
     </div>
@@ -271,6 +386,79 @@ watch([selectedAccommodationId, selectedSort], () => {
   border: 1px solid var(--brand-border);
 }
 
+.reply-box {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 0.85rem;
+  color: #0f172a;
+}
+
+.reply-title {
+  font-weight: 800;
+  margin: 0 0 0.35rem;
+}
+
+.reply-date {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.reply-editor textarea,
+.modal-card textarea {
+  width: 100%;
+  border: 1px solid var(--brand-border);
+  border-radius: 12px;
+  padding: 0.7rem;
+  font-weight: 600;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.reply-actions,
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.ghost-btn.danger {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.error {
+  color: #b91c1c;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 50;
+}
+
+.modal-card {
+  width: min(520px, 92vw);
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.25rem;
+  border: 1px solid var(--brand-border);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+}
+
 .empty-box {
   margin-top: 1rem;
   color: #6b7280;
@@ -290,6 +478,17 @@ watch([selectedAccommodationId, selectedSort], () => {
   padding: 0.55rem 0.9rem;
   font-weight: 800;
   min-height: 44px;
+  cursor: pointer;
+}
+
+.primary-btn {
+  background: var(--brand-primary, #BFE7DF);
+  color: #0f172a;
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 800;
+  min-height: 44px;
+  border: 1px solid var(--brand-primary-strong, #0f766e);
   cursor: pointer;
 }
 

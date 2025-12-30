@@ -1,15 +1,21 @@
 package com.ssg9th2team.geharbang.domain.review.host.controller;
 
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.review.host.dto.HostReviewReplyRequest;
+import com.ssg9th2team.geharbang.domain.review.host.dto.HostReviewReplyResponse;
+import com.ssg9th2team.geharbang.domain.review.host.dto.HostReviewReportRequest;
 import com.ssg9th2team.geharbang.domain.review.host.dto.HostReviewResponse;
 import com.ssg9th2team.geharbang.domain.review.host.dto.HostReviewSummaryResponse;
 import com.ssg9th2team.geharbang.domain.review.host.service.HostReviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
@@ -37,6 +43,26 @@ public class HostReviewController {
     ) {
         Long hostId = resolveHostId(authentication);
         return hostReviewService.getReviews(hostId, accommodationId, page, size, sort);
+    }
+
+    @PostMapping("/{reviewId}/reply")
+    public HostReviewReplyResponse upsertReply(
+            @PathVariable Long reviewId,
+            @RequestBody HostReviewReplyRequest request,
+            Authentication authentication
+    ) {
+        Long hostId = resolveHostId(authentication);
+        return hostReviewService.upsertReply(hostId, reviewId, request != null ? request.getContent() : null);
+    }
+
+    @PostMapping("/{reviewId}/report")
+    public void reportReview(
+            @PathVariable Long reviewId,
+            @RequestBody HostReviewReportRequest request,
+            Authentication authentication
+    ) {
+        Long hostId = resolveHostId(authentication);
+        hostReviewService.reportReview(hostId, reviewId, request != null ? request.getReason() : null);
     }
 
     private Long resolveHostId(Authentication authentication) {

@@ -295,7 +295,7 @@ const goToTodayBookings = () => {
     query: {
       view: 'list',
       sort: 'checkin',
-      scope: 'today',
+      mode: 'today',
       date: toLocalDateString(new Date())
     }
   })

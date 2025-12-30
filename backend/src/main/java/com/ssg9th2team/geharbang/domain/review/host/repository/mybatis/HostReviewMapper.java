@@ -18,4 +18,9 @@ public interface HostReviewMapper {
             @Param("size") int size,
             @Param("sort") String sort
     );
+
+    Long selectReviewIdForHost(
+            @Param("hostId") Long hostId,
+            @Param("reviewId") Long reviewId
+    );
 }

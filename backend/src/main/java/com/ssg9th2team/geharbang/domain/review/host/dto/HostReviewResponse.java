@@ -17,4 +17,6 @@ public class HostReviewResponse {
     private String visitDate;
     private LocalDateTime createdAt;
     private Boolean isCrawled;
+    private String replyContent;
+    private LocalDateTime replyUpdatedAt;
 }
