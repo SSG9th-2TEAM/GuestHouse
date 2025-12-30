@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.auth.service;
 
+import com.ssg9th2team.geharbang.domain.auth.dto.CompleteSocialSignupRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindPasswordRequest;
@@ -44,4 +45,7 @@ public interface AuthService {
 
     // 리프레시 토큰으로 액세스 토큰 재발급
     TokenResponse refresh(String refreshToken);
+
+    // 소셜 회원가입 완료
+    UserResponse completeSocialSignup(Long userId, CompleteSocialSignupRequest request);
 }
