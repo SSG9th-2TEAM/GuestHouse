@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
-import { fetchAdminAccommodations, approveAccommodation, rejectAccommodation } from '../../api/adminApi'
+import { fetchAdminAccommodations, fetchAdminAccommodationDetail, approveAccommodation, rejectAccommodation } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 
 const accommodationList = ref([])
@@ -16,14 +16,27 @@ const totalPages = ref(0)
 const totalElements = ref(0)
 const isLoading = ref(false)
 const loadError = ref('')
+const detailOpen = ref(false)
+const detailLoading = ref(false)
+const detailError = ref('')
+const detailData = ref(null)
 const route = useRoute()
 const router = useRouter()
+
+// Backend ApprovalStatus enum: PENDING / APPROVED / REJECTED
+const APPROVAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED']
+
+const normalizeStatus = (value) => {
+  if (!value) return 'all'
+  const normalized = String(value).toUpperCase().trim()
+  return APPROVAL_STATUSES.includes(normalized) ? normalized : 'all'
+}
 
 const loadAccommodations = async () => {
   isLoading.value = true
   loadError.value = ''
   const response = await fetchAdminAccommodations({
-    status: statusFilter.value,
+    status: statusFilter.value === 'all' ? undefined : statusFilter.value,
     keyword: searchQuery.value || undefined,
     page: page.value,
     size: size.value,
@@ -55,7 +68,7 @@ const syncQuery = (next) => {
 }
 
 onMounted(() => {
-  statusFilter.value = route.query.status ?? 'all'
+  statusFilter.value = normalizeStatus(route.query.status)
   searchQuery.value = route.query.keyword ?? ''
   page.value = Number(route.query.page ?? 0)
   loadAccommodations()
@@ -87,6 +100,13 @@ watch([searchQuery, statusFilter], () => {
   loadAccommodations()
 })
 
+const applyPendingFilter = () => {
+  statusFilter.value = 'PENDING'
+  page.value = 0
+  syncQuery({ status: statusFilter.value, page: page.value })
+  loadAccommodations()
+}
+
 const handleApprove = async (item) => {
   if (!item?.accommodationsId) return
   if (!confirm('이 숙소를 승인하시겠습니까?')) return
@@ -102,6 +122,56 @@ const handleReject = async (item) => {
   loadAccommodations()
 }
 
+const openDetail = async (item) => {
+  if (!item?.accommodationsId) return
+  detailOpen.value = true
+  detailLoading.value = true
+  detailError.value = ''
+  const response = await fetchAdminAccommodationDetail(item.accommodationsId)
+  if (response.ok && response.data) {
+    detailData.value = response.data
+  } else {
+    detailError.value = '숙소 상세 정보를 불러오지 못했습니다.'
+  }
+  detailLoading.value = false
+}
+
+const closeDetail = () => {
+  detailOpen.value = false
+  detailError.value = ''
+  detailData.value = null
+}
+
+const refreshDetail = async () => {
+  if (!detailData.value?.accommodationsId) return
+  detailLoading.value = true
+  detailError.value = ''
+  const response = await fetchAdminAccommodationDetail(detailData.value.accommodationsId)
+  if (response.ok && response.data) {
+    detailData.value = response.data
+  } else {
+    detailError.value = '숙소 상세 정보를 불러오지 못했습니다.'
+  }
+  detailLoading.value = false
+}
+
+const handleDetailApprove = async () => {
+  if (!detailData.value?.accommodationsId) return
+  if (!confirm('이 숙소를 승인하시겠습니까?')) return
+  await approveAccommodation(detailData.value.accommodationsId)
+  loadAccommodations()
+  refreshDetail()
+}
+
+const handleDetailReject = async () => {
+  if (!detailData.value?.accommodationsId) return
+  const reason = prompt('반려 사유를 입력해주세요')
+  if (!reason) return
+  await rejectAccommodation(detailData.value.accommodationsId, reason)
+  loadAccommodations()
+  refreshDetail()
+}
+
 const downloadReport = (format) => {
   const today = new Date().toISOString().slice(0, 10)
   const sheets = [
@@ -115,6 +185,12 @@ const downloadReport = (format) => {
         { key: 'district', label: '지역' },
         { key: 'category', label: '유형' },
         { key: 'createdAt', label: '등록일' },
+        { key: 'avgRating', label: '평점' },
+        { key: 'reviewCount', label: '리뷰 수' },
+        { key: 'reservationCount', label: '예약 수' },
+        { key: 'occupancyRate', label: '가동률' },
+        { key: 'cancellationRate', label: '취소율' },
+        { key: 'totalRevenue', label: '총 매출' },
         { key: 'approvalStatus', label: '상태' }
       ],
       rows: filteredAccommodations.value
@@ -126,6 +202,37 @@ const downloadReport = (format) => {
     return
   }
   exportCSV({ filename: `admin-accommodations-${today}.csv`, sheets })
+}
+
+const formatCurrency = (value, fallbackZero = false) => {
+  if (value === null || value === undefined) return fallbackZero ? '₩0' : '-'
+  return `₩${Number(value).toLocaleString()}`
+}
+
+const formatCount = (value, fallbackZero = false) => {
+  if (value === null || value === undefined) return fallbackZero ? '0' : '-'
+  return Number(value).toLocaleString()
+}
+
+const formatPercent = (value, fallbackZero = false) => {
+  if (value === null || value === undefined) return fallbackZero ? '0.0%' : '-'
+  return `${Number(value).toFixed(1)}%`
+}
+
+const formatRating = (value) => {
+  if (value === null || value === undefined) return '-'
+  return Number(value).toFixed(1)
+}
+
+const formatDate = (value) => {
+  if (!value) return '-'
+  return String(value).slice(0, 10)
+}
+
+const accommodationStatusLabel = (value) => {
+  if (value === 1) return '운영중'
+  if (value === 0) return '운영정지'
+  return '-'
 }
 </script>
 
@@ -159,7 +266,7 @@ const downloadReport = (format) => {
       </div>
       <div class="admin-filter-group">
         <span class="admin-chip">작업</span>
-        <button class="admin-btn admin-btn--primary" type="button">대기 숙소 검토</button>
+        <button class="admin-btn admin-btn--primary" type="button" @click="applyPendingFilter">대기 숙소 보기</button>
       </div>
       <div class="admin-filter-group">
         <details class="admin-dropdown">
@@ -192,25 +299,24 @@ const downloadReport = (format) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredAccommodations" :key="item.id">
+          <tr v-for="item in filteredAccommodations" :key="item.accommodationsId">
             <td class="admin-strong">#{{ item.accommodationsId }}</td>
             <td class="admin-strong">{{ item.name }}</td>
             <td>{{ item.hostUserId }}</td>
             <td>{{ item.city }} {{ item.district }}</td>
-            <td>-</td>
-            <td>-</td>
-            <td>-</td>
-            <td>-</td>
-            <td>-</td>
-            <td>-</td>
-            <td>-</td>
-            <td>{{ item.createdAt?.slice?.(0, 10) ?? '-' }}</td>
+            <td>{{ formatRating(item.avgRating) }}</td>
+            <td>{{ formatCount(item.reviewCount) }}</td>
+            <td>{{ formatCount(item.reservationCount, true) }}</td>
+            <td>{{ formatPercent(item.occupancyRate, true) }}</td>
+            <td>{{ formatPercent(item.cancellationRate, true) }}</td>
+            <td>{{ formatCurrency(item.totalRevenue, true) }}</td>
+            <td>{{ formatDate(item.createdAt) }}</td>
             <td>
               <AdminBadge :text="item.approvalStatus" :variant="statusVariant(item.approvalStatus)" />
             </td>
             <td>
               <div class="admin-inline-actions admin-inline-actions--nowrap">
-                <button class="admin-btn admin-btn--ghost" type="button">상세</button>
+                <button class="admin-btn admin-btn--ghost" type="button" @click="openDetail(item)">상세</button>
                 <button class="admin-btn admin-btn--primary" type="button" @click="handleApprove(item)">승인</button>
                 <button class="admin-btn admin-btn--muted" type="button" @click="handleReject(item)">반려</button>
               </div>
@@ -223,7 +329,7 @@ const downloadReport = (format) => {
         <span>{{ loadError }}</span>
         <button class="admin-btn admin-btn--ghost" type="button" @click="loadAccommodations">다시 시도</button>
       </div>
-      <div v-else-if="!filteredAccommodations.length" class="admin-status">데이터가 없습니다.</div>
+      <div v-else-if="!filteredAccommodations.length" class="admin-status">조건에 맞는 숙소가 없습니다.</div>
       <div class="admin-pagination">
         <button class="admin-btn admin-btn--ghost" type="button" :disabled="page <= 0" @click="page = page - 1; loadAccommodations()">
           이전
@@ -234,6 +340,67 @@ const downloadReport = (format) => {
         </button>
       </div>
     </AdminTableCard>
+
+    <div v-if="detailOpen" class="admin-modal">
+      <div class="admin-modal__backdrop" @click="closeDetail" />
+      <div class="admin-modal__panel" role="dialog" aria-modal="true">
+        <div class="admin-modal__header">
+          <div>
+            <p class="admin-modal__eyebrow">숙소 상세</p>
+            <h2 class="admin-modal__title">{{ detailData?.name ?? '-' }}</h2>
+          </div>
+          <button class="admin-btn admin-btn--ghost" type="button" @click="closeDetail">닫기</button>
+        </div>
+
+        <div v-if="detailLoading" class="admin-status">불러오는 중...</div>
+        <div v-else-if="detailError" class="admin-status">
+          <span>{{ detailError }}</span>
+          <button class="admin-btn admin-btn--ghost" type="button" @click="refreshDetail">다시 시도</button>
+        </div>
+        <div v-else class="admin-modal__body">
+          <div class="admin-modal__section">
+            <h3>기본 정보</h3>
+            <div class="admin-detail-grid">
+              <div><span>ID</span><strong>#{{ detailData?.accommodationsId ?? '-' }}</strong></div>
+              <div><span>호스트</span><strong>{{ detailData?.hostName ?? '-' }} ({{ detailData?.hostUserId ?? '-' }})</strong></div>
+              <div><span>연락처</span><strong>{{ detailData?.hostPhone ?? '-' }}</strong></div>
+              <div><span>주소</span><strong>{{ [detailData?.city, detailData?.district, detailData?.township, detailData?.addressDetail].filter(Boolean).join(' ') || '-' }}</strong></div>
+              <div><span>숙소 유형</span><strong>{{ detailData?.category ?? '-' }}</strong></div>
+              <div><span>등록일</span><strong>{{ formatDate(detailData?.createdAt) }}</strong></div>
+              <div><span>객실 수</span><strong>{{ formatCount(detailData?.roomCount) }}</strong></div>
+              <div><span>최대 인원</span><strong>{{ formatCount(detailData?.maxGuests) }}</strong></div>
+              <div><span>1박 최저가</span><strong>{{ formatCurrency(detailData?.minPrice) }}</strong></div>
+            </div>
+          </div>
+
+          <div class="admin-modal__section">
+            <h3>상태</h3>
+            <div class="admin-detail-grid">
+              <div><span>승인 상태</span><strong>{{ detailData?.approvalStatus ?? '-' }}</strong></div>
+              <div><span>운영 상태</span><strong>{{ accommodationStatusLabel(detailData?.accommodationStatus) }}</strong></div>
+              <div v-if="detailData?.rejectionReason"><span>반려 사유</span><strong>{{ detailData?.rejectionReason }}</strong></div>
+            </div>
+          </div>
+
+          <div class="admin-modal__section">
+            <h3>지표 요약</h3>
+            <div class="admin-detail-grid">
+              <div><span>평점</span><strong>{{ formatRating(detailData?.avgRating) }}</strong></div>
+              <div><span>리뷰 수</span><strong>{{ formatCount(detailData?.reviewCount) }}</strong></div>
+              <div><span>예약 수(확정)</span><strong>{{ formatCount(detailData?.reservationCount) }}</strong></div>
+              <div><span>가동률</span><strong>{{ formatPercent(detailData?.occupancyRate) }}</strong></div>
+              <div><span>취소율</span><strong>{{ formatPercent(detailData?.cancellationRate) }}</strong></div>
+              <div><span>총 매출(확정)</span><strong>{{ formatCurrency(detailData?.totalRevenue) }}</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-modal__actions" v-if="!detailLoading">
+          <button class="admin-btn admin-btn--primary" type="button" @click="handleDetailApprove">승인</button>
+          <button class="admin-btn admin-btn--muted" type="button" @click="handleDetailReject">반려</button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -308,6 +475,100 @@ const downloadReport = (format) => {
 
 .admin-btn-ghost:hover {
   border-color: #0f766e;
+}
+
+.admin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.admin-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.admin-modal__panel {
+  position: relative;
+  width: min(860px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+  display: grid;
+  gap: 1.25rem;
+}
+
+.admin-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-modal__eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.admin-modal__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #0b3b32;
+}
+
+.admin-modal__body {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.admin-modal__section h3 {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.admin-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem 1.25rem;
+}
+
+.admin-detail-grid span {
+  display: block;
+  font-size: 0.82rem;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.admin-detail-grid strong {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.admin-modal__actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 960px) {
+  .admin-modal__panel {
+    padding: 1.2rem;
+  }
 }
 
 @media (max-width: 768px) {

@@ -11,6 +11,15 @@ public record AdminAccommodationSummary(
         String district,
         String approvalStatus,
         String rejectionReason,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        Double avgRating,
+        Integer reviewCount,
+        Integer roomCount,
+        Integer minPrice,
+        String hostPhone,
+        Integer reservationCount,
+        Double occupancyRate,
+        Double cancellationRate,
+        Long totalRevenue
 ) {
 }

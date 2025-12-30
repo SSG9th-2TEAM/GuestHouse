@@ -214,6 +214,16 @@ const router = createRouter({
                     path: 'reports',
                     name: 'admin-reports',
                     component: () => import('../views/AdminView/AdminReportsView.vue')
+                },
+                {
+                    path: 'issues',
+                    name: 'admin-issues',
+                    component: () => import('../views/AdminView/AdminIssuesView.vue')
+                },
+                {
+                    path: 'reports/weekly',
+                    name: 'admin-weekly-report',
+                    component: () => import('../views/AdminView/AdminWeeklyReportView.vue')
                 }
             ]
         },

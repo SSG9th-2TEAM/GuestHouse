@@ -7,6 +7,7 @@ import AdminTableCard from '../../components/admin/AdminTableCard.vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
 import { fetchAdminUsers } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
+import { getUserStatusLabel, getUserStatusVariant } from '../../constants/adminUserStatus'
 
 const stats = ref([])
 const users = ref([])
@@ -121,6 +122,10 @@ const downloadReport = (format) => {
   }
   exportCSV({ filename: `admin-users-${today}.csv`, sheets })
 }
+
+const handleUserAction = () => {
+  alert('준비중입니다.')
+}
 </script>
 
 <template>
@@ -182,7 +187,17 @@ const downloadReport = (format) => {
     </div>
 
     <AdminTableCard title="회원 목록">
-      <table class="admin-table--nowrap admin-table--tight">
+      <table class="admin-table--nowrap admin-table--tight admin-table--stretch">
+        <colgroup>
+          <col style="width:90px"/>
+          <col style="width:320px"/>
+          <col style="width:160px"/>
+          <col style="width:110px"/>
+          <col style="width:140px"/>
+          <col style="width:140px"/>
+          <col style="width:120px"/>
+          <col style="width:160px"/>
+        </colgroup>
         <thead>
           <tr>
             <th>ID</th>
@@ -191,17 +206,28 @@ const downloadReport = (format) => {
             <th>유형</th>
             <th>가입일</th>
             <th>호스트 승인</th>
+            <th>계정 상태</th>
+            <th class="admin-align-right">관리</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="user in filteredUsers" :key="user.userId">
             <td class="admin-strong">#{{ user.userId }}</td>
-            <td class="admin-strong">{{ user.email }}</td>
+            <td class="admin-strong admin-ellipsis" :title="user.email">{{ user.email }}</td>
             <td>{{ user.phone }}</td>
-            <td>{{ user.role }}</td>
-            <td>{{ user.createdAt?.slice?.(0, 10) ?? '-' }}</td>
+            <td class="admin-align-center">{{ user.role }}</td>
+            <td class="admin-align-center">{{ user.createdAt?.slice?.(0, 10) ?? '-' }}</td>
             <td>
               <AdminBadge :text="user.hostApproved ? '승인' : '미승인'" :variant="user.hostApproved ? 'success' : 'warning'" />
+            </td>
+            <td>
+              <AdminBadge :text="getUserStatusLabel(user.accountStatus)" :variant="getUserStatusVariant(user.accountStatus)" />
+            </td>
+            <td>
+              <div class="admin-inline-actions admin-inline-actions--nowrap admin-actions-right">
+                <button class="admin-btn admin-btn--muted admin-action-disabled" type="button" @click="handleUserAction">정지</button>
+                <button class="admin-btn admin-btn--ghost admin-action-disabled" type="button" @click="handleUserAction">해제</button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -303,6 +329,29 @@ const downloadReport = (format) => {
 
 .admin-btn-ghost:hover {
   border-color: #0f766e;
+}
+
+.admin-table--stretch {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.admin-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-align-center {
+  text-align: center;
+}
+
+.admin-actions-right {
+  justify-content: flex-end;
+}
+
+.admin-action-disabled {
+  opacity: 0.6;
 }
 
 @media (max-width: 768px) {

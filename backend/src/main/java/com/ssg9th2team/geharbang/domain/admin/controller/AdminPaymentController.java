@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPaymentDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPaymentSummary;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminRefundRequest;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminPaymentMetricsPoint;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminPaymentService;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentResponseDto;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/payments")
@@ -37,6 +40,23 @@ public class AdminPaymentController {
                 page,
                 size,
                 sort
+        );
+    }
+
+    @GetMapping("/metrics")
+    public List<AdminPaymentMetricsPoint> getPaymentMetrics(
+            @RequestParam(defaultValue = "yearly") String mode,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String keyword
+    ) {
+        return paymentService.getMetrics(
+                mode,
+                year,
+                normalizeFilter(status),
+                normalizeFilter(type),
+                normalizeFilter(keyword)
         );
     }
 
