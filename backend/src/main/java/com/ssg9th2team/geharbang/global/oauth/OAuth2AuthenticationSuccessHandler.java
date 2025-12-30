@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.global.oauth;
 
+import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.global.security.JwtTokenProvider;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +25,9 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     @Value("${oauth2.redirect-uri:http://localhost:3000/oauth2/redirect}")
     private String redirectUri;
 
+    @Value("${oauth2.signup-redirect-uri:http://localhost:3000/social-signup}")
+    private String signupRedirectUri;
+
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
@@ -46,11 +50,29 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         log.info("OAuth2 Login Success - User: {}", authentication.getName());
 
-        // 프론트엔드 리다이렉트 URL에 토큰 포함
-        return UriComponentsBuilder.fromUriString(redirectUri)
-                .queryParam("accessToken", accessToken)
-                .queryParam("refreshToken", refreshToken)
-                .build()
-                .toUriString();
+        // CustomOAuth2User에서 User 정보 가져오기
+        CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
+        User user = oAuth2User.getUser();
+
+        // 소셜 회원가입 완료 여부 확인
+        Boolean socialSignupCompleted = user.getSocialSignupCompleted();
+
+        if (socialSignupCompleted == null || !socialSignupCompleted) {
+            // 신규 소셜 사용자 - 회원가입 페이지로 리다이렉트
+            log.info("New social user - Redirecting to signup page: {}", user.getEmail());
+            return UriComponentsBuilder.fromUriString(signupRedirectUri)
+                    .queryParam("accessToken", accessToken)
+                    .queryParam("refreshToken", refreshToken)
+                    .build()
+                    .toUriString();
+        } else {
+            // 기존 소셜 사용자 - 메인 페이지로 리다이렉트
+            log.info("Existing social user - Redirecting to main page: {}", user.getEmail());
+            return UriComponentsBuilder.fromUriString(redirectUri)
+                    .queryParam("accessToken", accessToken)
+                    .queryParam("refreshToken", refreshToken)
+                    .build()
+                    .toUriString();
+        }
     }
 }
