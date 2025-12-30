@@ -12,51 +12,59 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-public interface ReservationJpaRepository extends JpaRepository<Reservation, Long>, JpaSpecificationExecutor<Reservation> {
+public interface ReservationJpaRepository
+                extends JpaRepository<Reservation, Long>, JpaSpecificationExecutor<Reservation> {
 
-    List<Reservation> findByUserId(Long userId);
+        List<Reservation> findByUserId(Long userId);
 
-    List<Reservation> findByAccommodationsId(Long accommodationsId);
+        List<Reservation> findByAccommodationsId(Long accommodationsId);
 
-    List<Reservation> findByUserIdOrderByCreatedAtDesc(Long userId);
+        List<Reservation> findByUserIdOrderByCreatedAtDesc(Long userId);
 
-    List<Reservation> findByRoomId(Long roomId);  // roomId로 예약 조회
+        List<Reservation> findByRoomId(Long roomId); // roomId로 예약 조회
 
-    /**
-     * 30분 이상 경과한 대기(0) 상태 예약 삭제
-     */
-    @Modifying
-    @Query("DELETE FROM Reservation r WHERE r.reservationStatus = 0 AND r.createdAt < :cutoffTime")
-    int deleteOldPendingReservations(@Param("cutoffTime") LocalDateTime cutoffTime);
+        /**
+         * 30분 이상 경과한 대기(0) 상태 예약 삭제
+         */
+        @Modifying
+        @Query("DELETE FROM Reservation r WHERE r.reservationStatus = 0 AND r.createdAt < :cutoffTime")
+        int deleteOldPendingReservations(@Param("cutoffTime") LocalDateTime cutoffTime);
 
-    /**
-     * 대기 상태 예약 삭제 (사용자가 결제 취소 시)
-     */
-    @Modifying
-    @Query("DELETE FROM Reservation r WHERE r.id = :reservationId AND r.reservationStatus = 0")
-    int deletePendingReservation(@Param("reservationId") Long reservationId);
+        /**
+         * 대기 상태 예약 삭제 (사용자가 결제 취소 시)
+         */
+        @Modifying
+        @Query("DELETE FROM Reservation r WHERE r.id = :reservationId AND r.reservationStatus = 0")
+        int deletePendingReservation(@Param("reservationId") Long reservationId);
 
-    /**
-     * 같은 객실에 날짜가 겹치는 예약이 있는지 확인 (확정된 예약만)
-     * 날짜 겹침 조건: 새 체크인 < 기존 체크아웃 AND 새 체크아웃 > 기존 체크인
-     */
-    @Query("SELECT COUNT(r) > 0 FROM Reservation r " +
-            "WHERE r.roomId = :roomId " +
-            "AND r.reservationStatus = 2 " + // 확정된 예약만
-            "AND r.checkin < :checkout " +
-            "AND r.checkout > :checkin")
+        /**
+         * 이용 완료된 예약만 삭제 (체크인 날짜가 현재 이전 + 확정 상태)
+         */
+        @Modifying
+        @Query("DELETE FROM Reservation r WHERE r.id = :reservationId AND r.reservationStatus = 2 AND r.checkin < :now")
+        int deleteCompletedReservation(@Param("reservationId") Long reservationId, @Param("now") LocalDateTime now);
 
-    boolean hasConflictingReservation(
-            @Param("roomId") Long roomId,
-            @Param("checkin") LocalDateTime checkin,
-            @Param("checkout") LocalDateTime checkout);
+        /**
+         * 같은 객실에 날짜가 겹치는 예약이 있는지 확인 (확정된 예약만)
+         * 날짜 겹침 조건: 새 체크인 < 기존 체크아웃 AND 새 체크아웃 > 기존 체크인
+         */
+        @Query("SELECT COUNT(r) > 0 FROM Reservation r " +
+                        "WHERE r.roomId = :roomId " +
+                        "AND r.reservationStatus = 2 " + // 확정된 예약만
+                        "AND r.checkin < :checkout " +
+                        "AND r.checkout > :checkin")
 
-    @Query("select count(distinct r.userId) from Reservation r " +
-            "where r.createdAt >= :start and r.createdAt < :end")
-    long countDistinctGuest(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+        boolean hasConflictingReservation(
+                        @Param("roomId") Long roomId,
+                        @Param("checkin") LocalDateTime checkin,
+                        @Param("checkout") LocalDateTime checkout);
 
-    @Query("select count(distinct a.userId) from Reservation r " +
-            "join Accommodation a on r.accommodationsId = a.accommodationsId " +
-            "where r.createdAt >= :start and r.createdAt < :end")
-    long countDistinctHost(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+        @Query("select count(distinct r.userId) from Reservation r " +
+                        "where r.createdAt >= :start and r.createdAt < :end")
+        long countDistinctGuest(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+        @Query("select count(distinct a.userId) from Reservation r " +
+                        "join Accommodation a on r.accommodationsId = a.accommodationsId " +
+                        "where r.createdAt >= :start and r.createdAt < :end")
+        long countDistinctHost(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 }

@@ -92,3 +92,19 @@ export async function deletePendingReservation(reservationId) {
         console.error(`대기 예약 삭제 실패: ${response.status}`)
     }
 }
+
+/**
+ * 이용 완료된 예약 삭제 (내역에서 삭제)
+ * 체크인 날짜가 지난 확정된 예약만 삭제 가능
+ * @param {number} reservationId - 예약 ID
+ * @returns {Promise<void>}
+ */
+export async function deleteCompletedReservation(reservationId) {
+    const response = await authenticatedRequest(`/api/reservations/completed/${reservationId}`, {
+        method: 'DELETE'
+    })
+
+    if (!response.ok) {
+        throw new Error(`이용 완료된 예약만 삭제할 수 있습니다.`)
+    }
+}
