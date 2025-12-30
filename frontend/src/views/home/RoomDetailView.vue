@@ -1115,7 +1115,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   top: calc(100% + 12px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1001;
+  z-index: 90;
   background: #fff;
   border: 1px solid #f0f0f0;
   border-radius: 16px;
@@ -1477,6 +1477,10 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   .calendar-day {
     padding: 10px 0;
     font-size: 13px;
+  }
+  .calendar-day.range-start.has-end::after,
+  .calendar-day.range-end::before {
+    display: none;
   }
   .room-card {
     flex-direction: column;

@@ -1214,7 +1214,9 @@ onUnmounted(() => {
   
   /* Mobile Calendar Popup */
   .mobile-calendar-popup {
-    background: #f9fafb;
+    background: #fff;
+    border: 1px solid #f0f0f0;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
     border-radius: 12px;
     padding: 16px;
     margin: 8px 0;
@@ -1306,7 +1308,7 @@ onUnmounted(() => {
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   padding: 24px;
-  z-index: 1001;
+  z-index: 90;
   font-family: 'Noto Sans KR', sans-serif;
   border: 1px solid #f0f0f0;
   animation: calendarFadeIn 0.2s ease;
@@ -1538,6 +1540,11 @@ onUnmounted(() => {
     padding: 10px 0;
     font-size: 13px;
   }
+
+  .calendar-day.range-start.has-end::after,
+  .calendar-day.range-end::before {
+    display: none;
+  }
 }
 
 /* Navigation button positioning for desktop */
@@ -1564,7 +1571,7 @@ onUnmounted(() => {
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   padding: 24px;
-  z-index: 1001;
+  z-index: 90;
   font-family: 'Noto Sans KR', sans-serif;
   border: 1px solid #f0f0f0;
   animation: guestFadeIn 0.2s ease;
