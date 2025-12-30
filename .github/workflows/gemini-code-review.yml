@@ -61,9 +61,10 @@ jobs:
             }
           }')
 
-          RESPONSE=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-ultra:generateContent?key=${GEMINI_API_KEY}" \
-           -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
+          RESPONSE=$(curl -s \
+          "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}" \
+          -H "Content-Type: application/json" \
+           -d "$PAYLOAD")
 
           # 응답 디버깅
           echo "API Response: $RESPONSE"
