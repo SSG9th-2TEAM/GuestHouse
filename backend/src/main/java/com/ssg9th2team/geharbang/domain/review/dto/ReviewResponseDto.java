@@ -25,4 +25,5 @@ public class ReviewResponseDto {
     private List<ReviewImageDto> images;
     private List<ReviewTagDto> tags;
     private String visitDate;
+    private String accommodationName;
 }
