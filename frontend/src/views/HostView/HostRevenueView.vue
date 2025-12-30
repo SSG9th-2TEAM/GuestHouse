@@ -2,7 +2,10 @@
 import {ref, computed, nextTick, onMounted, watch} from 'vue'
 import {exportCSV, exportXLSX} from '../../utils/reportExport'
 import {fetchHostRevenueDetails, fetchHostRevenueSummary, fetchHostRevenueTrend} from '@/api/hostRevenue'
+import { fetchHostAccommodations } from '@/api/hostAccommodation'
+import { deriveHostState } from '@/composables/useHostState'
 import {formatCurrency, formatDate} from '@/utils/formatters'
+import HostPendingLock from '@/components/host/HostPendingLock.vue'
 
 const now = new Date()
 const currentYear = now.getFullYear()
@@ -27,6 +30,9 @@ const loadError = ref('')
 const prefersReducedMotion = ref(false)
 const animateCharts = ref(false)
 const includeZero = ref(false)
+const hostState = ref('loading')
+const hostCounts = ref({ total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 })
+const pendingOnly = computed(() => hostState.value === 'pending-only')
 
 const currentYearSummary = computed(() => revenueSummary.value)
 const currentYearTrend = computed(() => revenueTrend.value)
@@ -101,6 +107,7 @@ const downloadReport = (format) => {
 }
 
 const loadRevenue = async (year, month) => {
+  if (pendingOnly.value) return
   isLoading.value = true
   loadError.value = ''
   const currentMonthValue = now.getMonth() + 1
@@ -151,8 +158,30 @@ const loadRevenue = async (year, month) => {
   }
 }
 
-onMounted(() => loadRevenue(selectedYear.value, selectedMonth.value))
+const loadHostState = async () => {
+  const response = await fetchHostAccommodations()
+  if (response.ok) {
+    const payload = response.data
+    const list = Array.isArray(payload)
+      ? payload
+      : payload?.items ?? payload?.content ?? payload?.data ?? []
+    const snapshot = deriveHostState(list)
+    hostState.value = snapshot.hostState
+    hostCounts.value = snapshot.counts
+  } else {
+    hostState.value = 'empty'
+  }
+}
+
+onMounted(async () => {
+  await loadHostState()
+  if (!pendingOnly.value) {
+    loadRevenue(selectedYear.value, selectedMonth.value)
+  }
+})
+
 watch([selectedYear, selectedMonth], ([year, month]) => {
+  if (pendingOnly.value) return
   loadRevenue(year, month)
 })
 
@@ -386,6 +415,18 @@ const scrollToAnchor = (anchorId) => {
 
 <template>
   <div class="revenue-view">
+    <HostPendingLock
+      v-if="pendingOnly"
+      title="승인 후 매출 리포트를 볼 수 있어요"
+      description="숙소 승인 완료 후 확정 매출/정산 데이터가 집계됩니다."
+      primary-cta-text="숙소 관리"
+      primary-cta-to="/host/accommodation"
+      secondary-cta-text="추가 등록"
+      secondary-cta-to="/host/accommodation/register"
+      :badge-text="`검수중 ${hostCounts.pending}건`"
+    />
+
+    <template v-else>
     <div class="view-header">
       <div>
         <h2>매출 리포트</h2>
@@ -617,6 +658,7 @@ const scrollToAnchor = (anchorId) => {
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 

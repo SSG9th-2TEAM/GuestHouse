@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.auth.controller;
 
+import com.ssg9th2team.geharbang.domain.auth.dto.CompleteSocialSignupRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.EmailRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailResponse;
@@ -10,7 +11,10 @@ import com.ssg9th2team.geharbang.domain.auth.dto.SignupRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.TokenResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.UserResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.VerifyCodeRequest;
+import com.ssg9th2team.geharbang.domain.auth.entity.User;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.auth.service.AuthService;
+import com.ssg9th2team.geharbang.global.security.JwtTokenProvider;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +29,8 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
 
     //회원가입
@@ -118,5 +124,25 @@ public class AuthController {
         String token = refreshToken.replace("Bearer ", "");
         TokenResponse tokenResponse = authService.refresh(token);
         return ResponseEntity.ok(tokenResponse);
+    }
+
+    //소셜 회원가입 완료
+    @PostMapping("/complete-social-signup")
+    public ResponseEntity<UserResponse> completeSocialSignup(
+            @RequestHeader("Authorization") String authorization,
+            @Valid @RequestBody CompleteSocialSignupRequest request) {
+        // Bearer 토큰에서 실제 토큰 추출
+        String token = authorization.replace("Bearer ", "");
+
+        // 토큰에서 이메일 추출
+        String email = jwtTokenProvider.getUserEmailFromToken(token);
+
+        // 이메일로 사용자 조회
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        log.info("소셜 회원가입 완료 요청: userId={}", user.getId());
+        UserResponse userResponse = authService.completeSocialSignup(user.getId(), request);
+        return ResponseEntity.ok(userResponse);
     }
 }

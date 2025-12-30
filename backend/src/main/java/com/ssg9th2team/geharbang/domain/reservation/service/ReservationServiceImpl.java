@@ -100,7 +100,7 @@ public class ReservationServiceImpl implements ReservationService {
                 String accName = (accommodation != null) ? accommodation.getAccommodationsName() : null;
                 String accAddress = (accommodation != null)
                                 ? accommodation.getCity() + " " + accommodation.getDistrict() + " "
-                                                + accommodation.getTownship() + " " + accommodation.getAddressDetail()
+                                                + accommodation.getAddressDetail()
                                 : null;
 
                 return ReservationResponseDto.from(saved, accName, accAddress);
@@ -117,7 +117,7 @@ public class ReservationServiceImpl implements ReservationService {
                                                 "숙소를 찾을 수 없습니다: " + reservation.getAccommodationsId()));
 
                 String address = accommodation.getCity() + " " + accommodation.getDistrict() + " "
-                                + accommodation.getTownship() + " " + accommodation.getAddressDetail();
+                                + accommodation.getAddressDetail();
 
                 return ReservationResponseDto.from(reservation, accommodation.getAccommodationsName(), address);
         }
@@ -159,9 +159,7 @@ public class ReservationServiceImpl implements ReservationService {
                                                         : null;
                                         String accAddress = (accommodation != null)
                                                         ? accommodation.getCity() + " " + accommodation.getDistrict()
-                                                                        + " "
-                                                                        + accommodation.getTownship() + " "
-                                                                        + accommodation.getAddressDetail()
+                                                                        + " " + accommodation.getAddressDetail()
                                                         : null;
 
                                         // 숙소 대표 이미지 조회 (sort_order = 0)
@@ -188,19 +186,29 @@ public class ReservationServiceImpl implements ReservationService {
 
         @Override
         @Transactional
+        public void deleteCompletedReservation(Long reservationId) {
+                // 현재 시간 기준으로 체크인이 지난 확정 예약만 삭제 가능
+                java.time.LocalDateTime now = java.time.LocalDateTime.now();
+                int deleted = reservationRepository.deleteCompletedReservation(reservationId, now);
+                if (deleted == 0) {
+                        throw new IllegalArgumentException("이용 완료된 예약만 삭제할 수 있습니다. 예약 ID: " + reservationId);
+                }
+        }
+
+        @Override
+        @Transactional
         public int cleanupOldPendingReservations() {
                 // 30분 전 시간 계산
                 java.time.LocalDateTime cutoffTime = java.time.LocalDateTime.now().minusMinutes(30);
                 return reservationRepository.deleteOldPendingReservations(cutoffTime);
         }
 
-
         // 객실별 예약 조회
         @Override
         public List<ReservationResponseDto> getReservationByUserId(Long roomId) {
                 List<Reservation> reservations = reservationJpaRepository.findByRoomId(roomId);
                 return reservations.stream()
-                        .map(ReservationResponseDto::from)
-                        .collect(Collectors.toList());
+                                .map(ReservationResponseDto::from)
+                                .collect(Collectors.toList());
         }
 }

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getMyReservations, deletePendingReservation } from '@/api/reservationApi'
+import { getMyReservations, deleteCompletedReservation } from '@/api/reservationApi'
 import { isAuthenticated } from '@/api/authClient'
 
 const router = useRouter()
@@ -54,6 +54,18 @@ const formatTime = (dateString) => {
   })
 }
 
+// 썸네일 URL 생성
+const getThumbnailUrl = (url) => {
+  if (!url) return ''
+  if (url.includes('ncloudstorage.com')) {
+    return url
+      .replace('/accommodation_image/', '/accommodation_image_thumb/')
+      .replace('/room/', '/room_thumb/')
+      .replace(/\.(png|gif|webp)$/i, '.jpg')
+  }
+  return url
+}
+
 // 예약 목록 조회 (토큰 기반)
 const fetchReservations = async () => {
   try {
@@ -89,21 +101,21 @@ const handleCancel = (item) => {
         checkout: formatDate(item.checkout),
         guests: item.guestCount,
         price: item.finalPaymentAmount,
-        image: item.accommodationImageUrl || `https://picsum.photos/seed/${item.accommodationsId}/200/200`
+        image: getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`
       }
     }
   })
 }
 
-// 예약 내역에서 삭제
+// 이용 완료된 예약 내역에서 삭제
 const handleDelete = async (id) => {
   if (confirm('내역에서 삭제하시겠습니까?')) {
     try {
-      await deletePendingReservation(id)
+      await deleteCompletedReservation(id)
       reservations.value = reservations.value.filter(r => r.reservationId !== id)
     } catch (error) {
       console.error('삭제 실패:', error)
-      alert('삭제에 실패했습니다.')
+      alert('이용 완료된 예약만 삭제할 수 있습니다.')
     }
   }
 }
@@ -159,7 +171,7 @@ onMounted(() => {
           <div v-for="item in upcomingReservations" :key="item.reservationId" class="res-card">
             <div class="card-content">
               <img
-                  :src="item.accommodationImageUrl || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
+                  :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
                   class="card-img"
                   alt="thumbnail"
               />
@@ -184,7 +196,6 @@ onMounted(() => {
 
             <div class="card-actions">
               <button class="action-btn outline" @click="handleCancel(item)">예약 취소</button>
-              <button class="icon-btn delete" @click="handleDelete(item.reservationId)">🗑</button>
             </div>
           </div>
         </div>
@@ -202,7 +213,7 @@ onMounted(() => {
           <div v-for="item in pastReservations" :key="item.reservationId" class="res-card">
             <div class="card-content">
               <img
-                  :src="item.accommodationImageUrl || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
+                  :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
                   class="card-img"
                   alt="thumbnail"
               />
@@ -327,6 +338,10 @@ onMounted(() => {
   border-radius: 12px;
   object-fit: cover;
   background: #eee;
+  /* 이미지 축소 시 품질 개선 */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: smooth;
+  transform: translateZ(0);
 }
 
 .card-info {

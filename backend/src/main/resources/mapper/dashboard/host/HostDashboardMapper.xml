@@ -53,6 +53,62 @@
 
     </select>
 
+    <!-- Fallback summary when host_daily_stats is empty -->
+    <select id="selectHostSummaryFallback"
+            resultType="com.ssg9th2team.geharbang.domain.dashboard.host.entity.HostSummaryRow">
+        SELECT
+            (
+                SELECT COALESCE(SUM(COALESCE(p.approved_amount, r.final_payment_amount)), 0)
+                FROM reservation r
+                JOIN accommodation a1 ON a1.accommodations_id = r.accommodations_id
+                LEFT JOIN payment p
+                    ON p.reservation_id = r.reservation_id
+                    AND p.payment_status = 1
+                WHERE a1.user_id = #{hostId}
+                  AND a1.approval_status = 'APPROVED'
+                  AND r.reservation_status IN (2, 3)
+                  AND (r.payment_status = 1 OR p.payment_status = 1)
+                  AND r.checkout &gt;= #{start}
+                  AND r.checkout &lt; #{end}
+            ) AS confirmedRevenue,
+            (
+                SELECT COALESCE(COUNT(DISTINCT r.reservation_id), 0)
+                FROM reservation r
+                JOIN accommodation a1 ON a1.accommodations_id = r.accommodations_id
+                LEFT JOIN payment p
+                    ON p.reservation_id = r.reservation_id
+                    AND p.payment_status = 1
+                WHERE a1.user_id = #{hostId}
+                  AND a1.approval_status = 'APPROVED'
+                  AND r.reservation_status IN (2, 3)
+                  AND (r.payment_status = 1 OR p.payment_status = 1)
+                  AND r.checkout &gt;= #{start}
+                  AND r.checkout &lt; #{end}
+            ) AS confirmedReservations,
+            (
+                SELECT COALESCE(AVG(rv.rating), 0)
+                FROM review rv
+                JOIN accommodation a1 ON a1.accommodations_id = rv.accommodations_id
+                WHERE a1.user_id = #{hostId}
+                  AND a1.approval_status = 'APPROVED'
+                  AND rv.is_deleted = 0
+                  AND rv.created_at &gt;= #{start}
+                  AND rv.created_at &lt; #{end}
+            ) AS avgRating,
+            (
+                SELECT COUNT(*)
+                FROM accommodation a2
+                WHERE a2.user_id = #{hostId}
+                  AND a2.approval_status = 'APPROVED'
+                  AND a2.accommodation_status = 1
+            ) AS operatingAccommodations,
+            (
+                SELECT COUNT(*)
+                FROM accommodation a3
+                WHERE a3.user_id = #{hostId}
+            ) AS totalAccommodations
+    </select>
+
 
     <!-- ===================================================================== -->
     <!-- 호스트 '오늘 일정' 조회 (성능 우선 설계: DATE() 제거 + 범위조회)     -->

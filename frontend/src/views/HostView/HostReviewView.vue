@@ -2,12 +2,18 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchHostReviews, createHostReviewReply, reportHostReview } from '@/api/hostReview'
+import { fetchHostAccommodations } from '@/api/hostAccommodation'
+import { deriveHostState } from '@/composables/useHostState'
 import { formatDate } from '@/utils/formatters'
+import HostPendingLock from '@/components/host/HostPendingLock.vue'
 
 const reviews = ref([])
 const isLoading = ref(false)
 const loadError = ref('')
 const router = useRouter()
+const hostState = ref('loading')
+const hostCounts = ref({ total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 })
+const pendingOnly = computed(() => hostState.value === 'pending-only')
 
 const averageRating = computed(() => {
   if (!reviews.value.length) return '0.0'
@@ -67,6 +73,7 @@ const normalizeReview = (item) => {
 }
 
 const loadReviews = async () => {
+  if (pendingOnly.value) return
   isLoading.value = true
   loadError.value = ''
   const response = await fetchHostReviews({ periodDays: 30 })
@@ -96,11 +103,43 @@ const reportReview = async (reviewId) => {
   alert('리뷰 신고에 실패했습니다.')
 }
 
-onMounted(loadReviews)
+const loadHostState = async () => {
+  const response = await fetchHostAccommodations()
+  if (response.ok) {
+    const payload = response.data
+    const list = Array.isArray(payload)
+      ? payload
+      : payload?.items ?? payload?.content ?? payload?.data ?? []
+    const snapshot = deriveHostState(list)
+    hostState.value = snapshot.hostState
+    hostCounts.value = snapshot.counts
+  } else {
+    hostState.value = 'empty'
+  }
+}
+
+onMounted(async () => {
+  await loadHostState()
+  if (!pendingOnly.value) {
+    loadReviews()
+  }
+})
 </script>
 
 <template>
   <div class="review-view">
+    <HostPendingLock
+      v-if="pendingOnly"
+      title="승인 후 리뷰를 관리할 수 있어요"
+      description="숙소 승인 완료 후 리뷰 수집 및 답글 기능이 활성화됩니다."
+      primary-cta-text="숙소 관리"
+      primary-cta-to="/host/accommodation"
+      secondary-cta-text="추가 등록"
+      secondary-cta-to="/host/accommodation/register"
+      :badge-text="`검수중 ${hostCounts.pending}건`"
+    />
+
+    <template v-else>
     <div class="view-header">
       <h2>리뷰 관리</h2>
       <p class="subtitle">평균 평점 {{ averageRating }} · 총 {{ reviews.length }}개의 리뷰</p>
@@ -185,6 +224,7 @@ onMounted(loadReviews)
       </div>
     </div>
 
+  </template>
   </div>
 </template>
 

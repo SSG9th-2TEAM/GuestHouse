@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.auth.service;
 
+import com.ssg9th2team.geharbang.domain.auth.dto.CompleteSocialSignupRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindPasswordRequest;
@@ -288,5 +289,38 @@ public class AuthServiceImpl implements AuthService {
                 .refreshToken(refreshToken)
                 .accessTokenExpiresIn(jwtTokenProvider.getAccessTokenExpiration())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public UserResponse completeSocialSignup(Long userId, CompleteSocialSignupRequest request) {
+        // 1. 사용자 조회
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        // 2. 이미 회원가입이 완료된 경우
+        if (user.getSocialSignupCompleted() != null && user.getSocialSignupCompleted()) {
+            throw new IllegalStateException("이미 회원가입이 완료된 사용자입니다.");
+        }
+
+        // 3. 약관 동의 확인
+        if (request.getTermsAgreed() == null || !request.getTermsAgreed()) {
+            throw new IllegalArgumentException("필수 약관에 동의해야 합니다.");
+        }
+
+        // 4. 관심 테마 조회
+        Set<Theme> themes = new HashSet<>();
+        if (!CollectionUtils.isEmpty(request.getThemeIds())) {
+            List<Theme> foundThemes = themeRepository.findAllById(request.getThemeIds());
+            themes.addAll(foundThemes);
+        }
+
+        // 5. 소셜 회원가입 완료 처리
+        user.completeSocialSignup(request.getMarketingAgreed(), themes);
+
+        User savedUser = userRepository.save(user);
+
+        log.info("소셜 회원가입 완료: {}", savedUser.getEmail());
+        return UserResponse.from(savedUser);
     }
 }

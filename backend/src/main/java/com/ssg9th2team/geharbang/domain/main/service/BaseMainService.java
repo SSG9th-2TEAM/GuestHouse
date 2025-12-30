@@ -53,6 +53,8 @@ public class BaseMainService implements MainService {
                 .city(accommodation.getCity())
                 .district(accommodation.getDistrict())
                 .township(accommodation.getTownship())
+                .latitude(accommodation.getLatitude() != null ? accommodation.getLatitude().doubleValue() : null)
+                .longitude(accommodation.getLongitude() != null ? accommodation.getLongitude().doubleValue() : null)
                 .minPrice(accommodation.getMinPrice() != null ? accommodation.getMinPrice().longValue() : null)
                 .rating(accommodation.getRating() != null ? accommodation.getRating().doubleValue() : 0.0)
                 .reviewCount(accommodation.getReviewCount())

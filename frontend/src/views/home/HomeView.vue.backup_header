@@ -1,4 +1,0 @@
-﻿<script setup>
-import { onMounted, ref } from 'vue'
-import GuesthouseCard from '../../components/GuesthouseCard.vue'
-import { useRouter } from 'vue-router'

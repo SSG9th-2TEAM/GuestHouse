@@ -298,7 +298,9 @@
             a.accommodations_name AS accommodationsName,
             CASE
                 WHEN a.approval_status = 'PENDING' THEN 'inspection'
+                WHEN a.approval_status = 'REJECTED' THEN 'rejected'
                 WHEN a.accommodation_status = 1 AND a.approval_status = 'APPROVED' THEN 'active'
+                WHEN a.approval_status = 'APPROVED' THEN 'inactive'
                 ELSE 'inactive'
             END AS status,
             a.city,
@@ -339,7 +341,9 @@
             a.accommodations_name AS accommodationsName,
             CASE
                 WHEN a.approval_status = 'PENDING' THEN 'inspection'
+                WHEN a.approval_status = 'REJECTED' THEN 'rejected'
                 WHEN a.accommodation_status = 1 AND a.approval_status = 'APPROVED' THEN 'active'
+                WHEN a.approval_status = 'APPROVED' THEN 'inactive'
                 ELSE 'inactive'
             END AS status,
             a.city,

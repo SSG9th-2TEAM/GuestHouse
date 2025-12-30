@@ -13,6 +13,8 @@ public class ListDto {
     private String city;
     private String district;
     private String township;
+    private Double latitude;
+    private Double longitude;
     private Long minPrice;
     private Double rating;
     private Integer reviewCount;

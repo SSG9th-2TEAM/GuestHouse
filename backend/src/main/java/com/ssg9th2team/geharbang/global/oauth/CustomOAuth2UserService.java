@@ -88,6 +88,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                         .role(UserRole.USER)
                         .marketingAgreed(false)
                         .hostApproved(null)
+                        .socialSignupCompleted(false) // 소셜 회원가입 미완료 상태
                         .socialProvider(null) // User 테이블의 socialProvider는 사용하지 않음
                         .socialId(null) // User 테이블의 socialId는 사용하지 않음
                         .build();

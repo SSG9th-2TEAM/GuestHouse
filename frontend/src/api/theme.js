@@ -1,9 +1,9 @@
-import { hostGet } from './adminClient'
+import { authenticatedRequest } from './authClient'
 
 export async function fetchThemes() {
-  return hostGet('/themes')
+  return authenticatedRequest('/api/themes', { method: 'GET', skipAuth: true })
 }
 
 export async function fetchUserThemes() {
-  return hostGet('/themes/me')
+  return authenticatedRequest('/api/themes/me', { method: 'GET' })
 }

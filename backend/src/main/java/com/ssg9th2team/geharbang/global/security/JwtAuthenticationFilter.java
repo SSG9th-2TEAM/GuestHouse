@@ -25,7 +25,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final List<String> EXCLUDE_PATHS = Arrays.asList(
             "/api/auth/",
             "/api/public/",
-            "/api/themes",
             "/uploads/",
             "/error",
             "/oauth2/",
@@ -34,12 +33,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/v3/api-docs/"
     );
 
+    // JWT 검증을 건너뛸 정확한 경로 목록 (startsWith가 아닌 equals로 비교)
+    private static final List<String> EXACT_EXCLUDE_PATHS = Arrays.asList(
+            "/api/themes"
+    );
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
-        
-        // EXCLUDE_PATHS에 포함된 경로는 JWT 필터링 건너뛰기
-        return EXCLUDE_PATHS.stream().anyMatch(path::startsWith);
+
+        // EXCLUDE_PATHS에 포함된 경로로 시작하는 경우 JWT 필터링 건너뛰기
+        boolean startsWithExclude = EXCLUDE_PATHS.stream().anyMatch(path::startsWith);
+
+        // EXACT_EXCLUDE_PATHS와 정확히 일치하는 경우 JWT 필터링 건너뛰기
+        boolean equalsExclude = EXACT_EXCLUDE_PATHS.stream().anyMatch(path::equals);
+
+        return startsWithExclude || equalsExclude;
     }
 
     @Override
@@ -70,4 +79,5 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         return null;
     }
+
 }

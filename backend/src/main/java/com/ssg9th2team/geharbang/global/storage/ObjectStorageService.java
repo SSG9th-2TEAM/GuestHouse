@@ -21,25 +21,33 @@ import java.util.UUID;
 @Service
 public class ObjectStorageService {
 
-    @Value("${ncloud.storage.endpoint}")
+    @Value("${ncloud.storage.endpoint:}")
     private String endpoint;
 
-    @Value("${ncloud.storage.region}")
+    @Value("${ncloud.storage.region:}")
     private String region;
 
-    @Value("${ncloud.storage.bucket}")
+    @Value("${ncloud.storage.bucket:}")
     private String bucket;
 
-    @Value("${ncloud.storage.access-key}")
+    @Value("${ncloud.storage.access-key:}")
     private String accessKey;
 
-    @Value("${ncloud.storage.secret-key}")
+    @Value("${ncloud.storage.secret-key:}")
     private String secretKey;
 
     private S3Client s3Client;
 
     @PostConstruct
     public void init() {
+        if (endpoint == null || endpoint.isBlank()
+                || region == null || region.isBlank()
+                || bucket == null || bucket.isBlank()
+                || accessKey == null || accessKey.isBlank()
+                || secretKey == null || secretKey.isBlank()) {
+            log.warn("Ncloud storage config missing; ObjectStorageService disabled.");
+            return;
+        }
         AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
 
         this.s3Client = S3Client.builder()
@@ -57,6 +65,10 @@ public class ObjectStorageService {
     public String uploadBase64Image(String base64Image, String folder) {
         if (base64Image == null || base64Image.isEmpty()) {
             return null;
+        }
+        if (s3Client == null) {
+            log.warn("Object storage not configured; returning original image payload.");
+            return base64Image;
         }
 
         // 이미 URL인 경우 그대로 반환
@@ -115,6 +127,9 @@ public class ObjectStorageService {
      */
     public void deleteImage(String imageUrl) {
         if (imageUrl == null || !imageUrl.contains(bucket)) {
+            return;
+        }
+        if (s3Client == null) {
             return;
         }
 
