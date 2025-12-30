@@ -16,7 +16,8 @@ const emit = defineEmits(['close', 'apply'])
 
 // Constants for slider
 const MIN_LIMIT = 0
-const MAX_LIMIT = 500000
+const MAX_LIMIT = 400000
+const STEP = 10000
 
 // Local state
 const minPrice = ref(props.currentMin ?? MIN_LIMIT)
@@ -24,6 +25,7 @@ const maxPrice = ref(props.currentMax ?? MAX_LIMIT)
 const themes = ref([])
 const selectedThemeIds = ref([...props.currentThemes])
 const isLoadingThemes = ref(false)
+const activeThumb = ref('max')
 
 // Sync with props
 watch(() => props.isOpen, (newVal) => {
@@ -78,6 +80,26 @@ const handleMaxChange = () => {
   }
 }
 
+const onMinInput = () => {
+  activeThumb.value = 'min'
+  handleMinChange()
+}
+
+const onMaxInput = () => {
+  activeThumb.value = 'max'
+  handleMaxChange()
+}
+
+const maxPriceLabel = computed(() => {
+  if (maxPrice.value >= MAX_LIMIT) return `${MAX_LIMIT.toLocaleString()}원+`
+  return `${maxPrice.value.toLocaleString()}원`
+})
+
+const minThumbOnTop = computed(() => {
+  if ((maxPrice.value - minPrice.value) > STEP) return false
+  return activeThumb.value === 'min'
+})
+
 // Calculate percentages for slider track background
 const minPercent = computed(() => ((minPrice.value - MIN_LIMIT) / (MAX_LIMIT - MIN_LIMIT)) * 100)
 const maxPercent = computed(() => ((maxPrice.value - MIN_LIMIT) / (MAX_LIMIT - MIN_LIMIT)) * 100)
@@ -85,7 +107,7 @@ const maxPercent = computed(() => ((maxPrice.value - MIN_LIMIT) / (MAX_LIMIT - M
 const applyFilter = () => {
   emit('apply', {
     min: minPrice.value,
-    max: maxPrice.value,
+    max: maxPrice.value >= MAX_LIMIT ? null : maxPrice.value,
     themeIds: [...selectedThemeIds.value]
   })
 }
@@ -107,7 +129,7 @@ const applyFilter = () => {
         <div class="price-display">
           <span>{{ minPrice.toLocaleString() }}원</span>
           <span>~</span>
-          <span>{{ maxPrice.toLocaleString() }}원</span>
+          <span>{{ maxPriceLabel }}</span>
         </div>
 
         <div class="slider-container">
@@ -116,19 +138,25 @@ const applyFilter = () => {
             type="range" 
             :min="MIN_LIMIT" 
             :max="MAX_LIMIT" 
-            step="10000" 
+            :step="STEP" 
             v-model.number="minPrice" 
-            @input="handleMinChange"
+            @input="onMinInput"
+            @pointerdown="activeThumb = 'min'"
+            @focus="activeThumb = 'min'"
             class="range-input"
+            :style="{ zIndex: minThumbOnTop ? 2 : 1 }"
           />
           <input 
             type="range" 
             :min="MIN_LIMIT" 
             :max="MAX_LIMIT" 
-            step="10000" 
+            :step="STEP" 
             v-model.number="maxPrice" 
-            @input="handleMaxChange"
+            @input="onMaxInput"
+            @pointerdown="activeThumb = 'max'"
+            @focus="activeThumb = 'max'"
             class="range-input"
+            :style="{ zIndex: minThumbOnTop ? 1 : 2 }"
           />
         </div>
 

@@ -139,7 +139,11 @@ onMounted(() => {
 <template>
   <main class="container main-content">
     <div class="bannner">
-      <h1>여행지에서 느끼는<br />특별한 하루</h1>
+      <img src="@/assets/home-banner.png" alt="Home banner" class="banner-image" />
+      <div class="banner-text">
+        <h2 class="banner-caption">좋은 사람, 좋은 장소, 좋은 시간</h2>
+        <h1 class="banner-title">지금, 이곳</h1>
+      </div>
     </div>
 
     <div v-if="isLoading" class="empty-state">로딩 중입니다.</div>
@@ -205,13 +209,40 @@ onMounted(() => {
 
 .bannner {
   margin-bottom: 2rem;
-  padding: 3rem 0;
+  padding: 0;
+  position: relative;
 }
 
-.bannner h1 {
-  font-size: 2.5rem;
+.banner-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.banner-text {
+  position: absolute;
+  left: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 1;
+  max-width: calc(100% - 2.5rem);
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.banner-caption {
+  margin: 0.75rem 0 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: inherit;
+}
+
+.banner-title {
+  margin: 0.3rem 0 0;
+  font-size: 1.8rem;
   font-weight: 800;
   line-height: 1.2;
+  color: inherit;
 }
 
 .card-grid {
