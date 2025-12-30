@@ -24,6 +24,24 @@ const getAccommodationId = () => {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+const buildMapQuery = () => {
+  const query = {}
+  const minValue = route.query.min ?? route.query.minPrice
+  const maxValue = route.query.max ?? route.query.maxPrice
+  if (minValue !== undefined) query.min = String(minValue)
+  if (maxValue !== undefined) query.max = String(maxValue)
+  if (route.query.themeIds) query.themeIds = String(route.query.themeIds)
+  return query
+}
+
+const goBack = () => {
+  if (route.query.from === 'map') {
+    router.push({ path: '/map', query: buildMapQuery() })
+    return
+  }
+  router.back()
+}
+
 const createEmptyGuesthouse = (id = null) => ({
   id,
   name: '',
@@ -455,7 +473,7 @@ watch(() => route.params.id, loadAccommodation)
   <div class="room-detail container">
     <!-- Header with Back Button -->
     <div class="detail-header">
-      <button class="back-btn" @click="router.push('/')">← 뒤로가기</button>
+      <button class="back-btn" @click="goBack">← 뒤로가기</button>
     </div>
 
     <!-- Image Grid -->

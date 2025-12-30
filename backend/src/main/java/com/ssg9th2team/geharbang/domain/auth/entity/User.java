@@ -62,6 +62,9 @@ public class User {
     @Column(name = "host_approved")
     private Boolean hostApproved; // 호스트 숙소 등록 승인 상태 (1: 승인됨, 0: 승인 거절, NULL: 일반 USER)
 
+    @Column(name = "social_signup_completed")
+    private Boolean socialSignupCompleted; // 소셜 로그인 회원가입 완료 여부 (true: 완료, false: 미완료, NULL: 일반 회원가입)
+
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -79,7 +82,7 @@ public class User {
     private Set<Theme> themes = new HashSet<>();
 
     @Builder
-    public User(String name, String nickname, Gender gender, String email, String password, String phone, UserRole role, Boolean marketingAgreed, Boolean hostApproved, Set<Theme> themes, SocialProvider socialProvider, String socialId) {
+    public User(String name, String nickname, Gender gender, String email, String password, String phone, UserRole role, Boolean marketingAgreed, Boolean hostApproved, Boolean socialSignupCompleted, Set<Theme> themes, SocialProvider socialProvider, String socialId) {
         this.name = name;
         this.nickname = nickname;
         this.gender = gender;
@@ -89,6 +92,7 @@ public class User {
         this.role = role != null ? role : UserRole.USER;
         this.marketingAgreed = marketingAgreed != null ? marketingAgreed : false;
         this.hostApproved = hostApproved;
+        this.socialSignupCompleted = socialSignupCompleted;
         this.themes = themes;
         this.socialProvider = socialProvider;
         this.socialId = socialId;
@@ -120,5 +124,14 @@ public class User {
     // 호스트 승인 상태 변경
     public void updateHostApproved(Boolean approved) {
         this.hostApproved = approved;
+    }
+
+    // 소셜 회원가입 완료 처리
+    public void completeSocialSignup(Boolean marketingAgreed, Set<Theme> themes) {
+        this.socialSignupCompleted = true;
+        this.marketingAgreed = marketingAgreed != null ? marketingAgreed : false;
+        if (themes != null) {
+            this.themes = themes;
+        }
     }
 }

@@ -54,7 +54,6 @@ public class SecurityConfig {
                                 "/api/auth/**",
                                 "/api/public/**",
                                 "/api/themes",
-                                "/api/themes/**",
                                 "/api/list/**",
                                 "/uploads/**",
                                 "/error",
