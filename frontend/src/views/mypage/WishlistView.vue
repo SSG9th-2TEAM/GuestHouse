@@ -18,7 +18,7 @@ const loadWishlist = async () => {
         title: item.accommodationsName,
         location: [item.city, item.district, item.township].filter(Boolean).join(' '),
         rating: item.rating || 0.0,
-        image: item.mainImageUrl || 'https://via.placeholder.com/300x200',
+        image: getThumbnailUrl(item.mainImageUrl) || 'https://via.placeholder.com/300x200',
         price: item.minPrice,
         themes: item.themes || []
       }))
@@ -28,6 +28,18 @@ const loadWishlist = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+// 썸네일 URL 생성
+const getThumbnailUrl = (url) => {
+  if (!url) return ''
+  if (url.includes('ncloudstorage.com')) {
+    return url
+      .replace('/accommodation_image/', '/accommodation_image_thumb/')
+      .replace('/room/', '/room_thumb/')
+      .replace(/\.(png|gif|webp)$/i, '.jpg')
+  }
+  return url
 }
 
 const handleRemove = async (e, id) => {
@@ -144,6 +156,10 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* 이미지 축소 시 품질 개선 */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: smooth;
+  transform: translateZ(0);
 }
 
 .heart-btn {
