@@ -8,6 +8,7 @@ import { exportCSV, exportXLSX } from '../../utils/reportExport'
 import { fetchAdminPayments, fetchAdminPaymentDetail, fetchAdminPaymentMetrics, refundPayment } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 import { getPaymentStatusLabel, getPaymentStatusVariant } from '../../constants/adminPaymentStatus'
+import { canRefundReservation, refundBlockReason } from '../../constants/adminReservationPolicy'
 
 const stats = ref([])
 const paymentList = ref([])
@@ -33,6 +34,7 @@ const refundOpen = ref(false)
 const refundLoading = ref(false)
 const refundError = ref('')
 const refundTarget = ref(null)
+const refundReason = ref('')
 const route = useRoute()
 const router = useRouter()
 
@@ -219,6 +221,7 @@ const handleRefund = (item) => {
   if (!item?.paymentId) return
   refundTarget.value = item
   refundError.value = ''
+  refundReason.value = ''
   refundOpen.value = true
 }
 
@@ -227,13 +230,16 @@ const closeRefund = () => {
   refundLoading.value = false
   refundError.value = ''
   refundTarget.value = null
+  refundReason.value = ''
 }
 
 const confirmRefund = async () => {
   if (!refundTarget.value?.paymentId) return
   refundLoading.value = true
   refundError.value = ''
-  const response = await refundPayment(refundTarget.value.paymentId, { reason: '관리자 환불' })
+  const reason = refundReason.value.trim()
+  const payload = reason ? { reason } : {}
+  const response = await refundPayment(refundTarget.value.paymentId, payload)
   if (response.ok) {
     closeRefund()
     loadPayments()
@@ -244,17 +250,10 @@ const confirmRefund = async () => {
   refundLoading.value = false
 }
 
-const canRefund = (item) => {
-  if (!item) return false
-  if (item.paymentStatus === 3) return false
-  return item.paymentStatus === 1
-}
-
-const refundBlockReason = (item) => {
+const canRefund = (item) => canRefundReservation(item ?? {})
+const refundBlockMessage = (item) => {
   if (!item) return ''
-  if (item.paymentStatus === 3) return '이미 환불된 결제입니다.'
-  if (item.paymentStatus !== 1) return '결제 완료 건만 환불 가능합니다.'
-  return '환불 처리(상태 변경)'
+  return refundBlockReason(item ?? {})
 }
 
 const openDetail = async (item) => {
@@ -466,7 +465,7 @@ const downloadReport = (format) => {
             <th>거래액</th>
             <th>상태</th>
             <th>날짜</th>
-            <th>관리</th>
+            <th class="admin-align-right">관리</th>
           </tr>
         </thead>
         <tbody>
@@ -480,13 +479,13 @@ const downloadReport = (format) => {
             </td>
             <td>{{ item.createdAt?.slice?.(0, 10) ?? '-' }}</td>
             <td>
-              <div class="admin-inline-actions admin-inline-actions--nowrap">
+              <div class="admin-inline-actions admin-inline-actions--nowrap admin-actions-right">
                 <button class="admin-btn admin-btn--ghost" type="button" @click="openDetail(item)">상세</button>
                 <button
                   class="admin-btn admin-btn--danger"
                   type="button"
                   :disabled="!canRefund(item)"
-                  :title="refundBlockReason(item)"
+                  :title="refundBlockMessage(item)"
                   @click="handleRefund(item)"
                 >
                   환불 처리
@@ -559,6 +558,17 @@ const downloadReport = (format) => {
           <div><span>거래ID</span><strong>#{{ refundTarget?.paymentId ?? '-' }}</strong></div>
           <div><span>거래액</span><strong>{{ formatCurrency(refundTarget?.approvedAmount) }}</strong></div>
           <div><span>상태</span><strong>{{ getPaymentStatusLabel(refundTarget?.paymentStatus) }}</strong></div>
+        </div>
+        <div class="admin-form">
+          <label class="admin-form__label" for="refund-reason">환불 사유 (선택)</label>
+          <textarea
+            id="refund-reason"
+            v-model="refundReason"
+            class="admin-input"
+            rows="3"
+            placeholder="예) 고객 요청으로 환불 처리"
+            :disabled="refundLoading"
+          />
         </div>
         <p class="admin-modal__note">V1에서는 실제 PG 환불이 아닌 상태 변경 처리입니다.</p>
         <div v-if="refundError" class="admin-status">{{ refundError }}</div>
@@ -753,6 +763,10 @@ const downloadReport = (format) => {
   text-overflow: ellipsis;
 }
 
+.admin-actions-right {
+  justify-content: flex-end;
+}
+
 .admin-modal {
   position: fixed;
   inset: 0;
@@ -835,6 +849,17 @@ const downloadReport = (format) => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.admin-form {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-form__label {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #0f172a;
 }
 
 @media (max-width: 768px) {

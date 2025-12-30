@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
-import { fetchAdminBookings, fetchAdminBookingDetail } from '../../api/adminApi'
+import { fetchAdminBookings, fetchAdminBookingDetail, fetchRefundQuote } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 import {
   RESERVATION_STATUS_OPTIONS,
@@ -13,11 +13,16 @@ import {
   getPaymentStatusLabel,
   getPaymentStatusVariant
 } from '../../constants/adminBookingStatus'
+import {
+  canChangeReservation,
+  changeBlockReason,
+  canRefundReservation,
+  refundBlockReason
+} from '../../constants/adminReservationPolicy'
 
 const bookingList = ref([])
 const searchQuery = ref('')
 const statusFilter = ref('all')
-const channelFilter = ref('all')
 const page = ref(0)
 const size = ref(20)
 const totalPages = ref(0)
@@ -29,6 +34,9 @@ const detailLoading = ref(false)
 const detailError = ref('')
 const detailData = ref(null)
 const detailId = ref(null)
+const refundQuoteLoading = ref(false)
+const refundQuoteError = ref('')
+const refundQuote = ref(null)
 const route = useRoute()
 const router = useRouter()
 
@@ -95,8 +103,7 @@ const filteredBookings = computed(() => {
       String(item.accommodationsId ?? '').includes(query) ||
       String(item.userId ?? '').includes(query)
     const matchesStatus = statusFilter.value === 'all' || String(item.reservationStatus) === mapStatusFilter(statusFilter.value)
-    const matchesChannel = channelFilter.value === 'all'
-    return matchesQuery && matchesStatus && matchesChannel
+    return matchesQuery && matchesStatus
   })
 })
 
@@ -143,6 +150,9 @@ const openDetail = async (item) => {
   detailOpen.value = true
   detailLoading.value = true
   detailError.value = ''
+  refundQuoteLoading.value = true
+  refundQuoteError.value = ''
+  refundQuote.value = null
   const response = await fetchAdminBookingDetail(item.reservationId)
   if (response.ok && response.data) {
     detailData.value = response.data
@@ -150,6 +160,7 @@ const openDetail = async (item) => {
     detailError.value = '예약 상세 정보를 불러오지 못했습니다.'
   }
   detailLoading.value = false
+  await loadRefundQuote(item.reservationId)
 }
 
 const closeDetail = () => {
@@ -157,12 +168,44 @@ const closeDetail = () => {
   detailError.value = ''
   detailData.value = null
   detailId.value = null
+  refundQuoteLoading.value = false
+  refundQuoteError.value = ''
+  refundQuote.value = null
 }
 
 const retryDetail = async () => {
   if (!detailId.value) return
   await openDetail({ reservationId: detailId.value })
 }
+
+const loadRefundQuote = async (reservationId) => {
+  if (!reservationId) return
+  refundQuoteLoading.value = true
+  refundQuoteError.value = ''
+  const response = await fetchRefundQuote(reservationId)
+  if (response.ok && response.data) {
+    refundQuote.value = response.data
+  } else {
+    refundQuoteError.value = response?.data?.message || '환불 계산 불가'
+  }
+  refundQuoteLoading.value = false
+}
+
+const refundRateLabel = computed(() => {
+  if (refundQuoteLoading.value) return '계산 중...'
+  if (refundQuoteError.value) return '계산 불가'
+  if (!refundQuote.value) return '-'
+  const days = Number(refundQuote.value.daysBefore)
+  const dayLabel = Number.isFinite(days) ? `D-${days}` : '-'
+  return `${refundQuote.value.refundRate}% (${dayLabel})`
+})
+
+const refundAmountLabel = computed(() => {
+  if (refundQuoteLoading.value) return '계산 중...'
+  if (refundQuoteError.value) return '-'
+  if (!refundQuote.value) return '-'
+  return formatCurrency(refundQuote.value.refundAmount)
+})
 
 const formatCurrency = (value) => {
   if (value === null || value === undefined) return '-'
@@ -184,48 +227,10 @@ const effectiveReservationVariant = (reservationStatus, paymentStatus) => {
   return getReservationStatusVariant(reservationStatus)
 }
 
-const canChange = (item) => {
-  if (!item) return false
-  const status = Number(item.reservationStatus)
-  const payment = Number(item.paymentStatus)
-  if (payment === 3 || status === 9 || status === 3) return false
-  const checkin = item.checkin ? new Date(item.checkin) : null
-  if (checkin && checkin <= new Date()) return false
-  return status === 0 || status === 1 || status === 2
-}
-
-const canRefund = (item) => {
-  if (!item) return false
-  const status = Number(item.reservationStatus)
-  const payment = Number(item.paymentStatus)
-  if (payment !== 1) return false
-  if (payment === 3) return false
-  if (status === 9 || status === 3) return false
-  return status === 2
-}
-
-const changeReason = (item) => {
-  if (!item) return '예약 정보를 확인해주세요.'
-  const status = Number(item.reservationStatus)
-  const payment = Number(item.paymentStatus)
-  if (payment === 3) return '환불 완료된 예약은 변경할 수 없습니다.'
-  if (status === 9) return '취소된 예약은 변경할 수 없습니다.'
-  if (status === 3) return '체크인 완료 후에는 변경할 수 없습니다.'
-  const checkin = item.checkin ? new Date(item.checkin) : null
-  if (checkin && checkin <= new Date()) return '체크인 이후에는 변경할 수 없습니다.'
-  return '예약 변경 가능'
-}
-
-const refundReason = (item) => {
-  if (!item) return '예약 정보를 확인해주세요.'
-  const status = Number(item.reservationStatus)
-  const payment = Number(item.paymentStatus)
-  if (payment === 3) return '이미 환불 완료되었습니다.'
-  if (payment !== 1) return '결제 완료 상태에서만 환불 가능합니다.'
-  if (status === 3) return '체크인 완료 이후 환불은 불가합니다.'
-  if (status === 9) return '이미 취소된 예약입니다.'
-  return '환불 가능'
-}
+const canChange = (item) => canChangeReservation(item ?? {})
+const canRefund = (item) => canRefundReservation(item ?? {})
+const changeReason = (item) => changeBlockReason(item ?? {})
+const refundReason = (item) => refundBlockReason(item ?? {})
 
 const getRefundStatusLabel = (status) => {
   const value = Number(status)
@@ -263,15 +268,9 @@ const getRefundStatusLabel = (status) => {
             {{ option.label }}
           </option>
         </select>
-        <select v-model="channelFilter" class="admin-select">
-          <option value="all">전체 채널</option>
-          <option value="웹">웹</option>
-          <option value="모바일">모바일</option>
-        </select>
       </div>
       <div class="admin-filter-group">
         <span class="admin-chip">작업</span>
-        <button class="admin-btn admin-btn--ghost" type="button">일괄 알림</button>
         <button class="admin-btn admin-btn--primary" type="button">체크인 확인</button>
       </div>
       <div class="admin-filter-group">
@@ -315,7 +314,20 @@ const getRefundStatusLabel = (status) => {
         </article>
       </div>
 
-      <table class="admin-table--nowrap admin-table--tight booking-table">
+      <table class="admin-table--nowrap admin-table--tight admin-table--stretch booking-table">
+        <colgroup>
+          <col style="width:110px"/>
+          <col style="width:120px"/>
+          <col style="width:120px"/>
+          <col style="width:110px"/>
+          <col style="width:110px"/>
+          <col style="width:70px"/>
+          <col style="width:120px"/>
+          <col style="width:110px"/>
+          <col style="width:110px"/>
+          <col style="width:110px"/>
+          <col style="width:190px"/>
+        </colgroup>
         <thead>
           <tr>
             <th>예약번호</th>
@@ -334,11 +346,11 @@ const getRefundStatusLabel = (status) => {
         <tbody>
           <tr v-for="item in filteredBookings" :key="item.reservationId">
             <td class="admin-strong">#{{ item.reservationId }}</td>
-            <td>{{ item.accommodationsId }}</td>
-            <td>{{ item.userId }}</td>
+            <td class="admin-ellipsis" :title="item.accommodationsId">{{ item.accommodationsId }}</td>
+            <td class="admin-ellipsis" :title="item.userId">{{ item.userId }}</td>
             <td>{{ formatDate(item.checkin) }}</td>
             <td>{{ formatDate(item.checkout) }}</td>
-            <td>-</td>
+            <td class="admin-nowrap">-</td>
             <td class="admin-align-right">{{ formatCurrency(item.finalPaymentAmount) }}</td>
             <td>
               <AdminBadge
@@ -426,6 +438,8 @@ const getRefundStatusLabel = (status) => {
               <div><span>결제 상태</span><strong>{{ getPaymentStatusLabel(detailData?.paymentStatus) }}</strong></div>
               <div><span>결제 금액</span><strong>{{ formatCurrency(detailData?.approvedAmount ?? detailData?.finalPaymentAmount) }}</strong></div>
               <div><span>결제일시</span><strong>{{ formatDate(detailData?.approvedAt) }}</strong></div>
+              <div><span>환불율</span><strong>{{ refundRateLabel }}</strong></div>
+              <div><span>예상 환불액</span><strong>{{ refundAmountLabel }}</strong></div>
               <div><span>주문번호</span><strong>{{ detailData?.orderId ?? '-' }}</strong></div>
               <div><span>PG 키</span><strong>{{ detailData?.pgPaymentKey ?? '-' }}</strong></div>
               <div><span>환불 상태</span><strong>{{ getRefundStatusLabel(detailData?.refundStatus) }}</strong></div>
@@ -675,6 +689,21 @@ const getRefundStatusLabel = (status) => {
 
 .booking-table th {
   text-align: left;
+}
+
+.admin-table--stretch {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.admin-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-nowrap {
+  white-space: nowrap;
 }
 
 .admin-align-right {

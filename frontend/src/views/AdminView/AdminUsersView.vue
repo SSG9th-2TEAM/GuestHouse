@@ -7,7 +7,6 @@ import AdminTableCard from '../../components/admin/AdminTableCard.vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
 import { fetchAdminUsers } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
-import { getUserStatusLabel, getUserStatusVariant } from '../../constants/adminUserStatus'
 
 const stats = ref([])
 const users = ref([])
@@ -123,9 +122,6 @@ const downloadReport = (format) => {
   exportCSV({ filename: `admin-users-${today}.csv`, sheets })
 }
 
-const handleUserAction = () => {
-  alert('준비중입니다.')
-}
 </script>
 
 <template>
@@ -195,8 +191,6 @@ const handleUserAction = () => {
           <col style="width:110px"/>
           <col style="width:140px"/>
           <col style="width:140px"/>
-          <col style="width:120px"/>
-          <col style="width:160px"/>
         </colgroup>
         <thead>
           <tr>
@@ -206,8 +200,6 @@ const handleUserAction = () => {
             <th>유형</th>
             <th>가입일</th>
             <th>호스트 승인</th>
-            <th>계정 상태</th>
-            <th class="admin-align-right">관리</th>
           </tr>
         </thead>
         <tbody>
@@ -219,15 +211,6 @@ const handleUserAction = () => {
             <td class="admin-align-center">{{ user.createdAt?.slice?.(0, 10) ?? '-' }}</td>
             <td>
               <AdminBadge :text="user.hostApproved ? '승인' : '미승인'" :variant="user.hostApproved ? 'success' : 'warning'" />
-            </td>
-            <td>
-              <AdminBadge :text="getUserStatusLabel(user.accountStatus)" :variant="getUserStatusVariant(user.accountStatus)" />
-            </td>
-            <td>
-              <div class="admin-inline-actions admin-inline-actions--nowrap admin-actions-right">
-                <button class="admin-btn admin-btn--muted admin-action-disabled" type="button" @click="handleUserAction">정지</button>
-                <button class="admin-btn admin-btn--ghost admin-action-disabled" type="button" @click="handleUserAction">해제</button>
-              </div>
             </td>
           </tr>
         </tbody>

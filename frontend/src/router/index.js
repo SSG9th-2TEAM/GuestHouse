@@ -197,8 +197,28 @@ const router = createRouter({
             children: [
                 {
                     path: '',
-                    name: 'admin-dashboard',
-                    component: () => import('../views/AdminView/AdminDashboardView.vue')
+                    redirect: '/admin/dashboard'
+                },
+                {
+                    path: 'dashboard',
+                    component: () => import('../views/AdminView/AdminDashboardLayout.vue'),
+                    children: [
+                        {
+                            path: '',
+                            name: 'admin-dashboard',
+                            component: () => import('../views/AdminView/AdminDashboardView.vue')
+                        },
+                        {
+                            path: 'issues',
+                            name: 'admin-dashboard-issues',
+                            component: () => import('../views/AdminView/AdminIssuesView.vue')
+                        },
+                        {
+                            path: 'weekly',
+                            name: 'admin-dashboard-weekly',
+                            component: () => import('../views/AdminView/AdminWeeklyReportView.vue')
+                        }
+                    ]
                 },
                 {
                     path: 'users',
@@ -227,13 +247,11 @@ const router = createRouter({
                 },
                 {
                     path: 'issues',
-                    name: 'admin-issues',
-                    component: () => import('../views/AdminView/AdminIssuesView.vue')
+                    redirect: '/admin/dashboard/issues'
                 },
                 {
                     path: 'reports/weekly',
-                    name: 'admin-weekly-report',
-                    component: () => import('../views/AdminView/AdminWeeklyReportView.vue')
+                    redirect: '/admin/dashboard/weekly'
                 }
             ]
         },

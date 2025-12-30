@@ -72,7 +72,8 @@ public class AdminPaymentController {
     ) {
         String reason = request != null ? request.reason() : null;
         Integer amount = request != null ? request.amount() : null;
-        return paymentService.refundPayment(paymentId, reason, amount);
+        Boolean override = request != null ? request.override() : null;
+        return paymentService.refundPayment(paymentId, reason, amount, override);
     }
 
     private String normalizeFilter(String value) {

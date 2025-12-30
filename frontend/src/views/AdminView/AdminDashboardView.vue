@@ -13,6 +13,8 @@ const summary = ref(null)
 const pendingListings = ref([])
 const openReportListings = ref([])
 const revenueTrend = ref({ months: [], values: [] })
+const trendLoading = ref(false)
+const trendError = ref('')
 const alerts = ref([])
 const pendingQuery = ref('')
 const pendingStatus = ref('all')
@@ -66,6 +68,8 @@ const formatAxisValue = (value) => {
 const loadDashboard = async () => {
   isLoading.value = true
   loadError.value = ''
+  trendLoading.value = true
+  trendError.value = ''
   const range = resolveRange(activePeriod.value)
   const summaryResponse = await fetchAdminDashboardSummary(range)
   const trendResponse = await fetchAdminDashboardTimeseries({ metric: 'revenue', ...range })
@@ -75,12 +79,12 @@ const loadDashboard = async () => {
     const platformFeeRate = data.platformFeeRate ?? 0
     stats.value = [
       { label: '승인 대기 숙소', value: `${data.pendingAccommodations ?? 0}건`, sub: '심사 대기', tone: 'warning', target: '/admin/accommodations?status=PENDING' },
-      { label: '미처리 신고', value: `${data.openReports ?? 0}건`, sub: '처리 필요', tone: 'warning', target: '/admin/reports?status=wait' },
+      { label: '미처리 신고', value: `${data.openReports ?? 0}건`, sub: '처리 필요', tone: 'warning', target: '/admin/reports?status=WAIT' },
       { label: '예약 생성', value: `${data.reservationCount ?? 0}건`, sub: '선택 기간 기준', tone: 'success', target: '/admin/bookings?sort=latest' },
       { label: '결제 성공', value: formatCurrency(data.paymentSuccessAmount), sub: '선택 기간 기준', tone: 'accent', target: '/admin/payments?status=success' },
       { label: '플랫폼 수익(수수료)', value: formatCurrency(data.platformFeeAmount), sub: `수수료율 ${formatRate(platformFeeRate)}`, tone: 'primary', target: '/admin/payments?status=success' },
       { label: '결제 실패', value: `${data.paymentFailureCount ?? 0}건`, sub: '실패/취소', tone: 'neutral', target: '/admin/payments?status=failed' },
-      { label: '환불 요청', value: `${data.refundRequestCount ?? 0}건`, sub: '요청 건수', tone: 'neutral', target: '/admin/payments?status=refund' }
+      { label: '환불 요청', value: `${data.refundRequestCount ?? 0}건`, sub: '요청 건수', tone: 'neutral', target: '/admin/payments?status=REFUNDED' }
     ]
     pendingListings.value = data.pendingAccommodationsList ?? []
     openReportListings.value = data.openReportsList ?? []
@@ -92,11 +96,13 @@ const loadDashboard = async () => {
         values: points.map((point) => point.value ?? 0)
       }
     } else {
+      trendError.value = '수익 추이를 불러오지 못했습니다.'
       revenueTrend.value = { months: [], values: [] }
     }
   } else {
     loadError.value = '대시보드 데이터를 불러오지 못했습니다.'
   }
+  trendLoading.value = false
   isLoading.value = false
 }
 
@@ -327,7 +333,7 @@ watch(activePeriod, loadDashboard)
             <p class="admin-card__eyebrow">운영 알림</p>
             <h3 class="admin-card__title">오늘 확인할 이슈</h3>
           </div>
-          <button class="admin-btn admin-btn--ghost" type="button" @click="goTo('/admin/issues')">전체 보기</button>
+          <button class="admin-btn admin-btn--ghost" type="button" @click="goTo('/admin/dashboard/issues')">전체 보기</button>
         </div>
         <div class="admin-alert-list">
           <button
@@ -355,7 +361,7 @@ watch(activePeriod, loadDashboard)
             <p class="admin-card__eyebrow">운영 요약</p>
             <h3 class="admin-card__title">이번 주 주요 지표</h3>
           </div>
-          <button class="admin-btn admin-btn--ghost" type="button" @click="goTo('/admin/reports/weekly')">리포트 보기</button>
+          <button class="admin-btn admin-btn--ghost" type="button" @click="goTo('/admin/dashboard/weekly')">리포트 보기</button>
         </div>
         <div class="admin-highlight-list">
           <div v-for="item in summaryItems" :key="item.label" class="admin-highlight-item">
@@ -378,7 +384,12 @@ watch(activePeriod, loadDashboard)
         </div>
       </div>
       <div class="admin-chart-area">
-        <div v-if="!hasRevenueData" class="admin-status">표시할 데이터가 없습니다.</div>
+        <div v-if="isLoading || trendLoading" class="admin-status">불러오는 중...</div>
+        <div v-else-if="loadError || trendError" class="admin-status">
+          <span>{{ loadError || trendError }}</span>
+          <button class="admin-btn admin-btn--ghost" type="button" @click="loadDashboard">다시 시도</button>
+        </div>
+        <div v-else-if="!hasRevenueData" class="admin-status">표시할 데이터가 없습니다.</div>
         <template v-else>
           <div class="admin-chart-y">
             <span v-for="tick in revenueTicks" :key="tick">{{ formatAxisValue(tick) }}</span>

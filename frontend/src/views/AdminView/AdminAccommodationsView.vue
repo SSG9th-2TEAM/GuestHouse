@@ -20,6 +20,12 @@ const detailOpen = ref(false)
 const detailLoading = ref(false)
 const detailError = ref('')
 const detailData = ref(null)
+const approveOpen = ref(false)
+const rejectOpen = ref(false)
+const actionLoading = ref(false)
+const actionError = ref('')
+const actionTarget = ref(null)
+const rejectReason = ref('')
 const route = useRoute()
 const router = useRouter()
 
@@ -107,19 +113,75 @@ const applyPendingFilter = () => {
   loadAccommodations()
 }
 
-const handleApprove = async (item) => {
+const openApprove = (item) => {
   if (!item?.accommodationsId) return
-  if (!confirm('이 숙소를 승인하시겠습니까?')) return
-  await approveAccommodation(item.accommodationsId)
-  loadAccommodations()
+  actionTarget.value = item
+  actionError.value = ''
+  actionLoading.value = false
+  approveOpen.value = true
 }
 
-const handleReject = async (item) => {
+const openReject = (item) => {
   if (!item?.accommodationsId) return
-  const reason = prompt('반려 사유를 입력해주세요')
-  if (!reason) return
-  await rejectAccommodation(item.accommodationsId, reason)
-  loadAccommodations()
+  actionTarget.value = item
+  rejectReason.value = ''
+  actionError.value = ''
+  actionLoading.value = false
+  rejectOpen.value = true
+}
+
+const closeApprove = () => {
+  approveOpen.value = false
+  actionTarget.value = null
+  actionError.value = ''
+  actionLoading.value = false
+}
+
+const closeReject = () => {
+  rejectOpen.value = false
+  actionTarget.value = null
+  actionError.value = ''
+  actionLoading.value = false
+  rejectReason.value = ''
+}
+
+const confirmApprove = async () => {
+  if (!actionTarget.value?.accommodationsId) return
+  actionLoading.value = true
+  actionError.value = ''
+  const response = await approveAccommodation(actionTarget.value.accommodationsId)
+  if (!response.ok) {
+    actionError.value = response?.data?.message || '승인 처리에 실패했습니다.'
+    actionLoading.value = false
+    return
+  }
+  closeApprove()
+  await loadAccommodations()
+  if (detailOpen.value) {
+    await refreshDetail()
+  }
+}
+
+const confirmReject = async () => {
+  if (!actionTarget.value?.accommodationsId) return
+  const reason = rejectReason.value.trim()
+  if (!reason) {
+    actionError.value = '반려 사유를 입력해주세요.'
+    return
+  }
+  actionLoading.value = true
+  actionError.value = ''
+  const response = await rejectAccommodation(actionTarget.value.accommodationsId, reason)
+  if (!response.ok) {
+    actionError.value = response?.data?.message || '반려 처리에 실패했습니다.'
+    actionLoading.value = false
+    return
+  }
+  closeReject()
+  await loadAccommodations()
+  if (detailOpen.value) {
+    await refreshDetail()
+  }
 }
 
 const openDetail = async (item) => {
@@ -155,21 +217,14 @@ const refreshDetail = async () => {
   detailLoading.value = false
 }
 
-const handleDetailApprove = async () => {
+const handleDetailApprove = () => {
   if (!detailData.value?.accommodationsId) return
-  if (!confirm('이 숙소를 승인하시겠습니까?')) return
-  await approveAccommodation(detailData.value.accommodationsId)
-  loadAccommodations()
-  refreshDetail()
+  openApprove(detailData.value)
 }
 
-const handleDetailReject = async () => {
+const handleDetailReject = () => {
   if (!detailData.value?.accommodationsId) return
-  const reason = prompt('반려 사유를 입력해주세요')
-  if (!reason) return
-  await rejectAccommodation(detailData.value.accommodationsId, reason)
-  loadAccommodations()
-  refreshDetail()
+  openReject(detailData.value)
 }
 
 const downloadReport = (format) => {
@@ -317,8 +372,8 @@ const accommodationStatusLabel = (value) => {
             <td>
               <div class="admin-inline-actions admin-inline-actions--nowrap">
                 <button class="admin-btn admin-btn--ghost" type="button" @click="openDetail(item)">상세</button>
-                <button class="admin-btn admin-btn--primary" type="button" @click="handleApprove(item)">승인</button>
-                <button class="admin-btn admin-btn--muted" type="button" @click="handleReject(item)">반려</button>
+                <button class="admin-btn admin-btn--primary" type="button" @click="openApprove(item)">승인</button>
+                <button class="admin-btn admin-btn--muted" type="button" @click="openReject(item)">반려</button>
               </div>
             </td>
           </tr>
@@ -398,6 +453,62 @@ const accommodationStatusLabel = (value) => {
         <div class="admin-modal__actions" v-if="!detailLoading">
           <button class="admin-btn admin-btn--primary" type="button" @click="handleDetailApprove">승인</button>
           <button class="admin-btn admin-btn--muted" type="button" @click="handleDetailReject">반려</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="approveOpen" class="admin-modal">
+      <div class="admin-modal__backdrop" @click="closeApprove" />
+      <div class="admin-modal__panel" role="dialog" aria-modal="true">
+        <div class="admin-modal__header">
+          <div>
+            <p class="admin-modal__eyebrow">숙소 승인</p>
+            <h2 class="admin-modal__title">숙소를 승인할까요?</h2>
+          </div>
+          <button class="admin-btn admin-btn--ghost" type="button" :disabled="actionLoading" @click="closeApprove">닫기</button>
+        </div>
+        <div class="admin-detail-grid">
+          <div><span>숙소 ID</span><strong>#{{ actionTarget?.accommodationsId ?? '-' }}</strong></div>
+          <div><span>숙소명</span><strong>{{ actionTarget?.name ?? '-' }}</strong></div>
+          <div><span>호스트</span><strong>{{ actionTarget?.hostUserId ?? '-' }}</strong></div>
+        </div>
+        <div v-if="actionError" class="admin-status">{{ actionError }}</div>
+        <div class="admin-modal__actions">
+          <button class="admin-btn admin-btn--ghost" type="button" :disabled="actionLoading" @click="closeApprove">취소</button>
+          <button class="admin-btn admin-btn--primary" type="button" :disabled="actionLoading" @click="confirmApprove">
+            {{ actionLoading ? '처리 중...' : '승인' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="rejectOpen" class="admin-modal">
+      <div class="admin-modal__backdrop" @click="closeReject" />
+      <div class="admin-modal__panel" role="dialog" aria-modal="true">
+        <div class="admin-modal__header">
+          <div>
+            <p class="admin-modal__eyebrow">숙소 반려</p>
+            <h2 class="admin-modal__title">반려 사유를 입력해주세요</h2>
+          </div>
+          <button class="admin-btn admin-btn--ghost" type="button" :disabled="actionLoading" @click="closeReject">닫기</button>
+        </div>
+        <div class="admin-detail-grid">
+          <div><span>숙소 ID</span><strong>#{{ actionTarget?.accommodationsId ?? '-' }}</strong></div>
+          <div><span>숙소명</span><strong>{{ actionTarget?.name ?? '-' }}</strong></div>
+        </div>
+        <textarea
+          v-model="rejectReason"
+          class="admin-input"
+          rows="3"
+          placeholder="예) 사진이 부족합니다. 시설 설명을 보완해주세요."
+          :disabled="actionLoading"
+        />
+        <div v-if="actionError" class="admin-status">{{ actionError }}</div>
+        <div class="admin-modal__actions">
+          <button class="admin-btn admin-btn--ghost" type="button" :disabled="actionLoading" @click="closeReject">취소</button>
+          <button class="admin-btn admin-btn--muted" type="button" :disabled="actionLoading" @click="confirmReject">
+            {{ actionLoading ? '처리 중...' : '반려' }}
+          </button>
         </div>
       </div>
     </div>

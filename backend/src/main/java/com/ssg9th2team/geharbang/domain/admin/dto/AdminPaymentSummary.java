@@ -9,6 +9,8 @@ public record AdminPaymentSummary(
         String paymentKey,
         Integer approvedAmount,
         Integer paymentStatus,
+        Integer reservationStatus,
+        LocalDateTime checkin,
         LocalDateTime createdAt
 ) {
 }

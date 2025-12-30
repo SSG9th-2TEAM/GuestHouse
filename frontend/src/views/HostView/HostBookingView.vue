@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { fetchHostBookings, fetchHostBookingCalendar } from '@/api/hostBooking'
+import { fetchHostBookings, fetchHostBookingCalendar, fetchRefundQuote } from '@/api/hostBooking'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
 import { deriveHostState } from '@/composables/useHostState'
 import { formatCurrency, formatDate, formatDateRange, formatDateTime } from '@/utils/formatters'
@@ -36,6 +36,10 @@ const activeTab = computed(() => {
 const selectedDate = ref(null)
 const selectedBooking = ref(null)
 const showModal = ref(false)
+const refundQuoteLoading = ref(false)
+const refundQuoteError = ref('')
+const refundQuote = ref(null)
+const includePast = ref(false)
 
 const currentMonth = ref(new Date())
 
@@ -110,6 +114,17 @@ const isSameDate = (a, b) => {
     && a.getDate() === b.getDate()
 }
 
+const toDateOnly = (value) => {
+  const date = toDate(value)
+  if (!date) return null
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+const todayDate = () => {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+}
+
 const calendarCells = computed(() => {
   const cells = []
   for (let i = 0; i < firstDay.value; i++) cells.push({ empty: true })
@@ -158,11 +173,49 @@ const formatAmount = (n) => formatCurrency(n)
 const openModal = (booking) => {
   selectedBooking.value = booking
   showModal.value = true
+  loadRefundQuote(booking?.id)
 }
+
+const closeModal = () => {
+  showModal.value = false
+  refundQuoteLoading.value = false
+  refundQuoteError.value = ''
+  refundQuote.value = null
+}
+
+const loadRefundQuote = async (reservationId) => {
+  if (!reservationId) return
+  refundQuoteLoading.value = true
+  refundQuoteError.value = ''
+  const response = await fetchRefundQuote(reservationId)
+  if (response.ok && response.data) {
+    refundQuote.value = response.data
+  } else {
+    refundQuoteError.value = response?.data?.message || '환불 계산 불가'
+  }
+  refundQuoteLoading.value = false
+}
+
+const refundRateLabel = computed(() => {
+  if (refundQuoteLoading.value) return '계산 중...'
+  if (refundQuoteError.value) return '계산 불가'
+  if (!refundQuote.value) return '-'
+  const days = Number(refundQuote.value.daysBefore)
+  const dayLabel = Number.isFinite(days) ? `D-${days}` : '-'
+  return `${refundQuote.value.refundRate}% (${dayLabel})`
+})
+
+const refundAmountLabel = computed(() => {
+  if (refundQuoteLoading.value) return '계산 중...'
+  if (refundQuoteError.value) return '-'
+  if (!refundQuote.value) return '-'
+  return formatAmount(refundQuote.value.refundAmount)
+})
 
 const resetFilters = () => {
   selectedStatus.value = 'all'
   selectedSort.value = 'latest'
+  includePast.value = false
 }
 
 const normalizeStatus = (status) => {
@@ -221,14 +274,62 @@ const normalizeStatusQuery = (value) => {
   return null
 }
 
+const normalizeIncludePastQuery = (value) => {
+  const normalized = String(value ?? '').toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes'
+}
+
+const normalizeScopeQuery = (value) => {
+  const normalized = String(value ?? '').toLowerCase()
+  if (normalized === 'today') return 'today'
+  return null
+}
+
+const parseDateQuery = (value) => {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+}
+
 const filteredBookings = computed(() => {
   const base = bookings.value.filter((booking) => booking.reservationStatus !== 0)
   const filter = statusFilters.find((item) => item.value === selectedStatus.value)
-  const filtered = filter ? base.filter((booking) => filter.statuses.includes(booking.reservationStatus)) : base
+  let filtered = filter ? base.filter((booking) => filter.statuses.includes(booking.reservationStatus)) : base
+
+  const scope = normalizeScopeQuery(route.query.scope)
+  const scopeDate = parseDateQuery(route.query.date)
+  if (scope === 'today' && scopeDate) {
+    filtered = filtered.filter((booking) => {
+      const checkInDate = toDateOnly(booking.checkIn)
+      const checkOutDate = toDateOnly(booking.checkOut)
+      return (checkInDate && isSameDate(checkInDate, scopeDate))
+        || (checkOutDate && isSameDate(checkOutDate, scopeDate))
+    })
+  }
+
+  if (!includePast.value) {
+    const today = todayDate().getTime()
+    filtered = filtered.filter((booking) => {
+      const checkIn = toDateOnly(booking.checkIn)
+      if (!checkIn) return true
+      return checkIn.getTime() >= today
+    })
+  }
 
   if (selectedSort.value === 'checkin') {
+    const today = todayDate().getTime()
     return [...filtered].sort((a, b) => {
-      return (toDate(a.checkIn)?.getTime() ?? 0) - (toDate(b.checkIn)?.getTime() ?? 0)
+      const aCheckIn = toDate(a.checkIn)
+      const bCheckIn = toDate(b.checkIn)
+      const aDay = toDateOnly(aCheckIn)
+      const bDay = toDateOnly(bCheckIn)
+      const aUpcoming = aDay ? aDay.getTime() >= today : true
+      const bUpcoming = bDay ? bDay.getTime() >= today : true
+      if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1
+      if (aUpcoming) {
+        return (aCheckIn?.getTime() ?? 0) - (bCheckIn?.getTime() ?? 0)
+      }
+      return (bCheckIn?.getTime() ?? 0) - (aCheckIn?.getTime() ?? 0)
     })
   }
   if (selectedSort.value === 'checkout') {
@@ -318,6 +419,7 @@ watch(
     if (sort) selectedSort.value = sort
     const status = normalizeStatusQuery(query.status)
     if (status) selectedStatus.value = status
+    includePast.value = normalizeIncludePastQuery(query.includePast)
   },
   { immediate: true }
 )
@@ -341,6 +443,10 @@ watch(selectedStatus, (value) => {
 
 watch(selectedSort, (value) => {
   syncQuery({ sort: value })
+})
+
+watch(includePast, (value) => {
+  syncQuery({ includePast: value ? 1 : 0 })
 })
 
 const setView = (view) => {
@@ -409,6 +515,10 @@ const setView = (view) => {
             {{ filter.label }}
           </button>
         </div>
+        <label class="past-toggle">
+          <input v-model="includePast" type="checkbox" />
+          <span>지난 일정 포함</span>
+        </label>
         <select v-model="selectedSort" class="sort-select" aria-label="정렬 선택">
           <option v-for="option in sortOptions" :key="option.value" :value="option.value">
             {{ option.label }}
@@ -541,14 +651,14 @@ const setView = (view) => {
 
     <p v-if="isLoading" class="empty-box">예약 데이터를 불러오는 중입니다.</p>
 
-    <div v-if="showModal && selectedBooking" class="modal-backdrop" @click.self="showModal = false">
+    <div v-if="showModal && selectedBooking" class="modal-backdrop" @click.self="closeModal">
       <div class="modal">
         <header class="modal-head">
           <div>
             <p class="muted">예약 #{{ selectedBooking.id.toString().padStart(4, '0') }}</p>
             <h3>{{ selectedBooking.guestName }}</h3>
           </div>
-          <button class="circle-btn" @click="showModal = false">×</button>
+          <button class="circle-btn" @click="closeModal">×</button>
         </header>
 
         <div class="modal-body">
@@ -559,6 +669,8 @@ const setView = (view) => {
           <div class="modal-row"><span>연락처</span><strong>{{ selectedBooking.guestPhone }}</strong></div>
           <div class="modal-row"><span>이메일</span><strong>{{ selectedBooking.guestEmail }}</strong></div>
           <div class="modal-row"><span>금액</span><strong>{{ formatAmount(selectedBooking.amount) }}</strong></div>
+          <div class="modal-row"><span>환불율</span><strong>{{ refundRateLabel }}</strong></div>
+          <div class="modal-row"><span>예상 환불액</span><strong>{{ refundAmountLabel }}</strong></div>
           <div class="modal-row"><span>상태</span><span class="pill" :class="statusColor[selectedBooking.status]">{{ selectedBooking.status }}</span></div>
         </div>
       </div>
@@ -629,6 +741,25 @@ const setView = (view) => {
   min-height: 44px;
   background: #ffffff;
   color: #111827;
+}
+
+.past-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  color: #334155;
+  background: #fff;
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  min-height: 44px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.past-toggle input {
+  accent-color: var(--brand-primary-strong, #0f766e);
 }
 
 .tab-switch {

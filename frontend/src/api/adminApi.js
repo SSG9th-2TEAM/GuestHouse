@@ -1,4 +1,4 @@
-import { adminGet, adminRequest } from './adminClient'
+import { adminGet, adminRequest, hostGet } from './adminClient'
 
 export const fetchAdminDashboardSummary = (params = {}) => adminGet('/dashboard/summary', params)
 export const fetchAdminDashboardTimeseries = (params = {}) => adminGet('/dashboard/timeseries', params)
@@ -20,14 +20,12 @@ export const rejectAccommodation = (accommodationId, reason) =>
 export const fetchAdminUsers = (params = {}) => adminGet('/users', params)
 
 export const fetchAdminUserDetail = (userId) => adminGet(`/users/${userId}`)
-export const suspendAdminUser = (userId) =>
-  adminRequest(`/users/${userId}/suspend`, { method: 'POST' })
-export const unsuspendAdminUser = (userId) =>
-  adminRequest(`/users/${userId}/unsuspend`, { method: 'POST' })
 
 export const fetchAdminBookings = (params = {}) => adminGet('/bookings', params)
 
 export const fetchAdminBookingDetail = (reservationId) => adminGet(`/bookings/${reservationId}`)
+
+export const fetchRefundQuote = (reservationId) => hostGet('/refunds/quote', { reservationId })
 
 export const fetchAdminPayments = (params = {}) => adminGet('/payments', params)
 export const fetchAdminPaymentMetrics = (params = {}) => adminGet('/payments/metrics', params)

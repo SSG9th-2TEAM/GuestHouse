@@ -23,7 +23,8 @@ public class AdminLogService {
             if (adminId == null || targetId == null) {
                 return;
             }
-            adminLogMapper.insertAdminLog(adminId, targetType, targetId, actionType, reason);
+            String normalizedReason = StringUtils.hasText(reason) ? reason.trim() : null;
+            adminLogMapper.insertAdminLog(adminId, targetType, targetId, actionType, normalizedReason);
         } catch (Exception e) {
             log.warn("Failed to insert admin_log: targetType={}, targetId={}, actionType={}",
                     targetType, targetId, actionType, e);
