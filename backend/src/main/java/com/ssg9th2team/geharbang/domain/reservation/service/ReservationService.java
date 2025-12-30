@@ -38,6 +38,11 @@ public interface ReservationService {
     void deletePendingReservation(Long reservationId);
 
     /**
+     * 이용 완료된 예약 삭제 (체크인 날짜가 지난 확정된 예약만)
+     */
+    void deleteCompletedReservation(Long reservationId);
+
+    /**
      * 오래된 대기 예약 정리 (스케줄러용)
      */
     int cleanupOldPendingReservations();

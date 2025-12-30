@@ -84,6 +84,16 @@ const normalizeRooms = (rooms, fallbackPrice) => {
       const price = toNumber(room?.price ?? room?.weekendPrice ?? fallbackPrice, fallbackPrice)
       const roomStatus = room?.roomStatus
       const available = roomStatus == null ? true : roomStatus === 1
+      const imageUrl = room?.mainImageUrl || DEFAULT_IMAGE
+      
+      // 썸네일 URL 생성
+      let thumbnailUrl = imageUrl
+      if (imageUrl.includes('ncloudstorage.com')) {
+        thumbnailUrl = imageUrl
+          .replace('/room/', '/room_thumb/')
+          .replace(/\.(png|gif|webp)$/i, '.jpg')
+      }
+
       return {
         id: room?.roomId ?? room?.id,
         name: room?.roomName ?? room?.name ?? '',
@@ -91,7 +101,8 @@ const normalizeRooms = (rooms, fallbackPrice) => {
         capacity: toNumber(room?.maxGuests ?? room?.capacity ?? 0, 0),
         price,
         available,
-        imageUrl: room?.mainImageUrl || DEFAULT_IMAGE
+        imageUrl,
+        thumbnailUrl
       }
     })
 }
@@ -694,7 +705,7 @@ watch(() => route.params.id, loadAccommodation)
              :class="{ selected: selectedRoom?.id === room.id, unavailable: !room.available }"
              @click="room.available && selectRoom(room)">
           <div class="room-media">
-            <img :src="room.imageUrl" :alt="room.name" loading="lazy" />
+            <img :src="room.thumbnailUrl" :alt="room.name" loading="lazy" />
             <span v-if="!room.available" class="room-unavailable-badge">사용 중지</span>
           </div>
           <div class="room-content">
@@ -832,6 +843,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 .description-clamped {
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -1142,6 +1154,10 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   height: 100%;
   object-fit: cover;
   display: block;
+  /* 이미지 축소 시 품질 개선 */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: smooth;
+  transform: translateZ(0);
 }
 .room-content {
   display: flex;

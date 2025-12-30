@@ -1,5 +1,7 @@
 ﻿<script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   id: [Number, String],
   title: String,
   description: String,
@@ -14,6 +16,28 @@ defineProps({
   }
 })
 
+// 썸네일 URL 생성 (원본 URL에서 폴더명에 _thumb 추가)
+const thumbnailUrl = computed(() => {
+  if (!props.imageUrl) return ''
+  
+  // Object Storage URL인 경우 썸네일 폴더로 변경
+  if (props.imageUrl.includes('ncloudstorage.com')) {
+    // accommodation_image -> accommodation_image_thumb
+    // room -> room_thumb
+    let thumbUrl = props.imageUrl
+      .replace('/accommodation_image/', '/accommodation_image_thumb/')
+      .replace('/room/', '/room_thumb/')
+    
+    // 확장자를 .jpg로 변경 (썸네일은 모두 jpg)
+    thumbUrl = thumbUrl.replace(/\.(png|gif|webp)$/i, '.jpg')
+    
+    return thumbUrl
+  }
+  
+  // 다른 URL은 원본 그대로 사용
+  return props.imageUrl
+})
+
 const formatRating = (value) => {
   const numeric = Number(value)
   if (!Number.isFinite(numeric)) return '-'
@@ -26,7 +50,7 @@ const emit = defineEmits(['toggle-favorite'])
 <template>
   <article class="card" :class="{ inactive: !isActive }">
     <div class="image-container">
-      <img :src="imageUrl" :alt="title" class="card-image" />
+      <img :src="thumbnailUrl" :alt="title" class="card-image" />
       <span v-if="!isActive" class="inactive-badge">사용 중지</span>
       <button
         class="favorite-btn"
@@ -87,6 +111,15 @@ const emit = defineEmits(['toggle-favorite'])
   object-fit: cover;
   object-position: center;
   display: block;
+  /* 이미지 축소 시 품질 개선 */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: smooth;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  /* 부드러운 렌더링 */
+  filter: blur(0);
+  -webkit-filter: blur(0);
 }
 
 .favorite-btn {
@@ -166,6 +199,7 @@ const emit = defineEmits(['toggle-favorite'])
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 1;
+  line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

@@ -322,7 +322,11 @@ const goHome = () => {
             </svg>
          </button>
          <span class="header-title">{{ viewMode === 'list' ? '대화' : '지금이곳' }}</span>
-         <div style="width: 24px;"></div> <!-- Spacer -->
+         <button class="close-btn" @click="toggleChat">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6L18 18" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+         </button>
       </div>
 
       <!-- List View -->
@@ -501,6 +505,14 @@ const goHome = () => {
   cursor: pointer;
   padding: 0;
   display: flex;
+  align-items: center;
+}
+.close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: none; /* 기본적으로 숨김 - 모바일에서만 표시 */
   align-items: center;
 }
 
@@ -792,7 +804,25 @@ const goHome = () => {
 
 /* Mobile */
 @media (max-width: 480px) {
+  .chatbot-wrapper {
+    bottom: 16px;
+    right: 16px;
+  }
+  .chat-launcher {
+    width: 56px;
+    height: 56px;
+  }
+  .chat-launcher img {
+    width: 28px;
+    height: 28px;
+  }
+  .close-btn {
+    display: flex; /* 모바일에서 닫기 버튼 표시 */
+  }
   .chatbot-window {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
     bottom: 0;
@@ -800,7 +830,6 @@ const goHome = () => {
     border-radius: 0;
     max-height: none;
   }
-  .chat-launcher { display: none; } /* 모바일에서는 항상 열려있거나 다른 방식 필요 */
 }
 
 /* Loading Bubble */
