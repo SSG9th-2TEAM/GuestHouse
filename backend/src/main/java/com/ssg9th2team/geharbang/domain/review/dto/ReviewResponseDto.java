@@ -26,4 +26,5 @@ public class ReviewResponseDto {
     private LocalDateTime replyUpdatedAt;
     private List<ReviewImageDto> images;
     private List<ReviewTagDto> tags;
+    private String visitDate;
 }

@@ -29,6 +29,7 @@
         ORDER BY r.created_at DESC
     </select>
 
+
     <select id="selectReviewImagesByReviewId" resultType="com.ssg9th2team.geharbang.domain.review.dto.ReviewImageDto">
         SELECT
             review_image_id AS reviewImageId,
@@ -38,6 +39,7 @@
         WHERE review_id = #{reviewId}
         ORDER BY sort_order, review_image_id
     </select>
+
 
     <select id="selectReviewTagsByReviewId" resultType="com.ssg9th2team.geharbang.domain.review.dto.ReviewTagDto">
         SELECT
@@ -49,4 +51,24 @@
           AND rt.is_active = 1
         ORDER BY rt.review_tag_id
     </select>
+
+    <!-- 리뷰 태그 저장 -->
+    <insert id="insertReviewTags">
+        INSERT INTO review_tag_map (review_id, review_tag_id)
+        VALUES
+        <foreach collection="tagIds" item="tagId" separator=",">
+            (#{reviewId}, #{tagId})
+        </foreach>
+    </insert>
+
+    <!-- 전체 리뷰 태그 목록 조회 (활성화된 태그만) -->
+    <select id="selectAllReviewTags" resultType="com.ssg9th2team.geharbang.domain.review.dto.ReviewTagDto">
+        SELECT
+            review_tag_id AS reviewTagId,
+            review_tag_name AS reviewTagName
+        FROM review_tag
+        WHERE is_active = 1
+        ORDER BY review_tag_id
+    </select>
+
 </mapper>
