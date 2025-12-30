@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ReservationJpaRepository extends JpaRepository<Reservation, Long> {
@@ -49,4 +50,10 @@ public interface ReservationJpaRepository extends JpaRepository<Reservation, Lon
             @Param("roomId") Long roomId,
             @Param("checkin") LocalDateTime checkin,
             @Param("checkout") LocalDateTime checkout);
+
+
+    // 리뷰 작성용 조회 메서드 (체크아웃 완료된 예약 중 가장 최근 1개)
+    Optional<Reservation> findFirstByUserIdAndAccommodationsIdAndReservationStatusAndCheckoutBeforeOrderByCheckoutDesc(
+            Long userId, Long accommodationsId, Integer reservationStatus, LocalDateTime checkoutBefore);
+
 }

@@ -223,7 +223,14 @@ onMounted(() => {
             </div>
 
             <div class="card-actions">
-              <button class="action-btn review" @click="handleWriteReview(item)">리뷰 작성하기</button>
+              <button
+                class="action-btn review"
+                :class="{ completed: item.hasReview }"
+                @click="handleWriteReview(item)"
+                :disabled="item.hasReview"
+              >
+                {{ item.hasReview ? '리뷰 등록 완료' : '리뷰 작성하기' }}
+              </button>
               <button class="icon-btn delete" @click="handleDelete(item.reservationId)">🗑</button>
             </div>
           </div>
@@ -394,8 +401,15 @@ onMounted(() => {
   border: 1px solid var(--primary);
 }
 
-.action-btn.review:hover {
+.action-btn.review:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.action-btn.review.completed {
+  background: #e0e0e0;
+  color: #666;
+  border: 1px solid #ccc;
+  cursor: default;
 }
 
 .icon-btn.delete {

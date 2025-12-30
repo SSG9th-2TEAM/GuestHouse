@@ -271,12 +271,12 @@ public class AccommodationServiceImpl implements AccommodationService {
                 List<Reservation> roomReservations = reservationJpaRepository.findByRoomId(currentRoom.getRoomId());
                 LocalDateTime now = LocalDateTime.now();
                 boolean hasActiveReservation = roomReservations.stream()
-                        .anyMatch(r -> (r.getReservationStatus() == 2 || r.getReservationStatus() == 3) // 2: 확정, 3: 체크인완료
+                        .anyMatch(r -> r.getReservationStatus() == 2 // 2: 확정
                                         && r.getCheckout().isAfter(now)); // 현재 시간보다 체크아웃이 미래인 경우만 Active로 간주
 
                 if (hasActiveReservation) {
                     Reservation activeRes = roomReservations.stream()
-                            .filter(r -> (r.getReservationStatus() == 2 || r.getReservationStatus() == 3) && r.getCheckout().isAfter(now))
+                            .filter(r -> r.getReservationStatus() == 2 && r.getCheckout().isAfter(now))
                             .findFirst()
                             .orElse(null);
                     String debugInfo = activeRes != null ? "(예약ID: " + activeRes.getId() + ", 상태: " + activeRes.getReservationStatus() + ", 체크아웃: " + activeRes.getCheckout() + ")" : "";
@@ -357,11 +357,12 @@ public class AccommodationServiceImpl implements AccommodationService {
     @Override
     @Transactional
     public void deleteAccommodation(Long accommodationsId) {
-        // 예약 확인 ( stastus = 2 = 예약 완료)
+        // 예약 확인 ( status = 2 = 예약 완료)
         // 숙소 결제 정보가 있는지 조회
+        LocalDateTime now = LocalDateTime.now();
         List<Reservation> reservations = reservationJpaRepository.findByAccommodationsId(accommodationsId);
-        boolean hasActiveReservation = reservations.stream(). //stramAPI사용
-                anyMatch(r -> r.getReservationStatus() == 2); // anymatch = 리스트에 '상태가 2(확정)'인 예약이 하나라도 있는지 확인
+        boolean hasActiveReservation = reservations.stream()
+                .anyMatch(r -> r.getReservationStatus() == 2 && r.getCheckout().isAfter(now)); // 확정된 예약 중 아직 체크아웃 하지 않은 예약이 있는지 확인
 
         if(hasActiveReservation) {
             throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다.");

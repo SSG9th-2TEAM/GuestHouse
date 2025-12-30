@@ -1,19 +1,32 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { createReview, getReviewTags } from '@/api/reviewApi'
 
 const router = useRouter()
 const route = useRoute()
 
 // Reservation data from router state
 const reservation = ref({
+  accommodationId: null,
   accommodationName: '산속 독채 숙소',
   dates: '2025-11-20 ~ 2025-11-22'
 })
 
-onMounted(() => {
+onMounted(async () => {
   if (history.state && history.state.reservationData) {
     reservation.value = history.state.reservationData
+  }
+
+  // 태그 목록 로드
+  try {
+    const tags = await getReviewTags()
+    availableTags.value = tags.map(tag => ({
+      id: tag.reviewTagId,
+      label: tag.reviewTagName
+    }))
+  } catch (error) {
+    console.error('태그 로드 실패:', error)
   }
 })
 
@@ -22,6 +35,78 @@ const agreed = ref(false)
 const rating = ref(0)
 const reviewContent = ref('')
 const selectedTags = ref([])
+const isSubmitting = ref(false)
+
+// Image upload
+const MAX_IMAGES = 5
+const images = ref([])  // { file: File, preview: string, base64: string }
+const fileInput = ref(null)
+
+// 파일 선택 트리거
+const triggerFileInput = () => {
+  fileInput.value?.click()
+}
+
+// 파일을 Base64로 변환
+const fileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = (error) => reject(error)
+  })
+}
+
+// 파일 선택 처리
+const handleFileSelect = async (event) => {
+  const files = event.target.files
+  if (!files || files.length === 0) return
+
+  const remainingSlots = MAX_IMAGES - images.value.length
+  if (remainingSlots <= 0) {
+    openModal(`최대 ${MAX_IMAGES}장까지 업로드 가능합니다.`, 'error')
+    return
+  }
+
+  const filesToProcess = Array.from(files).slice(0, remainingSlots)
+
+  for (const file of filesToProcess) {
+    // 이미지 파일인지 확인
+    if (!file.type.startsWith('image/')) {
+      openModal('이미지 파일만 업로드 가능합니다.', 'error')
+      continue
+    }
+
+    // 파일 크기 제한 (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      openModal('이미지 크기는 5MB 이하만 가능합니다.', 'error')
+      continue
+    }
+
+    try {
+      const base64 = await fileToBase64(file)
+      images.value.push({
+        file,
+        preview: URL.createObjectURL(file),
+        base64
+      })
+    } catch (error) {
+      console.error('이미지 변환 실패:', error)
+    }
+  }
+
+  // input 초기화 (같은 파일 다시 선택 가능하도록)
+  event.target.value = ''
+}
+
+// 이미지 삭제
+const removeImage = (index) => {
+  const image = images.value[index]
+  if (image.preview) {
+    URL.revokeObjectURL(image.preview)
+  }
+  images.value.splice(index, 1)
+}
 
 // Modal State
 const showModal = ref(false)
@@ -44,16 +129,8 @@ const closeModal = () => {
   }
 }
 
-// Tag list from backend (mock)
-const availableTags = ref([
-  { id: 1, label: '환경가 좋아요', icon: '✓' },
-  { id: 2, label: '밥음이 잘돼요', icon: '😊' },
-  { id: 3, label: '깨끗해요', icon: '✨' },
-  { id: 4, label: '화장실이 잘 되어있어요', icon: '🚿' },
-  { id: 5, label: '보안시설이 잘 되어있어요', icon: '🔒' },
-  { id: 6, label: '냉난방이 잘돼요', icon: '❄️' },
-  { id: 7, label: '벌레 걱정 없어요', icon: '🚫' }
-])
+// Tag list from backend
+const availableTags = ref([])
 
 const toggleTag = (tag) => {
   const idx = selectedTags.value.findIndex(t => t.id === tag.id)
@@ -72,7 +149,18 @@ const setRating = (star) => {
   rating.value = star
 }
 
-const handleSubmit = () => {
+// 방문일 추출 (dates에서 체크인 날짜, YYYY.MM.DD -> YYYY-MM-DD 변환)
+const getVisitDate = () => {
+  const dates = reservation.value.dates || ''
+  const checkinDate = dates.split(' ~ ')[0]
+  // YYYY.MM.DD 형식을 YYYY-MM-DD로 변환
+  if (checkinDate) {
+    return checkinDate.replace(/\./g, '-')
+  }
+  return new Date().toISOString().split('T')[0]
+}
+
+const handleSubmit = async () => {
   if (!agreed.value) {
     openModal('리뷰 작성에 동의해주세요.', 'error')
     return
@@ -85,8 +173,31 @@ const handleSubmit = () => {
     openModal('리뷰 내용을 입력해주세요.', 'error')
     return
   }
-  
-  openModal('리뷰가 등록되었습니다!', 'success', () => router.push('/reviews'))
+  if (!reservation.value.accommodationId) {
+    openModal('숙소 정보가 없습니다. 예약 내역에서 다시 시도해주세요.', 'error')
+    return
+  }
+
+  isSubmitting.value = true
+
+  try {
+    const reviewData = {
+      accommodationsId: reservation.value.accommodationId,
+      rating: rating.value,
+      content: reviewContent.value.trim(),
+      visitDate: getVisitDate(),
+      tagIds: selectedTags.value.map(tag => tag.id),
+      imageUrls: images.value.map(img => img.base64)
+    }
+
+    await createReview(reviewData)
+    openModal('리뷰가 등록되었습니다!', 'success', () => router.push('/reviews'))
+  } catch (error) {
+    console.error('리뷰 등록 실패:', error)
+    openModal(error.message || '리뷰 등록에 실패했습니다.', 'error')
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -149,31 +260,64 @@ const handleSubmit = () => {
 
     <!-- Photo Upload -->
     <div class="photo-section">
-      <span class="label">사진 첨부: 📷</span>
-      <div class="photo-placeholder">
-        <span>+ 사진 추가</span>
+      <span class="label">사진 첨부 (최대 {{ MAX_IMAGES }}장)</span>
+      <div class="photo-list">
+        <!-- 업로드된 이미지들 -->
+        <div
+          v-for="(image, index) in images"
+          :key="index"
+          class="photo-item"
+        >
+          <img :src="image.preview" alt="리뷰 이미지" />
+          <button class="remove-btn" @click="removeImage(index)">×</button>
+        </div>
+
+        <!-- 이미지 추가 버튼 -->
+        <div
+          v-if="images.length < MAX_IMAGES"
+          class="photo-placeholder"
+          @click="triggerFileInput"
+        >
+          <span class="plus-icon">+</span>
+          <span class="add-text">사진 추가</span>
+        </div>
       </div>
+
+      <!-- 숨겨진 파일 input -->
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/*"
+        multiple
+        style="display: none"
+        @change="handleFileSelect"
+      />
     </div>
 
     <!-- Tags -->
     <div class="tags-section">
       <span class="label">리뷰 태그:</span>
       <div class="tags-grid">
-        <button 
-          v-for="tag in availableTags" 
+        <button
+          v-for="tag in availableTags"
           :key="tag.id"
           class="tag-btn"
           :class="{ selected: isTagSelected(tag) }"
           @click="toggleTag(tag)"
         >
-          <span class="tag-icon">{{ tag.icon }}</span>
           {{ tag.label }}
         </button>
       </div>
     </div>
 
     <!-- Submit Button -->
-    <button class="submit-btn" @click="handleSubmit">리뷰 제출</button>
+    <button
+      class="submit-btn"
+      @click="handleSubmit"
+      :disabled="isSubmitting"
+    >
+      {{ isSubmitting ? '등록 중...' : '리뷰 제출' }}
+    </button>
 
     <!-- Modal -->
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
@@ -329,18 +473,76 @@ const handleSubmit = () => {
   margin-bottom: 1.5rem;
 }
 
-.photo-placeholder {
+.photo-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-top: 0.5rem;
+}
+
+.photo-item {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-item .remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-item .remove-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.photo-placeholder {
   width: 80px;
   height: 80px;
   border: 2px dashed #ccc;
   border-radius: 8px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   color: #888;
-  font-size: 0.8rem;
   cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.photo-placeholder:hover {
+  border-color: var(--primary);
+  background-color: #f9fffe;
+}
+
+.photo-placeholder .plus-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.photo-placeholder .add-text {
+  font-size: 0.7rem;
+  margin-top: 2px;
 }
 
 /* Tags */
@@ -391,8 +593,13 @@ const handleSubmit = () => {
   cursor: pointer;
 }
 
-.submit-btn:hover {
+.submit-btn:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Modal */

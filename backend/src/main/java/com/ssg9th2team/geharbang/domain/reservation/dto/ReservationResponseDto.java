@@ -21,7 +21,8 @@ public record ReservationResponseDto(
         Integer paymentStatus,
         String reserverName,
         String reserverPhone,
-        LocalDateTime createdAt) {
+        LocalDateTime createdAt,
+        Boolean hasReview) {
     public static ReservationResponseDto from(Reservation reservation) {
         return new ReservationResponseDto(
                 reservation.getId(),
@@ -40,7 +41,8 @@ public record ReservationResponseDto(
                 reservation.getPaymentStatus(),
                 reservation.getReserverName(),
                 reservation.getReserverPhone(),
-                reservation.getCreatedAt());
+                reservation.getCreatedAt(),
+                false);
     }
 
     public static ReservationResponseDto from(Reservation reservation, String accommodationName,
@@ -62,7 +64,8 @@ public record ReservationResponseDto(
                 reservation.getPaymentStatus(),
                 reservation.getReserverName(),
                 reservation.getReserverPhone(),
-                reservation.getCreatedAt());
+                reservation.getCreatedAt(),
+                false);
     }
 
     public static ReservationResponseDto from(Reservation reservation, String accommodationName,
@@ -84,6 +87,30 @@ public record ReservationResponseDto(
                 reservation.getPaymentStatus(),
                 reservation.getReserverName(),
                 reservation.getReserverPhone(),
-                reservation.getCreatedAt());
+                reservation.getCreatedAt(),
+                false);
+    }
+
+    public static ReservationResponseDto from(Reservation reservation, String accommodationName,
+            String accommodationAddress, String accommodationImageUrl, Boolean hasReview) {
+        return new ReservationResponseDto(
+                reservation.getId(),
+                reservation.getAccommodationsId(),
+                accommodationName,
+                accommodationAddress,
+                accommodationImageUrl,
+                reservation.getCheckin(),
+                reservation.getCheckout(),
+                reservation.getStayNights(),
+                reservation.getGuestCount(),
+                reservation.getReservationStatus(),
+                reservation.getTotalAmountBeforeDc(),
+                reservation.getCouponDiscountAmount(),
+                reservation.getFinalPaymentAmount(),
+                reservation.getPaymentStatus(),
+                reservation.getReserverName(),
+                reservation.getReserverPhone(),
+                reservation.getCreatedAt(),
+                hasReview);
     }
 }
