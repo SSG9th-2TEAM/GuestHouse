@@ -85,6 +85,16 @@ public class ReservationController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 이용 완료된 예약 삭제 (내역에서 삭제)
+     * 체크인 날짜가 지난 확정된 예약만 삭제 가능
+     */
+    @DeleteMapping("/completed/{reservationId}")
+    public ResponseEntity<Void> deleteCompletedReservation(
+            @PathVariable Long reservationId) {
+        reservationService.deleteCompletedReservation(reservationId);
+        return ResponseEntity.noContent().build();
+    }
 
     // 객실별 예약 목록 조회
     @GetMapping("/room/{roomId}")
