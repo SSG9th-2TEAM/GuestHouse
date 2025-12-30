@@ -49,4 +49,9 @@ public interface ReservationService {
 
     // 객실별 예약 조회
     List<ReservationResponseDto> getReservationByUserId(Long userId);
+
+    /**
+     * 전체 예약 목록 조회 (관리자용)
+     */
+    List<ReservationResponseDto> getAllReservations();
 }

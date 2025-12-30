@@ -3,6 +3,7 @@ package com.ssg9th2team.geharbang.domain.payment.controller;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentConfirmRequestDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentResponseDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.RefundRequestDto;
+import com.ssg9th2team.geharbang.domain.payment.dto.RefundResponseDto;
 import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -65,5 +66,14 @@ public class PaymentController {
     public ResponseEntity<String> getClientKey() {
         // 실제로는 환경변수에서 가져오는게 좋음
         return ResponseEntity.ok("test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq");
+    }
+
+    /**
+     * 전체 환불 내역 조회 (관리자용)
+     */
+    @GetMapping("/refunds")
+    public ResponseEntity<java.util.List<RefundResponseDto>> getAllRefunds() {
+        java.util.List<RefundResponseDto> refunds = paymentService.getAllRefunds();
+        return ResponseEntity.ok(refunds);
     }
 }

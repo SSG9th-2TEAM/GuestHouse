@@ -12,7 +12,7 @@ const props = defineProps({
   }
 })
 
-const DEFAULT_IMAGE = 'https://via.placeholder.com/800x600'
+const DEFAULT_IMAGE = 'https://placehold.co/800x600'
 
 const imagesList = computed(() => {
   const list = Array.isArray(props.images) ? props.images.filter(Boolean) : []

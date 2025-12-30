@@ -11,7 +11,7 @@ const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
 
-const DEFAULT_IMAGE = 'https://via.placeholder.com/800x600'
+const DEFAULT_IMAGE = 'https://placehold.co/800x600'
 const DEFAULT_HOST_IMAGE = 'https://picsum.photos/seed/host/100/100'
 
 const toNumber = (value, fallback = 0) => {
@@ -242,6 +242,23 @@ const isDateInRange = (date) => {
   return time > searchStore.startDate.getTime() && time < searchStore.endDate.getTime()
 }
 
+const HOLIDAYS = [
+  '2024-01-01', '2024-02-09', '2024-02-10', '2024-02-11', '2024-02-12',
+  '2024-03-01', '2024-04-10', '2024-05-05', '2024-05-06', '2024-05-15',
+  '2024-06-06', '2024-08-15', '2024-09-16', '2024-09-17', '2024-09-18',
+  '2024-10-03', '2024-10-09', '2024-12-25',
+  '2025-01-01', '2025-01-27', '2025-01-28', '2025-01-29', '2025-01-30',
+  '2025-03-01', '2025-03-03', '2025-05-05', '2025-05-06', '2025-06-06',
+  '2025-08-15', '2025-10-03', '2025-10-05', '2025-10-06', '2025-10-07', '2025-10-08', '2025-10-09', '2025-12-25'
+]
+
+const isHoliday = (date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return HOLIDAYS.includes(`${y}-${m}-${d}`)
+}
+
 const getCalendarDays = (year, month) => {
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
@@ -254,6 +271,7 @@ const getCalendarDays = (year, month) => {
   }
   for (let day = 1; day <= daysInMonth; day += 1) {
     const date = new Date(year, month, day)
+    const dayOfWeek = date.getDay()
     const isStartDate = searchStore.startDate && isSameDay(date, searchStore.startDate)
     const isEndDate = searchStore.endDate && isSameDay(date, searchStore.endDate)
     const isInRange = isDateInRange(date)
@@ -264,6 +282,9 @@ const getCalendarDays = (year, month) => {
       isEmpty: false,
       date,
       isToday: isSameDay(date, new Date()),
+      isSaturday: dayOfWeek === 6,
+      isSunday: dayOfWeek === 0,
+      isHoliday: isHoliday(date),
       isStartDate,
       isEndDate,
       isInRange,
@@ -644,6 +665,9 @@ watch(() => route.params.id, loadAccommodation)
                       :class="{
                         empty: dayObj.isEmpty,
                         today: dayObj.isToday,
+                        'weekend-sat': dayObj.isSaturday,
+                        'weekend-sun': dayObj.isSunday,
+                        'holiday': dayObj.isHoliday,
                         'range-start': dayObj.isStartDate,
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
@@ -669,6 +693,9 @@ watch(() => route.params.id, loadAccommodation)
                       :class="{
                         empty: dayObj.isEmpty,
                         today: dayObj.isToday,
+                        'weekend-sat': dayObj.isSaturday,
+                        'weekend-sun': dayObj.isSunday,
+                        'holiday': dayObj.isHoliday,
                         'range-start': dayObj.isStartDate,
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
@@ -1109,6 +1136,12 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 .calendar-day.today {
   border: 1px solid var(--primary);
+}
+.calendar-day.weekend-sat {
+  color: #2563eb;
+}
+.calendar-day.weekend-sun {
+  color: #dc2626;
 }
 .calendar-day.in-range {
   background: #e6f4f1;

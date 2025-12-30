@@ -2,6 +2,9 @@ package com.ssg9th2team.geharbang.domain.payment.service;
 
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentConfirmRequestDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentResponseDto;
+import com.ssg9th2team.geharbang.domain.payment.dto.RefundResponseDto;
+
+import java.util.List;
 
 public interface PaymentService {
 
@@ -29,4 +32,9 @@ public interface PaymentService {
      * @return 환불 처리 결과
      */
     PaymentResponseDto cancelPayment(Long reservationId, String cancelReason, Integer refundAmount);
+
+    /**
+     * 전체 환불 내역 조회 (관리자용)
+     */
+    List<RefundResponseDto> getAllRefunds();
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, computed } from 'vue'
 import { createChatRoom, getChatRooms, getRoomMessages, sendChatbotMessage, deleteChatRoom } from '@/api/chatbotClient'
 
 const isOpen = ref(false)
@@ -9,6 +9,95 @@ const messages = ref([])
 const currentRoomId = ref(null)
 const isLoading = ref(false)
 const chatContainer = ref(null)
+
+// Drag state
+const isDragging = ref(false)
+const hasMoved = ref(false) // 실제로 움직였는지 체크
+const dragStartX = ref(0)
+const dragStartY = ref(0)
+const initialClientX = ref(0)
+const initialClientY = ref(0)
+const positionX = ref(20) // 초기 right 위치
+const positionY = ref(100) // 초기 bottom 위치
+
+// 드래그 가능 영역 제한 (화면 오른쪽 하단 영역)
+const minX = 20
+const maxX = 200
+const minY = 80
+const maxY = 400
+const DRAG_THRESHOLD = 10 // 이 픽셀 이상 움직여야 드래그로 인식
+
+const wrapperStyle = computed(() => ({
+  right: `${positionX.value}px`,
+  bottom: `${positionY.value}px`
+}))
+
+// 드래그 시작
+const startDrag = (e) => {
+  if (isOpen.value) return // 채팅창 열려있으면 드래그 비활성화
+  
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY
+  
+  isDragging.value = true
+  hasMoved.value = false
+  initialClientX.value = clientX
+  initialClientY.value = clientY
+  dragStartX.value = clientX + positionX.value
+  dragStartY.value = clientY + positionY.value
+}
+
+// 드래그 중
+const onDrag = (e) => {
+  if (!isDragging.value) return
+  
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY
+  
+  // 움직인 거리 계산
+  const deltaX = Math.abs(clientX - initialClientX.value)
+  const deltaY = Math.abs(clientY - initialClientY.value)
+  
+  // 일정 거리 이상 움직여야 드래그로 인식
+  if (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD) {
+    hasMoved.value = true
+    e.preventDefault()
+    
+    let newX = dragStartX.value - clientX
+    let newY = dragStartY.value - clientY
+    
+    // 경계 제한
+    newX = Math.max(minX, Math.min(maxX, newX))
+    newY = Math.max(minY, Math.min(maxY, newY))
+    
+    positionX.value = newX
+    positionY.value = newY
+  }
+}
+
+// 드래그 종료
+const endDrag = () => {
+  // 움직이지 않았으면 클릭으로 처리
+  if (isDragging.value && !hasMoved.value) {
+    toggleChat()
+  }
+  isDragging.value = false
+  hasMoved.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('mousemove', onDrag)
+  document.addEventListener('mouseup', endDrag)
+  document.addEventListener('touchmove', onDrag, { passive: false })
+  document.addEventListener('touchend', endDrag)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', endDrag)
+  document.removeEventListener('touchmove', onDrag)
+  document.removeEventListener('touchend', endDrag)
+})
 
 // Modal State
 const showModal = ref(false)
@@ -300,12 +389,13 @@ const goHome = () => {
 </script>
 
 <template>
-  <div class="chatbot-wrapper">
+  <div class="chatbot-wrapper" :style="wrapperStyle">
     <!-- Launcher -->
     <button 
       class="chat-launcher" 
-      @click="toggleChat"
-      :class="{ 'is-open': isOpen }"
+      @mousedown="startDrag"
+      @touchstart="startDrag"
+      :class="{ 'is-open': isOpen, 'is-dragging': hasMoved }"
     >
       <img src="/icon.png" alt="Chat" v-if="!isOpen" />
       <span v-else class="close-icon">✕</span>
@@ -446,8 +536,8 @@ const goHome = () => {
 <style scoped>
 .chatbot-wrapper {
   position: fixed;
-  bottom: 30px;
-  right: 30px;
+  bottom: 100px;
+  right: 20px;
   z-index: 9999;
   font-family: 'Pretendard', sans-serif;
 }
@@ -459,14 +549,21 @@ const goHome = () => {
   background: white;
   border: 1px solid #ddd;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  cursor: pointer;
+  cursor: grab;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s;
+  user-select: none;
+  touch-action: none;
 }
 .chat-launcher:hover { transform: scale(1.05); }
-.chat-launcher img { width: 32px; height: 32px; }
+.chat-launcher.is-dragging { 
+  cursor: grabbing;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  transform: scale(1.1);
+}
+.chat-launcher img { width: 32px; height: 32px; pointer-events: none; }
 .close-icon { font-size: 24px; color: #333; }
 
 .chatbot-window {

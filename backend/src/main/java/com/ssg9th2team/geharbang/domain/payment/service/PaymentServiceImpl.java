@@ -249,4 +249,11 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("주문번호에서 예약 ID를 추출할 수 없습니다: " + orderId);
         }
     }
+
+    @Override
+    public java.util.List<com.ssg9th2team.geharbang.domain.payment.dto.RefundResponseDto> getAllRefunds() {
+        return paymentRefundRepository.findAll().stream()
+                .map(com.ssg9th2team.geharbang.domain.payment.dto.RefundResponseDto::from)
+                .toList();
+    }
 }
