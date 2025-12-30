@@ -80,7 +80,7 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     public void updateReview(Long userId, Long accommodationId) {
-        // TODO: 리뷰 수정 구현
+        userRepository.findById(userId);
     }
 
 
