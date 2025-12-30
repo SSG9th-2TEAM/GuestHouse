@@ -28,10 +28,29 @@
             /* 2) 기간 내 예약 건수 */
             COALESCE(SUM(h.reservation_count), 0) AS confirmedReservations,
 
-            /* 3) 평균 평점 (기간 평균) */
-            COALESCE(AVG(h.avg_rating), 0) AS avgRating,
+            /* 3) 평균 평점 (리뷰 기준) */
+            (
+                SELECT COALESCE(AVG(rv.rating), 0)
+                FROM review rv
+                JOIN accommodation ar ON ar.accommodations_id = rv.accommodations_id
+                WHERE ar.user_id = #{hostId}
+                  AND rv.is_deleted = 0
+                  AND rv.created_at &gt;= #{start}
+                  AND rv.created_at &lt; #{end}
+            ) AS avgRating,
 
-            /* 4) 운영/승인된 숙소 수 */
+            /* 4) 리뷰 수 (리뷰 기준) */
+            (
+                SELECT COALESCE(COUNT(*), 0)
+                FROM review rv
+                JOIN accommodation ar ON ar.accommodations_id = rv.accommodations_id
+                WHERE ar.user_id = #{hostId}
+                  AND rv.is_deleted = 0
+                  AND rv.created_at &gt;= #{start}
+                  AND rv.created_at &lt; #{end}
+            ) AS reviewCount,
+
+            /* 5) 운영/승인된 숙소 수 */
             (
                 SELECT COUNT(*)
                 FROM accommodation a2
@@ -40,12 +59,15 @@
                   AND a2.approval_status = 'APPROVED'
             ) AS operatingAccommodations,
 
-            /* 5) 전체 숙소 수 */
+            /* 6) 전체 숙소 수 */
             (
                 SELECT COUNT(*)
                 FROM accommodation a3
                 WHERE a3.user_id = #{hostId}
             ) AS totalAccommodations
+            ,
+            /* 7) stats row count */
+            COUNT(h.user_id) AS statsCount
         FROM host_daily_stats h
         WHERE h.user_id = #{hostId}
           AND h.stat_date &gt;= #{start}
@@ -90,11 +112,19 @@
                 FROM review rv
                 JOIN accommodation a1 ON a1.accommodations_id = rv.accommodations_id
                 WHERE a1.user_id = #{hostId}
-                  AND a1.approval_status = 'APPROVED'
                   AND rv.is_deleted = 0
                   AND rv.created_at &gt;= #{start}
                   AND rv.created_at &lt; #{end}
             ) AS avgRating,
+            (
+                SELECT COALESCE(COUNT(*), 0)
+                FROM review rv
+                JOIN accommodation a1 ON a1.accommodations_id = rv.accommodations_id
+                WHERE a1.user_id = #{hostId}
+                  AND rv.is_deleted = 0
+                  AND rv.created_at &gt;= #{start}
+                  AND rv.created_at &lt; #{end}
+            ) AS reviewCount,
             (
                 SELECT COUNT(*)
                 FROM accommodation a2

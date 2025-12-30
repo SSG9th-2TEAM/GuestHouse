@@ -280,11 +280,24 @@ const goTo = (path) => {
   if (path) router.push(path)
 }
 
+const toLocalDateString = (date) => {
+  const value = date ?? new Date()
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const goToTodayBookings = () => {
   if (!todayInsight.value) return
   router.push({
     path: '/host/booking',
-    query: { view: 'list', status: 'confirmed', sort: 'checkin' }
+    query: {
+      view: 'list',
+      sort: 'checkin',
+      mode: 'today',
+      date: toLocalDateString(new Date())
+    }
   })
 }
 

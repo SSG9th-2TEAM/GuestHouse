@@ -213,6 +213,11 @@ watch(
         <div v-if="review.tags && review.tags.length" class="review-tags">
           <span v-for="tag in review.tags" :key="tag" class="tag review-tag">{{ tag }}</span>
         </div>
+        <div v-if="review.replyContent" class="review-reply">
+          <p class="review-reply__title">호스트 답글</p>
+          <p class="review-reply__content">{{ review.replyContent }}</p>
+          <p v-if="review.replyUpdatedAt" class="review-reply__date">{{ review.replyUpdatedAt }}</p>
+        </div>
       </div>
     </div>
     <div v-if="totalReviewPages > 1" class="review-pagination">
@@ -394,6 +399,33 @@ h2 {
 .review-tag {
   background: #e6f4f1;
   color: #0f4c44;
+}
+.review-reply {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  background: #f8fafc;
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+}
+.review-reply__title {
+  margin: 0;
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+.review-reply__content {
+  margin: 0;
+  color: #334155;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.review-reply__date {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 .review-images {
   display: flex;

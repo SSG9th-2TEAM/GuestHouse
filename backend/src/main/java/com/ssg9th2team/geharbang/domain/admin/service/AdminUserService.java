@@ -17,7 +17,6 @@ import java.util.List;
 public class AdminUserService {
 
     private final UserRepository userRepository;
-
     public AdminPageResponse<AdminUserSummary> getUsers(
             String role,
             String query,

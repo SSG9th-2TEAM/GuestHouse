@@ -1,5 +1,6 @@
 <script setup>
 import {ref, computed, nextTick, onMounted, watch} from 'vue'
+import { useRoute } from 'vue-router'
 import {exportCSV, exportXLSX} from '../../utils/reportExport'
 import {fetchHostRevenueDetails, fetchHostRevenueSummary, fetchHostRevenueTrend} from '@/api/hostRevenue'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
@@ -9,8 +10,11 @@ import HostPendingLock from '@/components/host/HostPendingLock.vue'
 
 const now = new Date()
 const currentYear = now.getFullYear()
+const currentMonth = now.getMonth() + 1
+const STORAGE_KEY = 'hostRevenueReportFilter'
+const route = useRoute()
 const selectedYear = ref(currentYear)
-const selectedMonth = ref('all')
+const selectedMonth = ref(String(currentMonth))
 const years = computed(() => Array.from({length: 6}, (_, idx) => currentYear - idx))
 const months = ['all', ...Array.from({length: 12}, (_, idx) => String(idx + 1))]
 
@@ -33,12 +37,28 @@ const includeZero = ref(false)
 const hostState = ref('loading')
 const hostCounts = ref({ total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 })
 const pendingOnly = computed(() => hostState.value === 'pending-only')
+const filtersReady = ref(false)
 
 const currentYearSummary = computed(() => revenueSummary.value)
 const currentYearTrend = computed(() => revenueTrend.value)
 const currentYearDetails = computed(() => revenueDetails.value)
 
 const isDailyView = computed(() => selectedMonth.value !== 'all')
+
+const selectedPeriodLabel = computed(() => {
+  if (selectedMonth.value === 'all') return `${selectedYear.value}년 재무 현황`
+  return `${selectedYear.value}년 ${Number(selectedMonth.value)}월 재무 현황`
+})
+
+const summaryLabelPrefix = computed(() => {
+  if (selectedMonth.value === 'all') return `${selectedYear.value}년`
+  return `${Number(selectedMonth.value)}월`
+})
+
+const emptyMessage = computed(() => {
+  if (selectedMonth.value === 'all') return '선택한 연도에 확정 매출이 없습니다.'
+  return '선택한 기간에 확정 매출이 없습니다.'
+})
 
 const chartSeries = computed(() => {
   if (isDailyView.value) {
@@ -106,13 +126,66 @@ const downloadReport = (format) => {
   exportCSV({filename: `host-revenue-${today}.csv`, sheets})
 }
 
+const normalizeMonth = (value) => {
+  if (value === undefined || value === null) return null
+  const raw = String(value).trim().toLowerCase()
+  if (!raw) return null
+  if (raw === 'all') return 'all'
+  const num = Number(raw)
+  if (!Number.isFinite(num) || num < 1 || num > 12) return null
+  return String(num)
+}
+
+const normalizeYear = (value, fallback) => {
+  const num = Number(value)
+  return Number.isFinite(num) ? num : fallback
+}
+
+const normalizeBool = (value) => {
+  return value === true || value === 'true' || value === '1'
+}
+
+const initFilters = () => {
+  const queryYear = route.query?.year
+  const queryMonth = route.query?.month
+  const queryIncludeZero = route.query?.includeZero
+
+  let year = currentYear
+  let month = String(currentMonth)
+  let includeZeroValue = false
+
+  if (queryYear !== undefined || queryMonth !== undefined || queryIncludeZero !== undefined) {
+    year = normalizeYear(queryYear, year)
+    const normalizedMonth = normalizeMonth(queryMonth)
+    if (normalizedMonth) month = normalizedMonth
+    includeZeroValue = normalizeBool(queryIncludeZero)
+  } else if (typeof window !== 'undefined') {
+    const saved = window.localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        year = normalizeYear(parsed?.year, year)
+        const normalizedMonth = normalizeMonth(parsed?.month)
+        if (normalizedMonth) month = normalizedMonth
+        includeZeroValue = normalizeBool(parsed?.includeZero)
+      } catch (error) {
+        window.localStorage.removeItem(STORAGE_KEY)
+      }
+    }
+  }
+
+  selectedYear.value = year
+  selectedMonth.value = month
+  includeZero.value = includeZeroValue
+}
+
 const loadRevenue = async (year, month) => {
   if (pendingOnly.value) return
   isLoading.value = true
   loadError.value = ''
-  const currentMonthValue = now.getMonth() + 1
-  const summaryMonth = year === now.getFullYear() ? currentMonthValue : 12
   const monthValue = month === 'all' ? null : Number(month)
+  const currentMonthValue = now.getMonth() + 1
+  const summaryMonth = monthValue ?? currentMonthValue
   const detailFrom = monthValue ? `${year}-${String(monthValue).padStart(2, '0')}-01` : `${year}-01-01`
   const detailTo = monthValue
       ? `${year}-${String(monthValue).padStart(2, '0')}-${String(new Date(year, monthValue, 0).getDate()).padStart(2, '0')}`
@@ -125,8 +198,24 @@ const loadRevenue = async (year, month) => {
     fetchHostRevenueDetails({from: detailFrom, to: detailTo, granularity: detailGranularity})
   ])
 
-  if (summaryRes.ok && summaryRes.data) {
-    revenueSummary.value = summaryRes.data
+  const summaryData = summaryRes.ok && summaryRes.data ? summaryRes.data : null
+  if (monthValue === null) {
+    const totalRevenue = trendRes.ok && Array.isArray(trendRes.data)
+      ? trendRes.data.reduce((sum, item) => sum + Number(item.revenue ?? 0), 0)
+      : 0
+    const platformFeeRate = summaryData?.platformFeeRate ?? revenueSummary.value?.platformFeeRate ?? 0.04
+    const platformFeeAmount = Math.round(totalRevenue * platformFeeRate)
+    revenueSummary.value = {
+      year,
+      month: 0,
+      totalRevenue,
+      expectedNextMonthRevenue: summaryData?.expectedNextMonthRevenue ?? 0,
+      platformFeeRate,
+      platformFeeAmount,
+      reservationCount: summaryData?.reservationCount ?? 0
+    }
+  } else if (summaryData) {
+    revenueSummary.value = summaryData
   } else {
     loadError.value = '데이터를 불러오지 못했어요.'
   }
@@ -174,6 +263,8 @@ const loadHostState = async () => {
 }
 
 onMounted(async () => {
+  initFilters()
+  filtersReady.value = true
   await loadHostState()
   if (!pendingOnly.value) {
     loadRevenue(selectedYear.value, selectedMonth.value)
@@ -181,8 +272,18 @@ onMounted(async () => {
 })
 
 watch([selectedYear, selectedMonth], ([year, month]) => {
-  if (pendingOnly.value) return
+  if (pendingOnly.value || !filtersReady.value) return
   loadRevenue(year, month)
+})
+
+watch([selectedYear, selectedMonth, includeZero], () => {
+  if (!filtersReady.value || typeof window === 'undefined') return
+  const payload = {
+    year: selectedYear.value,
+    month: selectedMonth.value,
+    includeZero: includeZero.value
+  }
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
 })
 
 const netRevenue = computed(() => {
@@ -227,19 +328,19 @@ onMounted(() => {
 
 const summaryCards = computed(() => ([
   {
-    label: '이번 달 확정 매출',
+    label: `${summaryLabelPrefix.value} 확정 매출`,
     value: animatedSummary.value.totalRevenue ?? 0,
     tone: 'green',
     note: null
   },
   {
-    label: '플랫폼 수수료',
+    label: `${summaryLabelPrefix.value} 플랫폼 수수료`,
     value: animatedSummary.value.platformFeeAmount ?? 0,
     tone: 'orange',
     note: null
   },
   {
-    label: '순매출',
+    label: `${summaryLabelPrefix.value} 순매출`,
     value: animatedSummary.value.netRevenue ?? 0,
     tone: 'blue',
     note: null
@@ -320,6 +421,7 @@ const dailyItemsAll = computed(() => {
     const dodText = prevAmount > 0
         ? `전일 대비 ${formatPercent(((amount - prevAmount) / prevAmount) * 100, true)}`
         : '전일 데이터 없음'
+    const dodTextMobile = prevAmount > 0 ? dodText : '-'
     const date = new Date(year, month - 1, day)
     return {
       day,
@@ -327,6 +429,7 @@ const dailyItemsAll = computed(() => {
       date,
       label: formatDate(date),
       dodText,
+      dodTextMobile,
       anchorId: `day-${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     }
   })
@@ -430,7 +533,7 @@ const scrollToAnchor = (anchorId) => {
     <div class="view-header">
       <div>
         <h2>매출 리포트</h2>
-        <p class="subtitle">{{ selectedYear }}년 재무 현황</p>
+        <p class="subtitle">{{ selectedPeriodLabel }}</p>
       </div>
     </div>
 
@@ -480,7 +583,7 @@ const scrollToAnchor = (anchorId) => {
       <h3>{{ isDailyView ? `${selectedMonth}월 일별 매출` : '월별 매출 추이' }}</h3>
       <div v-if="isLoading" class="chart-skeleton"/>
       <div v-else-if="!hasRevenueData" class="status-card">
-        <p>선택한 기간에 확정 매출이 없습니다.</p>
+        <p>{{ emptyMessage }}</p>
         <button class="ghost-btn" type="button" @click="selectedMonth = 'all'">기간 변경</button>
       </div>
       <div v-else class="bar-chart" :class="[isDailyView ? 'daily' : 'monthly', { animate: animateCharts }]">
@@ -550,7 +653,7 @@ const scrollToAnchor = (anchorId) => {
         <button class="ghost-btn" type="button" @click="loadRevenue(selectedYear, selectedMonth)">다시 시도</button>
       </div>
       <div v-else-if="isEmptyDetails" class="status-card">
-        <p>선택한 기간에 확정 매출이 없습니다.</p>
+        <p>{{ emptyMessage }}</p>
         <button class="ghost-btn" type="button" @click="includeZero = true">0원 포함 보기</button>
       </div>
       <div v-else class="details-content">
@@ -580,6 +683,7 @@ const scrollToAnchor = (anchorId) => {
           </div>
 
           <div v-else class="detail-cards">
+            <p class="mobile-note">전일 데이터 없음은 '-'로 표시됩니다.</p>
             <div
                 v-for="item in dailyItems"
                 :id="item.anchorId"
@@ -595,7 +699,7 @@ const scrollToAnchor = (anchorId) => {
                 <span class="card-amount">{{ formatCurrency(item.amount) }}</span>
               </div>
               <div class="card-row sub">
-                <span>{{ item.dodText }}</span>
+                <span>{{ item.dodTextMobile }}</span>
               </div>
             </div>
           </div>
@@ -1005,6 +1109,13 @@ const scrollToAnchor = (anchorId) => {
   width: 18px;
   height: 18px;
   accent-color: var(--brand-primary-strong);
+}
+
+.mobile-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #94a3b8;
 }
 
 .daily-summary-bar {

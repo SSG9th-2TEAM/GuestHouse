@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentConfirmRequestDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentResponseDto;
+import com.ssg9th2team.geharbang.domain.payment.dto.RefundPolicyResult;
 import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
 import com.ssg9th2team.geharbang.domain.payment.entity.PaymentRefund;
 import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
@@ -16,6 +17,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -32,6 +35,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentJpaRepository paymentRepository;
     private final PaymentRefundJpaRepository paymentRefundRepository;
+    private final RefundPolicyService refundPolicyService;
     private final ReservationJpaRepository reservationRepository;
     private final ObjectMapper objectMapper;
 
@@ -165,23 +169,55 @@ public class PaymentServiceImpl implements PaymentService {
 
         // 결제 정보 조회
         Payment payment = paymentRepository.findByReservationId(reservationId)
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다: reservationId=" + reservationId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "결제 정보를 찾을 수 없습니다."));
 
         // 예약 조회
         Reservation reservation = reservationRepository.findById(reservationId)
-                .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다."));
+
+        Integer reservationStatus = reservation.getReservationStatus();
+        if (reservationStatus != null && reservationStatus == 9) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 취소된 예약입니다.");
+        }
+        if (reservationStatus != null && reservationStatus == 3) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "체크인 완료 상태에서는 취소할 수 없습니다.");
+        }
+        if (payment.getPaymentStatus() == null || payment.getPaymentStatus() != 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "결제 완료 상태에서만 취소할 수 있습니다.");
+        }
 
         // 환불 금액 결정
-        Integer actualRefundAmount = (refundAmount != null) ? refundAmount : payment.getApprovedAmount();
+        Integer approvedAmount = payment.getApprovedAmount() != null ? payment.getApprovedAmount() : payment.getRequestAmount();
+        if (approvedAmount == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "결제 금액이 없습니다.");
+        }
+        RefundPolicyResult policyResult = refundPolicyService.calculate(
+                reservation.getCheckin(),
+                LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")),
+                approvedAmount
+        );
+        Integer actualRefundAmount = policyResult.refundAmount();
+        String normalizedReason = (cancelReason == null || cancelReason.trim().isEmpty())
+                ? String.format("policy %s %d%%", policyResult.policyCode(), policyResult.refundRate())
+                : cancelReason.trim();
 
         // 환불 기록 생성 (요청 상태)
         PaymentRefund paymentRefund = PaymentRefund.builder()
                 .paymentId(payment.getId())
                 .refundAmount(actualRefundAmount)
                 .refundStatus(0) // 0: 요청
-                .reasonMessage(cancelReason)
+                .reasonMessage(normalizedReason)
                 .requestedBy("USER")
                 .build();
+
+        if (actualRefundAmount == 0) {
+            paymentRefund.updateRefundSuccess(payment.getPgPaymentKey(), LocalDateTime.now());
+            paymentRefundRepository.save(paymentRefund);
+            reservation.updateRefunded();
+            reservationRepository.save(reservation);
+            log.info("환불 불가 정책 적용: reservationId={}, refundAmount=0", reservationId);
+            return PaymentResponseDto.from(payment);
+        }
 
         // 토스페이먼츠 결제 취소 API 호출
         try {
@@ -197,9 +233,9 @@ public class PaymentServiceImpl implements PaymentService {
             headers.set("Authorization", "Basic " + encodedSecretKey);
 
             Map<String, Object> body = new HashMap<>();
-            body.put("cancelReason", cancelReason);
-            if (refundAmount != null && refundAmount < payment.getApprovedAmount()) {
-                body.put("cancelAmount", refundAmount); // 부분 취소
+            body.put("cancelReason", normalizedReason);
+            if (actualRefundAmount < approvedAmount) {
+                body.put("cancelAmount", actualRefundAmount); // 부분 취소
             }
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);

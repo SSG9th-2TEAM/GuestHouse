@@ -153,6 +153,8 @@ const normalizeReviews = (reviews) => {
       date: formatReviewDate(review?.createdAt ?? review?.date),
       rating,
       content: review?.content ?? '',
+      replyContent: review?.replyContent ?? '',
+      replyUpdatedAt: formatReviewDate(review?.replyUpdatedAt ?? null),
       image: imageUrls[0] ?? null,
       images: imageUrls,
       tags: tags
@@ -1147,5 +1149,3 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   }
 }
 </style>
-
-
