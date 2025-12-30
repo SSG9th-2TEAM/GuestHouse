@@ -1,0 +1,100 @@
+name: Gemini Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [develop]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- '*.java' '*.yml' '*.properties' | head -c 30000)
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+         - name: Review with Gemini
+          id: review
+         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+         DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
+         run: |
+          # API 키 확인
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "GEMINI_API_KEY is not set"
+            echo "review=API 키가 설정되지 않았습니다. Repository Settings > Secrets에서 GEMINI_API_KEY를 추가해주세요." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # diff 내용 확인
+          if [ -z "$DIFF_CONTENT" ]; then
+            echo "review=변경된 코드가 없습니다." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Diff length: ${#DIFF_CONTENT}"
+
+          # JSON 페이로드 생성
+          PAYLOAD=$(jq -n --arg diff "$DIFF_CONTENT" '{
+            "contents": [{
+              "parts": [{
+                "text": ("당신은 시니어 백엔드 개발자입니다. 아래 코드 변경사항을 리뷰해주세요.\n\n리뷰 기준:\n1. 버그 가능성\n2. 보안 취약점\n3. 성능 이슈\n4. 코드 스타일/가독성\n5. 개선 제안\n\n한국어로 간결하게 답변해주세요. 문제가 없으면 \"LGTM (Looks Good To Me)\"이라고 답변해주세요.\n\n```diff\n" + $diff + "\n```")
+              }]
+            }],
+            "generationConfig": {
+              "temperature": 0.3,
+              "maxOutputTokens": 2048
+            }
+          }')
+
+          RESPONSE=$(curl -s \
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD")
+
+          # 응답 디버깅
+          echo "API Response: $RESPONSE"
+
+          # 에러 확인
+          ERROR=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+          if [ -n "$ERROR" ]; then
+            echo "review=API 오류: $ERROR" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          REVIEW=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "리뷰 생성 실패"')
+          echo "review<<EOF" >> $GITHUB_OUTPUT
+          echo "$REVIEW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post review comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const review = `## 🤖 Gemini 코드 리뷰
+
+            ${{ steps.review.outputs.review }}
+
+            ---
+            *이 리뷰는 AI가 자동으로 생성했습니다. 참고용으로만 활용해주세요.*`;
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: review
+            });

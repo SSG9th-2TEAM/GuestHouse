@@ -92,9 +92,21 @@ const loadList = async (themeIds = []) => {
     const response = await fetchList(themeIds)
     if (response.ok) {
       const payload = response.data
-      const list = Array.isArray(payload)
-        ? payload
-        : payload?.items ?? payload?.content ?? payload?.data ?? []
+      // Handle new backend response structure: { recommendedAccommodations: [], generalAccommodations: [] }
+      let list = []
+      if (Array.isArray(payload)) {
+        // Legacy format: direct array
+        list = payload
+      } else if (payload?.recommendedAccommodations || payload?.generalAccommodations) {
+        // New format: combine recommended and general accommodations (recommended first)
+        list = [
+          ...(payload.recommendedAccommodations || []),
+          ...(payload.generalAccommodations || [])
+        ]
+      } else {
+        // Fallback for other formats
+        list = payload?.items ?? payload?.content ?? payload?.data ?? []
+      }
       items.value = list.map(normalizeItem)
     } else {
       console.error('Failed to load list', response.status)

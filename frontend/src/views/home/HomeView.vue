@@ -114,10 +114,22 @@ const loadSections = async () => {
     const results = await Promise.all(
       orderedThemes.map(async (theme) => {
         const response = await fetchList([theme.id])
-        const payload = response.ok ? response.data : []
-        const list = Array.isArray(payload)
-          ? payload
-          : payload?.items ?? payload?.content ?? payload?.data ?? []
+        const payload = response.ok ? response.data : {}
+        // Handle new backend response structure: { recommendedAccommodations: [], generalAccommodations: [] }
+        let list = []
+        if (Array.isArray(payload)) {
+          // Legacy format: direct array
+          list = payload
+        } else if (payload?.recommendedAccommodations || payload?.generalAccommodations) {
+          // New format: combine recommended and general accommodations
+          list = [
+            ...(payload.recommendedAccommodations || []),
+            ...(payload.generalAccommodations || [])
+          ]
+        } else {
+          // Fallback for other formats
+          list = payload?.items ?? payload?.content ?? payload?.data ?? []
+        }
         return {
           id: theme.id,
           name: theme.themeName,
