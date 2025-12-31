@@ -130,12 +130,8 @@ const getCalendarDays = (year, month) => {
     const isEndDate = searchStore.endDate && isSameDay(date, searchStore.endDate)
     const isInRange = isDateInRange(date)
     const hasEndDate = searchStore.endDate !== null
-<<<<<<< HEAD
-    const dayOfWeek = date.getDay()
-=======
     const holidayInfo = getHolidayInfo(date)
     const isDisabled = date.getTime() < today.getTime()
->>>>>>> develop
     
     days.push({
       day,
@@ -144,16 +140,13 @@ const getCalendarDays = (year, month) => {
       isToday: isSameDay(date, new Date()),
       isSaturday: dayOfWeek === 6,
       isSunday: dayOfWeek === 0,
-      isHoliday: isHoliday(date),
+      isHoliday: Boolean(holidayInfo),
+      holidayName: holidayInfo?.name || '',
       isStartDate,
       isEndDate,
       isInRange,
       hasEndDate,
-      isDisabled,
-      isSunday: dayOfWeek === 0,
-      isSaturday: dayOfWeek === 6,
-      isHoliday: Boolean(holidayInfo),
-      holidayName: holidayInfo?.name || ''
+      isDisabled
     })
   }
   

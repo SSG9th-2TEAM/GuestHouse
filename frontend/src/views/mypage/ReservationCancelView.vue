@@ -158,7 +158,6 @@ const handleCancel = async () => {
 const goToRefundPolicy = () => {
   window.open('/policy?tab=refund', '_blank')
 }
-<<<<<<< HEAD
 const cancelReasons = [
   '방문불가/여행취소',
   '타 서비스에서 더 싼 상품 발견',
@@ -168,7 +167,6 @@ const cancelReasons = [
   '업체요청',
   '단순변심'
 ]
-=======
 
 const loadRefundQuote = async (reservationId) => {
   if (!reservationId) return
@@ -182,7 +180,6 @@ const loadRefundQuote = async (reservationId) => {
   }
   refundQuoteLoading.value = false
 }
->>>>>>> develop
 </script>
 
 <template>

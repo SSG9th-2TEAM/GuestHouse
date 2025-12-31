@@ -34,13 +34,15 @@ const wrapperStyle = computed(() => ({
 
 // 드래그 시작
 const startDrag = (e) => {
-  if (isOpen.value) return // 채팅창 열려있으면 드래그 비활성화
+  // 채팅창 열려있으면 드래그는 비활성화하지만, 클릭으로 닫을 수 있도록 상태 설정
+  isDragging.value = true
+  hasMoved.value = false
+  
+  if (isOpen.value) return // 드래그 위치 계산은 생략
   
   const clientX = e.touches ? e.touches[0].clientX : e.clientX
   const clientY = e.touches ? e.touches[0].clientY : e.clientY
   
-  isDragging.value = true
-  hasMoved.value = false
   initialClientX.value = clientX
   initialClientY.value = clientY
   dragStartX.value = clientX + positionX.value
