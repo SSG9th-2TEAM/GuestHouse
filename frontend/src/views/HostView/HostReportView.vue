@@ -58,7 +58,7 @@ const formatNumber = (value) => {
   return new Intl.NumberFormat('ko-KR').format(numberValue)
 }
 
-const formatKrw = (value) => `₩${formatNumber(value)}`
+const formatKrw = (value) => `${formatNumber(value)}원`
 
 const formatGeneratedAt = (value) => {
   if (!value) return '-'
@@ -127,6 +127,13 @@ const formatForecastValue = (value) => {
 const forecastValueLabel = computed(() => (
   forecastFilters.value.target === 'revenue' ? '예측 매출(원)' : '예측 예약(건)'
 ))
+
+const contextSummaryText = computed(() => {
+  const reviewCount = formatNumber(reviewSummary.value?.reviewCount ?? 0)
+  const avgRating = reviewSummary.value?.avgRating ?? 0
+  const tag = topTagLabel.value && topTagLabel.value !== '데이터 없음' ? ` · 대표태그 ${topTagLabel.value}` : ''
+  return `기간 ${reviewFilters.value.from} ~ ${reviewFilters.value.to} · 리뷰 ${reviewCount} · 평점 ${avgRating}${tag}`
+})
 
 const applyReviewPreset = (preset) => {
   reviewPreset.value = preset
@@ -314,25 +321,10 @@ watch(forecastFilters, () => {
       <p v-else-if="accommodationError" class="error-text">{{ accommodationError }}</p>
     </header>
 
-    <div class="insight-banner">
-      <div class="banner-main">
-        <p class="banner-title">
-          {{ activeTab === 'reviews' ? '리뷰 인사이트 요약' : activeTab === 'themes' ? '테마 인기 요약' : '수요 예측 요약' }}
-        </p>
-        <p class="banner-desc">
-          <template v-if="activeTab === 'reviews'">
-            선택 기간 리뷰 {{ formatNumber(reviewSummary?.reviewCount ?? 0) }}건 · 평균 {{ reviewSummary?.avgRating ?? 0 }}
-          </template>
-          <template v-else-if="activeTab === 'themes'">
-            선택 기간 테마 {{ themeRows.length }}개 집계
-          </template>
-          <template v-else>
-            {{ forecastReport?.forecastSummary?.predictedTotal ? '예측 합계 ' + formatForecastValue(forecastReport.forecastSummary.predictedTotal) : '예측 데이터를 준비 중입니다.' }}
-          </template>
-        </p>
-      </div>
-      <div class="banner-tags">
-        <span class="tag-chip">대표 태그: {{ topTagLabel }}</span>
+    <div class="context-bar">
+      <p class="context-text">{{ contextSummaryText }}</p>
+      <div class="context-chips">
+        <span v-if="topTagLabel !== '데이터 없음'" class="tag-chip">대표 태그: {{ topTagLabel }}</span>
         <span class="tag-chip">기간: {{ reviewFilters.from }} ~ {{ reviewFilters.to }}</span>
       </div>
     </div>
@@ -444,7 +436,7 @@ watch(forecastFilters, () => {
             <div class="ai-meta">
               <span class="muted">생성: {{ formatGeneratedAt(aiSummary?.generatedAt) }}</span>
               <button type="button" class="ghost-btn" :disabled="!canGenerateAi || aiLoading" @click="loadAiSummary">
-                {{ aiLoading ? '생성 중...' : aiHasContent ? 'AI 요약 재생성' : 'AI 요약 생성' }}
+                {{ aiLoading ? '생성 중...' : aiHasContent ? '재생성' : 'AI 요약 생성' }}
               </button>
             </div>
           </div>
@@ -583,7 +575,25 @@ watch(forecastFilters, () => {
       <div v-else-if="themeError" class="error-box">{{ themeError }}</div>
       <div v-else>
         <div v-if="themeRows.length === 0" class="empty-box">선택한 기간에 테마 데이터가 없습니다.</div>
-        <div v-else class="theme-grid">
+        <table v-else class="simple-table table-only theme-table">
+          <thead>
+            <tr>
+              <th>테마</th>
+              <th class="cell-right">예약수</th>
+              <th class="cell-right">매출</th>
+              <th class="cell-right">숙소수</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in themeRows" :key="row.themeId">
+              <td>{{ row.themeName }}</td>
+              <td class="cell-right">{{ formatNumber(row.reservationCount) }}건</td>
+              <td class="cell-right">{{ formatNumber(row.revenueSum) }}원</td>
+              <td class="cell-right">{{ formatNumber(row.accommodationCount) }}개</td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="themeRows.length" class="theme-grid mobile-only">
           <article v-for="row in themeRows" :key="row.themeId" class="theme-card">
             <div class="theme-card__head">
               <strong>{{ row.themeName }}</strong>
@@ -591,15 +601,15 @@ watch(forecastFilters, () => {
             <div class="theme-card__metrics">
               <div class="theme-metric">
                 <span>예약수</span>
-                <strong>{{ formatNumber(row.reservationCount) }}</strong>
+                <strong>예약 {{ formatNumber(row.reservationCount) }}건</strong>
               </div>
               <div class="theme-metric">
                 <span>매출</span>
-                <strong>{{ formatCurrency(row.revenueSum) }}</strong>
+                <strong>매출 {{ formatNumber(row.revenueSum) }}원</strong>
               </div>
               <div class="theme-metric">
                 <span>숙소수</span>
-                <strong>{{ formatNumber(row.accommodationCount) }}</strong>
+                <strong>숙소 {{ formatNumber(row.accommodationCount) }}개</strong>
               </div>
             </div>
           </article>
@@ -723,48 +733,30 @@ watch(forecastFilters, () => {
   margin: 0;
 }
 
-.insight-banner {
+.context-bar {
   background: var(--bg-white);
   border: 1px solid var(--brand-border);
   border-radius: 1rem;
-  padding: 0.9rem 1.1rem;
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 0.8rem;
-}
-
-.banner-main {
-  flex: 1 1 260px;
-  min-width: 0;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  gap: 0.25rem;
+  gap: 0.5rem;
 }
 
-.banner-title {
-  font-weight: 700;
-  margin: 0 0 0.2rem;
-}
-
-.banner-desc {
+.context-text {
   margin: 0;
   color: var(--text-muted);
+  width: 100%;
 }
 
-.banner-tags {
+.context-chips {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: flex-end;
-  flex: 0 1 360px;
-  margin-left: auto;
+  justify-content: flex-start;
 }
 
-.banner-tags .tag-chip {
+.context-chips .tag-chip {
   max-width: 220px;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -1061,6 +1053,18 @@ watch(forecastFilters, () => {
   text-align: left;
 }
 
+.theme-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.theme-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.cell-right {
+  text-align: right;
+}
+
 .loading-box,
 .error-box,
 .empty-box {
@@ -1212,17 +1216,6 @@ watch(forecastFilters, () => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .insight-banner {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .banner-tags {
-    margin-left: 0;
-    justify-content: flex-start;
-    width: 100%;
-  }
-
   .rating-bars li {
     grid-template-columns: 2.5rem 1fr auto;
   }
@@ -1240,15 +1233,24 @@ watch(forecastFilters, () => {
   }
 }
 
-@media (max-width: 600px) {
-  .insight-banner {
-    height: auto;
-    min-height: auto;
+@media (max-width: 480px) {
+  .context-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0.75rem;
   }
 
-  .banner-tags {
+  .context-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .context-chips {
     margin-top: 0;
     position: static;
+    width: 100%;
   }
 }
 
