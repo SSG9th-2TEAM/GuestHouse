@@ -3,7 +3,7 @@ import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import FilterModal from '../../components/FilterModal.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { searchList } from '@/api/list'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useSearchStore } from '@/stores/search'
 import { useListingFilters } from '@/composables/useListingFilters'
 
@@ -20,8 +20,11 @@ const page = ref(0)
 const totalPages = ref(1)
 const isLoading = ref(false)
 const isLoadingMore = ref(false)
+const loadMoreTrigger = ref(null)
 
-const PAGE_SIZE = 24
+const PAGE_SIZE = 16
+
+let observer = null
 
 // Filter State
 const isFilterModalOpen = ref(false)
@@ -153,11 +156,58 @@ const goToMap = () => {
   router.push({ path: '/map', query: buildFilterQuery() })
 }
 
-onMounted(() => {
+const hasMore = computed(() => page.value + 1 < totalPages.value)
+
+const loadMore = () => {
+  if (!hasMore.value || isLoading.value || isLoadingMore.value) return
+  const nextPage = page.value + 1
+  loadList({ page: nextPage })
+}
+
+const teardownObserver = () => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+}
+
+const setupObserver = () => {
+  if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return
+  teardownObserver()
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (!entries.length) return
+      if (entries[0].isIntersecting) {
+        loadMore()
+      }
+    },
+    { root: null, rootMargin: '200px', threshold: 0.1 }
+  )
+  if (loadMoreTrigger.value) {
+    observer.observe(loadMoreTrigger.value)
+  }
+}
+
+const refreshObserver = async () => {
+  if (!hasMore.value) {
+    teardownObserver()
+    return
+  }
+  await nextTick()
+  setupObserver()
+}
+
+onMounted(async () => {
   loadWishlist()
   applyRouteFilters(route.query)
   applyRouteKeyword()
   loadList({ reset: true })
+  await nextTick()
+  refreshObserver()
+})
+
+onUnmounted(() => {
+  teardownObserver()
 })
 
 watch(
@@ -168,13 +218,19 @@ watch(
   }
 )
 
-const hasMore = computed(() => page.value + 1 < totalPages.value)
+watch(
+  () => hasMore.value,
+  () => {
+    refreshObserver()
+  }
+)
 
-const loadMore = () => {
-  if (!hasMore.value || isLoading.value || isLoadingMore.value) return
-  const nextPage = page.value + 1
-  loadList({ page: nextPage })
-}
+watch(
+  () => loadMoreTrigger.value,
+  () => {
+    refreshObserver()
+  }
+)
 </script>
 
 <template>
@@ -202,10 +258,8 @@ const loadMore = () => {
       />
     </div>
 
-    <div class="list-footer" v-if="hasMore">
-      <button class="load-more-btn" @click="loadMore" :disabled="isLoadingMore">
-        {{ isLoadingMore ? '불러오는 중...' : '더 보기' }}
-      </button>
+    <div ref="loadMoreTrigger" class="list-footer list-footer--observer" v-if="hasMore">
+      <span v-if="isLoadingMore" class="load-more-status">불러오는 중...</span>
     </div>
 
     <!-- Floating Map Button -->
@@ -256,6 +310,10 @@ const loadMore = () => {
 }
 
 .filter-btn {
+  position: fixed;
+  top: 96px;
+  right: 1rem;
+  z-index: 120;
   padding: 8px 16px;
   border: 1px solid #ddd;
   border-radius: 20px;
@@ -270,6 +328,13 @@ const loadMore = () => {
 
 .filter-btn:hover {
   background-color: #f5f5f5;
+}
+
+@media (max-width: 768px) {
+  .filter-btn {
+    top: calc(120px + env(safe-area-inset-top));
+    right: 12px;
+  }
 }
 
 .list-container {
@@ -292,26 +357,20 @@ const loadMore = () => {
   display: flex;
   justify-content: center;
   margin: 2rem 0 1rem;
+  min-height: 48px;
 }
 
-.load-more-btn {
+.list-footer--observer {
+  align-items: center;
+}
+
+.load-more-status {
   padding: 10px 18px;
   border: 1px solid #ddd;
   border-radius: 24px;
   background: white;
   font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s, transform 0.2s;
-}
-
-.load-more-btn:hover:not(:disabled) {
-  background-color: #f5f5f5;
-  transform: translateY(-1px);
-}
-
-.load-more-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  color: #6b7280;
 }
 
 /* Floating Button Styles */

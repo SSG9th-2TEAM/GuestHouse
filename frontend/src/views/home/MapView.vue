@@ -21,6 +21,9 @@ const isMapVisible = ref(false)
 const MAP_PAGE_SIZE = 200
 const MAX_MAP_RESULTS = 600
 const AUTO_FIT_SINGLE_LEVEL = 6
+const AUTO_FIT_ZOOM_IN_LEVELS = 1
+const AUTO_FIT_MIN_LEVEL = 6
+const AUTO_FIT_MAX_LEVEL_FOR_ZOOM_IN = 9
 
 // Filter State
 const isFilterModalOpen = ref(false)
@@ -31,6 +34,7 @@ let pendingLoad = null
 let idleTimer = null
 let autoFitPending = true
 let initialLoadDone = false
+let allowGlobalFallback = true
 
 const getKeywordFromRoute = () => {
   const raw = route.query.keyword
@@ -134,8 +138,15 @@ const loadList = async ({ themeIds = searchStore.themeIds, keyword = searchStore
   const currentRequest = ++requestId
   isLoading.value = true
   try {
-    const list = await fetchAllPages({ themeIds, keyword, bounds })
+    let list = await fetchAllPages({ themeIds, keyword, bounds })
     if (currentRequest !== requestId) return
+    if (!list.length && bounds && allowGlobalFallback) {
+      const fallbackList = await fetchAllPages({ themeIds, keyword })
+      if (currentRequest !== requestId) return
+      if (fallbackList.length) {
+        list = fallbackList
+      }
+    }
     items.value = list.map(normalizeItem)
     const itemsWithCoords = updateMarkers()
     fitToMarkers(itemsWithCoords)
@@ -146,6 +157,7 @@ const loadList = async ({ themeIds = searchStore.themeIds, keyword = searchStore
     if (queryKey) {
       lastQueryKey = queryKey
     }
+    allowGlobalFallback = false
   } catch (error) {
     console.error('Failed to load list', error)
   } finally {
@@ -196,11 +208,20 @@ const goToDetail = (id) => {
   router.push({ path: `/room/${id}`, query })
 }
 
+const syncMarkerActiveState = () => {
+  const selectedId = selectedItem.value?.id
+  activeOverlays.value.forEach(({ element, itemId }) => {
+    if (!element) return
+    const isActive = selectedId !== null && selectedId !== undefined && String(itemId) === String(selectedId)
+    element.classList.toggle('price-marker--active', isActive)
+  })
+}
+
 const updateMarkers = () => {
   if (!mapInstance.value) return
 
   // Clear existing markers
-  activeOverlays.value.forEach(overlay => overlay.setMap(null))
+  activeOverlays.value.forEach(({ overlay }) => overlay.setMap(null))
   activeOverlays.value = []
 
   const itemsWithCoords = getItemsWithCoords()
@@ -217,6 +238,10 @@ const updateMarkers = () => {
     // Custom Overlay Content
     const content = document.createElement('div')
     content.className = 'price-marker'
+    const isSelected = selectedItem.value && String(selectedItem.value.id) === String(item.id)
+    if (isSelected) {
+      content.classList.add('price-marker--active')
+    }
     content.innerHTML = `₩${item.price.toLocaleString()}`
     
     content.onclick = () => {
@@ -231,9 +256,10 @@ const updateMarkers = () => {
     })
 
     customOverlay.setMap(mapInstance.value)
-    activeOverlays.value.push(customOverlay)
+    activeOverlays.value.push({ overlay: customOverlay, element: content, itemId: item.id })
   })
 
+  syncMarkerActiveState()
   return itemsWithCoords
 }
 
@@ -272,6 +298,12 @@ const fitToMarkers = (itemsWithCoords) => {
     bounds.extend(new window.kakao.maps.LatLng(item.lat, item.lng))
   })
   mapInstance.value.setBounds(bounds)
+  const currentLevel = mapInstance.value.getLevel()
+  if (currentLevel <= AUTO_FIT_MIN_LEVEL || currentLevel > AUTO_FIT_MAX_LEVEL_FOR_ZOOM_IN) return
+  const nextLevel = Math.max(1, currentLevel - AUTO_FIT_ZOOM_IN_LEVELS)
+  if (nextLevel !== currentLevel) {
+    mapInstance.value.setLevel(nextLevel)
+  }
 }
 
 const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 0 }) => {
@@ -327,7 +359,15 @@ watch(
   () => {
     applyRouteKeyword()
     autoFitPending = true
+    allowGlobalFallback = true
     scheduleLoad()
+  }
+)
+
+watch(
+  () => selectedItem.value?.id,
+  () => {
+    syncMarkerActiveState()
   }
 )
 
@@ -424,6 +464,13 @@ watch(
   background-color: #222;
   color: white;
   z-index: 100;
+}
+
+.price-marker--active {
+  transform: scale(1.07);
+  background-color: #222;
+  color: white;
+  z-index: 110;
 }
 </style>
 

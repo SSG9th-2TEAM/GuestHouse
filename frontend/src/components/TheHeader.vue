@@ -254,7 +254,8 @@ const buildSearchQuery = () => {
 }
 
 const handleSearch = () => {
-  router.push({ path: '/list', query: buildSearchQuery() })
+  const targetPath = route.path === '/map' ? '/map' : '/list'
+  router.push({ path: targetPath, query: buildSearchQuery() })
   isSearchExpanded.value = false
 }
 
