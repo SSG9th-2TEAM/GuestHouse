@@ -8,6 +8,7 @@ import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationResponseDto;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
+import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -29,6 +30,7 @@ public class ReservationServiceImpl implements ReservationService {
         private final UserRepository userRepository;
         private final ReservationJpaRepository reservationJpaRepository;
         private final ReviewJpaRepository reviewJpaRepository;
+        private final PaymentService paymentService;
 
         @Override
         @Transactional
@@ -156,7 +158,7 @@ public class ReservationServiceImpl implements ReservationService {
                 return reservationRepository.findByUserIdOrderByCreatedAtDesc(userId)
                                 .stream()
                                 .map(reservation -> {
-                                      Accommodation accommodation = accommodationRepository
+                                        Accommodation accommodation = accommodationRepository
                                                         .findById(reservation.getAccommodationsId()).orElse(null);
 
                                         String accName = (accommodation != null) ? accommodation.getAccommodationsName()
@@ -171,10 +173,12 @@ public class ReservationServiceImpl implements ReservationService {
                                                         .selectMainImageUrl(reservation.getAccommodationsId());
 
                                         // 해당 숙소에 리뷰 작성 여부 확인
-                                        Boolean hasReview = reviewJpaRepository.existsByUserIdAndAccommodationsIdAndIsDeletedFalse(
-                                                        userId, reservation.getAccommodationsId());
+                                        Boolean hasReview = reviewJpaRepository
+                                                        .existsByUserIdAndAccommodationsIdAndIsDeletedFalse(
+                                                                        userId, reservation.getAccommodationsId());
 
-                                        return ReservationResponseDto.from(reservation, accName, accAddress, imageUrl, hasReview);
+                                        return ReservationResponseDto.from(reservation, accName, accAddress, imageUrl,
+                                                        hasReview);
                                 })
                                 .toList();
         }
@@ -191,11 +195,42 @@ public class ReservationServiceImpl implements ReservationService {
         @Override
         @Transactional
         public void deleteCompletedReservation(Long reservationId) {
-                // 현재 시간 기준으로 체크인이 지난 확정 예약만 삭제 가능
+                // 디버깅을 위해 예약 정보 조회
+                Reservation r = reservationRepository.findById(reservationId)
+                                .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
+
                 java.time.LocalDateTime now = java.time.LocalDateTime.now();
+
+                System.out.println("DEBUG: Deleting reservation " + reservationId);
+                System.out.println(" - Status: " + r.getReservationStatus());
+                System.out.println(" - Checkout: " + r.getCheckout());
+                System.out.println(" - Current Time: " + now);
+
+                // 상태 체크
+                boolean statusOk = (r.getReservationStatus() == 2 || r.getReservationStatus() == 0);
+                // 시간 체크
+                boolean timeOk = r.getCheckout().isBefore(now);
+
+                if (!statusOk) {
+                        throw new IllegalArgumentException(
+                                        String.format("삭제 실패: 예약 상태가 '확정(2)' 또는 '대기(0)'가 아닙니다. (현재 상태: %d)",
+                                                        r.getReservationStatus()));
+                }
+
+                if (!timeOk) {
+                        throw new IllegalArgumentException(String.format(
+                                        "삭제 실패: 체크아웃 시간이 아직 지나지 않았습니다. (체크아웃: %s, 현재: %s)", r.getCheckout(), now));
+                }
+
+                // 결제 데이터(Payment, PaymentRefund) 먼저 삭제 (FK 제약조건 해결) -> Soft Delete로 변경되면서 제거
+                // (데이터 보존)
+                // paymentService.deleteAllPaymentDataByReservationId(reservationId);
+
+                // 현재 시간 기준으로 체크인이 지난 확정 예약만 삭제 가능
                 int deleted = reservationRepository.deleteCompletedReservation(reservationId, now);
                 if (deleted == 0) {
-                        throw new IllegalArgumentException("이용 완료된 예약만 삭제할 수 있습니다. 예약 ID: " + reservationId);
+                        // 위 검증을 통과했는데 여기서 0이면 뭔가 이상함 (동시성 문제 등)
+                        throw new IllegalArgumentException("이용 완료된 예약만 삭제할 수 있습니다. (DB 삭제 0건)");
                 }
         }
 
