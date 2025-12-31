@@ -77,7 +77,13 @@ const isReviewable = (checkoutDate) => {
   const now = new Date()
   now.setHours(0, 0, 0, 0)
   
+  
   return now <= deadline
+}
+
+// 삭제 가능 여부 (체크아웃 시간 이후)
+const isDeletable = (checkoutDate) => {
+  return new Date() >= new Date(checkoutDate)
 }
 
 // 예약 목록 조회 (토큰 기반)
@@ -109,7 +115,7 @@ const handleCancel = (item) => {
     state: {
       reservationData: {
         id: item.reservationId,
-        hotelName: item.accommodationName,
+        accommodationName: item.accommodationName,
         location: item.accommodationAddress,
         checkin: formatDate(item.checkin),
         checkout: formatDate(item.checkout),
@@ -129,7 +135,7 @@ const handleDelete = async (id) => {
       reservations.value = reservations.value.filter(r => r.reservationId !== id)
     } catch (error) {
       console.error('삭제 실패:', error)
-      alert('이용 완료된 예약만 삭제할 수 있습니다.')
+      errorMessage.value = '이용 완료된 예약만 삭제할 수 있습니다.'
     }
   }
 }
@@ -149,21 +155,7 @@ const handleWriteReview = (item) => {
   })
 }
 
-// 리뷰 수정
-const handleEditReview = (item) => {
-  router.push({
-    name: 'write-review',
-    state: {
-      mode: 'edit',
-      reservationData: {
-        reservationId: item.reservationId,
-        accommodationId: item.accommodationsId,
-        accommodationName: item.accommodationName,
-        dates: `${formatDate(item.checkin)} ~ ${formatDate(item.checkout)}`
-      }
-    }
-  })
-}
+
 
 onMounted(() => {
   fetchReservations()
@@ -278,12 +270,14 @@ onMounted(() => {
                 <button class="action-btn review completed" disabled>
                   리뷰 등록 완료
                 </button>
-                <button class="action-btn edit" @click="handleEditReview(item)">
-                  리뷰 수정
-                </button>
               </template>
               
-              <button class="icon-btn delete" @click="handleDelete(item.reservationId)">🗑</button>
+              <button
+                class="icon-btn delete"
+                @click="handleDelete(item.reservationId)"
+                :disabled="!isDeletable(item.checkout)"
+                :title="isDeletable(item.checkout) ? '내역 삭제' : '이용 완료 후 삭제 가능'"
+              >🗑</button>
             </div>
           </div>
         </div>
@@ -483,6 +477,13 @@ onMounted(() => {
 
 .icon-btn.delete:hover {
   opacity: 0.9;
+}
+
+.icon-btn.delete:disabled {
+  background: #ccc;
+  border-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .action-btn.review.disabled {

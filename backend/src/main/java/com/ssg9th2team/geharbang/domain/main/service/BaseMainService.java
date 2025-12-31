@@ -8,10 +8,14 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.dto.MainAccommodationListResponse;
+import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.repository.AccommodationImageProjection;
+import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
 import com.ssg9th2team.geharbang.domain.main.repository.MainRepository;
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,38 +34,33 @@ public class BaseMainService implements MainService {
     private static final int RECOMMENDATION_LIMIT = 5; // 최대 추천 숙소 개수
 
     @Override
-    public MainAccommodationListResponse getMainAccommodationList(Long userId, List<Long> filterThemeIds) {
-        List<Accommodation> allApprovedAccommodations = mainRepository.findByAccommodationStatusAndApprovalStatus(1, ApprovalStatus.APPROVED);
-
+    public MainAccommodationListResponse getMainAccommodationList(Long userId, List<Long> filterThemeIds, String keyword) {
         List<ListDto> recommendedAccommodations = new ArrayList<>();
         List<ListDto> generalAccommodations = new ArrayList<>();
 
         Set<Long> userThemeIds = getUserThemeIds(userId);
+        String normalizedKeyword = normalizeKeyword(keyword);
 
-        if (!userThemeIds.isEmpty() && (filterThemeIds == null || filterThemeIds.isEmpty())) {
+        if (filterThemeIds != null && !filterThemeIds.isEmpty()) {
+            List<Accommodation> filteredAccommodations = loadApprovedAccommodationsByTheme(filterThemeIds, normalizedKeyword);
+            generalAccommodations = toListDtos(filteredAccommodations);
+        } else if (!userThemeIds.isEmpty()) {
+            List<Accommodation> approvedAccommodations = loadApprovedAccommodations(normalizedKeyword);
             // 사용자 테마 기반 추천 로직 (필터 테마 ID가 없을 때만 적용)
-            recommendedAccommodations = getRecommendedAccommodations(allApprovedAccommodations, userThemeIds);
+            recommendedAccommodations = getRecommendedAccommodations(approvedAccommodations, userThemeIds);
             Set<Long> recommendedAccommodationIds = recommendedAccommodations.stream()
                     .map(ListDto::getAccomodationsId)
                     .collect(Collectors.toSet());
 
             // 추천 숙소를 제외한 나머지 숙소를 일반 목록에 추가
-            generalAccommodations = allApprovedAccommodations.stream()
+            List<Accommodation> remainingAccommodations = approvedAccommodations.stream()
                     .filter(acc -> !recommendedAccommodationIds.contains(acc.getAccommodationsId()))
-                    .map(acc -> toListDto(acc, loadRepresentativeImages(List.of(acc)))) // 최적화 필요
                     .toList();
-        } else if (filterThemeIds != null && !filterThemeIds.isEmpty()) {
-            // 필터 테마 ID가 있을 경우 해당 테마로만 필터링
-            Set<Long> filteredAccommodationIds = accommodationThemeRepository.findAccommodationIdsByThemeIds(new HashSet<>(filterThemeIds));
-            generalAccommodations = allApprovedAccommodations.stream()
-                    .filter(acc -> filteredAccommodationIds.contains(acc.getAccommodationsId()))
-                    .map(acc -> toListDto(acc, loadRepresentativeImages(List.of(acc)))) // 최적화 필요
-                    .toList();
+            generalAccommodations = toListDtos(remainingAccommodations);
         } else {
             // 테마가 없거나 비로그인 상태일 경우 모든 승인된 숙소를 일반 목록에 추가
-            generalAccommodations = allApprovedAccommodations.stream()
-                    .map(acc -> toListDto(acc, loadRepresentativeImages(List.of(acc)))) // 최적화 필요
-                    .toList();
+            List<Accommodation> approvedAccommodations = loadApprovedAccommodations(normalizedKeyword);
+            generalAccommodations = toListDtos(approvedAccommodations);
         }
 
         return MainAccommodationListResponse.builder()
@@ -70,6 +69,73 @@ public class BaseMainService implements MainService {
                 .build();
     }
 
+
+    @Override
+    public PublicListResponse searchPublicList(List<Long> themeIds, String keyword, int page, int size) {
+        PageRequest pageable = PageRequest.of(page, size);
+        String normalizedKeyword = normalizeKeyword(keyword);
+        Page<ListDtoProjection> resultPage;
+        if (themeIds == null || themeIds.isEmpty()) {
+            resultPage = mainRepository.searchPublicList(normalizedKeyword, pageable);
+        } else {
+            resultPage = mainRepository.searchPublicListByTheme(themeIds, normalizedKeyword, pageable);
+        }
+
+        List<ListDto> items = resultPage.getContent().stream()
+                .map(this::toListDto)
+                .toList();
+
+        return PublicListResponse.of(items, resultPage);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String normalized = keyword.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private List<Accommodation> loadApprovedAccommodations(String keyword) {
+        if (keyword == null) {
+            return mainRepository.findByAccommodationStatusAndApprovalStatus(1, ApprovalStatus.APPROVED);
+        }
+        return mainRepository.findApprovedByKeyword(keyword);
+    }
+
+    private List<Accommodation> loadApprovedAccommodationsByTheme(List<Long> themeIds, String keyword) {
+        if (keyword == null) {
+            return mainRepository.findByThemeIds(themeIds);
+        }
+        return mainRepository.findByThemeIdsAndKeyword(themeIds, keyword);
+    }
+
+    private List<ListDto> toListDtos(List<Accommodation> accommodations) {
+        if (accommodations == null || accommodations.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Map<Long, String> imageById = loadRepresentativeImages(accommodations);
+        return accommodations.stream()
+                .map(accommodation -> toListDto(accommodation, imageById))
+                .toList();
+    }
+
+    private ListDto toListDto(ListDtoProjection projection) {
+        return ListDto.builder()
+                .accomodationsId(projection.getAccomodationsId())
+                .accomodationsName(projection.getAccomodationsName())
+                .shortDescription(projection.getShortDescription())
+                .city(projection.getCity())
+                .district(projection.getDistrict())
+                .township(projection.getTownship())
+                .latitude(projection.getLatitude())
+                .longitude(projection.getLongitude())
+                .minPrice(projection.getMinPrice())
+                .rating(projection.getRating())
+                .reviewCount(projection.getReviewCount())
+                .imageUrl(projection.getImageUrl())
+                .build();
+    }
 
     private Set<Long> getUserThemeIds(Long userId) {
         if (userId == null) {
@@ -85,6 +151,9 @@ public class BaseMainService implements MainService {
 
     private List<ListDto> getRecommendedAccommodations(List<Accommodation> allApprovedAccommodations, Set<Long> userThemeIds) {
         if (userThemeIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (allApprovedAccommodations.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -114,7 +183,7 @@ public class BaseMainService implements MainService {
         }
 
         // 점수 기준으로 정렬 및 상위 N개 선택
-        return allApprovedAccommodations.stream()
+        List<Accommodation> recommended = allApprovedAccommodations.stream()
                 .filter(acc -> accommodationScores.getOrDefault(acc.getAccommodationsId(), 0) > 0) // 점수가 0보다 큰 숙소만 추천
                 .sorted((acc1, acc2) -> {
                     int score1 = accommodationScores.getOrDefault(acc1.getAccommodationsId(), 0);
@@ -133,8 +202,8 @@ public class BaseMainService implements MainService {
                     return Integer.compare(reviewCount2, reviewCount1);
                 })
                 .limit(RECOMMENDATION_LIMIT)
-                .map(acc -> toListDto(acc, loadRepresentativeImages(List.of(acc)))) // 최적화 필요
                 .toList();
+        return toListDtos(recommended);
     }
 
 

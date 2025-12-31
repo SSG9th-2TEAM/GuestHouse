@@ -187,15 +187,15 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         // 환불 금액 결정
-        Integer approvedAmount = payment.getApprovedAmount() != null ? payment.getApprovedAmount() : payment.getRequestAmount();
+        Integer approvedAmount = payment.getApprovedAmount() != null ? payment.getApprovedAmount()
+                : payment.getRequestAmount();
         if (approvedAmount == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "결제 금액이 없습니다.");
         }
         RefundPolicyResult policyResult = refundPolicyService.calculate(
                 reservation.getCheckin(),
                 LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")),
-                approvedAmount
-        );
+                approvedAmount);
         Integer actualRefundAmount = policyResult.refundAmount();
         String normalizedReason = (cancelReason == null || cancelReason.trim().isEmpty())
                 ? String.format("policy %s %d%%", policyResult.policyCode(), policyResult.refundRate())
@@ -291,5 +291,20 @@ public class PaymentServiceImpl implements PaymentService {
         return paymentRefundRepository.findAll().stream()
                 .map(com.ssg9th2team.geharbang.domain.payment.dto.RefundResponseDto::from)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public void deleteAllPaymentDataByReservationId(Long reservationId) {
+        log.info("예약 ID로 결제 정보 삭제 시도: {}", reservationId);
+        // 결제 정보 조회 (없을 수도 있음 - 대기 상태에서 취소 등)
+        paymentRepository.findByReservationId(reservationId).ifPresent(payment -> {
+            // 환불 내역이 있으면 먼저 삭제
+            paymentRefundRepository.deleteByPaymentId(payment.getId());
+            // 결제 내역 삭제 (reservationId로 삭제)
+            // paymentRepository.delete(payment); 로 해도 되지만, 명시적으로 deleteByReservationId 사용
+            paymentRepository.deleteByReservationId(reservationId);
+            log.info("결제 정보 및 환불 내역 삭제 완료: paymentId={}", payment.getId());
+        });
     }
 }

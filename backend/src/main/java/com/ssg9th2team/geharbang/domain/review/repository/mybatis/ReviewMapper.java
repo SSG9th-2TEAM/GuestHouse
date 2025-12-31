@@ -17,14 +17,12 @@ public interface ReviewMapper {
     // [User] 내가 작성한 모든 리뷰 목록 조회
     List<ReviewResponseDto> selectReviewsByUserId(@Param("userId") Long userId);
 
-    // [Host] 내 모든 숙소에 달린 리뷰 목록 조회
-    List<ReviewResponseDto> selectReviewsByHostId(@Param("hostId") Long hostId);
-
     // 리뷰 하나에 연결된 이미지 목록 조회
     List<ReviewImageDto> selectReviewImagesByReviewId(@Param("reviewId") Long reviewId);
 
     // 리뷰에 달린 태그 목록 조회
     List<ReviewTagDto> selectReviewTagsByReviewId(@Param("reviewId") Long reviewId);
+
 
     // 리뷰 태그 저장 (review_tag_map)
     void insertReviewTags(@Param("reviewId")

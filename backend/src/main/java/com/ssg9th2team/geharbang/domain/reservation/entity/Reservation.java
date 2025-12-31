@@ -63,6 +63,10 @@ public class Reservation {
     @Column(name = "reserver_phone", nullable = false, length = 20)
     private String reserverPhone;
 
+    @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
+    private Boolean isDeleted = false; // Soft Delete 여부
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

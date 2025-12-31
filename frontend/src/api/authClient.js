@@ -19,6 +19,11 @@ export function getUserInfo() {
   return userInfo ? JSON.parse(userInfo) : null
 }
 
+export function getUserId() {
+  const userInfo = getUserInfo()
+  return userInfo?.userId || userInfo?.id || null
+}
+
 
 export function saveTokens(accessToken, refreshToken) {
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
@@ -105,7 +110,11 @@ export async function login(email, password) {
   // 로그인 성공 시 토큰 및 사용자 정보 저장
   if (response.ok && response.data) {
     saveTokens(response.data.accessToken, response.data.refreshToken)
-    saveUserInfo({ email: email, role: response.data.role })
+    saveUserInfo({
+      email: email,
+      role: response.data.role,
+      userId: response.data.userId
+    })
   }
 
   return response
@@ -223,6 +232,7 @@ export async function authenticatedRequest(endpoint, options = {}) {
     } else {
       // 토큰 갱신 실패 시 로그아웃
       clearAuth()
+      window.location.href = '/login';
     }
   }
 
@@ -242,6 +252,29 @@ export async function completeSocialSignup(signupData) {
     method: 'POST',
     body: JSON.stringify(signupData)
   })
+}
+
+// 토큰 유효성 검증
+export async function validateToken() {
+  const accessToken = getAccessToken()
+  if (!accessToken) {
+    return false
+  }
+
+  try {
+    const response = await getCurrentUser()
+    if (response.ok) {
+      return true
+    } else {
+      // 토큰이 유효하지 않으면 로그아웃
+      clearAuth()
+      return false
+    }
+  } catch (error) {
+    // 에러 발생 시 로그아웃
+    clearAuth()
+    return false
+  }
 }
 
 export default {
@@ -265,5 +298,6 @@ export default {
   getUserInfo,
   saveUserInfo,
   clearAuth,
-  isAuthenticated
+  isAuthenticated,
+  validateToken
 }

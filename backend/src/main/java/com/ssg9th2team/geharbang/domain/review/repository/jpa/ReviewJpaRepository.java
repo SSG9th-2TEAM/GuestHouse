@@ -22,5 +22,7 @@ public interface ReviewJpaRepository extends JpaRepository<ReviewEntity, Long> {
     // 이미 리뷰 작성했는지 확인
     boolean existsByUserIdAndAccommodationsIdAndIsDeletedFalse(Long userId, Long accommodationsId);
 
+
+
 }
 
