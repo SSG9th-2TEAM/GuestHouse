@@ -9,7 +9,7 @@ import {
   fetchHostDemandForecast,
   fetchHostReviewAiSummary
 } from '@/api/hostReport'
-import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters'
+import { formatCurrency, formatDate } from '@/utils/formatters'
 
 const tabs = [
   { id: 'reviews', label: '리뷰 리포트' },
@@ -52,9 +52,30 @@ const aiSummary = ref(null)
 const aiLoading = ref(false)
 const aiError = ref('')
 const expandedReviews = ref({})
+const formatNumber = (value) => {
+  const numberValue = Number(value)
+  if (!Number.isFinite(numberValue)) return '0'
+  return new Intl.NumberFormat('ko-KR').format(numberValue)
+}
+
+const formatKrw = (value) => `₩${formatNumber(value)}`
+
+const formatGeneratedAt = (value) => {
+  if (!value) return '-'
+  const normalized = String(value)
+    .replace(/\[[^\]]+]/g, '')
+    .replace(/(\.\d{3})\d+/g, '$1')
+    .trim()
+  const date = new Date(normalized)
+  if (Number.isNaN(date.getTime())) return '-'
+  const pad = (num) => String(num).padStart(2, '0')
+  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 const aiHasContent = computed(() => {
   if (!aiSummary.value) return false
-  return (aiSummary.value.overview || []).length > 0
+  const fields = ['overview', 'positives', 'negatives', 'actions', 'risks']
+  return fields.some((key) => Array.isArray(aiSummary.value?.[key]) && aiSummary.value[key].length > 0)
 })
 
 const themeFilters = ref({
@@ -79,10 +100,12 @@ const forecastReport = ref(null)
 
 const reviewRatingEntries = computed(() => {
   const distribution = reviewSummary.value?.ratingDistribution || {}
-  return [1, 2, 3, 4, 5].map((rating) => ({
-    rating,
-    count: distribution[rating] ?? 0
-  }))
+  const total = (reviewSummary.value?.reviewCount ?? 0) || 0
+  return [5, 4, 3, 2, 1].map((rating) => {
+    const count = distribution[rating] ?? 0
+    const percent = total > 0 ? Math.round((count / total) * 100) : 0
+    return { rating, count, percent }
+  })
 })
 
 const reviewHasData = computed(() => (reviewSummary.value?.reviewCount ?? 0) > 0)
@@ -90,6 +113,20 @@ const canGenerateAi = computed(() => reviewHasData.value && !reviewLoading.value
 
 const themeRows = computed(() => themeReport.value?.rows ?? [])
 const forecastDaily = computed(() => forecastReport.value?.forecastDaily ?? [])
+const topTagLabel = computed(() => {
+  const tags = reviewSummary.value?.topTags ?? []
+  return tags.length > 0 ? `${tags[0].tagName}` : '데이터 없음'
+})
+const formatForecastValue = (value) => {
+  if (forecastFilters.value.target === 'revenue') {
+    return formatKrw(value)
+  }
+  return `${formatNumber(value)}건`
+}
+
+const forecastValueLabel = computed(() => (
+  forecastFilters.value.target === 'revenue' ? '예측 매출(원)' : '예측 예약(건)'
+))
 
 const applyReviewPreset = (preset) => {
   reviewPreset.value = preset
@@ -268,15 +305,37 @@ watch(forecastFilters, () => {
 
 <template>
   <section class="report-view" v-if="authReady && isHostUser">
-    <header class="report-header">
+    <header class="view-header">
       <div>
-        <p class="eyebrow">인사이트</p>
         <h2>리포트</h2>
-        <p class="sub">호스트 숙소의 리뷰/테마/수요 흐름을 확인하세요.</p>
+        <p class="subtitle">리뷰/테마/수요 흐름을 한눈에 확인하세요.</p>
       </div>
-      <div v-if="accommodationLoading" class="muted">숙소 불러오는 중...</div>
-      <div v-else-if="accommodationError" class="error-text">{{ accommodationError }}</div>
+      <p v-if="accommodationLoading" class="subtitle">숙소 불러오는 중...</p>
+      <p v-else-if="accommodationError" class="error-text">{{ accommodationError }}</p>
     </header>
+
+    <div class="insight-banner">
+      <div class="banner-main">
+        <p class="banner-title">
+          {{ activeTab === 'reviews' ? '리뷰 인사이트 요약' : activeTab === 'themes' ? '테마 인기 요약' : '수요 예측 요약' }}
+        </p>
+        <p class="banner-desc">
+          <template v-if="activeTab === 'reviews'">
+            선택 기간 리뷰 {{ formatNumber(reviewSummary?.reviewCount ?? 0) }}건 · 평균 {{ reviewSummary?.avgRating ?? 0 }}
+          </template>
+          <template v-else-if="activeTab === 'themes'">
+            선택 기간 테마 {{ themeRows.length }}개 집계
+          </template>
+          <template v-else>
+            {{ forecastReport?.forecastSummary?.predictedTotal ? '예측 합계 ' + formatForecastValue(forecastReport.forecastSummary.predictedTotal) : '예측 데이터를 준비 중입니다.' }}
+          </template>
+        </p>
+      </div>
+      <div class="banner-tags">
+        <span class="tag-chip">대표 태그: {{ topTagLabel }}</span>
+        <span class="tag-chip">기간: {{ reviewFilters.from }} ~ {{ reviewFilters.to }}</span>
+      </div>
+    </div>
 
     <div class="report-tabs" role="tablist">
       <button
@@ -292,38 +351,32 @@ watch(forecastFilters, () => {
     </div>
 
     <section v-if="activeTab === 'reviews'" class="report-section">
-      <div class="filters filters-grid">
-        <label>
-          숙소
-          <select v-model="reviewFilters.accommodationId">
-            <option value="all">전체 숙소</option>
-            <option v-for="acc in accommodations" :key="acc.accommodationsId" :value="acc.accommodationsId">
-              {{ acc.accommodationsName }}
-            </option>
-          </select>
-        </label>
-        <div class="filter-group">
-          <button type="button" :class="{ active: reviewPreset === '7days' }" @click="applyReviewPreset('7days')">7일</button>
-          <button type="button" :class="{ active: reviewPreset === '30days' }" @click="applyReviewPreset('30days')">30일</button>
-          <button type="button" :class="{ active: reviewPreset === 'thisMonth' }" @click="applyReviewPreset('thisMonth')">이번달</button>
+      <div class="filter-card">
+        <div class="filter-title">필터</div>
+        <div class="filters filters-grid">
+          <label>
+            숙소
+            <select v-model="reviewFilters.accommodationId">
+              <option value="all">전체 숙소</option>
+              <option v-for="acc in accommodations" :key="acc.accommodationsId" :value="acc.accommodationsId">
+                {{ acc.accommodationsName }}
+              </option>
+            </select>
+          </label>
+          <div class="filter-group">
+            <button type="button" :class="{ active: reviewPreset === '7days' }" @click="applyReviewPreset('7days')">7일</button>
+            <button type="button" :class="{ active: reviewPreset === '30days' }" @click="applyReviewPreset('30days')">30일</button>
+            <button type="button" :class="{ active: reviewPreset === 'thisMonth' }" @click="applyReviewPreset('thisMonth')">이번달</button>
+          </div>
+          <label>
+            시작일
+            <input type="date" v-model="reviewFilters.from" />
+          </label>
+          <label>
+            종료일
+            <input type="date" v-model="reviewFilters.to" />
+          </label>
         </div>
-        <label>
-          시작일
-          <input type="date" v-model="reviewFilters.from" />
-        </label>
-        <label>
-          종료일
-          <input type="date" v-model="reviewFilters.to" />
-        </label>
-      </div>
-
-      <div class="section-toolbar">
-        <p class="toolbar-note">
-          {{ reviewHasData ? '선택한 기간의 리뷰 데이터를 바탕으로 요약합니다.' : '리뷰가 있는 기간에서만 요약할 수 있습니다.' }}
-        </p>
-        <button type="button" class="primary-btn" :disabled="!canGenerateAi" @click="loadAiSummary">
-          {{ aiLoading ? '요약 생성 중...' : 'AI 요약 생성' }}
-        </button>
       </div>
 
       <div v-if="reviewLoading" class="loading-box">리뷰 리포트 로딩 중...</div>
@@ -331,12 +384,25 @@ watch(forecastFilters, () => {
       <div v-else>
         <div class="kpi-grid">
           <div class="kpi-card">
-            <p>평균 평점</p>
-            <strong>{{ reviewSummary?.avgRating ?? 0 }}</strong>
+            <div class="kpi-icon">★</div>
+            <div>
+              <p>평균 평점</p>
+              <strong>{{ reviewSummary?.avgRating ?? 0 }}</strong>
+            </div>
           </div>
           <div class="kpi-card">
-            <p>리뷰 수</p>
-            <strong>{{ reviewSummary?.reviewCount ?? 0 }}</strong>
+            <div class="kpi-icon">✉</div>
+            <div>
+              <p>리뷰 수</p>
+              <strong>{{ reviewSummary?.reviewCount ?? 0 }}</strong>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon">#</div>
+            <div>
+              <p>대표 태그</p>
+              <strong>{{ topTagLabel }}</strong>
+            </div>
           </div>
         </div>
 
@@ -345,15 +411,20 @@ watch(forecastFilters, () => {
         <div v-else class="grid-two">
           <div class="panel">
             <h3>별점 분포</h3>
-            <ul class="rating-list">
+            <ul class="rating-bars">
               <li v-for="entry in reviewRatingEntries" :key="entry.rating">
-                <span>{{ entry.rating }}점</span>
-                <span>{{ formatNumber(entry.count) }}건</span>
+                <span class="rating-label">{{ entry.rating }}점</span>
+                <div class="rating-bar">
+                  <span class="rating-fill" :style="{ width: entry.percent + '%' }"></span>
+                </div>
+                <span class="rating-count">{{ formatNumber(entry.count) }}건</span>
+                <span class="rating-percent">{{ entry.percent }}%</span>
               </li>
             </ul>
           </div>
           <div class="panel">
             <h3>TOP 태그</h3>
+            <p class="muted">자주 언급된 키워드를 모았어요.</p>
             <div class="tag-list">
               <span v-if="(reviewSummary?.topTags ?? []).length === 0" class="muted">태그 데이터가 없습니다.</span>
               <span v-for="tag in reviewSummary?.topTags" :key="tag.tagName" class="tag-chip">
@@ -363,20 +434,27 @@ watch(forecastFilters, () => {
           </div>
         </div>
 
-        <div v-if="aiError" class="error-box">
-          <p>{{ aiError }}</p>
-          <button type="button" class="link-btn" @click="loadAiSummary">다시 시도</button>
-        </div>
-        <div v-else-if="aiSummary && !aiHasContent" class="empty-box">AI 요약 대상 리뷰가 없습니다.</div>
-        <div v-else-if="aiSummary" class="panel ai-panel">
+        <div class="panel ai-panel">
           <div class="ai-head">
             <div>
-              <p class="ai-kicker">AI 요약</p>
-              <h3>리뷰 인사이트</h3>
+              <p class="ai-kicker">AI 리뷰 인사이트</p>
+              <h3>요약 리포트</h3>
+              <p class="muted">선택 기간 리뷰를 기반으로 핵심 포인트를 정리합니다.</p>
             </div>
-            <span class="muted">{{ aiSummary.generatedAt }}</span>
+            <div class="ai-meta">
+              <span class="muted">생성: {{ formatGeneratedAt(aiSummary?.generatedAt) }}</span>
+              <button type="button" class="ghost-btn" :disabled="!canGenerateAi || aiLoading" @click="loadAiSummary">
+                {{ aiLoading ? '생성 중...' : aiHasContent ? 'AI 요약 재생성' : 'AI 요약 생성' }}
+              </button>
+            </div>
           </div>
-          <div class="ai-grid">
+          <div v-if="aiLoading" class="loading-box ai-state">AI 요약 생성 중...</div>
+          <div v-else-if="aiError" class="error-box ai-state">
+            <p>{{ aiError }}</p>
+            <button type="button" class="link-btn" @click="loadAiSummary">다시 시도</button>
+          </div>
+          <div v-else-if="aiSummary && !aiHasContent" class="empty-box ai-state">AI 요약 대상 리뷰가 없습니다.</div>
+          <div v-else-if="aiSummary" class="ai-grid">
             <div class="ai-block">
               <h4>총평</h4>
               <ul>
@@ -401,26 +479,29 @@ watch(forecastFilters, () => {
                 <li v-for="line in aiSummary.actions" :key="line">{{ line }}</li>
               </ul>
             </div>
-            <div class="ai-block">
+            <div class="ai-block ai-wide">
               <h4>주의/리스크</h4>
               <ul>
                 <li v-for="line in aiSummary.risks" :key="line">{{ line }}</li>
               </ul>
             </div>
           </div>
+          <div v-else class="muted ai-state">AI 요약을 생성해보세요.</div>
         </div>
 
         <div class="panel">
           <h3>최근 리뷰</h3>
           <div v-if="(reviewSummary?.recentReviews ?? []).length === 0" class="muted">리뷰가 없습니다.</div>
-          <ul v-else class="recent-list">
-            <li v-for="review in reviewSummary?.recentReviews" :key="review.reviewId">
-              <div class="recent-head">
-                <strong>{{ review.accommodationName }}</strong>
-                <span>{{ formatDate(review.createdAt, true) }}</span>
+          <div v-else class="review-cards">
+            <article v-for="review in reviewSummary?.recentReviews" :key="review.reviewId" class="review-card">
+              <div class="review-head">
+                <div>
+                  <strong>{{ review.accommodationName }}</strong>
+                  <p class="review-meta">{{ review.authorName }} · {{ review.rating }}점</p>
+                </div>
+                <span class="review-date">{{ formatDate(review.createdAt, true) }}</span>
               </div>
-              <p class="recent-meta">{{ review.authorName }} · {{ review.rating }}점</p>
-              <p class="recent-content" :class="{ expanded: expandedReviews[review.reviewId] }">
+              <p class="review-content" :class="{ expanded: expandedReviews[review.reviewId] }">
                 {{ review.content }}
               </p>
               <button
@@ -431,8 +512,8 @@ watch(forecastFilters, () => {
               >
                 {{ expandedReviews[review.reviewId] ? '접기' : '더보기' }}
               </button>
-            </li>
-          </ul>
+            </article>
+          </div>
         </div>
 
         <div class="panel" v-if="reviewTrend.length">
@@ -463,98 +544,98 @@ watch(forecastFilters, () => {
     </section>
 
     <section v-else-if="activeTab === 'themes'" class="report-section">
-      <div class="filters filters-grid">
-        <label>
-          숙소
-          <select v-model="themeFilters.accommodationId">
-            <option value="all">전체 숙소</option>
-            <option v-for="acc in accommodations" :key="acc.accommodationsId" :value="acc.accommodationsId">
-              {{ acc.accommodationsName }}
-            </option>
-          </select>
-        </label>
-        <div class="filter-group">
-          <button type="button" @click="applyThemePreset('7days')">7일</button>
-          <button type="button" @click="applyThemePreset('30days')">30일</button>
-          <button type="button" @click="applyThemePreset('thisMonth')">이번달</button>
+      <div class="filter-card">
+        <div class="filter-title">필터</div>
+        <div class="filters filters-grid">
+          <label>
+            숙소
+            <select v-model="themeFilters.accommodationId">
+              <option value="all">전체 숙소</option>
+              <option v-for="acc in accommodations" :key="acc.accommodationsId" :value="acc.accommodationsId">
+                {{ acc.accommodationsName }}
+              </option>
+            </select>
+          </label>
+          <div class="filter-group">
+            <button type="button" @click="applyThemePreset('7days')">7일</button>
+            <button type="button" @click="applyThemePreset('30days')">30일</button>
+            <button type="button" @click="applyThemePreset('thisMonth')">이번달</button>
+          </div>
+          <label>
+            시작일
+            <input type="date" v-model="themeFilters.from" />
+          </label>
+          <label>
+            종료일
+            <input type="date" v-model="themeFilters.to" />
+          </label>
+          <label>
+            지표
+            <select v-model="themeFilters.metric">
+              <option value="reservations">예약수</option>
+              <option value="revenue">매출</option>
+            </select>
+          </label>
         </div>
-        <label>
-          시작일
-          <input type="date" v-model="themeFilters.from" />
-        </label>
-        <label>
-          종료일
-          <input type="date" v-model="themeFilters.to" />
-        </label>
-        <label>
-          지표
-          <select v-model="themeFilters.metric">
-            <option value="reservations">예약수</option>
-            <option value="revenue">매출</option>
-          </select>
-        </label>
       </div>
 
       <div v-if="themeLoading" class="loading-box">테마 리포트 로딩 중...</div>
       <div v-else-if="themeError" class="error-box">{{ themeError }}</div>
       <div v-else>
         <div v-if="themeRows.length === 0" class="empty-box">선택한 기간에 테마 데이터가 없습니다.</div>
-        <table v-else class="simple-table table-only">
-          <thead>
-            <tr>
-              <th>테마</th>
-              <th>예약수</th>
-              <th>매출</th>
-              <th>숙소수</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in themeRows" :key="row.themeId">
-              <td>{{ row.themeName }}</td>
-              <td>{{ formatNumber(row.reservationCount) }}</td>
-              <td>{{ formatCurrency(row.revenueSum) }}</td>
-              <td>{{ formatNumber(row.accommodationCount) }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-if="themeRows.length" class="card-list mobile-only">
-          <div v-for="row in themeRows" :key="row.themeId" class="report-card">
-            <div class="report-card__row">
+        <div v-else class="theme-grid">
+          <article v-for="row in themeRows" :key="row.themeId" class="theme-card">
+            <div class="theme-card__head">
               <strong>{{ row.themeName }}</strong>
-              <span>{{ formatNumber(row.accommodationCount) }}개 숙소</span>
             </div>
-            <p>예약 {{ formatNumber(row.reservationCount) }} · 매출 {{ formatCurrency(row.revenueSum) }}</p>
-          </div>
+            <div class="theme-card__metrics">
+              <div class="theme-metric">
+                <span>예약수</span>
+                <strong>{{ formatNumber(row.reservationCount) }}</strong>
+              </div>
+              <div class="theme-metric">
+                <span>매출</span>
+                <strong>{{ formatCurrency(row.revenueSum) }}</strong>
+              </div>
+              <div class="theme-metric">
+                <span>숙소수</span>
+                <strong>{{ formatNumber(row.accommodationCount) }}</strong>
+              </div>
+            </div>
+          </article>
         </div>
       </div>
     </section>
 
     <section v-else class="report-section">
-      <div class="filters filters-grid">
-        <label>
-          숙소
-          <select v-model="forecastFilters.accommodationId">
-            <option value="all">전체 숙소</option>
-            <option v-for="acc in accommodations" :key="acc.accommodationsId" :value="acc.accommodationsId">
-              {{ acc.accommodationsName }}
-            </option>
-          </select>
-        </label>
-        <label>
-          대상
-          <select v-model="forecastFilters.target">
-            <option value="reservations">예약수</option>
-            <option value="revenue">매출</option>
-          </select>
-        </label>
-        <label>
-          예측 기간(일)
-          <input type="number" min="7" max="60" v-model.number="forecastFilters.horizonDays" />
-        </label>
-        <label>
-          과거 데이터(일)
-          <input type="number" min="30" max="365" v-model.number="forecastFilters.historyDays" />
-        </label>
+      <div class="filter-card">
+        <div class="filter-title">필터</div>
+        <div class="filters filters-grid">
+          <label>
+            숙소
+            <select v-model="forecastFilters.accommodationId">
+              <option value="all">전체 숙소</option>
+              <option v-for="acc in accommodations" :key="acc.accommodationsId" :value="acc.accommodationsId">
+                {{ acc.accommodationsName }}
+              </option>
+            </select>
+          </label>
+          <label>
+            대상
+            <select v-model="forecastFilters.target">
+              <option value="reservations">예약수</option>
+              <option value="revenue">매출</option>
+            </select>
+          </label>
+          <label>
+            예측 기간(일)
+            <input type="number" min="7" max="60" v-model.number="forecastFilters.horizonDays" />
+          </label>
+          <label>
+            과거 데이터(일)
+            <input type="number" min="30" max="365" v-model.number="forecastFilters.historyDays" />
+          </label>
+        </div>
       </div>
 
       <div v-if="forecastLoading" class="loading-box">수요 예측 계산 중...</div>
@@ -563,15 +644,15 @@ watch(forecastFilters, () => {
         <div class="kpi-grid">
           <div class="kpi-card">
             <p>최근 7일 평균</p>
-            <strong>{{ forecastReport?.baseline?.recentAvg7 ?? 0 }}</strong>
+            <strong>{{ formatForecastValue(forecastReport?.baseline?.recentAvg7 ?? 0) }}</strong>
           </div>
           <div class="kpi-card">
             <p>최근 28일 평균</p>
-            <strong>{{ forecastReport?.baseline?.recentAvg28 ?? 0 }}</strong>
+            <strong>{{ formatForecastValue(forecastReport?.baseline?.recentAvg28 ?? 0) }}</strong>
           </div>
           <div class="kpi-card">
             <p>예측 합계</p>
-            <strong>{{ formatNumber(forecastReport?.forecastSummary?.predictedTotal ?? 0) }}</strong>
+            <strong>{{ formatForecastValue(forecastReport?.forecastSummary?.predictedTotal ?? 0) }}</strong>
           </div>
         </div>
 
@@ -580,13 +661,13 @@ watch(forecastFilters, () => {
           <thead>
             <tr>
               <th>날짜</th>
-              <th>예측값</th>
+              <th>{{ forecastValueLabel }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in forecastDaily" :key="row.date">
               <td>{{ row.date }}</td>
-              <td>{{ formatNumber(row.predictedValue) }}</td>
+              <td>{{ formatForecastValue(row.predictedValue) }}</td>
             </tr>
           </tbody>
         </table>
@@ -594,7 +675,7 @@ watch(forecastFilters, () => {
           <div v-for="row in forecastDaily" :key="row.date" class="report-card">
             <div class="report-card__row">
               <strong>{{ row.date }}</strong>
-              <span>{{ formatNumber(row.predictedValue) }}</span>
+              <span>{{ formatForecastValue(row.predictedValue) }}</span>
             </div>
           </div>
         </div>
@@ -614,23 +695,80 @@ watch(forecastFilters, () => {
   padding-bottom: 2rem;
 }
 
-.report-header {
+.error-text {
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
+.view-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.view-header h2 {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--brand-accent);
+  margin: 0.15rem 0 0.2rem;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  color: #6b7280;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.insight-banner {
+  background: var(--bg-white);
+  border: 1px solid var(--brand-border);
+  border-radius: 1rem;
+  padding: 0.9rem 1.1rem;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 1rem;
+  align-items: flex-start;
+  gap: 0.8rem;
 }
 
-.eyebrow {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.banner-main {
+  flex: 1 1 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.25rem;
 }
 
-.sub {
+.banner-title {
+  font-weight: 700;
+  margin: 0 0 0.2rem;
+}
+
+.banner-desc {
+  margin: 0;
   color: var(--text-muted);
+}
+
+.banner-tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex: 0 1 360px;
+  margin-left: auto;
+}
+
+.banner-tags .tag-chip {
+  max-width: 220px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
 }
 
 .report-tabs {
@@ -658,6 +796,18 @@ watch(forecastFilters, () => {
 .report-tab.active {
   background: var(--brand-primary);
   color: var(--brand-accent);
+}
+
+.filter-card {
+  background: var(--bg-white);
+  border: 1px solid var(--brand-border);
+  border-radius: 0.9rem;
+  padding: 1rem;
+}
+
+.filter-title {
+  font-weight: 700;
+  margin-bottom: 0.8rem;
 }
 
 .filters {
@@ -720,6 +870,20 @@ watch(forecastFilters, () => {
   border: 1px solid var(--brand-border);
   border-radius: 0.8rem;
   padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.kpi-icon {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  background: var(--brand-primary);
+  color: var(--brand-accent);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
 }
 
 .panel {
@@ -730,19 +894,88 @@ watch(forecastFilters, () => {
   margin-top: 1rem;
 }
 
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.theme-card {
+  background: var(--bg-white);
+  border: 1px solid var(--brand-border);
+  border-radius: 0.8rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.theme-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-weight: 700;
+}
+
+.theme-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.theme-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.theme-metric strong {
+  font-size: 1rem;
+  color: var(--text-default);
+}
+
 .grid-two {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
 }
 
-.rating-list {
+.rating-bars {
   list-style: none;
   padding: 0;
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.6rem;
+}
+
+.rating-bars li {
+  display: grid;
+  grid-template-columns: 3rem 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.rating-bar {
+  height: 0.5rem;
+  background: var(--brand-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.rating-fill {
+  display: block;
+  height: 100%;
+  background: var(--brand-accent);
+}
+
+.rating-label,
+.rating-count,
+.rating-percent {
+  font-size: 0.85rem;
 }
 
 .tag-list {
@@ -759,28 +992,33 @@ watch(forecastFilters, () => {
   font-size: 0.8rem;
 }
 
-.recent-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.review-cards {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
 }
 
-.recent-head {
+.review-card {
+  border: 1px solid var(--brand-border);
+  border-radius: 0.8rem;
+  padding: 0.9rem;
+  background: #fafafa;
+}
+
+.review-head {
   display: flex;
   justify-content: space-between;
-  gap: 0.5rem;
-  font-weight: 700;
+  gap: 1rem;
+  align-items: flex-start;
 }
 
-.recent-meta {
+.review-meta {
   color: var(--text-muted);
   font-size: 0.85rem;
+  margin: 0.25rem 0 0;
 }
 
-.recent-content {
+.review-content {
   margin: 0.3rem 0 0;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -790,8 +1028,14 @@ watch(forecastFilters, () => {
   overflow-wrap: anywhere;
 }
 
-.recent-content.expanded {
+.review-content.expanded {
   -webkit-line-clamp: unset;
+}
+
+.review-date {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .link-btn {
@@ -864,6 +1108,20 @@ watch(forecastFilters, () => {
   cursor: not-allowed;
 }
 
+.ghost-btn {
+  border: 1px solid var(--brand-border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ghost-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .ai-panel h3 {
   margin: 0.2rem 0 0;
 }
@@ -874,6 +1132,15 @@ watch(forecastFilters, () => {
   align-items: flex-start;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.ai-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: right;
 }
 
 .ai-kicker {
@@ -887,12 +1154,24 @@ watch(forecastFilters, () => {
 .ai-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+  gap: 0.85rem;
+}
+
+.ai-wide {
+  grid-column: 1 / -1;
+}
+
+.ai-block h4 {
+  margin: 0;
 }
 
 .ai-block ul {
   padding-left: 1.1rem;
-  margin: 0.4rem 0 0;
+  margin: 0.35rem 0 0;
+}
+
+.ai-state {
+  margin-top: 0;
 }
 
 .table-only {
@@ -933,6 +1212,25 @@ watch(forecastFilters, () => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .insight-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .banner-tags {
+    margin-left: 0;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .rating-bars li {
+    grid-template-columns: 2.5rem 1fr auto;
+  }
+
+  .rating-percent {
+    display: none;
+  }
+
   .table-only {
     display: none;
   }
@@ -942,12 +1240,32 @@ watch(forecastFilters, () => {
   }
 }
 
+@media (max-width: 600px) {
+  .insight-banner {
+    height: auto;
+    min-height: auto;
+  }
+
+  .banner-tags {
+    margin-top: 0;
+    position: static;
+  }
+}
+
 @media (min-width: 1024px) {
   .filters-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .theme-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .ai-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

@@ -16,7 +16,7 @@ import com.ssg9th2team.geharbang.domain.report.host.dto.HostForecastDaily;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostForecastSummary;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostDemandDailyRow;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostThemeReportRow;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class HostReportService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -40,6 +39,14 @@ public class HostReportService {
 
     private final HostReportMapper hostReportMapper;
     private final AiSummaryClient aiSummaryClient;
+
+    public HostReportService(
+            HostReportMapper hostReportMapper,
+            @Qualifier("aiSummaryClientFacade") AiSummaryClient aiSummaryClient
+    ) {
+        this.hostReportMapper = hostReportMapper;
+        this.aiSummaryClient = aiSummaryClient;
+    }
 
     public HostReviewReportSummaryResponse getReviewSummary(Long hostId, Long accommodationId, LocalDate from, LocalDate to) {
         validateOwnership(hostId, accommodationId);
