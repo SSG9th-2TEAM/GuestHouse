@@ -232,6 +232,7 @@ export async function authenticatedRequest(endpoint, options = {}) {
     } else {
       // 토큰 갱신 실패 시 로그아웃
       clearAuth()
+      window.location.href = '/login';
     }
   }
 
@@ -251,6 +252,29 @@ export async function completeSocialSignup(signupData) {
     method: 'POST',
     body: JSON.stringify(signupData)
   })
+}
+
+// 토큰 유효성 검증
+export async function validateToken() {
+  const accessToken = getAccessToken()
+  if (!accessToken) {
+    return false
+  }
+
+  try {
+    const response = await getCurrentUser()
+    if (response.ok) {
+      return true
+    } else {
+      // 토큰이 유효하지 않으면 로그아웃
+      clearAuth()
+      return false
+    }
+  } catch (error) {
+    // 에러 발생 시 로그아웃
+    clearAuth()
+    return false
+  }
 }
 
 export default {
@@ -274,5 +298,6 @@ export default {
   getUserInfo,
   saveUserInfo,
   clearAuth,
-  isAuthenticated
+  isAuthenticated,
+  validateToken
 }
