@@ -40,6 +40,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             oAuth2UserInfo = new NaverOAuth2UserInfo(oAuth2User.getAttributes());
         } else if ("google".equals(registrationId)) {
             oAuth2UserInfo = new GoogleOAuth2UserInfo(oAuth2User.getAttributes());
+        } else if ("kakao".equals(registrationId)) {
+            oAuth2UserInfo = new KakaoOAuth2UserInfo(oAuth2User.getAttributes());
         } else {
             throw new OAuth2AuthenticationException("지원하지 않는 소셜 로그인입니다: " + registrationId);
         }

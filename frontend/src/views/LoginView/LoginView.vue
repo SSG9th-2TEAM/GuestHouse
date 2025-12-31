@@ -90,8 +90,8 @@ const socialLogin = (provider) => {
     Naver: `${baseUrl}/oauth2/authorization/naver` // Naver OAuth2 (구현 완료)
   }
 
-  if (provider === 'Naver' || provider === 'Google') {
-    // 네이버 또는 구글 로그인은 바로 리다이렉트
+  if (provider === 'Naver' || provider === 'Google' || provider === 'Kakao') {
+    // 네이버, 구글, 카카오 로그인은 바로 리다이렉트
     window.location.href = urls[provider]
   } else {
     // 다른 소셜 로그인은 아직 구현되지 않음
