@@ -7,6 +7,7 @@ import { fetchList } from '@/api/list'
 import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
 import { isAuthenticated, getUserId } from '@/api/authClient'
 import { fetchRecommendations } from '@/api/recommendation'
+import { useSearchStore } from '@/stores/search'
 
 const router = useRouter()
 const sections = ref([])
@@ -15,6 +16,7 @@ const wishlistIds = ref(new Set())
 const isLoading = ref(false)
 const isLoadingRecommendations = ref(false)
 const loadError = ref('')
+const searchStore = useSearchStore()
 const MAX_ROW_CARDS = 12
 const MAX_ITEMS_PER_ROW = MAX_ROW_CARDS - 1
 
@@ -182,6 +184,9 @@ const loadRecommendations = async () => {
 }
 
 onMounted(() => {
+  searchStore.setKeyword('')
+  searchStore.resetDates()
+  searchStore.setGuestCount(0)
   loadSections()
   loadWishlist()
   loadRecommendations()

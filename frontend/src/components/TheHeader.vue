@@ -12,6 +12,10 @@ const searchStore = useSearchStore()
 const holidayStore = useHolidayStore()
 const calendarStore = useCalendarStore()
 const searchKeyword = ref(searchStore.keyword || '')
+const keywordDisplay = computed(() => {
+  const keyword = String(searchStore.keyword ?? '').trim()
+  return keyword || '어디로 갈까?'
+})
 
 watch(
   () => searchStore.keyword,
@@ -238,22 +242,20 @@ const buildSearchQuery = () => {
   searchStore.setKeyword(keyword)
   searchKeyword.value = keyword
   if (keyword) query.keyword = keyword
+  if (searchStore.guestCount > 0) query.guestCount = String(searchStore.guestCount)
 
   if (route.path === '/list' || route.path === '/map') {
-    const keys = ['min', 'max', 'minPrice', 'maxPrice', 'themeIds']
-    keys.forEach((key) => {
-      const value = route.query[key]
-      if (value !== undefined) {
-        query[key] = value
-      }
-    })
+    if (searchStore.minPrice !== null) query.min = String(searchStore.minPrice)
+    if (searchStore.maxPrice !== null) query.max = String(searchStore.maxPrice)
+    if (searchStore.themeIds.length) query.themeIds = searchStore.themeIds.join(',')
   }
 
   return query
 }
 
 const handleSearch = () => {
-  router.push({ path: '/list', query: buildSearchQuery() })
+  const targetPath = route.path === '/map' ? '/map' : '/list'
+  router.push({ path: targetPath, query: buildSearchQuery() })
   isSearchExpanded.value = false
 }
 
@@ -364,7 +366,7 @@ onUnmounted(() => {
         >
           <!-- Collapsed Mobile View - Click to expand -->
           <div class="search-bar-collapsed" @click="toggleSearch" v-if="!isSearchExpanded">
-            <span class="collapsed-text">어디로 갈까?</span>
+            <span class="collapsed-text collapsed-text--keyword">{{ keywordDisplay }}</span>
             <span class="collapsed-divider">|</span>
             <span class="collapsed-text">{{ searchStore.dateDisplayText }}</span>
             <span class="collapsed-divider">|</span>
@@ -450,8 +452,7 @@ onUnmounted(() => {
               <div class="guest-header">인원수를 입력하세요</div>
               <div class="guest-row">
                 <div class="guest-info">
-                  <span class="guest-type">성인</span>
-                  <span class="guest-desc">13세 이상</span>
+                  <span class="guest-type">게스트</span>
                 </div>
                 <div class="guest-controls">
                   <button class="guest-btn" @click.stop="decreaseGuest" :disabled="searchStore.guestCount === 0">
@@ -600,8 +601,7 @@ onUnmounted(() => {
               <div class="guest-header">인원수를 입력하세요</div>
               <div class="guest-row">
                 <div class="guest-info">
-                  <span class="guest-type">성인</span>
-                  <span class="guest-desc">13세 이상</span>
+                  <span class="guest-type">게스트</span>
                 </div>
                 <div class="guest-controls">
                   <button class="guest-btn" @click="decreaseGuest" :disabled="searchStore.guestCount === 0">
@@ -738,6 +738,9 @@ onUnmounted(() => {
   font-weight: 500;
   font-family: 'Noto Sans KR', sans-serif;
   width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .search-item input::placeholder {
@@ -1150,6 +1153,11 @@ onUnmounted(() => {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  .collapsed-text--keyword {
+    flex: 1;
+    min-width: 0;
+  }
   
   .collapsed-divider {
     color: #e0e6eb;
@@ -1223,6 +1231,9 @@ onUnmounted(() => {
     color: #1a1f36;
     outline: none;
     padding: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   
   .search-item-full input::placeholder {

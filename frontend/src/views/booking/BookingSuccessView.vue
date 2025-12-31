@@ -45,7 +45,7 @@ onMounted(async () => {
                 location: res.accommodationAddress,
                 dates: `${checkin} ~ ${checkout}`,
                 nights: res.stayNights,
-                guests: `성인 ${res.guestCount}명`, // 상세 구분은 API에 없으므로 총 인원 표시
+                guests: `게스트 ${res.guestCount}명`, // 상세 구분은 API에 없으므로 총 인원 표시
                 basePrice: res.finalPaymentAmount, // 숙박 요금 (할인 후 최종 금액을 표시하거나, 원가를 표시하고 할인을 따로 표시할 수 있음. 여기선 최종 금액 사용)
                 fees: 0, // 수수료 없음
                 totalPrice: res.finalPaymentAmount,
