@@ -71,14 +71,44 @@ public class BaseMainService implements MainService {
 
 
     @Override
-    public PublicListResponse searchPublicList(List<Long> themeIds, String keyword, int page, int size) {
+    public PublicListResponse searchPublicList(
+            List<Long> themeIds,
+            String keyword,
+            int page,
+            int size,
+            Double minLat,
+            Double maxLat,
+            Double minLng,
+            Double maxLng
+    ) {
         PageRequest pageable = PageRequest.of(page, size);
         String normalizedKeyword = normalizeKeyword(keyword);
         Page<ListDtoProjection> resultPage;
+
+        boolean hasBounds = minLat != null && maxLat != null && minLng != null && maxLng != null;
+        Double south = null;
+        Double north = null;
+        Double west = null;
+        Double east = null;
+        if (hasBounds) {
+            south = Math.min(minLat, maxLat);
+            north = Math.max(minLat, maxLat);
+            west = Math.min(minLng, maxLng);
+            east = Math.max(minLng, maxLng);
+        }
+
         if (themeIds == null || themeIds.isEmpty()) {
-            resultPage = mainRepository.searchPublicList(normalizedKeyword, pageable);
+            if (hasBounds) {
+                resultPage = mainRepository.searchPublicListByBounds(normalizedKeyword, south, north, west, east, pageable);
+            } else {
+                resultPage = mainRepository.searchPublicList(normalizedKeyword, pageable);
+            }
         } else {
-            resultPage = mainRepository.searchPublicListByTheme(themeIds, normalizedKeyword, pageable);
+            if (hasBounds) {
+                resultPage = mainRepository.searchPublicListByThemeAndBounds(themeIds, normalizedKeyword, south, north, west, east, pageable);
+            } else {
+                resultPage = mainRepository.searchPublicListByTheme(themeIds, normalizedKeyword, pageable);
+            }
         }
 
         List<ListDto> items = resultPage.getContent().stream()

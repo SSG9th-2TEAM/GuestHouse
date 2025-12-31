@@ -214,7 +214,7 @@ public class MainServiceTest {
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 24), 1);
         when(mainRepository.searchPublicList(eq("부산"), any(PageRequest.class))).thenReturn(page);
 
-        PublicListResponse response = mainService.searchPublicList(Collections.emptyList(), " 부산 ", 0, 24);
+        PublicListResponse response = mainService.searchPublicList(Collections.emptyList(), " 부산 ", 0, 24, null, null, null, null);
 
         assertThat(response.items()).hasSize(1);
         assertThat(response.items().get(0).getAccomodationsName()).isEqualTo("테스트 숙소");
@@ -242,10 +242,37 @@ public class MainServiceTest {
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(1, 10), 11);
         when(mainRepository.searchPublicListByTheme(eq(List.of(2L)), eq("오션뷰"), any(PageRequest.class))).thenReturn(page);
 
-        PublicListResponse response = mainService.searchPublicList(List.of(2L), "오션뷰", 1, 10);
+        PublicListResponse response = mainService.searchPublicList(List.of(2L), "오션뷰", 1, 10, null, null, null, null);
 
         assertThat(response.items()).hasSize(1);
         verify(mainRepository).searchPublicListByTheme(eq(List.of(2L)), eq("오션뷰"), any(PageRequest.class));
+    }
+
+    @Test
+    @DisplayName("뷰포트 검색은 좌표 조건 쿼리를 호출한다")
+    void testSearchPublicListUsesBoundsQuery() {
+        ListDtoProjection projection = new ListProjectionStub(
+                12L,
+                "지도 숙소",
+                "설명",
+                "부산",
+                "해운대",
+                "우동",
+                35.2,
+                129.1,
+                130000L,
+                4.1,
+                8,
+                "https://example.com/map.jpg"
+        );
+        PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 50), 1);
+        when(mainRepository.searchPublicListByBounds(eq("부산"), eq(35.0), eq(36.0), eq(126.0), eq(128.0), any(PageRequest.class)))
+                .thenReturn(page);
+
+        PublicListResponse response = mainService.searchPublicList(Collections.emptyList(), "부산", 0, 50, 35.0, 36.0, 126.0, 128.0);
+
+        assertThat(response.items()).hasSize(1);
+        verify(mainRepository).searchPublicListByBounds(eq("부산"), eq(35.0), eq(36.0), eq(126.0), eq(128.0), any(PageRequest.class));
     }
 
     private static final class ListProjectionStub implements ListDtoProjection {

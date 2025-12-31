@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { fetchList } from '@/api/list'
+import { searchList } from '@/api/list'
 import FilterModal from '../../components/FilterModal.vue'
 import { useSearchStore } from '@/stores/search'
 
@@ -13,12 +13,25 @@ const selectedItem = ref(null)
 const mapContainer = ref(null)
 const mapInstance = ref(null)
 const activeOverlays = ref([])
+const isLoading = ref(false)
+const isMapVisible = ref(false)
+
+const MAP_PAGE_SIZE = 200
+const MAX_MAP_RESULTS = 600
+const AUTO_FIT_SINGLE_LEVEL = 6
 
 // Filter State
 const isFilterModalOpen = ref(false)
 const minPrice = ref(null)
 const maxPrice = ref(null)
 const selectedThemeIds = ref([])
+
+let requestId = 0
+let lastQueryKey = ''
+let pendingLoad = null
+let idleTimer = null
+let autoFitPending = true
+let initialLoadDone = false
 
 const parseNumberParam = (value) => {
   if (value === undefined || value === null || value === '') return null
@@ -82,22 +95,111 @@ const normalizeItem = (item) => {
   }
 }
 
-const loadList = async (themeIds = [], keyword = searchStore.keyword) => {
-  try {
-    const response = await fetchList(themeIds, keyword)
-    if (response.ok) {
-      const payload = response.data
-      const list = Array.isArray(payload)
-        ? payload
-        : payload?.items ?? payload?.content ?? payload?.data ?? []
-      items.value = list.map(normalizeItem)
-      updateMarkers()
-    } else {
+const getBounds = () => {
+  if (!mapInstance.value) return null
+  const bounds = mapInstance.value.getBounds()
+  if (!bounds) return null
+  const southWest = bounds.getSouthWest()
+  const northEast = bounds.getNorthEast()
+  return {
+    minLat: southWest.getLat(),
+    maxLat: northEast.getLat(),
+    minLng: southWest.getLng(),
+    maxLng: northEast.getLng()
+  }
+}
+
+const buildQueryKey = (bounds, themeIds, keyword) => {
+  const themeKey = [...(themeIds || [])].sort((a, b) => a - b).join(',')
+  const safeKeyword = String(keyword ?? '').trim()
+  const format = (value) => Number(value).toFixed(4)
+  return [
+    format(bounds.minLat),
+    format(bounds.maxLat),
+    format(bounds.minLng),
+    format(bounds.maxLng),
+    themeKey,
+    safeKeyword
+  ].join('|')
+}
+
+const fetchAllPages = async ({ themeIds = [], keyword = searchStore.keyword, bounds }) => {
+  const allItems = []
+  let page = 0
+
+  while (true) {
+    const response = await searchList({ themeIds, keyword, page, size: MAP_PAGE_SIZE, bounds })
+    if (!response.ok) {
       console.error('Failed to load list', response.status)
+      break
+    }
+    const list = Array.isArray(response.data?.items) ? response.data.items : []
+    allItems.push(...list)
+    const pageInfo = response.data?.page
+    if (!pageInfo?.hasNext) break
+    if (allItems.length >= MAX_MAP_RESULTS) break
+    page += 1
+  }
+
+  return allItems
+}
+
+const loadList = async ({ themeIds = selectedThemeIds.value, keyword = searchStore.keyword, bounds, queryKey } = {}) => {
+  if (!bounds) return
+  if (isLoading.value) {
+    pendingLoad = { themeIds, keyword, bounds, queryKey }
+    return
+  }
+
+  const currentRequest = ++requestId
+  isLoading.value = true
+  try {
+    const list = await fetchAllPages({ themeIds, keyword, bounds })
+    if (currentRequest !== requestId) return
+    items.value = list.map(normalizeItem)
+    const itemsWithCoords = updateMarkers()
+    fitToMarkers(itemsWithCoords)
+    if (!initialLoadDone) {
+      initialLoadDone = true
+      isMapVisible.value = true
+    }
+    if (queryKey) {
+      lastQueryKey = queryKey
     }
   } catch (error) {
     console.error('Failed to load list', error)
+  } finally {
+    if (currentRequest === requestId) {
+      isLoading.value = false
+    }
+    if (currentRequest === requestId && !initialLoadDone) {
+      initialLoadDone = true
+      isMapVisible.value = true
+    }
+    if (pendingLoad && currentRequest === requestId) {
+      const nextLoad = pendingLoad
+      pendingLoad = null
+      loadList(nextLoad)
+    }
   }
+}
+
+const scheduleLoad = ({ themeIds = selectedThemeIds.value, keyword = searchStore.keyword } = {}) => {
+  const bounds = getBounds()
+  if (!bounds) return
+  const queryKey = buildQueryKey(bounds, themeIds, keyword)
+  if (queryKey === lastQueryKey) return
+
+  pendingLoad = { themeIds, keyword, bounds, queryKey }
+  if (idleTimer) {
+    clearTimeout(idleTimer)
+  }
+  idleTimer = setTimeout(() => {
+    if (!pendingLoad) return
+    const nextLoad = pendingLoad
+    pendingLoad = null
+    loadList(nextLoad)
+  }, 250)
 }
 
 const handleMarkerClick = (item) => {
@@ -121,15 +223,7 @@ const updateMarkers = () => {
   activeOverlays.value.forEach(overlay => overlay.setMap(null))
   activeOverlays.value = []
 
-  // Filter items
-  const filteredItems = items.value.filter(item => {
-    if (minPrice.value !== null && item.price < minPrice.value) return false
-    if (maxPrice.value !== null && item.price > maxPrice.value) return false
-    return true
-  })
-  const itemsWithCoords = filteredItems.filter(
-    (item) => Number.isFinite(item.lat) && Number.isFinite(item.lng) && Number.isFinite(item.price) && item.price > 0
-  )
+  const itemsWithCoords = getItemsWithCoords()
 
   if (selectedItem.value) {
     const nextSelected = itemsWithCoords.find(item => item.id === selectedItem.value.id)
@@ -160,18 +254,37 @@ const updateMarkers = () => {
     activeOverlays.value.push(customOverlay)
   })
 
-  if (!itemsWithCoords.length) return
+  return itemsWithCoords
+}
 
+const getItemsWithCoords = () => {
+  const filteredItems = items.value.filter(item => {
+    if (minPrice.value !== null && item.price < minPrice.value) return false
+    if (maxPrice.value !== null && item.price > maxPrice.value) return false
+    return true
+  })
+
+  return filteredItems.filter(
+    (item) => Number.isFinite(item.lat) && Number.isFinite(item.lng) && Number.isFinite(item.price) && item.price > 0
+  )
+}
+
+const fitToMarkers = (itemsWithCoords) => {
+  if (!mapInstance.value || !autoFitPending) return
+  if (!itemsWithCoords || itemsWithCoords.length === 0) return
+
+  autoFitPending = false
   if (itemsWithCoords.length === 1) {
-    mapInstance.value.setCenter(
-      new window.kakao.maps.LatLng(itemsWithCoords[0].lat, itemsWithCoords[0].lng)
-    )
-    mapInstance.value.setLevel(5)
+    const target = itemsWithCoords[0]
+    mapInstance.value.setCenter(new window.kakao.maps.LatLng(target.lat, target.lng))
+    const currentLevel = mapInstance.value.getLevel()
+    const nextLevel = Math.min(currentLevel, AUTO_FIT_SINGLE_LEVEL)
+    mapInstance.value.setLevel(nextLevel)
     return
   }
 
   const bounds = new window.kakao.maps.LatLngBounds()
-  itemsWithCoords.forEach((item) => {
+  itemsWithCoords.forEach(item => {
     bounds.extend(new window.kakao.maps.LatLng(item.lat, item.lng))
   })
   mapInstance.value.setBounds(bounds)
@@ -181,8 +294,10 @@ const handleApplyFilter = ({ min, max, themeIds = [] }) => {
   minPrice.value = min
   maxPrice.value = max
   selectedThemeIds.value = themeIds
+  autoFitPending = true
   isFilterModalOpen.value = false
-  loadList(themeIds)
+  updateMarkers()
+  scheduleLoad({ themeIds })
 }
 
 const buildFilterQuery = () => {
@@ -217,8 +332,19 @@ onMounted(() => {
 
     mapInstance.value = new window.kakao.maps.Map(mapContainer.value, options)
 
+    const disableAutoFit = () => {
+      autoFitPending = false
+    }
+
+    window.kakao.maps.event.addListener(mapInstance.value, 'dragstart', disableAutoFit)
+    window.kakao.maps.event.addListener(mapInstance.value, 'zoom_start', disableAutoFit)
+
+    window.kakao.maps.event.addListener(mapInstance.value, 'idle', () => {
+      scheduleLoad()
+    })
+
     // Initial render
-    loadList(selectedThemeIds.value)
+    scheduleLoad()
   })
 })
 
@@ -226,7 +352,8 @@ watch(
   () => route.query.keyword,
   () => {
     applyRouteKeyword()
-    loadList(selectedThemeIds.value)
+    autoFitPending = true
+    scheduleLoad()
   }
 )
 </script>
@@ -234,7 +361,7 @@ watch(
 <template>
   <div class="map-wrapper">
     <!-- Map Container -->
-    <div ref="mapContainer" class="map-container"></div>
+    <div ref="mapContainer" class="map-container" :class="{ 'map-container--hidden': !isMapVisible }"></div>
 
     <!-- Filter Button -->
     <div class="filter-btn-wrapper">
@@ -329,6 +456,11 @@ watch(
 .map-container {
   width: 100%;
   height: 100%;
+}
+
+.map-container--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Floating Button Styles */

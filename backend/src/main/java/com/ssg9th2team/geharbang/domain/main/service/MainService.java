@@ -9,5 +9,14 @@ public interface MainService {
 
     MainAccommodationListResponse getMainAccommodationList(Long userId, List<Long> filterThemeIds, String keyword);
 
-    PublicListResponse searchPublicList(List<Long> themeIds, String keyword, int page, int size);
+    PublicListResponse searchPublicList(
+            List<Long> themeIds,
+            String keyword,
+            int page,
+            int size,
+            Double minLat,
+            Double maxLat,
+            Double minLng,
+            Double maxLng
+    );
 }
