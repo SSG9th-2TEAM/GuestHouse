@@ -227,7 +227,7 @@ const resetFilter = () => {
   position: fixed;
   top: 140px; /* Adjusted to clear header */
   left: 20px;
-  z-index: 1000;
+  z-index: 150;
   /* Ensure it doesn't block interaction with the rest of the page outside the modal */
   pointer-events: none; 
 }
