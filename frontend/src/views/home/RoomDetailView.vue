@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { useCalendarStore } from '@/stores/calendar'
 import { fetchAccommodationDetail } from '@/api/accommodation'
+import { getReviewsByAccommodation } from '@/api/reviewApi'
 import ImageGallery from './room-detail/features/ImageGallery.vue'
 import ReviewSection from './room-detail/features/ReviewSection.vue'
 import MapSection from './room-detail/features/MapSection.vue'
@@ -242,12 +243,23 @@ const loadAccommodation = async () => {
   guesthouse.value = createEmptyGuesthouse(accommodationsId)
 
   try {
-    const response = await fetchAccommodationDetail(accommodationsId)
-    if (!response.ok || !response.data) {
+    // 숙소 상세 정보와 리뷰를 병렬로 조회
+    const [detailResponse, reviewsData] = await Promise.all([
+      fetchAccommodationDetail(accommodationsId),
+      getReviewsByAccommodation(accommodationsId).catch(() => [])
+    ])
+
+    if (!detailResponse.ok || !detailResponse.data) {
       guesthouse.value = createEmptyGuesthouse(accommodationsId)
       return
     }
-    guesthouse.value = normalizeDetail(response.data)
+
+    // 숙소 상세 데이터에 리뷰 데이터 병합
+    const detailWithReviews = {
+      ...detailResponse.data,
+      reviews: reviewsData
+    }
+    guesthouse.value = normalizeDetail(detailWithReviews)
   } catch (error) {
     console.error('Failed to load accommodation detail', error)
     guesthouse.value = createEmptyGuesthouse(accommodationsId)

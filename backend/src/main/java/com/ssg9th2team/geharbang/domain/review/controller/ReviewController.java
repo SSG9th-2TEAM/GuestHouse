@@ -54,6 +54,36 @@ public class ReviewController {
         return ResponseEntity.ok("리뷰가 수정되었습니다");
     }
 
+    // 리뷰 삭제
+    @DeleteMapping("/{reviewId}")
+    public ResponseEntity<String> deleteReview(
+            Authentication authentication,
+            @PathVariable Long reviewId) {
+
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
+
+        reviewService.deleteReview(user.getId(), reviewId);
+
+        return ResponseEntity.ok("리뷰가 삭제되었습니다");
+    }
+
+
+
+    // 숙소별 리뷰 조회
+    @GetMapping("/accommodations/{accommodationsId}")
+    public ResponseEntity<List<ReviewResponseDto>> getReviewsByAccommodation(
+            @PathVariable Long accommodationsId) {
+
+        // ReviewResponseDto 타입으로 넘어온 값을 리스트에 담아서 서비스 호출
+        List<ReviewResponseDto> reviews = reviewService.getReviewsByAccommodation(accommodationsId);
+
+        return ResponseEntity.ok(reviews);
+    }
+
+
+
 
 
     // 내 리뷰 조회
@@ -67,15 +97,7 @@ public class ReviewController {
         return ResponseEntity.ok(reviews);
     }
 
-    // 숙소별 리뷰 조회
-    @GetMapping("/accommodations/{accommodationsId}")
-    public ResponseEntity<List<ReviewResponseDto>> getReviewsByAccommodation(
-            @PathVariable Long accommodationsId) {
 
-        List<ReviewResponseDto> reviews = reviewService.getReviewsByAccommodation(accommodationsId);
-
-        return ResponseEntity.ok(reviews);
-    }
 
 
 

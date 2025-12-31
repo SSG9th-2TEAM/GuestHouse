@@ -112,10 +112,32 @@ export async function getMyReviews() {
     return response.data
 }
 
+/**
+ * 리뷰 삭제
+ * @param {number} reviewId - 리뷰 ID
+ * @returns {Promise<string>} - 성공 메시지
+ */
+export async function deleteReview(reviewId) {
+    const response = await authenticatedRequest(`/api/reviews/${reviewId}`, {
+        method: 'DELETE'
+    })
+
+    if (!response.ok) {
+        let errorMessage = '리뷰 삭제에 실패했습니다.'
+        if (response.data && response.data.message) {
+            errorMessage = response.data.message
+        }
+        throw new Error(errorMessage)
+    }
+
+    return response.data
+}
+
 export default {
     createReview,
     updateReview,
     getReviewsByAccommodation,
     getReviewTags,
-    getMyReviews
+    getMyReviews,
+    deleteReview
 }

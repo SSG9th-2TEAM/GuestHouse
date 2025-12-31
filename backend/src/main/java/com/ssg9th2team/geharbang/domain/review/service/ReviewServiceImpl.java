@@ -91,7 +91,7 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     @Transactional
     public void updateReview(Long userId, Long reviewId, ReviewUpdateDto reviewUpdateDto) {
-        // 리뷰 조회해서
+        // 내가 쓴 리뷰 내용 조회
         ReviewEntity reviewEntity = reviewJpaRepository.findByReviewIdAndIsDeletedFalse(reviewId)
                 .orElseThrow(() -> new IllegalArgumentException("리뷰를 찾을 수 없습니다."));
 
@@ -124,6 +124,7 @@ public class ReviewServiceImpl implements ReviewService {
         reviewEntity.updateReview(reviewUpdateDto.getContent(), rating, newImages);
 
         // 5. 태그 업데이트 (전체 삭제 후 재등록)
+        // dto는 사용자가 입력한 값을 받는 거 -> getTagIds() != null : 태그를 변경 했다면 전체 삭제 후 재등록
         if (reviewUpdateDto.getTagIds() != null) {
             reviewMapper.deleteReviewTags(reviewId);
             if (!reviewUpdateDto.getTagIds().isEmpty()) {
@@ -133,9 +134,19 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
 
+    @Override
+    @Transactional
+    public void deleteReview(Long userId, Long reviewId) {
+        ReviewEntity reviewEntity = reviewJpaRepository.findByReviewIdAndIsDeletedFalse(reviewId)
+                .orElseThrow(() -> new IllegalArgumentException("리뷰를 찾을 수 없습니다."));
 
+        if(!reviewEntity.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("리뷰 삭제 권한이 없습니다");
+        }
+        reviewEntity.softDelete();
+    }
 
-    // 숙소 상세조회 -> 리뷰 리스트
+    // 특정 숙소에 달린 ‘모든 리뷰 목록’을 조회
     @Override
     @Transactional(readOnly = true)
     public List<ReviewResponseDto> getReviewsByAccommodation(Long accommodationsId) {
@@ -152,13 +163,6 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
 
-
-    // [Host] 내 숙소들에 달린 리뷰 조회
-    @Override
-    @Transactional(readOnly = true)
-    public List<ReviewResponseDto> getReviewsByHostId(Long hostId) {
-        return reviewMapper.selectReviewsByHostId(hostId);
-    }
 
 
 
