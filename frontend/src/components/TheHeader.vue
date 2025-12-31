@@ -12,6 +12,10 @@ const searchStore = useSearchStore()
 const holidayStore = useHolidayStore()
 const calendarStore = useCalendarStore()
 const searchKeyword = ref(searchStore.keyword || '')
+const keywordDisplay = computed(() => {
+  const keyword = String(searchStore.keyword ?? '').trim()
+  return keyword || '어디로 갈까?'
+})
 
 watch(
   () => searchStore.keyword,
@@ -364,7 +368,7 @@ onUnmounted(() => {
         >
           <!-- Collapsed Mobile View - Click to expand -->
           <div class="search-bar-collapsed" @click="toggleSearch" v-if="!isSearchExpanded">
-            <span class="collapsed-text">어디로 갈까?</span>
+            <span class="collapsed-text collapsed-text--keyword">{{ keywordDisplay }}</span>
             <span class="collapsed-divider">|</span>
             <span class="collapsed-text">{{ searchStore.dateDisplayText }}</span>
             <span class="collapsed-divider">|</span>
@@ -738,6 +742,9 @@ onUnmounted(() => {
   font-weight: 500;
   font-family: 'Noto Sans KR', sans-serif;
   width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .search-item input::placeholder {
@@ -1150,6 +1157,11 @@ onUnmounted(() => {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  .collapsed-text--keyword {
+    flex: 1;
+    min-width: 0;
+  }
   
   .collapsed-divider {
     color: #e0e6eb;
@@ -1223,6 +1235,9 @@ onUnmounted(() => {
     color: #1a1f36;
     outline: none;
     padding: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   
   .search-item-full input::placeholder {
