@@ -73,11 +73,17 @@ public class Reservation {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+        if (reservationStatus != null && reservationStatus == 3 && (paymentStatus == null || paymentStatus != 1)) {
+            throw new IllegalStateException("체크인 완료는 결제 완료 상태에서만 가능합니다.");
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+        if (reservationStatus != null && reservationStatus == 3 && (paymentStatus == null || paymentStatus != 1)) {
+            throw new IllegalStateException("체크인 완료는 결제 완료 상태에서만 가능합니다.");
+        }
     }
 
     /**
