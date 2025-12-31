@@ -51,8 +51,12 @@ public class MainController {
             @RequestParam(name = "themeIds", required = false) List<Long> themeIds,
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "24") int size
+            @RequestParam(name = "size", defaultValue = "24") int size,
+            @RequestParam(name = "minLat", required = false) Double minLat,
+            @RequestParam(name = "maxLat", required = false) Double maxLat,
+            @RequestParam(name = "minLng", required = false) Double minLng,
+            @RequestParam(name = "maxLng", required = false) Double maxLng
     ) {
-        return mainService.searchPublicList(themeIds, keyword, page, size);
+        return mainService.searchPublicList(themeIds, keyword, page, size, minLat, maxLat, minLng, maxLng);
     }
 }

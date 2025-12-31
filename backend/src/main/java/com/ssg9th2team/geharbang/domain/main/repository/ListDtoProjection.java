@@ -23,5 +23,7 @@ public interface ListDtoProjection {
 
     Integer getReviewCount();
 
+    Integer getMaxGuests();
+
     String getImageUrl();
 }

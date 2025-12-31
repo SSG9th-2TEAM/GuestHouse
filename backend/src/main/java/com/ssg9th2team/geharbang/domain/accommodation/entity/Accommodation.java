@@ -135,6 +135,11 @@ public class Accommodation {
         this.checkOutTime = checkOutTime;
     }
 
+    public void updateCoordinates(BigDecimal latitude, BigDecimal longitude) {
+        this.latitude = latitude;
+        this.longitude = longitude;
+    }
+
     public void approve() {
         this.approvalStatus = ApprovalStatus.APPROVED;
         this.rejectionReason = null;
