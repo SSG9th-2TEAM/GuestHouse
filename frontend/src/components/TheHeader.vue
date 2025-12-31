@@ -1147,6 +1147,8 @@ onUnmounted(() => {
   }
   
   .collapsed-text {
+    flex: 1 1 0;
+    min-width: 0;
     font-size: 13px;
     color: #6b7280;
     white-space: nowrap;
@@ -1155,7 +1157,7 @@ onUnmounted(() => {
   }
 
   .collapsed-text--keyword {
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
   }
   
@@ -1176,7 +1178,6 @@ onUnmounted(() => {
     cursor: pointer;
     color: white;
     flex-shrink: 0;
-    margin-left: auto;
   }
   
   /* Expanded Mobile Search Bar */

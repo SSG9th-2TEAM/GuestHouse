@@ -386,7 +386,7 @@ watch(
 
     <!-- Filter Button -->
     <div class="filter-btn-wrapper">
-      <button class="filter-floating-btn" @click="isFilterModalOpen = true">
+      <button class="filter-floating-btn" @click="isFilterModalOpen = !isFilterModalOpen">
         <span class="icon">🔍</span>
         <span class="text">필터</span>
       </button>
@@ -434,9 +434,6 @@ watch(
               ★ {{ selectedItem.rating.toFixed(2) }} ({{ selectedItem.reviewCount || 0 }})
             </span>
           </div>
-          <button class="map-card-action" type="button" @click.stop="goToDetail(selectedItem.id)">
-            상세보기
-          </button>
         </div>
       </div>
     </div>

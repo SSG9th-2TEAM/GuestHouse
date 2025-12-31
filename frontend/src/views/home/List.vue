@@ -237,7 +237,7 @@ watch(
   <main class="container main-content">
     <div class="header">
       <h1>숙소 목록</h1>
-      <button class="filter-btn" @click="isFilterModalOpen = true"><span class="icon">🔍</span>필터</button>
+      <button class="filter-btn" @click="isFilterModalOpen = !isFilterModalOpen"><span class="icon">🔍</span>필터</button>
     </div>
 
     <div class="list-container">
