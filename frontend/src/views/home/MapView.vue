@@ -1,11 +1,14 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { fetchList } from '@/api/list'
 import FilterModal from '../../components/FilterModal.vue'
+import { useSearchStore } from '@/stores/search'
+import { matchesKeyword } from '@/utils/searchFilter'
 
 const router = useRouter()
 const route = useRoute()
+const searchStore = useSearchStore()
 const items = ref([])
 const selectedItem = ref(null)
 const mapContainer = ref(null)
@@ -38,6 +41,21 @@ const applyRouteFilters = () => {
   minPrice.value = parseNumberParam(route.query.min ?? route.query.minPrice)
   maxPrice.value = parseNumberParam(route.query.max ?? route.query.maxPrice)
   selectedThemeIds.value = parseThemeIds(route.query.themeIds)
+}
+
+const getKeywordFromRoute = () => {
+  const raw = route.query.keyword
+  if (Array.isArray(raw)) {
+    return raw[0] ?? ''
+  }
+  return raw ?? ''
+}
+
+const applyRouteKeyword = () => {
+  const nextKeyword = getKeywordFromRoute()
+  if (nextKeyword !== searchStore.keyword) {
+    searchStore.setKeyword(nextKeyword)
+  }
 }
 
 const normalizeItem = (item) => {
@@ -108,7 +126,7 @@ const updateMarkers = () => {
   const filteredItems = items.value.filter(item => {
     if (minPrice.value !== null && item.price < minPrice.value) return false
     if (maxPrice.value !== null && item.price > maxPrice.value) return false
-    return true
+    return matchesKeyword(item, searchStore.keyword)
   })
   const itemsWithCoords = filteredItems.filter(
     (item) => Number.isFinite(item.lat) && Number.isFinite(item.lng) && Number.isFinite(item.price) && item.price > 0
@@ -173,6 +191,8 @@ const buildFilterQuery = () => {
   if (minPrice.value !== null) query.min = String(minPrice.value)
   if (maxPrice.value !== null) query.max = String(maxPrice.value)
   if (selectedThemeIds.value.length) query.themeIds = selectedThemeIds.value.join(',')
+  const keyword = (searchStore.keyword || '').trim()
+  if (keyword) query.keyword = keyword
   return query
 }
 
@@ -182,6 +202,7 @@ const goToList = () => {
 
 onMounted(() => {
   applyRouteFilters()
+  applyRouteKeyword()
   if (!window.kakao?.maps?.load) {
     console.error('Kakao Maps SDK not loaded')
     return
@@ -201,6 +222,14 @@ onMounted(() => {
     loadList(selectedThemeIds.value)
   })
 })
+
+watch(
+  () => route.query.keyword,
+  () => {
+    applyRouteKeyword()
+    updateMarkers()
+  }
+)
 </script>
 
 <template>

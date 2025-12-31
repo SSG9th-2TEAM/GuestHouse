@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { fetchHostBookings, fetchHostBookingCalendar } from '@/api/hostBooking'
+import { fetchHostBookings, fetchHostBookingCalendar, fetchRefundQuote } from '@/api/hostBooking'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
 import { deriveHostState } from '@/composables/useHostState'
 import { formatCurrency, formatDate, formatDateRange, formatDateTime } from '@/utils/formatters'
@@ -36,6 +36,26 @@ const activeTab = computed(() => {
 const selectedDate = ref(null)
 const selectedBooking = ref(null)
 const showModal = ref(false)
+const refundQuoteLoading = ref(false)
+const refundQuoteError = ref('')
+const refundQuote = ref(null)
+const includePast = ref(false)
+const toStartOfDay = (value) => {
+  const date = value ? new Date(value) : new Date()
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+const rangeAnchorDate = ref(toStartOfDay(new Date()))
+const selectedRange = ref('upcoming')
+const customRange = ref({ start: '', end: '' })
+
+const rangeOptions = [
+  { value: 'upcoming', label: '예정/진행' },
+  { value: 'today', label: '오늘' },
+  { value: 'tomorrow', label: '내일' },
+  { value: '7days', label: '7일' },
+  { value: '30days', label: '30일' },
+  { value: 'custom', label: '기간선택' }
+]
 
 const currentMonth = ref(new Date())
 
@@ -110,6 +130,16 @@ const isSameDate = (a, b) => {
     && a.getDate() === b.getDate()
 }
 
+const toDateOnly = (value) => {
+  const date = toDate(value)
+  if (!date) return null
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+const todayDate = () => {
+  return toStartOfDay(new Date())
+}
+
 const calendarCells = computed(() => {
   const cells = []
   for (let i = 0; i < firstDay.value; i++) cells.push({ empty: true })
@@ -158,11 +188,52 @@ const formatAmount = (n) => formatCurrency(n)
 const openModal = (booking) => {
   selectedBooking.value = booking
   showModal.value = true
+  loadRefundQuote(booking?.id)
 }
+
+const closeModal = () => {
+  showModal.value = false
+  refundQuoteLoading.value = false
+  refundQuoteError.value = ''
+  refundQuote.value = null
+}
+
+const loadRefundQuote = async (reservationId) => {
+  if (!reservationId) return
+  refundQuoteLoading.value = true
+  refundQuoteError.value = ''
+  const response = await fetchRefundQuote(reservationId)
+  if (response.ok && response.data) {
+    refundQuote.value = response.data
+  } else {
+    refundQuoteError.value = response?.data?.message || '환불 계산 불가'
+  }
+  refundQuoteLoading.value = false
+}
+
+const refundRateLabel = computed(() => {
+  if (refundQuoteLoading.value) return '계산 중...'
+  if (refundQuoteError.value) return '계산 불가'
+  if (!refundQuote.value) return '-'
+  const days = Number(refundQuote.value.daysBefore)
+  const dayLabel = Number.isFinite(days) ? `D-${days}` : '-'
+  return `${refundQuote.value.refundRate}% (${dayLabel})`
+})
+
+const refundAmountLabel = computed(() => {
+  if (refundQuoteLoading.value) return '계산 중...'
+  if (refundQuoteError.value) return '-'
+  if (!refundQuote.value) return '-'
+  return formatAmount(refundQuote.value.refundAmount)
+})
 
 const resetFilters = () => {
   selectedStatus.value = 'all'
   selectedSort.value = 'latest'
+  includePast.value = false
+  selectedRange.value = 'upcoming'
+  customRange.value = { start: '', end: '' }
+  rangeAnchorDate.value = todayDate()
 }
 
 const normalizeStatus = (status) => {
@@ -221,33 +292,155 @@ const normalizeStatusQuery = (value) => {
   return null
 }
 
+const normalizeIncludePastQuery = (value) => {
+  const normalized = String(value ?? '').toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes'
+}
+
+const normalizeModeQuery = (value) => {
+  const normalized = String(value ?? '').toLowerCase()
+  if (normalized === 'today') return 'today'
+  return null
+}
+
+const parseDateQuery = (value) => {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : toStartOfDay(parsed)
+}
+
+const toDateParam = (date) => {
+  if (!date) return null
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const addDays = (date, amount) => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + amount)
+  return toStartOfDay(next)
+}
+
+const resolveRangeDates = () => {
+  const anchor = rangeAnchorDate.value
+  if (selectedRange.value === 'today') {
+    return { start: anchor, end: anchor }
+  }
+  if (selectedRange.value === 'tomorrow') {
+    const target = addDays(anchor, 1)
+    return { start: target, end: target }
+  }
+  if (selectedRange.value === '7days') {
+    return { start: anchor, end: addDays(anchor, 6) }
+  }
+  if (selectedRange.value === '30days') {
+    return { start: anchor, end: addDays(anchor, 29) }
+  }
+  if (selectedRange.value === 'custom') {
+    const start = parseDateQuery(customRange.value.start)
+    const end = parseDateQuery(customRange.value.end)
+    return { start, end }
+  }
+  return { start: null, end: null }
+}
+
+const buildBookingParams = () => {
+  if (selectedRange.value === 'upcoming') {
+    if (!includePast.value) {
+      return {
+        upcomingOnly: true,
+        startDate: toDateParam(rangeAnchorDate.value)
+      }
+    }
+    return {}
+  }
+
+  const { start, end } = resolveRangeDates()
+  if (!start || !end) {
+    return null
+  }
+  return {
+    startDate: toDateParam(start),
+    endDate: toDateParam(end)
+  }
+}
+
 const filteredBookings = computed(() => {
   const base = bookings.value.filter((booking) => booking.reservationStatus !== 0)
   const filter = statusFilters.find((item) => item.value === selectedStatus.value)
-  const filtered = filter ? base.filter((booking) => filter.statuses.includes(booking.reservationStatus)) : base
+  let filtered = filter ? base.filter((booking) => filter.statuses.includes(booking.reservationStatus)) : base
 
-  if (selectedSort.value === 'checkin') {
-    return [...filtered].sort((a, b) => {
-      return (toDate(a.checkIn)?.getTime() ?? 0) - (toDate(b.checkIn)?.getTime() ?? 0)
+  const today = todayDate().getTime()
+  if (selectedRange.value === 'upcoming' && !includePast.value) {
+    filtered = filtered.filter((booking) => {
+      const checkIn = toDateOnly(booking.checkIn)
+      if (!checkIn) return true
+      return checkIn.getTime() >= today
     })
   }
-  if (selectedSort.value === 'checkout') {
-    return [...filtered].sort((a, b) => {
-      return (toDate(a.checkOut)?.getTime() ?? 0) - (toDate(b.checkOut)?.getTime() ?? 0)
-    })
-  }
-  return [...filtered].sort((a, b) => {
+
+  const sortByCheckInAsc = (list) => [...list].sort((a, b) => {
+    return (toDate(a.checkIn)?.getTime() ?? 0) - (toDate(b.checkIn)?.getTime() ?? 0)
+  })
+  const sortByCheckInDesc = (list) => [...list].sort((a, b) => {
+    return (toDate(b.checkIn)?.getTime() ?? 0) - (toDate(a.checkIn)?.getTime() ?? 0)
+  })
+  const sortByCheckoutAsc = (list) => [...list].sort((a, b) => {
+    return (toDate(a.checkOut)?.getTime() ?? 0) - (toDate(b.checkOut)?.getTime() ?? 0)
+  })
+  const sortByCheckoutDesc = (list) => [...list].sort((a, b) => {
+    return (toDate(b.checkOut)?.getTime() ?? 0) - (toDate(a.checkOut)?.getTime() ?? 0)
+  })
+  const sortByCreatedDesc = (list) => [...list].sort((a, b) => {
     return (toDate(b.createdAt)?.getTime() ?? 0) - (toDate(a.createdAt)?.getTime() ?? 0)
   })
+
+  if (selectedRange.value === 'upcoming' && includePast.value) {
+    const upcoming = []
+    const past = []
+    filtered.forEach((booking) => {
+      const checkIn = toDateOnly(booking.checkIn)
+      const isUpcoming = checkIn ? checkIn.getTime() >= today : true
+      if (isUpcoming) {
+        upcoming.push(booking)
+      } else {
+        past.push(booking)
+      }
+    })
+    if (selectedSort.value === 'checkin') {
+      return [...sortByCheckInAsc(upcoming), ...sortByCheckInDesc(past)]
+    }
+    if (selectedSort.value === 'checkout') {
+      return [...sortByCheckoutAsc(upcoming), ...sortByCheckoutDesc(past)]
+    }
+    return [...sortByCreatedDesc(upcoming), ...sortByCreatedDesc(past)]
+  }
+
+  if (selectedSort.value === 'checkin') {
+    return sortByCheckInAsc(filtered)
+  }
+  if (selectedSort.value === 'checkout') {
+    return sortByCheckoutAsc(filtered)
+  }
+  return sortByCreatedDesc(filtered)
 })
 
 const calendarLegend = computed(() => '표시된 건수는 해당 날짜에 포함된 예약 수입니다.')
 
 const loadBookings = async () => {
   if (pendingOnly.value) return
+  const params = buildBookingParams()
+  if (params === null) {
+    bookings.value = []
+    loadError.value = ''
+    isLoading.value = false
+    return
+  }
   isLoading.value = true
   loadError.value = ''
-  const response = await fetchHostBookings()
+  const response = await fetchHostBookings(params)
   if (response.ok) {
     const payload = response.data
     const list = Array.isArray(payload)
@@ -318,6 +511,17 @@ watch(
     if (sort) selectedSort.value = sort
     const status = normalizeStatusQuery(query.status)
     if (status) selectedStatus.value = status
+    includePast.value = normalizeIncludePastQuery(query.includePast)
+
+    const mode = normalizeModeQuery(query.mode)
+    if (mode === 'today') {
+      selectedRange.value = 'today'
+      const anchor = parseDateQuery(query.date) ?? todayDate()
+      rangeAnchorDate.value = anchor
+    } else if (!query.mode && selectedRange.value === 'today') {
+      selectedRange.value = 'upcoming'
+      rangeAnchorDate.value = todayDate()
+    }
   },
   { immediate: true }
 )
@@ -335,6 +539,22 @@ const syncQuery = (next) => {
   }
 }
 
+const syncRangeQuery = () => {
+  if (selectedRange.value === 'today') {
+    syncQuery({
+      mode: 'today',
+      date: toDateParam(rangeAnchorDate.value)
+    })
+    return
+  }
+  if (route.query.mode || route.query.date) {
+    const cleaned = { ...route.query }
+    delete cleaned.mode
+    delete cleaned.date
+    router.replace({ query: cleaned })
+  }
+}
+
 watch(selectedStatus, (value) => {
   syncQuery({ status: value })
 })
@@ -342,6 +562,36 @@ watch(selectedStatus, (value) => {
 watch(selectedSort, (value) => {
   syncQuery({ sort: value })
 })
+
+watch(includePast, (value) => {
+  syncQuery({ includePast: value ? 1 : 0 })
+  if (selectedRange.value === 'upcoming') {
+    loadBookings()
+  }
+})
+
+watch(selectedRange, () => {
+  if (selectedRange.value !== 'custom') {
+    customRange.value = { start: '', end: '' }
+  }
+  syncRangeQuery()
+  loadBookings()
+})
+
+watch(rangeAnchorDate, () => {
+  syncRangeQuery()
+  loadBookings()
+})
+
+watch(
+  () => ({ ...customRange.value }),
+  () => {
+    if (selectedRange.value === 'custom') {
+      loadBookings()
+    }
+  }
+)
+
 
 const setView = (view) => {
   if (view === activeTab.value) return
@@ -396,6 +646,31 @@ const setView = (view) => {
     </header>
 
     <section v-if="activeTab === 'list'" class="list-section">
+      <div class="range-row">
+        <div class="filter-chips">
+          <button
+            v-for="option in rangeOptions"
+            :key="option.value"
+            class="filter-chip host-chip"
+            :class="{ 'host-chip--active': selectedRange === option.value }"
+            type="button"
+            @click="selectedRange = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+        <div v-if="selectedRange === 'custom'" class="range-custom">
+          <label>
+            시작일
+            <input v-model="customRange.start" type="date" />
+          </label>
+          <label>
+            종료일
+            <input v-model="customRange.end" type="date" />
+          </label>
+        </div>
+      </div>
+
       <div class="filter-row">
         <div class="filter-chips">
           <button
@@ -409,6 +684,10 @@ const setView = (view) => {
             {{ filter.label }}
           </button>
         </div>
+        <label class="past-toggle">
+          <input v-model="includePast" type="checkbox" :disabled="selectedRange !== 'upcoming'" />
+          <span>지난 일정 포함</span>
+        </label>
         <select v-model="selectedSort" class="sort-select" aria-label="정렬 선택">
           <option v-for="option in sortOptions" :key="option.value" :value="option.value">
             {{ option.label }}
@@ -541,14 +820,14 @@ const setView = (view) => {
 
     <p v-if="isLoading" class="empty-box">예약 데이터를 불러오는 중입니다.</p>
 
-    <div v-if="showModal && selectedBooking" class="modal-backdrop" @click.self="showModal = false">
+    <div v-if="showModal && selectedBooking" class="modal-backdrop" @click.self="closeModal">
       <div class="modal">
         <header class="modal-head">
           <div>
             <p class="muted">예약 #{{ selectedBooking.id.toString().padStart(4, '0') }}</p>
             <h3>{{ selectedBooking.guestName }}</h3>
           </div>
-          <button class="circle-btn" @click="showModal = false">×</button>
+          <button class="circle-btn" @click="closeModal">×</button>
         </header>
 
         <div class="modal-body">
@@ -559,6 +838,8 @@ const setView = (view) => {
           <div class="modal-row"><span>연락처</span><strong>{{ selectedBooking.guestPhone }}</strong></div>
           <div class="modal-row"><span>이메일</span><strong>{{ selectedBooking.guestEmail }}</strong></div>
           <div class="modal-row"><span>금액</span><strong>{{ formatAmount(selectedBooking.amount) }}</strong></div>
+          <div class="modal-row"><span>환불율</span><strong>{{ refundRateLabel }}</strong></div>
+          <div class="modal-row"><span>예상 환불액</span><strong>{{ refundAmountLabel }}</strong></div>
           <div class="modal-row"><span>상태</span><span class="pill" :class="statusColor[selectedBooking.status]">{{ selectedBooking.status }}</span></div>
         </div>
       </div>
@@ -597,6 +878,32 @@ const setView = (view) => {
   font-weight: 600;
 }
 
+.range-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.range-custom {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  font-weight: 700;
+  color: #475569;
+}
+
+.range-custom input {
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
+  padding: 0.4rem 0.6rem;
+  min-height: 40px;
+  font-weight: 700;
+}
+
 .filter-row {
   display: flex;
   align-items: center;
@@ -629,6 +936,33 @@ const setView = (view) => {
   min-height: 44px;
   background: #ffffff;
   color: #111827;
+}
+
+.past-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  color: #334155;
+  background: #fff;
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  min-height: 44px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.past-toggle input {
+  accent-color: var(--brand-primary-strong, #0f766e);
+}
+
+.past-toggle input:disabled {
+  cursor: not-allowed;
+}
+
+.past-toggle input:disabled + span {
+  opacity: 0.6;
 }
 
 .tab-switch {

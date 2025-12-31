@@ -168,6 +168,8 @@ Icon?
 *.gz
 logs/
 log/
+!backend/src/main/java/com/ssg9th2team/geharbang/domain/admin/log/
+!backend/src/main/java/com/ssg9th2team/geharbang/domain/admin/log/*.java
 
 # Test results
 docs/test-results-*.md

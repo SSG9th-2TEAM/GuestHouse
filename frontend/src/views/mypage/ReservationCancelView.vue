@@ -25,6 +25,10 @@ const paymentInfo = ref({
   approvedAmount: 0
 })
 
+const refundQuoteLoading = ref(false)
+const refundQuoteError = ref('')
+const refundQuote = ref(null)
+
 // 예약 정보 로드
 onMounted(async () => {
   try {
@@ -52,47 +56,33 @@ onMounted(async () => {
         approvedAmount: response.data.approvedAmount || reservation.value.price
       }
     }
+    await loadRefundQuote(reservationId)
   } catch (error) {
     console.error('결제 정보 조회 실패:', error)
     // 결제 정보가 없어도 진행 가능
     paymentInfo.value.approvedAmount = reservation.value.price
+    await loadRefundQuote(route.params.id)
   } finally {
     isLoading.value = false
   }
 })
 
-// 체크인까지 남은 일수 계산
 const daysUntilCheckin = computed(() => {
-  if (!reservation.value.checkin) return 0
-  const checkinDate = new Date(reservation.value.checkin)
-  checkinDate.setHours(0, 0, 0, 0)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const diffTime = checkinDate - today
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  return diffDays
+  const value = Number(refundQuote.value?.daysBefore)
+  return Number.isFinite(value) ? value : 0
 })
 
-// 환불 비율 계산
 const refundRate = computed(() => {
-  const days = daysUntilCheckin.value
-  if (days >= 7) return 100
-  if (days >= 5) return 90
-  if (days >= 3) return 70
-  if (days >= 1) return 50
-  return 0
+  const value = Number(refundQuote.value?.refundRate)
+  return Number.isFinite(value) ? value : 0
 })
 
-// 환불 금액 계산
 const refundAmount = computed(() => {
-  const amount = paymentInfo.value.approvedAmount || reservation.value.price || 0
-  return Math.floor(amount * (refundRate.value / 100))
+  const value = Number(refundQuote.value?.refundAmount)
+  return Number.isFinite(value) ? value : 0
 })
 
-// 환불 가능 여부
-const canRefund = computed(() => {
-  return refundRate.value > 0
-})
+const canRefund = computed(() => refundRate.value > 0)
 
 const cancelReason = ref('')
 const agreed = ref(false)
@@ -130,8 +120,8 @@ const paymentMethodText = computed(() => {
 
 // 환불 처리
 const handleCancel = async () => {
-  if (!canRefund.value) {
-    openModal('체크인 당일은 환불이 불가능합니다.', 'error')
+  if (refundQuoteError.value) {
+    openModal(refundQuoteError.value, 'error')
     return
   }
   if (!cancelReason.value.trim()) {
@@ -168,6 +158,7 @@ const handleCancel = async () => {
 const goToRefundPolicy = () => {
   window.open('/policy?tab=refund', '_blank')
 }
+<<<<<<< HEAD
 const cancelReasons = [
   '방문불가/여행취소',
   '타 서비스에서 더 싼 상품 발견',
@@ -177,6 +168,21 @@ const cancelReasons = [
   '업체요청',
   '단순변심'
 ]
+=======
+
+const loadRefundQuote = async (reservationId) => {
+  if (!reservationId) return
+  refundQuoteLoading.value = true
+  refundQuoteError.value = ''
+  const response = await authenticatedRequest(`/api/refunds/quote?reservationId=${reservationId}`)
+  if (response.ok && response.data) {
+    refundQuote.value = response.data
+  } else {
+    refundQuoteError.value = response?.data?.message || '환불 계산 불가'
+  }
+  refundQuoteLoading.value = false
+}
+>>>>>>> develop
 </script>
 
 <template>
@@ -207,6 +213,8 @@ const cancelReasons = [
       <!-- Refund Guide -->
       <div class="refund-guide">
         <h3>환불 규정</h3>
+        <div v-if="refundQuoteLoading" class="refund-status">환불 금액 계산 중...</div>
+        <div v-else-if="refundQuoteError" class="refund-status refund-status--error">{{ refundQuoteError }}</div>
         <ul>
           <li :class="{ active: daysUntilCheckin >= 7 }">체크인 7일 전: <strong>100%</strong> 환불</li>
           <li :class="{ active: daysUntilCheckin >= 5 && daysUntilCheckin < 7 }">체크인 5~6일 전: <strong>90%</strong> 환불</li>
@@ -370,6 +378,17 @@ const cancelReasons = [
 .refund-guide h3 {
   font-size: 0.95rem;
   margin-bottom: 0.8rem;
+}
+
+.refund-status {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.refund-status--error {
+  color: #dc2626;
 }
 
 .refund-guide ul {

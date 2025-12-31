@@ -3,13 +3,16 @@ import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import FilterModal from '../../components/FilterModal.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { fetchList } from '@/api/list'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useSearchStore } from '@/stores/search'
+import { matchesKeyword } from '@/utils/searchFilter'
 
 import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
 import { isAuthenticated } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
+const searchStore = useSearchStore()
 const items = ref([])
 const wishlistIds = ref(new Set())
 
@@ -28,6 +31,21 @@ const normalizeItem = (item) => {
   const price = Number(item.minPrice ?? item.price ?? 0)
   const imageUrl = item.imageUrl || 'https://placehold.co/400x300'
   return { id, title, description, rating, location, price, imageUrl }
+}
+
+const getKeywordFromRoute = () => {
+  const raw = route.query.keyword
+  if (Array.isArray(raw)) {
+    return raw[0] ?? ''
+  }
+  return raw ?? ''
+}
+
+const applyRouteKeyword = () => {
+  const nextKeyword = getKeywordFromRoute()
+  if (nextKeyword !== searchStore.keyword) {
+    searchStore.setKeyword(nextKeyword)
+  }
 }
 
 const loadWishlist = async () => {
@@ -103,7 +121,7 @@ const filteredItems = computed(() => {
   return items.value.filter(item => {
     if (minPrice.value !== null && item.price < minPrice.value) return false
     if (maxPrice.value !== null && item.price > maxPrice.value) return false
-    return true
+    return matchesKeyword(item, searchStore.keyword)
   })
 })
 
@@ -120,6 +138,8 @@ const buildFilterQuery = () => {
   if (minPrice.value !== null) query.min = String(minPrice.value)
   if (maxPrice.value !== null) query.max = String(maxPrice.value)
   if (selectedThemeIds.value.length) query.themeIds = selectedThemeIds.value.join(',')
+  const keyword = (searchStore.keyword || '').trim()
+  if (keyword) query.keyword = keyword
   return query
 }
 
@@ -152,12 +172,20 @@ const applyRouteFilters = () => {
 onMounted(() => {
   loadWishlist()
   applyRouteFilters()
+  applyRouteKeyword()
   if (selectedThemeIds.value.length) {
     loadList(selectedThemeIds.value)
     return
   }
   loadList()
 })
+
+watch(
+  () => route.query.keyword,
+  () => {
+    applyRouteKeyword()
+  }
+)
 </script>
 
 <template>

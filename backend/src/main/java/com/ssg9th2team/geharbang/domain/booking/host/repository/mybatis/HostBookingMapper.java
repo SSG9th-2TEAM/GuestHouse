@@ -17,6 +17,11 @@ public interface HostBookingMapper {
             @Param("end") LocalDateTime end
     );
 
+    List<HostBookingResponse> selectHostBookingsUpcoming(
+            @Param("hostId") Long hostId,
+            @Param("start") LocalDateTime start
+    );
+
     HostBookingResponse selectHostBookingById(
             @Param("hostId") Long hostId,
             @Param("reservationId") Long reservationId

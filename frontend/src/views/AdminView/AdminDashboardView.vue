@@ -13,6 +13,8 @@ const summary = ref(null)
 const pendingListings = ref([])
 const openReportListings = ref([])
 const revenueTrend = ref({ months: [], values: [] })
+const trendLoading = ref(false)
+const trendError = ref('')
 const alerts = ref([])
 const pendingQuery = ref('')
 const pendingStatus = ref('all')
@@ -52,10 +54,22 @@ const resolveRange = (days) => {
 
 const formatCurrency = (value) => `₩${Number(value ?? 0).toLocaleString()}`
 const formatRate = (value) => `${(Number(value ?? 0) * 100).toFixed(1)}%`
+const formatCurrencySafe = (value) => `₩${Number(value ?? 0).toLocaleString()}`
+const formatRoomCount = (value) => Number(value ?? 0).toLocaleString()
+const formatPhone = (value) => value || '미등록'
+
+const formatAxisValue = (value) => {
+  const amount = Number(value ?? 0)
+  if (amount >= 100000000) return `${(amount / 100000000).toFixed(1)}억`
+  if (amount >= 10000) return `${(amount / 10000).toFixed(1)}만`
+  return amount.toLocaleString()
+}
 
 const loadDashboard = async () => {
   isLoading.value = true
   loadError.value = ''
+  trendLoading.value = true
+  trendError.value = ''
   const range = resolveRange(activePeriod.value)
   const summaryResponse = await fetchAdminDashboardSummary(range)
   const trendResponse = await fetchAdminDashboardTimeseries({ metric: 'revenue', ...range })
@@ -64,13 +78,13 @@ const loadDashboard = async () => {
     summary.value = data
     const platformFeeRate = data.platformFeeRate ?? 0
     stats.value = [
-      { label: '승인 대기 숙소', value: `${data.pendingAccommodations ?? 0}건`, sub: '심사 대기', tone: 'warning', target: '/admin/accommodations?status=pending' },
-      { label: '미처리 신고', value: `${data.openReports ?? 0}건`, sub: '처리 필요', tone: 'warning', target: '/admin/reports?status=wait' },
+      { label: '승인 대기 숙소', value: `${data.pendingAccommodations ?? 0}건`, sub: '심사 대기', tone: 'warning', target: '/admin/accommodations?status=PENDING' },
+      { label: '미처리 신고', value: `${data.openReports ?? 0}건`, sub: '처리 필요', tone: 'warning', target: '/admin/reports?status=WAIT' },
       { label: '예약 생성', value: `${data.reservationCount ?? 0}건`, sub: '선택 기간 기준', tone: 'success', target: '/admin/bookings?sort=latest' },
       { label: '결제 성공', value: formatCurrency(data.paymentSuccessAmount), sub: '선택 기간 기준', tone: 'accent', target: '/admin/payments?status=success' },
       { label: '플랫폼 수익(수수료)', value: formatCurrency(data.platformFeeAmount), sub: `수수료율 ${formatRate(platformFeeRate)}`, tone: 'primary', target: '/admin/payments?status=success' },
       { label: '결제 실패', value: `${data.paymentFailureCount ?? 0}건`, sub: '실패/취소', tone: 'neutral', target: '/admin/payments?status=failed' },
-      { label: '환불 요청', value: `${data.refundRequestCount ?? 0}건`, sub: '요청 건수', tone: 'neutral', target: '/admin/payments?status=refund' }
+      { label: '환불 요청', value: `${data.refundRequestCount ?? 0}건`, sub: '요청 건수', tone: 'neutral', target: '/admin/payments?status=REFUNDED' }
     ]
     pendingListings.value = data.pendingAccommodationsList ?? []
     openReportListings.value = data.openReportsList ?? []
@@ -82,11 +96,13 @@ const loadDashboard = async () => {
         values: points.map((point) => point.value ?? 0)
       }
     } else {
+      trendError.value = '수익 추이를 불러오지 못했습니다.'
       revenueTrend.value = { months: [], values: [] }
     }
   } else {
     loadError.value = '대시보드 데이터를 불러오지 못했습니다.'
   }
+  trendLoading.value = false
   isLoading.value = false
 }
 
@@ -131,6 +147,18 @@ const revenueMax = computed(() => {
   return values.length ? Math.max(...values, 1) : 1
 })
 const revenueHeight = (value) => `${(value / revenueMax.value) * 100}%`
+
+const revenueTicks = computed(() => {
+  const max = revenueMax.value
+  if (!max || max <= 0) return []
+  const steps = 4
+  const stepValue = Math.ceil(max / steps)
+  return Array.from({ length: steps }, (_, idx) => stepValue * (steps - idx))
+})
+
+const hasRevenueData = computed(() => {
+  return revenueTrend.value.values?.some((value) => Number(value ?? 0) > 0)
+})
 
 const goTo = (target) => {
   if (target) router.push(target)
@@ -278,9 +306,9 @@ watch(activePeriod, loadDashboard)
               <td>{{ item.hostUserId }}</td>
               <td>{{ item.city }} {{ item.district }}</td>
               <td>{{ item.category }}</td>
-              <td>-</td>
-              <td>-</td>
-              <td>-</td>
+              <td>{{ formatRoomCount(item.roomCount) }}</td>
+              <td>{{ formatCurrencySafe(item.minPrice) }}</td>
+              <td>{{ formatPhone(item.hostPhone) }}</td>
               <td>{{ item.createdAt?.slice?.(0, 10) ?? '-' }}</td>
               <td>
                 <AdminBadge :text="item.approvalStatus" :variant="pendingStatusVariant(item.approvalStatus)" />
@@ -305,7 +333,7 @@ watch(activePeriod, loadDashboard)
             <p class="admin-card__eyebrow">운영 알림</p>
             <h3 class="admin-card__title">오늘 확인할 이슈</h3>
           </div>
-          <button class="admin-btn admin-btn--ghost" type="button">전체 보기</button>
+          <button class="admin-btn admin-btn--ghost" type="button" @click="goTo('/admin/dashboard/issues')">전체 보기</button>
         </div>
         <div class="admin-alert-list">
           <button
@@ -333,7 +361,7 @@ watch(activePeriod, loadDashboard)
             <p class="admin-card__eyebrow">운영 요약</p>
             <h3 class="admin-card__title">이번 주 주요 지표</h3>
           </div>
-          <button class="admin-btn admin-btn--ghost" type="button">리포트 보기</button>
+          <button class="admin-btn admin-btn--ghost" type="button" @click="goTo('/admin/dashboard/weekly')">리포트 보기</button>
         </div>
         <div class="admin-highlight-list">
           <div v-for="item in summaryItems" :key="item.label" class="admin-highlight-item">
@@ -356,22 +384,27 @@ watch(activePeriod, loadDashboard)
         </div>
       </div>
       <div class="admin-chart-area">
-        <div class="admin-chart-y">
-          <span>40억</span>
-          <span>30억</span>
-          <span>20억</span>
-          <span>10억</span>
+        <div v-if="isLoading || trendLoading" class="admin-status">불러오는 중...</div>
+        <div v-else-if="loadError || trendError" class="admin-status">
+          <span>{{ loadError || trendError }}</span>
+          <button class="admin-btn admin-btn--ghost" type="button" @click="loadDashboard">다시 시도</button>
         </div>
-        <div class="admin-chart-bars">
-          <div
-            v-for="(value, idx) in revenueTrend.values"
-            :key="idx"
-            class="admin-chart-bar"
-            :style="{ height: revenueHeight(value) }"
-          >
-            <span class="admin-chart-bar__label">{{ formatCurrency(value) }}</span>
+        <div v-else-if="!hasRevenueData" class="admin-status">표시할 데이터가 없습니다.</div>
+        <template v-else>
+          <div class="admin-chart-y">
+            <span v-for="tick in revenueTicks" :key="tick">{{ formatAxisValue(tick) }}</span>
           </div>
-        </div>
+          <div class="admin-chart-bars">
+            <div
+              v-for="(value, idx) in revenueTrend.values"
+              :key="idx"
+              class="admin-chart-bar"
+              :style="{ height: revenueHeight(value) }"
+            >
+              <span class="admin-chart-bar__label">{{ formatCurrency(value) }}</span>
+            </div>
+          </div>
+        </template>
       </div>
       <div class="admin-chart-x">
         <span v-for="month in revenueTrend.months" :key="month">{{ month }}</span>
