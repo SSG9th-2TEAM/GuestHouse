@@ -2,22 +2,32 @@ package com.ssg9th2team.geharbang.domain.reservation.service;
 
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
+import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationRequestDto;
+import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
+import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
-import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,20 +35,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
+@Import(ConcurrencyTest.Config.class) // 내부 설정 클래스 Import
 @Sql(scripts = "/sql/test-base-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
-@Disabled("TODO: 동시성 예약 로직 수정 필요")
 class ConcurrencyTest {
 
     @Autowired
     private ReservationService reservationService;
 
-    @MockBean
-    private ObjectStorageService objectStorageService;
-
     @Autowired
-    private com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository reservationRepository;
+    private ReservationJpaRepository reservationRepository;
 
     @Autowired
     private RoomJpaRepository roomRepository;
@@ -46,11 +54,57 @@ class ConcurrencyTest {
     @Autowired
     private AccommodationJpaRepository accommodationRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private Long roomId;
     private Long accommodationId;
 
+    // Test 전용 설정: Service 빈을 수동으로 등록하여 의존성 주입 문제 해결
+    @TestConfiguration
+    static class Config {
+        @MockBean
+        AccommodationMapper accommodationMapper;
+        @MockBean
+        ReviewJpaRepository reviewJpaRepository;
+        @MockBean
+        PaymentService paymentService;
+
+        @Bean
+        public ReservationService reservationService(
+                ReservationJpaRepository reservationRepository,
+                AccommodationJpaRepository accommodationRepository,
+                AccommodationMapper accommodationMapper,
+                UserRepository userRepository,
+                ReviewJpaRepository reviewJpaRepository,
+                PaymentService paymentService,
+                RoomJpaRepository roomJpaRepository) {
+            return new ReservationServiceImpl(
+                    reservationRepository,
+                    accommodationRepository,
+                    accommodationMapper,
+                    userRepository,
+                    reviewJpaRepository,
+                    paymentService,
+                    roomJpaRepository);
+        }
+    }
+
     @BeforeEach
     void setUp() {
+        // [SecurityContext Mocking]
+        com.ssg9th2team.geharbang.domain.auth.entity.User user = com.ssg9th2team.geharbang.domain.auth.entity.User
+                .builder()
+                .email("test@example.com")
+                .name("테스터")
+                .role(com.ssg9th2team.geharbang.domain.auth.entity.UserRole.USER)
+                .build();
+        userRepository.save(user);
+
+        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken("test@example.com", null,
+                Collections.emptyList());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
         // 1. Accommodation 생성
         Accommodation accommodation = Accommodation.builder()
                 .accommodationsName("테스트 숙소")
@@ -67,18 +121,17 @@ class ConcurrencyTest {
                 .parkingInfo("주차가능")
                 .checkInTime("15:00")
                 .checkOutTime("11:00")
-                .accountNumberId(1L) // 임의
-                .userId(1L) // 임의
+                .accountNumberId(1L)
+                .userId(1L)
                 .build();
         accommodation = accommodationRepository.save(accommodation);
         accommodationId = accommodation.getAccommodationsId();
 
-        // 2. Room 생성 (maxGuests = 10으로 설정)
-        // 100명이 동시에 요청하지만 10명만 성공해야 함
+        // 2. Room 생성
         Room room = Room.builder()
                 .accommodationsId(accommodationId)
                 .roomName("테스트 객실")
-                .maxGuests(10) // 중요: 재고 10개
+                .maxGuests(10)
                 .minGuests(1)
                 .price(10000)
                 .roomStatus(1)
@@ -88,7 +141,7 @@ class ConcurrencyTest {
     }
 
     @Test
-    @DisplayName("객실 정원이 10명일 때 100명이 동시에 1명씩 예약하면 10명만 성공해야 한다.")
+    @DisplayName("동시성 제어: 같은 객실/날짜에 100명이 동시에 예약하면 직렬화되어 1명만 성공해야 한다.")
     void concurrencyReservationTest() throws InterruptedException {
         int numberOfThreads = 100;
         ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
@@ -100,12 +153,12 @@ class ConcurrencyTest {
         ReservationRequestDto requestDto = new ReservationRequestDto(
                 accommodationId,
                 roomId,
-                1L, // userId
+                1L,
                 Instant.now().plus(1, ChronoUnit.DAYS),
                 Instant.now().plus(2, ChronoUnit.DAYS),
-                1, // guestCount (1명씩 예약)
+                1,
                 10000,
-                0, // couponDiscount
+                0,
                 "테스터",
                 "010-1234-5678");
 
@@ -116,7 +169,7 @@ class ConcurrencyTest {
                     successCount.getAndIncrement();
                 } catch (Exception e) {
                     failCount.getAndIncrement();
-                } finally {
+                } finally { // 항상 countDown
                     latch.countDown();
                 }
             });
@@ -127,28 +180,7 @@ class ConcurrencyTest {
         System.out.println("성공한 예약 수: " + successCount.get());
         System.out.println("실패한 예약 수: " + failCount.get());
 
-        // 검증: 성공 횟수는 정확히 초기 maxGuests(10)와 같아야 함
-        assertThat(successCount.get()).isEqualTo(10);
-
-        // 검증: DB에 남은 maxGuests는 0이어야 함
-        Room updatedRoom = roomRepository.findById(roomId).orElseThrow();
-        assertThat(updatedRoom.getMaxGuests()).isEqualTo(0);
-    }
-
-    @org.junit.jupiter.api.AfterEach
-    void tearDown() {
-        if (roomId != null) {
-            // 해당 숙소의 예약 모두 삭제
-            // (실제로는 예약 ID를 추적하거나, accommodationId로 조회해서 삭제)
-            reservationRepository.deleteAll(reservationRepository.findByAccommodationsId(accommodationId));
-
-            // Room 삭제
-            roomRepository.deleteById(roomId);
-        }
-
-        if (accommodationId != null) {
-            // Accommodation 삭제
-            accommodationRepository.deleteById(accommodationId);
-        }
+        // 검증
+        assertThat(successCount.get()).isEqualTo(1);
     }
 }

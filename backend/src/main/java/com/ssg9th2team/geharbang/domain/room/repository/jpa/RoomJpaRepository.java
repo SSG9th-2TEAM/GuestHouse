@@ -6,6 +6,10 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+import java.util.Optional;
+
 public interface RoomJpaRepository extends JpaRepository<Room, Long> {
 
     @Modifying
@@ -20,4 +24,8 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
             WHERE r.accommodationsId = :accommodationId
             """)
     RoomStats findRoomStats(@Param("accommodationId") Long accommodationId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Room r WHERE r.id = :id")
+    Optional<Room> findByIdWithLock(@Param("id") Long id);
 }
