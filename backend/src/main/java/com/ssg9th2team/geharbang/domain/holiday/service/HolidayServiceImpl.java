@@ -3,9 +3,12 @@ package com.ssg9th2team.geharbang.domain.holiday.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssg9th2team.geharbang.domain.holiday.dto.HolidayItemResponse;
+import com.ssg9th2team.geharbang.domain.holiday.exception.HolidayConfigException;
+import com.ssg9th2team.geharbang.domain.holiday.exception.HolidayUpstreamException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.w3c.dom.Element;
@@ -40,7 +43,7 @@ public class HolidayServiceImpl implements HolidayService {
     public List<HolidayItemResponse> getHolidays(int year, Integer month) {
         validateRequest(year, month);
         if (serviceKey == null || serviceKey.isBlank()) {
-            throw new IllegalStateException("Holiday service key is not configured.");
+            throw new HolidayConfigException("Holiday service key is not configured.");
         }
 
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(apiBaseUrl)
@@ -55,8 +58,14 @@ public class HolidayServiceImpl implements HolidayService {
 
         String url = buildHolidayUrl(uriBuilder);
 
-        byte[] responseBytes = restTemplate.getForObject(url, byte[].class);
-        return parseHolidayResponse(responseBytes);
+        try {
+            byte[] responseBytes = restTemplate.getForObject(url, byte[].class);
+            return parseHolidayResponse(responseBytes);
+        } catch (Exception ex) {
+            int status = resolveUpstreamStatus(ex);
+            log.warn("Holiday API request failed. status={}", status);
+            throw new HolidayUpstreamException(status, "Holiday API request failed.", ex);
+        }
     }
 
     private void validateRequest(int year, Integer month) {
@@ -83,7 +92,8 @@ public class HolidayServiceImpl implements HolidayService {
         if (marker == '{' || marker == '[') {
             return parseHolidayJson(responseBytes);
         }
-        throw new IllegalStateException("Holiday API response format not recognized. snippet=" + buildSnippet(responseBytes));
+        log.warn("Holiday API response format not recognized. snippet={}", buildSnippet(responseBytes));
+        throw new HolidayUpstreamException(502, "Holiday API response format not recognized.");
     }
 
     private List<HolidayItemResponse> parseHolidayXml(byte[] xmlBytes) {
@@ -100,11 +110,18 @@ public class HolidayServiceImpl implements HolidayService {
                 String resultCode = getDocumentTagText(document, "resultCode");
                 String resultMsg = getDocumentTagText(document, "resultMsg");
                 if (resultCode == null || resultCode.isBlank()) {
-                    throw new IllegalStateException("Holiday API response missing resultCode.");
+                    throw new HolidayUpstreamException(502, "Holiday API response missing resultCode.");
                 }
                 if (!"00".equals(resultCode.trim())) {
                     String message = resultMsg != null ? resultMsg.trim() : "Unknown error";
-                    throw new IllegalStateException("Holiday API error: " + resultCode + " " + message);
+                    log.warn("Holiday API error resultCode={} resultMsg={}", resultCode.trim(), message);
+                    if (isNoDataCode(resultCode) || isNoDataMessage(message)) {
+                        return List.of();
+                    }
+                    if (isInvalidServiceKeyMessage(message)) {
+                        throw new HolidayConfigException("Holiday service key is invalid.");
+                    }
+                    throw new HolidayUpstreamException(502, "Holiday API error: " + resultCode + " " + message);
                 }
 
                 NodeList items = document.getElementsByTagName("item");
@@ -135,12 +152,11 @@ public class HolidayServiceImpl implements HolidayService {
 
                 return results;
             }
-        } catch (IllegalStateException ex) {
+        } catch (HolidayUpstreamException ex) {
             throw ex;
         } catch (Exception ex) {
-            String snippet = buildSnippet(xmlBytes);
             log.error("Failed to parse holiday response", ex);
-            throw new IllegalStateException("Holiday API response parsing failed. snippet=" + snippet, ex);
+            throw new HolidayUpstreamException(502, "Holiday API response parsing failed.", ex);
         }
     }
 
@@ -170,11 +186,18 @@ public class HolidayServiceImpl implements HolidayService {
             String resultCode = getJsonText(header, "resultCode");
             String resultMsg = getJsonText(header, "resultMsg");
             if (resultCode == null || resultCode.isBlank()) {
-                throw new IllegalStateException("Holiday API response missing resultCode.");
+                throw new HolidayUpstreamException(502, "Holiday API response missing resultCode.");
             }
             if (!"00".equals(resultCode.trim())) {
                 String message = resultMsg != null ? resultMsg.trim() : "Unknown error";
-                throw new IllegalStateException("Holiday API error: " + resultCode + " " + message);
+                log.warn("Holiday API error resultCode={} resultMsg={}", resultCode.trim(), message);
+                if (isNoDataCode(resultCode) || isNoDataMessage(message)) {
+                    return List.of();
+                }
+                if (isInvalidServiceKeyMessage(message)) {
+                    throw new HolidayConfigException("Holiday service key is invalid.");
+                }
+                throw new HolidayUpstreamException(502, "Holiday API error: " + resultCode + " " + message);
             }
 
             JsonNode itemsNode = response.path("body").path("items").path("item");
@@ -192,12 +215,11 @@ public class HolidayServiceImpl implements HolidayService {
             }
 
             return results;
-        } catch (IllegalStateException ex) {
+        } catch (HolidayUpstreamException ex) {
             throw ex;
         } catch (Exception ex) {
-            String snippet = buildSnippet(jsonBytes);
             log.error("Failed to parse holiday response", ex);
-            throw new IllegalStateException("Holiday API response parsing failed. snippet=" + snippet, ex);
+            throw new HolidayUpstreamException(502, "Holiday API response parsing failed.", ex);
         }
     }
 
@@ -261,5 +283,37 @@ public class HolidayServiceImpl implements HolidayService {
             }
         }
         return null;
+    }
+
+    private boolean isNoDataMessage(String message) {
+        if (message == null) {
+            return false;
+        }
+        String normalized = message.replaceAll("\\s+", "").toLowerCase();
+        return normalized.contains("nodata") || normalized.contains("no_data")
+                || normalized.contains("데이터없음") || normalized.contains("데이터없")
+                || normalized.contains("데이터가없") || normalized.contains("없음");
+    }
+
+    private boolean isNoDataCode(String resultCode) {
+        if (resultCode == null) {
+            return false;
+        }
+        return "03".equals(resultCode.trim());
+    }
+
+    private boolean isInvalidServiceKeyMessage(String message) {
+        if (message == null) {
+            return false;
+        }
+        String normalized = message.replaceAll("\\s+", "").toLowerCase();
+        return normalized.contains("서비스키") || normalized.contains("servicekey") || normalized.contains("service_key");
+    }
+
+    private int resolveUpstreamStatus(Exception ex) {
+        if (ex instanceof ResourceAccessException) {
+            return 504;
+        }
+        return 502;
     }
 }

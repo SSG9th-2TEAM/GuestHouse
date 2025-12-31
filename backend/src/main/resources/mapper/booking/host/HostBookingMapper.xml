@@ -19,9 +19,20 @@
             r.final_payment_amount AS finalPaymentAmount,
             r.reservation_status AS reservationStatus,
             r.payment_status AS paymentStatus,
+            pr.refund_status AS refundStatus,
             r.created_at AS createdAt
         FROM reservation r
         JOIN accommodation a ON a.accommodations_id = r.accommodations_id
+        LEFT JOIN payment p ON p.reservation_id = r.reservation_id
+        LEFT JOIN (
+            SELECT pr.payment_id, pr.refund_status
+            FROM payment_refund pr
+            JOIN (
+                SELECT payment_id, MAX(refund_id) AS max_refund_id
+                FROM payment_refund
+                GROUP BY payment_id
+            ) latest ON latest.payment_id = pr.payment_id AND latest.max_refund_id = pr.refund_id
+        ) pr ON pr.payment_id = p.payment_id
         WHERE a.user_id = #{hostId}
         ORDER BY r.created_at DESC
     </select>
@@ -40,9 +51,20 @@
             r.final_payment_amount AS finalPaymentAmount,
             r.reservation_status AS reservationStatus,
             r.payment_status AS paymentStatus,
+            pr.refund_status AS refundStatus,
             r.created_at AS createdAt
         FROM reservation r
         JOIN accommodation a ON a.accommodations_id = r.accommodations_id
+        LEFT JOIN payment p ON p.reservation_id = r.reservation_id
+        LEFT JOIN (
+            SELECT pr.payment_id, pr.refund_status
+            FROM payment_refund pr
+            JOIN (
+                SELECT payment_id, MAX(refund_id) AS max_refund_id
+                FROM payment_refund
+                GROUP BY payment_id
+            ) latest ON latest.payment_id = pr.payment_id AND latest.max_refund_id = pr.refund_id
+        ) pr ON pr.payment_id = p.payment_id
         WHERE a.user_id = #{hostId}
           AND r.checkin &lt; #{end}
           AND r.checkout &gt;= #{start}
@@ -63,9 +85,20 @@
             r.final_payment_amount AS finalPaymentAmount,
             r.reservation_status AS reservationStatus,
             r.payment_status AS paymentStatus,
+            pr.refund_status AS refundStatus,
             r.created_at AS createdAt
         FROM reservation r
         JOIN accommodation a ON a.accommodations_id = r.accommodations_id
+        LEFT JOIN payment p ON p.reservation_id = r.reservation_id
+        LEFT JOIN (
+            SELECT pr.payment_id, pr.refund_status
+            FROM payment_refund pr
+            JOIN (
+                SELECT payment_id, MAX(refund_id) AS max_refund_id
+                FROM payment_refund
+                GROUP BY payment_id
+            ) latest ON latest.payment_id = pr.payment_id AND latest.max_refund_id = pr.refund_id
+        ) pr ON pr.payment_id = p.payment_id
         WHERE a.user_id = #{hostId}
           AND r.checkin &gt;= #{start}
         ORDER BY r.checkin ASC, r.checkout ASC
@@ -85,9 +118,20 @@
             r.final_payment_amount AS finalPaymentAmount,
             r.reservation_status AS reservationStatus,
             r.payment_status AS paymentStatus,
+            pr.refund_status AS refundStatus,
             r.created_at AS createdAt
         FROM reservation r
         JOIN accommodation a ON a.accommodations_id = r.accommodations_id
+        LEFT JOIN payment p ON p.reservation_id = r.reservation_id
+        LEFT JOIN (
+            SELECT pr.payment_id, pr.refund_status
+            FROM payment_refund pr
+            JOIN (
+                SELECT payment_id, MAX(refund_id) AS max_refund_id
+                FROM payment_refund
+                GROUP BY payment_id
+            ) latest ON latest.payment_id = pr.payment_id AND latest.max_refund_id = pr.refund_id
+        ) pr ON pr.payment_id = p.payment_id
         WHERE a.user_id = #{hostId}
           AND r.reservation_id = #{reservationId}
     </select>

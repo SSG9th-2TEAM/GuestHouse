@@ -6,6 +6,7 @@ import { fetchHostAccommodations } from '@/api/hostAccommodation'
 import { deriveHostState } from '@/composables/useHostState'
 import { formatCurrency, formatDate, formatDateRange, formatDateTime } from '@/utils/formatters'
 import HostPendingLock from '@/components/host/HostPendingLock.vue'
+import ReservationCard from '@/components/host/ReservationCard.vue'
 
 const bookings = ref([])
 const calendarBookings = ref([])
@@ -23,9 +24,15 @@ const statusColor = {
 }
 
 const paymentBadge = {
-  0: '미결제',
-  2: '결제 실패',
-  3: '환불 완료'
+  0: '결제 대기',
+  1: '결제 완료',
+  2: '결제 실패'
+}
+
+const refundBadge = {
+  0: '환불 요청',
+  1: '환불 완료',
+  2: '환불 실패'
 }
 
 const route = useRoute()
@@ -40,6 +47,7 @@ const refundQuoteLoading = ref(false)
 const refundQuoteError = ref('')
 const refundQuote = ref(null)
 const includePast = ref(false)
+const isFilterSheetOpen = ref(false)
 const toStartOfDay = (value) => {
   const date = value ? new Date(value) : new Date()
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -75,6 +83,19 @@ const sortOptions = [
 
 const selectedStatus = ref('all')
 const selectedSort = ref('latest')
+
+const getLabel = (list, value, fallback = '-') => {
+  const found = list.find((item) => item.value === value)
+  return found?.label ?? fallback
+}
+
+const filterSummary = computed(() => {
+  const rangeLabel = selectedRange.value === 'upcoming' ? '오늘~미래' : getLabel(rangeOptions, selectedRange.value)
+  const scopeLabel = includePast.value ? '전체 일정' : '예정/진행'
+  const statusLabel = getLabel(statusFilters, selectedStatus.value)
+  const sortLabel = getLabel(sortOptions, selectedSort.value)
+  return `${scopeLabel} · ${rangeLabel} · ${statusLabel} · ${sortLabel}`
+})
 
 const daysInMonth = computed(() => new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 0).getDate())
 const firstDay = computed(() => new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth(), 1).getDay())
@@ -255,22 +276,71 @@ const normalizeNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-const normalizeBooking = (item) => ({
-  id: item.bookingId ?? item.reservationId ?? item.id,
-  reservationStatus: normalizeNumber(item.reservationStatus ?? item.status),
-  paymentStatus: normalizeNumber(item.paymentStatus ?? item.paymentStatusCode ?? item.payment),
-  guestName: item.guestName ?? item.reserverName ?? item.name ?? '',
-  guestPhone: item.guestPhone ?? item.reserverPhone ?? item.phone ?? '',
-  guestEmail: item.guestEmail ?? item.email ?? '',
-  property: item.accommodationName ?? item.property ?? '',
-  checkIn: item.checkin ?? item.checkIn ?? '',
-  checkOut: item.checkout ?? item.checkOut ?? '',
-  guests: item.guestCount ?? item.guests ?? 0,
-  stayNights: normalizeNumber(item.stayNights ?? item.stayNightsCount),
-  amount: item.finalPaymentAmount ?? item.amount ?? item.totalAmount ?? 0,
-  status: normalizeStatus(item.reservationStatus ?? item.status),
-  createdAt: item.createdAt ?? item.created_at ?? ''
-})
+const resolveBookingStatus = (reservationStatus, refundStatus) => {
+  const isRefunded = refundStatus === 0 || refundStatus === 1 || refundStatus === 2
+  const effectiveStatus = isRefunded ? 9 : reservationStatus
+  return {
+    code: effectiveStatus,
+    label: normalizeStatus(effectiveStatus)
+  }
+}
+
+const getBookingBadges = (booking) => {
+  const primaryLabel = booking.status
+  const primaryClass = statusColor[booking.status]
+  const isCanceled = booking.bookingStatusCode === 9 || booking.status === '취소'
+  let secondaryLabel = ''
+  let secondaryClass = ''
+
+  if (!isCanceled) {
+    secondaryLabel = paymentBadge[booking.paymentStatus] ?? '결제 대기'
+    if (booking.paymentStatus === 1) secondaryClass = 'transaction-chip--paid'
+    else if (booking.paymentStatus === 2) secondaryClass = 'transaction-chip--failed'
+    else secondaryClass = 'transaction-chip--pending'
+  } else if (booking.paymentStatus === 1 && booking.refundStatus !== null && booking.refundStatus !== undefined) {
+    secondaryLabel = refundBadge[booking.refundStatus]
+    secondaryClass = 'transaction-chip--refund'
+  } else if (booking.paymentStatus === 0) {
+    secondaryLabel = '결제 취소'
+    secondaryClass = 'transaction-chip--warn'
+  } else if (booking.paymentStatus === 2) {
+    secondaryLabel = paymentBadge[booking.paymentStatus] ?? '결제 실패'
+    secondaryClass = 'transaction-chip--failed'
+  }
+
+  return {
+    primaryLabel,
+    primaryClass,
+    secondaryLabel,
+    secondaryClass
+  }
+}
+
+const normalizeBooking = (item) => {
+  const reservationStatus = normalizeNumber(item.reservationStatus ?? item.status)
+  const paymentStatus = normalizeNumber(item.paymentStatus ?? item.paymentStatusCode ?? item.payment)
+  const refundStatus = normalizeNumber(item.refundStatus ?? item.refund_status)
+  const bookingStatus = resolveBookingStatus(reservationStatus, refundStatus)
+  return {
+    id: item.bookingId ?? item.reservationId ?? item.id,
+    reservationStatus,
+    bookingStatusCode: bookingStatus.code,
+    bookingStatusLabel: bookingStatus.label,
+    paymentStatus,
+    refundStatus,
+    guestName: item.guestName ?? item.reserverName ?? item.name ?? '',
+    guestPhone: item.guestPhone ?? item.reserverPhone ?? item.phone ?? '',
+    guestEmail: item.guestEmail ?? item.email ?? '',
+    property: item.accommodationName ?? item.property ?? '',
+    checkIn: item.checkin ?? item.checkIn ?? '',
+    checkOut: item.checkout ?? item.checkOut ?? '',
+    guests: item.guestCount ?? item.guests ?? 0,
+    stayNights: normalizeNumber(item.stayNights ?? item.stayNightsCount),
+    amount: item.finalPaymentAmount ?? item.amount ?? item.totalAmount ?? 0,
+    status: bookingStatus.label,
+    createdAt: item.createdAt ?? item.created_at ?? ''
+  }
+}
 
 const normalizeSortQuery = (value) => {
   const normalized = String(value ?? '').toLowerCase()
@@ -300,6 +370,13 @@ const normalizeIncludePastQuery = (value) => {
 const normalizeModeQuery = (value) => {
   const normalized = String(value ?? '').toLowerCase()
   if (normalized === 'today') return 'today'
+  return null
+}
+
+const normalizeRangeQuery = (value) => {
+  const normalized = String(value ?? '').toLowerCase()
+  if (normalized === 'upcoming' || normalized === 'today' || normalized === 'tomorrow') return normalized
+  if (normalized === '7days' || normalized === '30days' || normalized === 'custom') return normalized
   return null
 }
 
@@ -368,9 +445,9 @@ const buildBookingParams = () => {
 }
 
 const filteredBookings = computed(() => {
-  const base = bookings.value.filter((booking) => booking.reservationStatus !== 0)
+  const base = bookings.value.filter((booking) => booking.bookingStatusCode !== 0)
   const filter = statusFilters.find((item) => item.value === selectedStatus.value)
-  let filtered = filter ? base.filter((booking) => filter.statuses.includes(booking.reservationStatus)) : base
+  let filtered = filter ? base.filter((booking) => filter.statuses.includes(booking.bookingStatusCode)) : base
 
   const today = todayDate().getTime()
   if (selectedRange.value === 'upcoming' && !includePast.value) {
@@ -507,20 +584,28 @@ watch(
       router.replace({ query: { ...query, view: 'list' } })
       return
     }
+    const range = normalizeRangeQuery(query.range)
+    if (range) {
+      selectedRange.value = range
+    }
     const sort = normalizeSortQuery(query.sort)
     if (sort) selectedSort.value = sort
+    const type = normalizeStatusQuery(query.type)
+    if (type) selectedStatus.value = type
     const status = normalizeStatusQuery(query.status)
     if (status) selectedStatus.value = status
     includePast.value = normalizeIncludePastQuery(query.includePast)
 
     const mode = normalizeModeQuery(query.mode)
-    if (mode === 'today') {
+    if (mode === 'today' || range === 'today') {
       selectedRange.value = 'today'
       const anchor = parseDateQuery(query.date) ?? todayDate()
       rangeAnchorDate.value = anchor
-    } else if (!query.mode && selectedRange.value === 'today') {
+    } else if (!query.mode && !query.range && selectedRange.value === 'today') {
       selectedRange.value = 'upcoming'
       rangeAnchorDate.value = todayDate()
+    } else if (range && ['tomorrow', '7days', '30days'].includes(range)) {
+      rangeAnchorDate.value = parseDateQuery(query.date) ?? todayDate()
     }
   },
   { immediate: true }
@@ -540,23 +625,19 @@ const syncQuery = (next) => {
 }
 
 const syncRangeQuery = () => {
-  if (selectedRange.value === 'today') {
-    syncQuery({
-      mode: 'today',
-      date: toDateParam(rangeAnchorDate.value)
-    })
-    return
-  }
-  if (route.query.mode || route.query.date) {
-    const cleaned = { ...route.query }
-    delete cleaned.mode
+  const cleaned = { ...route.query }
+  cleaned.range = selectedRange.value
+  if (['today', 'tomorrow', '7days', '30days'].includes(selectedRange.value)) {
+    cleaned.date = toDateParam(rangeAnchorDate.value)
+  } else {
     delete cleaned.date
-    router.replace({ query: cleaned })
   }
+  delete cleaned.mode
+  router.replace({ query: cleaned })
 }
 
 watch(selectedStatus, (value) => {
-  syncQuery({ status: value })
+  syncQuery({ status: value, type: value })
 })
 
 watch(selectedSort, (value) => {
@@ -646,53 +727,125 @@ const setView = (view) => {
     </header>
 
     <section v-if="activeTab === 'list'" class="list-section">
-      <div class="range-row">
-        <div class="filter-chips">
-          <button
-            v-for="option in rangeOptions"
-            :key="option.value"
-            class="filter-chip host-chip"
-            :class="{ 'host-chip--active': selectedRange === option.value }"
-            type="button"
-            @click="selectedRange = option.value"
-          >
-            {{ option.label }}
-          </button>
+      <div class="filter-summary">
+        <span class="filter-summary__text">{{ filterSummary }}</span>
+        <button class="ghost-btn filter-open" type="button" @click="isFilterSheetOpen = true">필터</button>
+      </div>
+
+      <div class="filters-desktop">
+        <div class="range-row">
+          <div class="filter-chips">
+            <button
+              v-for="option in rangeOptions"
+              :key="option.value"
+              class="filter-chip host-chip"
+              :class="{ 'host-chip--active': selectedRange === option.value }"
+              type="button"
+              @click="selectedRange = option.value"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+          <div v-if="selectedRange === 'custom'" class="range-custom">
+            <label>
+              시작일
+              <input v-model="customRange.start" type="date" />
+            </label>
+            <label>
+              종료일
+              <input v-model="customRange.end" type="date" />
+            </label>
+          </div>
         </div>
-        <div v-if="selectedRange === 'custom'" class="range-custom">
-          <label>
-            시작일
-            <input v-model="customRange.start" type="date" />
+
+        <div class="filter-row">
+          <div class="filter-chips">
+            <button
+              v-for="filter in statusFilters"
+              :key="filter.value"
+              class="filter-chip host-chip"
+              :class="{ 'host-chip--active': selectedStatus === filter.value }"
+              type="button"
+              @click="selectedStatus = filter.value"
+            >
+              {{ filter.label }}
+            </button>
+          </div>
+          <label class="past-toggle">
+            <input v-model="includePast" type="checkbox" :disabled="selectedRange !== 'upcoming'" />
+            <span>지난 일정 포함</span>
           </label>
-          <label>
-            종료일
-            <input v-model="customRange.end" type="date" />
-          </label>
+          <select v-model="selectedSort" class="sort-select" aria-label="정렬 선택">
+            <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
         </div>
       </div>
 
-      <div class="filter-row">
-        <div class="filter-chips">
-          <button
-            v-for="filter in statusFilters"
-            :key="filter.value"
-            class="filter-chip host-chip"
-            :class="{ 'host-chip--active': selectedStatus === filter.value }"
-            type="button"
-            @click="selectedStatus = filter.value"
-          >
-            {{ filter.label }}
-          </button>
+      <div v-if="isFilterSheetOpen" class="filter-sheet" role="dialog" aria-modal="true">
+        <button class="sheet-backdrop" type="button" aria-label="필터 닫기" @click="isFilterSheetOpen = false"></button>
+        <div class="sheet-panel">
+          <div class="sheet-head">
+            <h3>필터</h3>
+            <button class="ghost-btn sheet-close" type="button" @click="isFilterSheetOpen = false">닫기</button>
+          </div>
+          <div class="sheet-body">
+            <div class="sheet-section">
+              <p class="sheet-title">기간</p>
+              <div class="filter-chips">
+                <button
+                  v-for="option in rangeOptions"
+                  :key="option.value"
+                  class="filter-chip host-chip"
+                  :class="{ 'host-chip--active': selectedRange === option.value }"
+                  type="button"
+                  @click="selectedRange = option.value"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+              <div v-if="selectedRange === 'custom'" class="range-custom">
+                <label>
+                  시작일
+                  <input v-model="customRange.start" type="date" />
+                </label>
+                <label>
+                  종료일
+                  <input v-model="customRange.end" type="date" />
+                </label>
+              </div>
+            </div>
+
+            <div class="sheet-section">
+              <p class="sheet-title">상태</p>
+              <div class="filter-chips">
+                <button
+                  v-for="filter in statusFilters"
+                  :key="filter.value"
+                  class="filter-chip host-chip"
+                  :class="{ 'host-chip--active': selectedStatus === filter.value }"
+                  type="button"
+                  @click="selectedStatus = filter.value"
+                >
+                  {{ filter.label }}
+                </button>
+              </div>
+            </div>
+
+            <div class="sheet-section sheet-row">
+              <label class="past-toggle">
+                <input v-model="includePast" type="checkbox" :disabled="selectedRange !== 'upcoming'" />
+                <span>지난 일정 포함</span>
+              </label>
+              <select v-model="selectedSort" class="sort-select" aria-label="정렬 선택">
+                <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+            </div>
+          </div>
         </div>
-        <label class="past-toggle">
-          <input v-model="includePast" type="checkbox" :disabled="selectedRange !== 'upcoming'" />
-          <span>지난 일정 포함</span>
-        </label>
-        <select v-model="selectedSort" class="sort-select" aria-label="정렬 선택">
-          <option v-for="option in sortOptions" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
       </div>
 
       <div v-if="loadError" class="empty-box">
@@ -705,43 +858,62 @@ const setView = (view) => {
           <p>조건에 맞는 예약이 없습니다.</p>
           <button class="ghost-btn" @click="resetFilters">필터 초기화</button>
         </div>
-        <article v-for="(booking, index) in filteredBookings" :key="booking.id" class="mobile-card fade-item" :style="{ animationDelay: `${Math.min(index, 5) * 70}ms` }">
-          <div class="card-top">
-            <div>
-              <p class="muted">#{{ booking.id.toString().padStart(4, '0') }}</p>
-              <h3>{{ booking.guestName }}</h3>
-            </div>
-            <span class="pill" :class="statusColor[booking.status]">{{ booking.status }}</span>
-          </div>
-          <div class="payment-chip" v-if="paymentBadge[booking.paymentStatus]">
-            {{ paymentBadge[booking.paymentStatus] }}
-          </div>
-          <p class="property">{{ booking.property }}</p>
-          <p class="period">{{ formatScheduleRange(booking) }}</p>
-          <p class="period-meta">{{ formatBookingMeta(booking) }}</p>
-          <p class="amount">{{ formatAmount(booking.amount) }}</p>
-          <button class="ghost-btn detail-btn" aria-label="예약 상세" @click="openModal(booking)"><span class="detail-btn__text"></span></button>
-        </article>
+        <ReservationCard
+          v-for="(booking, index) in filteredBookings"
+          :key="booking.id"
+          :booking="booking"
+          :primary-label="getBookingBadges(booking).primaryLabel"
+          :primary-class="getBookingBadges(booking).primaryClass"
+          :secondary-label="getBookingBadges(booking).secondaryLabel"
+          :secondary-class="getBookingBadges(booking).secondaryClass"
+          :schedule-range="formatScheduleRange(booking)"
+          :schedule-meta="formatBookingMeta(booking)"
+          :amount-label="formatAmount(booking.amount)"
+          :animation-delay="`${Math.min(index, 5) * 70}ms`"
+          @detail="openModal"
+        />
       </div>
 
       <div class="table-wrap">
-        <table>
+        <table class="booking-table">
+          <colgroup>
+            <col style="width: 96px;" />
+            <col style="width: 160px;" />
+            <col style="width: 260px;" />
+            <col style="width: 160px;" />
+            <col style="width: 160px;" />
+            <col style="width: 84px;" />
+            <col style="width: 140px;" />
+            <col style="width: 120px;" />
+            <col style="width: 112px;" />
+          </colgroup>
           <thead>
           <tr>
-            <th>예약번호</th><th>게스트</th><th>숙소</th><th>체크인</th><th>체크아웃</th><th class="nowrap-cell">인원</th><th>금액</th><th>상태</th><th></th>
+            <th>예약번호</th><th>게스트</th><th>숙소</th><th>체크인</th><th>체크아웃</th><th class="nowrap-cell">인원</th><th>금액</th><th class="status-col">상태</th><th></th>
           </tr>
           </thead>
           <tbody>
           <tr v-for="booking in filteredBookings" :key="booking.id">
             <td>#{{ booking.id.toString().padStart(4, '0') }}</td>
-            <td>{{ booking.guestName }}</td>
-            <td>{{ booking.property }}</td>
+            <td class="cell-ellipsis" :title="booking.guestName">{{ booking.guestName }}</td>
+            <td class="cell-ellipsis" :title="booking.property">{{ booking.property }}</td>
             <td>{{ formatDateTime(booking.checkIn) }}</td>
             <td>{{ formatDateTime(booking.checkOut) }}</td>
-            <td class="nowrap-cell">{{ booking.guests }}명</td>
-            <td class="strong">{{ formatAmount(booking.amount) }}</td>
-            <td><span class="pill" :class="statusColor[booking.status]">{{ booking.status }}</span></td>
-            <td><button class="ghost-btn detail-btn" aria-label="예약 상세" @click="openModal(booking)"><span class="detail-btn__text"></span></button></td>
+            <td class="nowrap-cell cell-right">{{ booking.guests }}명</td>
+            <td class="strong cell-right">{{ formatAmount(booking.amount) }}</td>
+            <td class="status-col status-cell">
+              <div class="status-stack">
+                <span class="pill" :class="getBookingBadges(booking).primaryClass">{{ getBookingBadges(booking).primaryLabel }}</span>
+                <span
+                  v-if="getBookingBadges(booking).secondaryLabel"
+                  class="transaction-chip"
+                  :class="getBookingBadges(booking).secondaryClass"
+                >
+                  {{ getBookingBadges(booking).secondaryLabel }}
+                </span>
+              </div>
+            </td>
+            <td class="cell-right"><button class="ghost-btn detail-btn" aria-label="예약 상세" @click="openModal(booking)"><span class="detail-btn__text"></span></button></td>
           </tr>
           </tbody>
         </table>
@@ -796,19 +968,20 @@ const setView = (view) => {
           <button class="ghost-btn" @click="loadCalendar(toMonthParam(currentMonth))">다시 시도</button>
         </div>
         <div v-else-if="selectedDate && selectedDateBookings.length" class="date-list">
-          <article v-for="(booking, index) in selectedDateBookings" :key="booking.id" class="date-card fade-item"
-                   :style="{ animationDelay: `${Math.min(index, 5) * 60}ms` }" @click="openModal(booking)">
-            <div class="card-top">
-              <div>
-                <p class="muted">#{{ booking.id.toString().padStart(4, '0') }}</p>
-                <h5>{{ booking.guestName }}</h5>
-              </div>
-              <span class="pill" :class="statusColor[booking.status]">{{ booking.status }}</span>
-            </div>
-            <p class="property">{{ booking.property }}</p>
-            <p class="period">{{ formatSchedule(booking) }}</p>
-            <p class="amount">{{ formatAmount(booking.amount) }}</p>
-          </article>
+          <ReservationCard
+            v-for="(booking, index) in selectedDateBookings"
+            :key="booking.id"
+            :booking="booking"
+            :primary-label="getBookingBadges(booking).primaryLabel"
+            :primary-class="getBookingBadges(booking).primaryClass"
+            :secondary-label="getBookingBadges(booking).secondaryLabel"
+            :secondary-class="getBookingBadges(booking).secondaryClass"
+            :schedule-range="formatSchedule(booking)"
+            :schedule-meta="formatBookingMeta(booking)"
+            :amount-label="formatAmount(booking.amount)"
+            :animation-delay="`${Math.min(index, 5) * 60}ms`"
+            @detail="openModal"
+          />
         </div>
 
         <div v-else class="empty-box">
@@ -885,6 +1058,40 @@ const setView = (view) => {
   gap: 0.75rem;
   flex-wrap: wrap;
   margin-bottom: 0.75rem;
+}
+
+.filter-summary {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: #ffffff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  min-height: 52px;
+}
+
+.filter-summary__text {
+  font-weight: 800;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-open {
+  width: auto;
+  min-width: 72px;
+  padding: 0.45rem 0.7rem;
+  white-space: nowrap;
+}
+
+.filters-desktop {
+  display: block;
 }
 
 .range-custom {
@@ -1016,6 +1223,7 @@ const setView = (view) => {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  min-height: 44px;
 }
 
 .muted {
@@ -1047,6 +1255,28 @@ const setView = (view) => {
   border: 1px solid #fecaca;
   background: #fef2f2;
   color: #b91c1c;
+  font-size: 0.75rem;
+  font-weight: 800;
+  width: fit-content;
+}
+
+.card-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  min-height: 26px;
+}
+
+.refund-chip {
+  display: inline-flex;
+  align-items: center;
+  margin: 0.35rem 0 0.2rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
   font-size: 0.75rem;
   font-weight: 800;
   width: fit-content;
@@ -1123,27 +1353,98 @@ const setView = (view) => {
   overflow-x: auto;
 }
 
-table {
+.booking-table {
   width: 100%;
   border-collapse: collapse;
   min-width: 820px;
+  table-layout: fixed;
 }
 
-th, td {
+.booking-table th,
+.booking-table td {
   padding: 0.85rem 1rem;
   text-align: left;
 }
 
-th {
+.booking-table th {
   background: #f8fafc;
   color: #475569;
   font-weight: 900;
   font-size: 0.95rem;
 }
 
-tbody tr { border-top: 1px solid var(--border, #e5e7eb); }
-td { color: #111827; }
+.booking-table tbody tr { border-top: 1px solid var(--border, #e5e7eb); }
+.booking-table td { color: #111827; }
 .strong { font-weight: 900; }
+
+.cell-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-right {
+  text-align: right;
+}
+
+.booking-table th.status-col,
+.booking-table td.status-col {
+  text-align: center;
+  vertical-align: middle;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.status-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0 auto;
+}
+
+.transaction-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.transaction-chip--paid {
+  border-color: #bbf7d0;
+  background: #ecfdf3;
+  color: #166534;
+}
+
+.transaction-chip--pending {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.transaction-chip--failed {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.transaction-chip--warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.transaction-chip--refund {
+  border-color: #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
 
 .pill {
   display: inline-flex;
@@ -1398,6 +1699,75 @@ td { color: #111827; }
   font-weight: 700;
 }
 
+.filter-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  align-items: end;
+}
+
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  border: none;
+}
+
+.sheet-panel {
+  position: relative;
+  background: #ffffff;
+  border-radius: 18px 18px 0 0;
+  padding: 1rem;
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.18);
+  display: grid;
+  gap: 1rem;
+  max-height: 85vh;
+  overflow: auto;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sheet-head h3 {
+  margin: 0;
+  font-weight: 900;
+  font-size: 1.1rem;
+}
+
+.sheet-close {
+  width: auto;
+  padding: 0.45rem 0.75rem;
+}
+
+.sheet-body {
+  display: grid;
+  gap: 1rem;
+}
+
+.sheet-section {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.sheet-title {
+  margin: 0;
+  font-weight: 800;
+  color: #334155;
+}
+
+.sheet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 @media (min-width: 768px) {
   .view-header {
     flex-direction: row;
@@ -1407,6 +1777,20 @@ td { color: #111827; }
   .tab-switch { width: auto; }
   .mobile-cards { display: none; }
   .table-wrap { display: block; }
+  .filter-summary { display: none; }
+  .filters-desktop { display: block; }
+}
+
+@media (max-width: 767px) {
+  .filters-desktop {
+    display: none;
+  }
+  .filter-summary {
+    display: flex;
+  }
+  .filter-sheet .filter-chips {
+    flex-wrap: wrap;
+  }
 }
 
 @keyframes fadeUp {
