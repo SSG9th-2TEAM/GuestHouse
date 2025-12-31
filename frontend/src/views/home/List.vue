@@ -2,10 +2,9 @@
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import FilterModal from '../../components/FilterModal.vue'
 import { useRouter, useRoute } from 'vue-router'
-import { fetchList } from '@/api/list'
+import { searchList } from '@/api/list'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useSearchStore } from '@/stores/search'
-import { matchesKeyword } from '@/utils/searchFilter'
 
 import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
 import { isAuthenticated } from '@/api/authClient'
@@ -15,6 +14,12 @@ const route = useRoute()
 const searchStore = useSearchStore()
 const items = ref([])
 const wishlistIds = ref(new Set())
+const page = ref(0)
+const totalPages = ref(1)
+const isLoading = ref(false)
+const isLoadingMore = ref(false)
+
+const PAGE_SIZE = 24
 
 // Filter State
 const isFilterModalOpen = ref(false)
@@ -87,32 +92,38 @@ const toggleWishlist = async (id) => {
   }
 }
 
-const loadList = async (themeIds = []) => {
+const loadList = async ({ themeIds = selectedThemeIds.value, keyword = searchStore.keyword, page: pageParam = 0, reset = false } = {}) => {
+  if (isLoading.value || isLoadingMore.value) return
+  if (reset) {
+    isLoading.value = true
+    page.value = 0
+  } else {
+    isLoadingMore.value = true
+  }
   try {
-    const response = await fetchList(themeIds)
+    const response = await searchList({ themeIds, keyword, page: pageParam, size: PAGE_SIZE })
     if (response.ok) {
       const payload = response.data
-      // Handle new backend response structure: { recommendedAccommodations: [], generalAccommodations: [] }
-      let list = []
-      if (Array.isArray(payload)) {
-        // Legacy format: direct array
-        list = payload
-      } else if (payload?.recommendedAccommodations || payload?.generalAccommodations) {
-        // New format: combine recommended and general accommodations (recommended first)
-        list = [
-          ...(payload.recommendedAccommodations || []),
-          ...(payload.generalAccommodations || [])
-        ]
+      const list = Array.isArray(payload?.items) ? payload.items : []
+      const normalized = list.map(normalizeItem)
+      if (reset) {
+        items.value = normalized
       } else {
-        // Fallback for other formats
-        list = payload?.items ?? payload?.content ?? payload?.data ?? []
+        items.value = [...items.value, ...normalized]
       }
-      items.value = list.map(normalizeItem)
+      const meta = payload?.page
+      if (meta) {
+        page.value = meta.number ?? pageParam
+        totalPages.value = meta.totalPages ?? totalPages.value
+      }
     } else {
       console.error('Failed to load list', response.status)
     }
   } catch (error) {
     console.error('Failed to load list', error)
+  } finally {
+    isLoading.value = false
+    isLoadingMore.value = false
   }
 }
 
@@ -121,7 +132,7 @@ const filteredItems = computed(() => {
   return items.value.filter(item => {
     if (minPrice.value !== null && item.price < minPrice.value) return false
     if (maxPrice.value !== null && item.price > maxPrice.value) return false
-    return matchesKeyword(item, searchStore.keyword)
+    return true
   })
 })
 
@@ -130,7 +141,7 @@ const handleApplyFilter = ({ min, max, themeIds = [] }) => {
   maxPrice.value = max
   selectedThemeIds.value = themeIds
   isFilterModalOpen.value = false
-  loadList(themeIds)
+  loadList({ themeIds, reset: true })
 }
 
 const buildFilterQuery = () => {
@@ -173,19 +184,24 @@ onMounted(() => {
   loadWishlist()
   applyRouteFilters()
   applyRouteKeyword()
-  if (selectedThemeIds.value.length) {
-    loadList(selectedThemeIds.value)
-    return
-  }
-  loadList()
+  loadList({ reset: true })
 })
 
 watch(
   () => route.query.keyword,
   () => {
     applyRouteKeyword()
+    loadList({ reset: true })
   }
 )
+
+const hasMore = computed(() => page.value + 1 < totalPages.value)
+
+const loadMore = () => {
+  if (!hasMore.value || isLoading.value || isLoadingMore.value) return
+  const nextPage = page.value + 1
+  loadList({ page: nextPage })
+}
 </script>
 
 <template>
@@ -211,6 +227,12 @@ watch(
         @click="router.push(`/room/${item.id}`)"
         class="list-item"
       />
+    </div>
+
+    <div class="list-footer" v-if="hasMore">
+      <button class="load-more-btn" @click="loadMore" :disabled="isLoadingMore">
+        {{ isLoadingMore ? '불러오는 중...' : '더 보기' }}
+      </button>
     </div>
 
     <!-- Floating Map Button -->
@@ -290,6 +312,32 @@ watch(
 
 .list-item:hover {
   transform: translateY(-5px);
+}
+
+.list-footer {
+  display: flex;
+  justify-content: center;
+  margin: 2rem 0 1rem;
+}
+
+.load-more-btn {
+  padding: 10px 18px;
+  border: 1px solid #ddd;
+  border-radius: 24px;
+  background: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background-color: #f5f5f5;
+  transform: translateY(-1px);
+}
+
+.load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Floating Button Styles */
