@@ -4,10 +4,12 @@ import { useRouter, useRoute } from 'vue-router'
 import { searchList } from '@/api/list'
 import FilterModal from '../../components/FilterModal.vue'
 import { useSearchStore } from '@/stores/search'
+import { useListingFilters } from '@/composables/useListingFilters'
 
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
+const { applyRouteFilters, buildFilterQuery } = useListingFilters()
 const items = ref([])
 const selectedItem = ref(null)
 const mapContainer = ref(null)
@@ -22,9 +24,6 @@ const AUTO_FIT_SINGLE_LEVEL = 6
 
 // Filter State
 const isFilterModalOpen = ref(false)
-const minPrice = ref(null)
-const maxPrice = ref(null)
-const selectedThemeIds = ref([])
 
 let requestId = 0
 let lastQueryKey = ''
@@ -32,28 +31,6 @@ let pendingLoad = null
 let idleTimer = null
 let autoFitPending = true
 let initialLoadDone = false
-
-const parseNumberParam = (value) => {
-  if (value === undefined || value === null || value === '') return null
-  const raw = Array.isArray(value) ? value[0] : value
-  const numberValue = Number(raw)
-  return Number.isFinite(numberValue) ? numberValue : null
-}
-
-const parseThemeIds = (value) => {
-  if (!value) return []
-  const raw = Array.isArray(value) ? value.join(',') : String(value)
-  return raw
-    .split(',')
-    .map((item) => Number(item))
-    .filter((item) => Number.isFinite(item))
-}
-
-const applyRouteFilters = () => {
-  minPrice.value = parseNumberParam(route.query.min ?? route.query.minPrice)
-  maxPrice.value = parseNumberParam(route.query.max ?? route.query.maxPrice)
-  selectedThemeIds.value = parseThemeIds(route.query.themeIds)
-}
 
 const getKeywordFromRoute = () => {
   const raw = route.query.keyword
@@ -79,6 +56,8 @@ const normalizeItem = (item) => {
   const rating = item.rating ?? null
   const reviewCount = item.reviewCount ?? null
   const imageUrl = item.imageUrl || 'https://placehold.co/400x300'
+  const maxGuestsValue = Number(item.maxGuests ?? item.capacity ?? item.maxGuest ?? 0)
+  const maxGuests = Number.isFinite(maxGuestsValue) ? maxGuestsValue : 0
   const lat = Number(item.latitude ?? item.lat)
   const lng = Number(item.longitude ?? item.lng)
   return {
@@ -90,6 +69,7 @@ const normalizeItem = (item) => {
     rating,
     reviewCount,
     imageUrl,
+    maxGuests,
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null
   }
@@ -144,7 +124,7 @@ const fetchAllPages = async ({ themeIds = [], keyword = searchStore.keyword, bou
   return allItems
 }
 
-const loadList = async ({ themeIds = selectedThemeIds.value, keyword = searchStore.keyword, bounds, queryKey } = {}) => {
+const loadList = async ({ themeIds = searchStore.themeIds, keyword = searchStore.keyword, bounds, queryKey } = {}) => {
   if (!bounds) return
   if (isLoading.value) {
     pendingLoad = { themeIds, keyword, bounds, queryKey }
@@ -184,7 +164,7 @@ const loadList = async ({ themeIds = selectedThemeIds.value, keyword = searchSto
   }
 }
 
-const scheduleLoad = ({ themeIds = selectedThemeIds.value, keyword = searchStore.keyword } = {}) => {
+const scheduleLoad = ({ themeIds = searchStore.themeIds, keyword = searchStore.keyword } = {}) => {
   const bounds = getBounds()
   if (!bounds) return
   const queryKey = buildQueryKey(bounds, themeIds, keyword)
@@ -258,9 +238,13 @@ const updateMarkers = () => {
 }
 
 const getItemsWithCoords = () => {
+  const minValue = searchStore.minPrice
+  const maxValue = searchStore.maxPrice
+  const guestCount = searchStore.guestCount
   const filteredItems = items.value.filter(item => {
-    if (minPrice.value !== null && item.price < minPrice.value) return false
-    if (maxPrice.value !== null && item.price > maxPrice.value) return false
+    if (minValue !== null && item.price < minValue) return false
+    if (maxValue !== null && item.price > maxValue) return false
+    if (guestCount > 0 && item.maxGuests < guestCount) return false
     return true
   })
 
@@ -290,24 +274,14 @@ const fitToMarkers = (itemsWithCoords) => {
   mapInstance.value.setBounds(bounds)
 }
 
-const handleApplyFilter = ({ min, max, themeIds = [] }) => {
-  minPrice.value = min
-  maxPrice.value = max
-  selectedThemeIds.value = themeIds
+const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 0 }) => {
+  searchStore.setPriceRange(min, max)
+  searchStore.setThemeIds(themeIds)
+  searchStore.setGuestCount(guestCount)
   autoFitPending = true
   isFilterModalOpen.value = false
   updateMarkers()
   scheduleLoad({ themeIds })
-}
-
-const buildFilterQuery = () => {
-  const query = {}
-  if (minPrice.value !== null) query.min = String(minPrice.value)
-  if (maxPrice.value !== null) query.max = String(maxPrice.value)
-  if (selectedThemeIds.value.length) query.themeIds = selectedThemeIds.value.join(',')
-  const keyword = (searchStore.keyword || '').trim()
-  if (keyword) query.keyword = keyword
-  return query
 }
 
 const goToList = () => {
@@ -315,7 +289,7 @@ const goToList = () => {
 }
 
 onMounted(() => {
-  applyRouteFilters()
+  applyRouteFilters(route.query)
   applyRouteKeyword()
   if (!window.kakao?.maps?.load) {
     console.error('Kakao Maps SDK not loaded')
@@ -356,6 +330,13 @@ watch(
     scheduleLoad()
   }
 )
+
+watch(
+  () => [searchStore.minPrice, searchStore.maxPrice, searchStore.guestCount],
+  () => {
+    updateMarkers()
+  }
+)
 </script>
 
 <template>
@@ -381,9 +362,10 @@ watch(
     <!-- Filter Modal -->
     <FilterModal 
       :is-open="isFilterModalOpen"
-      :current-min="minPrice"
-      :current-max="maxPrice"
-      :current-themes="selectedThemeIds"
+      :current-min="searchStore.minPrice"
+      :current-max="searchStore.maxPrice"
+      :current-themes="searchStore.themeIds"
+      :current-guest-count="searchStore.guestCount"
       @close="isFilterModalOpen = false"
       @apply="handleApplyFilter"
     />

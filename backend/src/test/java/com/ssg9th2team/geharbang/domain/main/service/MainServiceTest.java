@@ -12,6 +12,7 @@ import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.repository.AccommodationImageProjection;
 import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
 import com.ssg9th2team.geharbang.domain.main.repository.MainRepository;
+import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +48,8 @@ public class MainServiceTest {
     private UserRepository userRepository;
     @Mock
     private AccommodationThemeRepository accommodationThemeRepository;
+    @Mock
+    private RoomJpaRepository roomJpaRepository;
 
     private User userWithThemes;
     private User userWithoutThemes;
@@ -110,6 +113,7 @@ public class MainServiceTest {
         lenient().when(userRepository.findById(2L)).thenReturn(Optional.of(userWithoutThemes));
         lenient().when(accommodationThemeRepository.findByAccommodationIds(anyList())).thenReturn(List.of(at1_1, at1_2, at2_1, at2_3, at3_3));
         lenient().when(mainRepository.findRepresentativeImages(anyList())).thenReturn(Collections.emptyList());
+        lenient().when(roomJpaRepository.findMaxGuestsByAccommodationIds(anyList())).thenReturn(Collections.emptyList());
     }
 
     @Test
@@ -209,6 +213,7 @@ public class MainServiceTest {
                 120000L,
                 4.7,
                 12,
+                4,
                 "https://example.com/image.jpg"
         );
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 24), 1);
@@ -237,6 +242,7 @@ public class MainServiceTest {
                 90000L,
                 4.2,
                 5,
+                3,
                 "https://example.com/theme.jpg"
         );
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(1, 10), 11);
@@ -263,6 +269,7 @@ public class MainServiceTest {
                 130000L,
                 4.1,
                 8,
+                2,
                 "https://example.com/map.jpg"
         );
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 50), 1);
@@ -287,11 +294,12 @@ public class MainServiceTest {
         private final Long minPrice;
         private final Double rating;
         private final Integer reviewCount;
+        private final Integer maxGuests;
         private final String imageUrl;
 
         private ListProjectionStub(Long accomodationsId, String accomodationsName, String shortDescription, String city,
                                    String district, String township, Double latitude, Double longitude, Long minPrice,
-                                   Double rating, Integer reviewCount, String imageUrl) {
+                                   Double rating, Integer reviewCount, Integer maxGuests, String imageUrl) {
             this.accomodationsId = accomodationsId;
             this.accomodationsName = accomodationsName;
             this.shortDescription = shortDescription;
@@ -303,6 +311,7 @@ public class MainServiceTest {
             this.minPrice = minPrice;
             this.rating = rating;
             this.reviewCount = reviewCount;
+            this.maxGuests = maxGuests;
             this.imageUrl = imageUrl;
         }
 
@@ -359,6 +368,11 @@ public class MainServiceTest {
         @Override
         public Integer getReviewCount() {
             return reviewCount;
+        }
+
+        @Override
+        public Integer getMaxGuests() {
+            return maxGuests;
         }
 
         @Override

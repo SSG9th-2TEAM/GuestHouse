@@ -5,6 +5,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { searchList } from '@/api/list'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useSearchStore } from '@/stores/search'
+import { useListingFilters } from '@/composables/useListingFilters'
 
 import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
 import { isAuthenticated } from '@/api/authClient'
@@ -12,6 +13,7 @@ import { isAuthenticated } from '@/api/authClient'
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
+const { applyRouteFilters, buildFilterQuery } = useListingFilters()
 const items = ref([])
 const wishlistIds = ref(new Set())
 const page = ref(0)
@@ -23,9 +25,6 @@ const PAGE_SIZE = 24
 
 // Filter State
 const isFilterModalOpen = ref(false)
-const minPrice = ref(null)
-const maxPrice = ref(null)
-const selectedThemeIds = ref([])
 
 const normalizeItem = (item) => {
   const id = item.accomodationsId ?? item.accommodationsId ?? item.id
@@ -35,7 +34,9 @@ const normalizeItem = (item) => {
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
   const price = Number(item.minPrice ?? item.price ?? 0)
   const imageUrl = item.imageUrl || 'https://placehold.co/400x300'
-  return { id, title, description, rating, location, price, imageUrl }
+  const maxGuestsValue = Number(item.maxGuests ?? item.capacity ?? item.maxGuest ?? 0)
+  const maxGuests = Number.isFinite(maxGuestsValue) ? maxGuestsValue : 0
+  return { id, title, description, rating, location, price, imageUrl, maxGuests }
 }
 
 const getKeywordFromRoute = () => {
@@ -92,7 +93,7 @@ const toggleWishlist = async (id) => {
   }
 }
 
-const loadList = async ({ themeIds = selectedThemeIds.value, keyword = searchStore.keyword, page: pageParam = 0, reset = false } = {}) => {
+const loadList = async ({ themeIds = searchStore.themeIds, keyword = searchStore.keyword, page: pageParam = 0, reset = false } = {}) => {
   if (isLoading.value || isLoadingMore.value) return
   if (reset) {
     isLoading.value = true
@@ -129,60 +130,32 @@ const loadList = async ({ themeIds = selectedThemeIds.value, keyword = searchSto
 
 // Computed Items
 const filteredItems = computed(() => {
+  const minValue = searchStore.minPrice
+  const maxValue = searchStore.maxPrice
+  const guestCount = searchStore.guestCount
   return items.value.filter(item => {
-    if (minPrice.value !== null && item.price < minPrice.value) return false
-    if (maxPrice.value !== null && item.price > maxPrice.value) return false
+    if (minValue !== null && item.price < minValue) return false
+    if (maxValue !== null && item.price > maxValue) return false
+    if (guestCount > 0 && item.maxGuests < guestCount) return false
     return true
   })
 })
 
-const handleApplyFilter = ({ min, max, themeIds = [] }) => {
-  minPrice.value = min
-  maxPrice.value = max
-  selectedThemeIds.value = themeIds
+const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 0 }) => {
+  searchStore.setPriceRange(min, max)
+  searchStore.setThemeIds(themeIds)
+  searchStore.setGuestCount(guestCount)
   isFilterModalOpen.value = false
   loadList({ themeIds, reset: true })
-}
-
-const buildFilterQuery = () => {
-  const query = {}
-  if (minPrice.value !== null) query.min = String(minPrice.value)
-  if (maxPrice.value !== null) query.max = String(maxPrice.value)
-  if (selectedThemeIds.value.length) query.themeIds = selectedThemeIds.value.join(',')
-  const keyword = (searchStore.keyword || '').trim()
-  if (keyword) query.keyword = keyword
-  return query
 }
 
 const goToMap = () => {
   router.push({ path: '/map', query: buildFilterQuery() })
 }
 
-const parseNumberParam = (value) => {
-  if (value === undefined || value === null || value === '') return null
-  const raw = Array.isArray(value) ? value[0] : value
-  const numberValue = Number(raw)
-  return Number.isFinite(numberValue) ? numberValue : null
-}
-
-const parseThemeIds = (value) => {
-  if (!value) return []
-  const raw = Array.isArray(value) ? value.join(',') : String(value)
-  return raw
-    .split(',')
-    .map((item) => Number(item))
-    .filter((item) => Number.isFinite(item))
-}
-
-const applyRouteFilters = () => {
-  minPrice.value = parseNumberParam(route.query.min ?? route.query.minPrice)
-  maxPrice.value = parseNumberParam(route.query.max ?? route.query.maxPrice)
-  selectedThemeIds.value = parseThemeIds(route.query.themeIds)
-}
-
 onMounted(() => {
   loadWishlist()
-  applyRouteFilters()
+  applyRouteFilters(route.query)
   applyRouteKeyword()
   loadList({ reset: true })
 })
@@ -245,9 +218,10 @@ const loadMore = () => {
     <!-- Filter Modal -->
     <FilterModal 
       :is-open="isFilterModalOpen"
-      :current-min="minPrice"
-      :current-max="maxPrice"
-      :current-themes="selectedThemeIds"
+      :current-min="searchStore.minPrice"
+      :current-max="searchStore.maxPrice"
+      :current-themes="searchStore.themeIds"
+      :current-guest-count="searchStore.guestCount"
       @close="isFilterModalOpen = false"
       @apply="handleApplyFilter"
     />

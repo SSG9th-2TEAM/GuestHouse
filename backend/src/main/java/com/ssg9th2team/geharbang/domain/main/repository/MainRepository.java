@@ -73,12 +73,19 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
                 a.min_price AS minPrice,
                 a.rating AS rating,
                 a.review_count AS reviewCount,
+                COALESCE(rmax.maxGuests, 0) AS maxGuests,
                 ai.image_url AS imageUrl
             FROM accommodation a
             LEFT JOIN accommodation_image ai
               ON ai.accommodations_id = a.accommodations_id
              AND ai.sort_order = 0
              AND ai.image_type = 'banner'
+            LEFT JOIN (
+                SELECT accommodations_id, MAX(max_guests) AS maxGuests
+                FROM room
+                WHERE room_status = 1
+                GROUP BY accommodations_id
+            ) rmax ON rmax.accommodations_id = a.accommodations_id
             WHERE a.accommodation_status = 1
               AND a.approval_status = 'APPROVED'
               AND (:keyword IS NULL OR :keyword = ''
@@ -109,6 +116,7 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
                 a.min_price AS minPrice,
                 a.rating AS rating,
                 a.review_count AS reviewCount,
+                COALESCE(rmax.maxGuests, 0) AS maxGuests,
                 ai.image_url AS imageUrl
             FROM accommodation a
             JOIN accommodation_theme at ON at.accommodations_id = a.accommodations_id
@@ -116,6 +124,12 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               ON ai.accommodations_id = a.accommodations_id
              AND ai.sort_order = 0
              AND ai.image_type = 'banner'
+            LEFT JOIN (
+                SELECT accommodations_id, MAX(max_guests) AS maxGuests
+                FROM room
+                WHERE room_status = 1
+                GROUP BY accommodations_id
+            ) rmax ON rmax.accommodations_id = a.accommodations_id
             WHERE at.theme_id IN (:themeIds)
               AND a.accommodation_status = 1
               AND a.approval_status = 'APPROVED'
@@ -153,12 +167,19 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
                 a.min_price AS minPrice,
                 a.rating AS rating,
                 a.review_count AS reviewCount,
+                COALESCE(rmax.maxGuests, 0) AS maxGuests,
                 ai.image_url AS imageUrl
             FROM accommodation a
             LEFT JOIN accommodation_image ai
               ON ai.accommodations_id = a.accommodations_id
              AND ai.sort_order = 0
              AND ai.image_type = 'banner'
+            LEFT JOIN (
+                SELECT accommodations_id, MAX(max_guests) AS maxGuests
+                FROM room
+                WHERE room_status = 1
+                GROUP BY accommodations_id
+            ) rmax ON rmax.accommodations_id = a.accommodations_id
             WHERE a.accommodation_status = 1
               AND a.approval_status = 'APPROVED'
               AND a.latitude IS NOT NULL
@@ -204,6 +225,7 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
                 a.min_price AS minPrice,
                 a.rating AS rating,
                 a.review_count AS reviewCount,
+                COALESCE(rmax.maxGuests, 0) AS maxGuests,
                 ai.image_url AS imageUrl
             FROM accommodation a
             JOIN accommodation_theme at ON at.accommodations_id = a.accommodations_id
@@ -211,6 +233,12 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               ON ai.accommodations_id = a.accommodations_id
              AND ai.sort_order = 0
              AND ai.image_type = 'banner'
+            LEFT JOIN (
+                SELECT accommodations_id, MAX(max_guests) AS maxGuests
+                FROM room
+                WHERE room_status = 1
+                GROUP BY accommodations_id
+            ) rmax ON rmax.accommodations_id = a.accommodations_id
             WHERE at.theme_id IN (:themeIds)
               AND a.accommodation_status = 1
               AND a.approval_status = 'APPROVED'

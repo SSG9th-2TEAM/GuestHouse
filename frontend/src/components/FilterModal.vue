@@ -9,6 +9,10 @@ const props = defineProps({
   currentThemes: {
     type: Array,
     default: () => []
+  },
+  currentGuestCount: {
+    type: Number,
+    default: 0
   }
 })
 
@@ -24,6 +28,7 @@ const minPrice = ref(props.currentMin ?? MIN_LIMIT)
 const maxPrice = ref(props.currentMax ?? MAX_LIMIT)
 const themes = ref([])
 const selectedThemeIds = ref([...props.currentThemes])
+const guestCount = ref(props.currentGuestCount ?? 0)
 const isLoadingThemes = ref(false)
 const activeThumb = ref('max')
 
@@ -33,6 +38,7 @@ watch(() => props.isOpen, (newVal) => {
     minPrice.value = props.currentMin ?? MIN_LIMIT
     maxPrice.value = props.currentMax ?? MAX_LIMIT
     selectedThemeIds.value = [...props.currentThemes]
+    guestCount.value = props.currentGuestCount ?? 0
 
     if (!themes.value.length) {
       loadThemes()
@@ -61,6 +67,14 @@ const toggleTheme = (id) => {
   } else {
     selectedThemeIds.value = [...selectedThemeIds.value, id]
   }
+}
+
+const increaseGuest = () => {
+  guestCount.value += 1
+}
+
+const decreaseGuest = () => {
+  guestCount.value = Math.max(0, guestCount.value - 1)
 }
 
 onMounted(() => {
@@ -108,8 +122,17 @@ const applyFilter = () => {
   emit('apply', {
     min: minPrice.value,
     max: maxPrice.value >= MAX_LIMIT ? null : maxPrice.value,
-    themeIds: [...selectedThemeIds.value]
+    themeIds: [...selectedThemeIds.value],
+    guestCount: guestCount.value
   })
+}
+
+const resetFilter = () => {
+  minPrice.value = MIN_LIMIT
+  maxPrice.value = MAX_LIMIT
+  selectedThemeIds.value = []
+  guestCount.value = 0
+  activeThumb.value = 'max'
 }
 </script>
 
@@ -161,6 +184,17 @@ const applyFilter = () => {
         </div>
 
         <div class="section-header space-top">
+          <span class="section-title">게스트 인원</span>
+        </div>
+        <div class="guest-row">
+          <div class="guest-controls">
+            <button class="guest-btn" type="button" @click="decreaseGuest" :disabled="guestCount === 0">-</button>
+            <span class="guest-count">{{ guestCount }}</span>
+            <button class="guest-btn" type="button" @click="increaseGuest">+</button>
+          </div>
+        </div>
+
+        <div class="section-header space-top">
           <span class="section-title">테마</span>
           <span class="section-hint">복수 선택 가능</span>
         </div>
@@ -181,6 +215,7 @@ const applyFilter = () => {
       </div>
 
       <div class="modal-footer">
+        <button class="btn-reset" type="button" @click="resetFilter">초기화</button>
         <button class="btn-apply" @click="applyFilter">적용</button>
       </div>
     </div>
@@ -303,7 +338,24 @@ const applyFilter = () => {
 }
 
 .modal-footer {
-  text-align: right;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.btn-reset {
+  background: #f5f5f5;
+  color: #222;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn-reset:hover {
+  background: #eee;
 }
 
 .btn-apply {
@@ -344,6 +396,57 @@ const applyFilter = () => {
 
 .space-top {
   margin-top: 12px;
+}
+
+.guest-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0 4px;
+}
+
+.guest-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.guest-type {
+  font-weight: 600;
+  color: #222;
+}
+
+.guest-desc {
+  font-size: 0.85rem;
+  color: #777;
+}
+
+.guest-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guest-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #ddd;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.guest-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.guest-count {
+  min-width: 24px;
+  text-align: center;
+  font-weight: 700;
+  color: #222;
 }
 
 .theme-grid {

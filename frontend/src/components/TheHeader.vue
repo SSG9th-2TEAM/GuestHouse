@@ -242,15 +242,12 @@ const buildSearchQuery = () => {
   searchStore.setKeyword(keyword)
   searchKeyword.value = keyword
   if (keyword) query.keyword = keyword
+  if (searchStore.guestCount > 0) query.guestCount = String(searchStore.guestCount)
 
   if (route.path === '/list' || route.path === '/map') {
-    const keys = ['min', 'max', 'minPrice', 'maxPrice', 'themeIds']
-    keys.forEach((key) => {
-      const value = route.query[key]
-      if (value !== undefined) {
-        query[key] = value
-      }
-    })
+    if (searchStore.minPrice !== null) query.min = String(searchStore.minPrice)
+    if (searchStore.maxPrice !== null) query.max = String(searchStore.maxPrice)
+    if (searchStore.themeIds.length) query.themeIds = searchStore.themeIds.join(',')
   }
 
   return query
@@ -454,8 +451,7 @@ onUnmounted(() => {
               <div class="guest-header">인원수를 입력하세요</div>
               <div class="guest-row">
                 <div class="guest-info">
-                  <span class="guest-type">성인</span>
-                  <span class="guest-desc">13세 이상</span>
+                  <span class="guest-type">게스트</span>
                 </div>
                 <div class="guest-controls">
                   <button class="guest-btn" @click.stop="decreaseGuest" :disabled="searchStore.guestCount === 0">
@@ -604,8 +600,7 @@ onUnmounted(() => {
               <div class="guest-header">인원수를 입력하세요</div>
               <div class="guest-row">
                 <div class="guest-info">
-                  <span class="guest-type">성인</span>
-                  <span class="guest-desc">13세 이상</span>
+                  <span class="guest-type">게스트</span>
                 </div>
                 <div class="guest-controls">
                   <button class="guest-btn" @click="decreaseGuest" :disabled="searchStore.guestCount === 0">
