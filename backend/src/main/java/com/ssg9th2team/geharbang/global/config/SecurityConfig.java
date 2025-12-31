@@ -1,7 +1,7 @@
 package com.ssg9th2team.geharbang.global.config;
 
-import com.ssg9th2team.geharbang.global.oauth.CustomOAuth2UserService;
-import com.ssg9th2team.geharbang.global.oauth.OAuth2AuthenticationSuccessHandler;
+import com.ssg9th2team.geharbang.global.oauth.service.CustomOAuth2UserService;
+import com.ssg9th2team.geharbang.global.oauth.service.OAuth2AuthenticationSuccessHandler;
 import com.ssg9th2team.geharbang.global.security.JwtAuthenticationFilter;
 import com.ssg9th2team.geharbang.global.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +55,7 @@ public class SecurityConfig {
                                 "/api/public/**",
                                 "/api/themes",
                                 "/api/list/**",
+                                "/api/ocr/**",
                                 "/uploads/**",
                                 "/error",
                                 "/oauth2/**",
