@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { useHolidayStore } from '@/stores/holiday'
 import { useCalendarStore } from '@/stores/calendar'
-import { isAuthenticated, logout } from '@/api/authClient'
+import { isAuthenticated, logout, validateToken } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
@@ -285,9 +285,17 @@ const handleResize = () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('resize', handleResize)
+
+  // 페이지 로드 시 토큰 유효성 검증
+  if (isAuthenticated()) {
+    const isValid = await validateToken()
+    isLoggedIn.value = isValid
+  } else {
+    isLoggedIn.value = false
+  }
 
   // 페이지 이동 후 로그인 상태 업데이트
   router.afterEach(() => {
