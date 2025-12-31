@@ -29,7 +29,7 @@ const normalizeItem = (item) => {
   const rating = item.rating ?? null
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
   const price = Number(item.minPrice ?? item.price ?? 0)
-  const imageUrl = item.imageUrl || 'https://via.placeholder.com/400x300'
+  const imageUrl = item.imageUrl || 'https://placehold.co/400x300'
   return { id, title, description, rating, location, price, imageUrl }
 }
 

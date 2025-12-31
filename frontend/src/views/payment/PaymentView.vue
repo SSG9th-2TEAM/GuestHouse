@@ -322,6 +322,7 @@ const goBack = async () => {
   border-top: 1px solid #eee;
   display: flex;
   justify-content: center;
+  z-index: 100;
 }
 
 .pay-btn {

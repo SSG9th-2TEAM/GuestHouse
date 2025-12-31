@@ -12,7 +12,8 @@ public interface ReviewJpaRepository extends JpaRepository<ReviewEntity, Long> {
   //  deleteById(id)     삭제 (hard delete)
 
 
-    // 리뷰 단건 조회 (삭제되지 않은 것만)   리뷰 수정, 리뷰 삭제에서 사용
+    // 리뷰 단건 조회 (삭제되지 않은 것만)
+    // 리뷰 수정, 리뷰 삭제에서 사용
     Optional<ReviewEntity> findByReviewIdAndIsDeletedFalse(Long reviewId);
 
     // 특정 사용자의 특정 리뷰 조회 (권한 체크용)

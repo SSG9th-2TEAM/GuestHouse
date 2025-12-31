@@ -47,11 +47,15 @@ public class ReservationServiceImpl implements ReservationService {
                         throw new IllegalArgumentException("Room ID is required for reservation.");
                 }
 
-                // Instant를 LocalDateTime으로 변환 (시스템 기본 시간대 사용)
-                java.time.LocalDateTime checkinDateTime = java.time.LocalDateTime.ofInstant(
-                                requestDto.checkin(), java.time.ZoneId.systemDefault());
-                java.time.LocalDateTime checkoutDateTime = java.time.LocalDateTime.ofInstant(
-                                requestDto.checkout(), java.time.ZoneId.systemDefault());
+                // Instant를 LocalDate로 변환 (시스템 기본 시간대 사용)
+                java.time.LocalDate checkinDate = java.time.LocalDateTime.ofInstant(
+                                requestDto.checkin(), java.time.ZoneId.systemDefault()).toLocalDate();
+                java.time.LocalDate checkoutDate = java.time.LocalDateTime.ofInstant(
+                                requestDto.checkout(), java.time.ZoneId.systemDefault()).toLocalDate();
+
+                // 시간 강제 설정: 체크인 15:00, 체크아웃 11:00
+                java.time.LocalDateTime checkinDateTime = checkinDate.atTime(15, 0);
+                java.time.LocalDateTime checkoutDateTime = checkoutDate.atTime(11, 0);
 
                 // 날짜 겹침 체크 (해당 객실에 같은 날짜에 확정된 예약이 있는지)
                 boolean hasConflict = reservationRepository.hasConflictingReservation(
@@ -208,6 +212,14 @@ public class ReservationServiceImpl implements ReservationService {
         public List<ReservationResponseDto> getReservationByUserId(Long roomId) {
                 List<Reservation> reservations = reservationJpaRepository.findByRoomId(roomId);
                 return reservations.stream()
+                                .map(ReservationResponseDto::from)
+                                .collect(Collectors.toList());
+        }
+
+        // 전체 예약 목록 조회 (관리자용)
+        @Override
+        public List<ReservationResponseDto> getAllReservations() {
+                return reservationRepository.findAll().stream()
                                 .map(ReservationResponseDto::from)
                                 .collect(Collectors.toList());
         }
