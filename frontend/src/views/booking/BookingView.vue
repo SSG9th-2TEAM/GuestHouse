@@ -218,7 +218,11 @@ const handlePayment = async () => {
     })
   } catch (error) {
     console.error('예약 생성 실패:', error)
-    errorMessage.value = '예약 처리 중 오류가 발생했습니다. 다시 시도해주세요.'
+    if (error.message.includes('409') || error.message.includes('Conflict')) {
+      errorMessage.value = '선택하신 날짜에 이미 예약이 존재합니다. 다른 날짜를 선택해주세요.'
+    } else {
+      errorMessage.value = '예약 처리 중 오류가 발생했습니다. 다시 시도해주세요.'
+    }
   } finally {
     isLoading.value = false
   }
@@ -556,6 +560,7 @@ const handlePayment = async () => {
   display: flex;
   justify-content: center;
   box-sizing: border-box;
+  z-index: 100;
 }
 
 .pay-btn {
