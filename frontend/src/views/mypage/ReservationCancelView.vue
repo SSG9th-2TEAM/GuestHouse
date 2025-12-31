@@ -158,6 +158,15 @@ const handleCancel = async () => {
 const goToRefundPolicy = () => {
   window.open('/policy?tab=refund', '_blank')
 }
+const cancelReasons = [
+  '방문불가/여행취소',
+  '타 서비스에서 더 싼 상품 발견',
+  '다시예약_같은숙소 일정/객실 변경',
+  '다른 예약_다른숙소로 변경',
+  '결제수단변경/쿠폰사용',
+  '업체요청',
+  '단순변심'
+]
 
 const loadRefundQuote = async (reservationId) => {
   if (!reservationId) return
@@ -223,7 +232,17 @@ const loadRefundQuote = async (reservationId) => {
       <!-- Cancel Reason -->
       <div class="reason-section">
         <h3>취소 사유</h3>
-        <textarea v-model="cancelReason" placeholder="취소 사유를 입력해주세요."></textarea>
+        <div class="reason-list">
+          <label 
+            v-for="reason in cancelReasons" 
+            :key="reason" 
+            class="reason-item"
+            :class="{ selected: cancelReason === reason }"
+          >
+            <input type="radio" v-model="cancelReason" :value="reason">
+            <span>{{ reason }}</span>
+          </label>
+        </div>
       </div>
 
       <!-- Refund Method -->
@@ -435,19 +454,40 @@ const loadRefundQuote = async (reservationId) => {
   margin-bottom: 0.5rem;
 }
 
-.reason-section textarea {
-  width: 100%;
-  height: 100px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 1rem;
-  font-size: 0.9rem;
-  resize: none;
-  outline: none;
+.reason-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
 }
 
-.reason-section textarea:focus {
+.reason-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  cursor: pointer;
+  background: white;
+  transition: all 0.2s;
+}
+
+.reason-item:hover {
+  background: #f9f9f9;
+  border-color: #ddd;
+}
+
+.reason-item.selected {
   border-color: var(--primary);
+  background: #f0fdf9;
+  font-weight: 500;
+}
+
+.reason-item input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
 }
 
 /* Method */

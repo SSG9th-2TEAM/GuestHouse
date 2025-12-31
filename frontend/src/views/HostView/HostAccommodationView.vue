@@ -7,7 +7,7 @@ const SERVER_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') |
 
 // 이미지 URL을 전체 경로로 변환
 const getFullImageUrl = (url) => {
-  if (!url) return 'https://via.placeholder.com/400x300'
+  if (!url) return 'https://placehold.co/400x300'
   if (url.startsWith('blob:') || url.startsWith('http')) return url
   return `${SERVER_BASE_URL}${url}`
 }

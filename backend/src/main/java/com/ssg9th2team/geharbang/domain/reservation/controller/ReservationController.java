@@ -47,6 +47,15 @@ public class ReservationController {
     }
 
     /**
+     * 전체 예약 목록 조회 (관리자용)
+     */
+    @GetMapping
+    public ResponseEntity<List<ReservationResponseDto>> getAllReservations() {
+        List<ReservationResponseDto> responses = reservationService.getAllReservations();
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
      * 사용자별 예약 목록 조회 (URL 파라미터)
      */
     @GetMapping("/user/{userId}")
