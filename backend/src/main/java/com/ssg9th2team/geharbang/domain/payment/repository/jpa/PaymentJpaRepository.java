@@ -19,4 +19,6 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
     List<Payment> findByReservationIdIn(List<Long> reservationIds);
 
     void deleteByReservationIdIn(List<Long> reservationIds);
+
+    void deleteByReservationId(Long reservationId);
 }

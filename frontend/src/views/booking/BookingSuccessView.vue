@@ -9,7 +9,7 @@ const route = useRoute()
 // Default fallback data if accessed directly
 const info = ref({
   bookingNumber: '',
-  hotelName: '',
+  accommodationName: '',
   location: '',
   dates: '',
   nights: 0,
@@ -41,7 +41,7 @@ onMounted(async () => {
             
             info.value = {
                 bookingNumber: 'BK' + res.reservationId,
-                hotelName: res.accommodationName,
+                accommodationName: res.accommodationName,
                 location: res.accommodationAddress,
                 dates: `${checkin} ~ ${checkout}`,
                 nights: res.stayNights,
@@ -61,7 +61,7 @@ onMounted(async () => {
         const data = state.bookingData
         info.value = {
             ...info.value,
-            hotelName: data.hotelName,
+            accommodationName: data.accommodationName,
             dates: data.dates,
             guests: data.guests,
             basePrice: data.basePrice,
@@ -99,7 +99,7 @@ const goHistory = () => router.push('/reservations')
         <div class="info-item">
           <div class="text">
             <span class="label">숙소</span>
-            <span class="value">{{ info.hotelName }}</span>
+            <span class="value">{{ info.accommodationName }}</span>
           </div>
         </div>
 

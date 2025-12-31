@@ -105,6 +105,7 @@ export async function deleteCompletedReservation(reservationId) {
     })
 
     if (!response.ok) {
-        throw new Error(`이용 완료된 예약만 삭제할 수 있습니다.`)
+        const errorMsg = response.data?.message || `이용 완료된 예약만 삭제할 수 있습니다. (${response.status})`
+        throw new Error(errorMsg)
     }
 }
