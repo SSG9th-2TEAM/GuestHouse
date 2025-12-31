@@ -155,21 +155,7 @@ const handleWriteReview = (item) => {
   })
 }
 
-// 리뷰 수정
-const handleEditReview = (item) => {
-  router.push({
-    name: 'write-review',
-    state: {
-      mode: 'edit',
-      reservationData: {
-        reservationId: item.reservationId,
-        accommodationId: item.accommodationsId,
-        accommodationName: item.accommodationName,
-        dates: `${formatDate(item.checkin)} ~ ${formatDate(item.checkout)}`
-      }
-    }
-  })
-}
+
 
 onMounted(() => {
   fetchReservations()
@@ -283,9 +269,6 @@ onMounted(() => {
               <template v-else>
                 <button class="action-btn review completed" disabled>
                   리뷰 등록 완료
-                </button>
-                <button class="action-btn edit" @click="handleEditReview(item)">
-                  리뷰 수정
                 </button>
               </template>
               

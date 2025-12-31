@@ -1,7 +1,7 @@
 package com.ssg9th2team.geharbang.global.config;
 
-import com.ssg9th2team.geharbang.global.oauth.CustomOAuth2UserService;
-import com.ssg9th2team.geharbang.global.oauth.OAuth2AuthenticationSuccessHandler;
+import com.ssg9th2team.geharbang.global.oauth.service.CustomOAuth2UserService;
+import com.ssg9th2team.geharbang.global.oauth.service.OAuth2AuthenticationSuccessHandler;
 import com.ssg9th2team.geharbang.global.security.JwtAuthenticationFilter;
 import com.ssg9th2team.geharbang.global.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +48,7 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+<<<<<<< HEAD
                                 // 요청 권한 설정
                                 .authorizeHttpRequests(auth -> auth
                                                 // 인증 없이 접근 가능한 경로
@@ -66,6 +67,26 @@ public class SecurityConfig {
                                                 .permitAll()
                                                 // 그 외 모든 요청은 인증 필요
                                                 .anyRequest().authenticated())
+=======
+                // 요청 권한 설정
+                .authorizeHttpRequests(auth -> auth
+                        // 인증 없이 접근 가능한 경로
+                        .requestMatchers(
+                                "/api/auth/**",
+                                "/api/public/**",
+                                "/api/themes",
+                                "/api/list/**",
+                                "/api/ocr/**",
+                                "/uploads/**",
+                                "/error",
+                                "/oauth2/**",
+                                "/login/oauth2/**",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**")
+                        .permitAll()
+                        // 그 외 모든 요청은 인증 필요
+                        .anyRequest().authenticated())
+>>>>>>> develop
 
                                 // OAuth2 로그인 설정
                                 .oauth2Login(oauth2 -> oauth2

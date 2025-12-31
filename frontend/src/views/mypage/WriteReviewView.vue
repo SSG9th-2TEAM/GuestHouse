@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { createReview, updateReview, getReviewTags, getMyReviews } from '@/api/reviewApi'
+import { groupTagsByCategory } from '@/constants/reviewTagCategories'
 
 const router = useRouter()
 const route = useRoute()
@@ -31,14 +32,12 @@ onMounted(async () => {
   // 태그 목록 로드
   try {
     const tags = await getReviewTags()
-    availableTags.value = tags.map(tag => ({
-      id: tag.reviewTagId,
-      label: tag.reviewTagName
-    }))
-    
-    // 수정 모드인 경우, 태그 로드 후 선택된 태그 복원 (비동기 처리 순서 고려)
+    // 카테고리별로 그룹화
+    groupedTags.value = groupTagsByCategory(tags)
+
+    // 수정 모드인 경우, 태그 로드 후 선택된 태그 복원
     if (isEditMode.value && tempSelectedTagIds.value.length > 0) {
-        selectedTags.value = availableTags.value.filter(t => tempSelectedTagIds.value.includes(t.id))
+      selectedTagIds.value = [...tempSelectedTagIds.value]
     }
   } catch (error) {
     console.error('태그 로드 실패:', error)
@@ -87,8 +86,11 @@ const fetchAndFillReviewData = async () => {
 const agreed = ref(false)
 const rating = ref(0)
 const reviewContent = ref('')
-const selectedTags = ref([])
+const selectedTagIds = ref([])  // 선택된 태그 ID 배열
 const isSubmitting = ref(false)
+
+// 카테고리별로 그룹화된 태그
+const groupedTags = ref([])
 
 // Image upload
 const MAX_IMAGES = 5
@@ -182,20 +184,18 @@ const closeModal = () => {
   }
 }
 
-// Tag list from backend
-const availableTags = ref([])
-
-const toggleTag = (tag) => {
-  const idx = selectedTags.value.findIndex(t => t.id === tag.id)
+// 태그 선택/해제
+const toggleTag = (tagId) => {
+  const idx = selectedTagIds.value.indexOf(tagId)
   if (idx === -1) {
-    selectedTags.value.push(tag)
+    selectedTagIds.value.push(tagId)
   } else {
-    selectedTags.value.splice(idx, 1)
+    selectedTagIds.value.splice(idx, 1)
   }
 }
 
-const isTagSelected = (tag) => {
-  return selectedTags.value.some(t => t.id === tag.id)
+const isTagSelected = (tagId) => {
+  return selectedTagIds.value.includes(tagId)
 }
 
 const setRating = (star) => {
@@ -244,7 +244,7 @@ const handleSubmit = async () => {
            content: reviewContent.value.trim(),
            imageUrls: imageUrls,
            rating: rating.value,
-           tagIds: selectedTags.value.map(tag => tag.id)
+           tagIds: selectedTagIds.value
         }
         await updateReview(targetReviewId.value, updateData)
         openModal('리뷰가 수정되었습니다!', 'success', () => router.push('/reviews'))
@@ -255,7 +255,7 @@ const handleSubmit = async () => {
           rating: rating.value,
           content: reviewContent.value.trim(),
           visitDate: getVisitDate(),
-          tagIds: selectedTags.value.map(tag => tag.id),
+          tagIds: selectedTagIds.value,
           imageUrls: imageUrls
         }
         await createReview(reviewData)
@@ -353,17 +353,21 @@ const handleSubmit = async () => {
 
     <!-- Tags -->
     <div class="tags-section">
-      <span class="label">리뷰 태그:</span>
-      <div class="tags-grid">
-        <button
-          v-for="tag in availableTags"
-          :key="tag.id"
-          class="tag-btn"
-          :class="{ selected: isTagSelected(tag) }"
-          @click="toggleTag(tag)"
-        >
-          {{ tag.label }}
-        </button>
+      <span class="section-title">리뷰 태그를 선택해주세요</span>
+
+      <div v-for="category in groupedTags" :key="category.name" class="tag-category">
+        <h3 class="category-name">{{ category.name }}</h3>
+        <div class="tags-grid">
+          <button
+            v-for="tag in category.tags"
+            :key="tag.reviewTagId"
+            class="tag-btn"
+            :class="{ selected: isTagSelected(tag.reviewTagId) }"
+            @click="toggleTag(tag.reviewTagId)"
+          >
+            {{ tag.reviewTagName }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -621,11 +625,30 @@ const handleSubmit = async () => {
   margin-bottom: 2rem;
 }
 
+.section-title {
+  display: block;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.tag-category {
+  margin-bottom: 1.2rem;
+}
+
+.category-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.5rem;
+  padding-left: 0.25rem;
+}
+
 .tags-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 0.5rem;
 }
 
 .tag-btn {
@@ -641,14 +664,16 @@ const handleSubmit = async () => {
   transition: all 0.2s;
 }
 
+.tag-btn:hover {
+  border-color: var(--primary);
+  background: #f9fffe;
+}
+
 .tag-btn.selected {
   background: var(--primary);
   border-color: var(--primary);
   color: #004d40;
-}
-
-.tag-icon {
-  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 /* Submit */
