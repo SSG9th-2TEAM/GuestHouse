@@ -1,4 +1,4 @@
-package com.ssg9th2team.geharbang.global.oauth;
+package com.ssg9th2team.geharbang.global.oauth.service;
 
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import lombok.Getter;

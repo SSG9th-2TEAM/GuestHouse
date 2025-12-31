@@ -2,19 +2,17 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
-import { useCalendarStore } from '@/stores/calendar'
 import { fetchAccommodationDetail } from '@/api/accommodation'
+import { getReviewsByAccommodation } from '@/api/reviewApi'
 import ImageGallery from './room-detail/features/ImageGallery.vue'
 import ReviewSection from './room-detail/features/ReviewSection.vue'
 import MapSection from './room-detail/features/MapSection.vue'
-import RoomDetailCalendar from './room-detail/features/RoomDetailCalendar.vue'
 
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
-const calendarStore = useCalendarStore()
 
-const DEFAULT_IMAGE = 'https://via.placeholder.com/800x600'
+const DEFAULT_IMAGE = 'https://placehold.co/800x600'
 const DEFAULT_HOST_IMAGE = 'https://picsum.photos/seed/host/100/100'
 
 const toNumber = (value, fallback = 0) => {
@@ -153,8 +151,6 @@ const normalizeReviews = (reviews) => {
       date: formatReviewDate(review?.createdAt ?? review?.date),
       rating,
       content: review?.content ?? '',
-      replyContent: review?.replyContent ?? '',
-      replyUpdatedAt: formatReviewDate(review?.replyUpdatedAt ?? null),
       image: imageUrls[0] ?? null,
       images: imageUrls,
       tags: tags
@@ -202,9 +198,10 @@ const normalizeDetail = (data) => {
 
 const guesthouse = ref(createEmptyGuesthouse(getAccommodationId()))
 const selectedRoom = ref(null)
-const isCalendarOpen = computed(() => calendarStore.activeCalendar === 'room-detail')
+const isCalendarOpen = ref(false)
 const showFullDescription = ref(false)
 const showAllRooms = ref(false)
+const currentDate = ref(new Date())
 const datePickerRef = ref(null)
 
 const canBook = computed(() => {
@@ -221,12 +218,117 @@ const hasMoreRooms = computed(() => {
   return rooms.length > 4
 })
 
+const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
+const weekDays = ['일', '월', '화', '수', '목', '금', '토']
+
+const currentYear = computed(() => currentDate.value.getFullYear())
+const currentMonth = computed(() => currentDate.value.getMonth())
+const nextMonthDate = computed(() => new Date(currentYear.value, currentMonth.value + 1, 1))
+const nextMonthYear = computed(() => nextMonthDate.value.getFullYear())
+const nextMonthMonth = computed(() => nextMonthDate.value.getMonth())
+
 const isDescriptionLong = computed(() => {
   return (guesthouse.value.description || '').length > 120
 })
 
+const isSameDay = (date1, date2) => {
+  return date1.getFullYear() === date2.getFullYear()
+    && date1.getMonth() === date2.getMonth()
+    && date1.getDate() === date2.getDate()
+}
+
+const isDateInRange = (date) => {
+  if (!searchStore.startDate || !searchStore.endDate) return false
+  const time = date.getTime()
+  return time > searchStore.startDate.getTime() && time < searchStore.endDate.getTime()
+}
+
+const HOLIDAYS = [
+  '2024-01-01', '2024-02-09', '2024-02-10', '2024-02-11', '2024-02-12',
+  '2024-03-01', '2024-04-10', '2024-05-05', '2024-05-06', '2024-05-15',
+  '2024-06-06', '2024-08-15', '2024-09-16', '2024-09-17', '2024-09-18',
+  '2024-10-03', '2024-10-09', '2024-12-25',
+  '2025-01-01', '2025-01-27', '2025-01-28', '2025-01-29', '2025-01-30',
+  '2025-03-01', '2025-03-03', '2025-05-05', '2025-05-06', '2025-06-06',
+  '2025-08-15', '2025-10-03', '2025-10-05', '2025-10-06', '2025-10-07', '2025-10-08', '2025-10-09', '2025-12-25'
+]
+
+const isHoliday = (date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return HOLIDAYS.includes(`${y}-${m}-${d}`)
+}
+
+const getCalendarDays = (year, month) => {
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const daysInMonth = lastDay.getDate()
+  const startingDay = firstDay.getDay()
+
+  const days = []
+  for (let i = 0; i < startingDay; i += 1) {
+    days.push({ day: '', isEmpty: true })
+  }
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const date = new Date(year, month, day)
+    const dayOfWeek = date.getDay()
+    const isStartDate = searchStore.startDate && isSameDay(date, searchStore.startDate)
+    const isEndDate = searchStore.endDate && isSameDay(date, searchStore.endDate)
+    const isInRange = isDateInRange(date)
+    const hasEndDate = searchStore.endDate !== null
+
+    days.push({
+      day,
+      isEmpty: false,
+      date,
+      isToday: isSameDay(date, new Date()),
+      isSaturday: dayOfWeek === 6,
+      isSunday: dayOfWeek === 0,
+      isHoliday: isHoliday(date),
+      isStartDate,
+      isEndDate,
+      isInRange,
+      hasEndDate
+    })
+  }
+  return days
+}
+
+const calendarDays = computed(() => getCalendarDays(currentYear.value, currentMonth.value))
+const nextMonthDays = computed(() => getCalendarDays(nextMonthYear.value, nextMonthMonth.value))
+
 const toggleCalendar = () => {
-  calendarStore.toggleCalendar('room-detail')
+  isCalendarOpen.value = !isCalendarOpen.value
+}
+
+const prevMonth = () => {
+  currentDate.value = new Date(currentYear.value, currentMonth.value - 1, 1)
+}
+
+const nextMonth = () => {
+  currentDate.value = new Date(currentYear.value, currentMonth.value + 1, 1)
+}
+
+const selectDate = (dayObj) => {
+  if (dayObj.isEmpty) return
+
+  const clickedDate = dayObj.date
+  if (!searchStore.startDate || (searchStore.startDate && searchStore.endDate)) {
+    searchStore.setStartDate(clickedDate)
+    searchStore.setEndDate(null)
+    return
+  }
+
+  if (clickedDate.getTime() < searchStore.startDate.getTime()) {
+    searchStore.setEndDate(searchStore.startDate)
+    searchStore.setStartDate(clickedDate)
+    isCalendarOpen.value = false
+    return
+  }
+
+  searchStore.setEndDate(clickedDate)
+  isCalendarOpen.value = false
 }
 
 const loadAccommodation = async () => {
@@ -242,12 +344,23 @@ const loadAccommodation = async () => {
   guesthouse.value = createEmptyGuesthouse(accommodationsId)
 
   try {
-    const response = await fetchAccommodationDetail(accommodationsId)
-    if (!response.ok || !response.data) {
+    // 숙소 상세 정보와 리뷰를 병렬로 조회
+    const [detailResponse, reviewsData] = await Promise.all([
+      fetchAccommodationDetail(accommodationsId),
+      getReviewsByAccommodation(accommodationsId).catch(() => [])
+    ])
+
+    if (!detailResponse.ok || !detailResponse.data) {
       guesthouse.value = createEmptyGuesthouse(accommodationsId)
       return
     }
-    guesthouse.value = normalizeDetail(response.data)
+
+    // 숙소 상세 데이터에 리뷰 데이터 병합
+    const detailWithReviews = {
+      ...detailResponse.data,
+      reviews: reviewsData
+    }
+    guesthouse.value = normalizeDetail(detailWithReviews)
   } catch (error) {
     console.error('Failed to load accommodation detail', error)
     guesthouse.value = createEmptyGuesthouse(accommodationsId)
@@ -370,13 +483,13 @@ const openCalendarFromHint = (event) => {
   if (datePickerRef.value?.scrollIntoView) {
     datePickerRef.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
-  calendarStore.openCalendar('room-detail')
+  isCalendarOpen.value = true
 }
 
 const handleClickOutside = (event) => {
   if (event.target.closest('.date-picker-wrapper')) return
   if (event.target.closest('.booking-hint')) return
-  calendarStore.closeCalendar('room-detail')
+  isCalendarOpen.value = false
 }
 
 onMounted(loadAccommodation)
@@ -545,7 +658,73 @@ watch(() => route.params.id, loadAccommodation)
               {{ searchStore.checkInOutText }}
             </button>
 
-            <RoomDetailCalendar />
+            <div class="calendar-popup" v-if="isCalendarOpen">
+              <div class="calendar-container">
+                <button class="calendar-nav-btn nav-prev" type="button" @click="prevMonth">
+                  ‹
+                </button>
+
+                <div class="calendar-month">
+                  <div class="calendar-month-title">{{ currentYear }}년 {{ monthNames[currentMonth] }}</div>
+                  <div class="calendar-weekdays">
+                    <span v-for="day in weekDays" :key="'current-' + day" class="weekday">{{ day }}</span>
+                  </div>
+                  <div class="calendar-days">
+                    <span
+                      v-for="(dayObj, index) in calendarDays"
+                      :key="'current-day-' + index"
+                      class="calendar-day"
+                      :class="{
+                        empty: dayObj.isEmpty,
+                        today: dayObj.isToday,
+                        'weekend-sat': dayObj.isSaturday,
+                        'weekend-sun': dayObj.isSunday,
+                        'holiday': dayObj.isHoliday,
+                        'range-start': dayObj.isStartDate,
+                        'range-end': dayObj.isEndDate,
+                        'in-range': dayObj.isInRange,
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                      }"
+                      @click="selectDate(dayObj)"
+                    >
+                      {{ dayObj.day }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="calendar-month">
+                  <div class="calendar-month-title">{{ nextMonthYear }}년 {{ monthNames[nextMonthMonth] }}</div>
+                  <div class="calendar-weekdays">
+                    <span v-for="day in weekDays" :key="'next-' + day" class="weekday">{{ day }}</span>
+                  </div>
+                  <div class="calendar-days">
+                    <span
+                      v-for="(dayObj, index) in nextMonthDays"
+                      :key="'next-day-' + index"
+                      class="calendar-day"
+                      :class="{
+                        empty: dayObj.isEmpty,
+                        today: dayObj.isToday,
+                        'weekend-sat': dayObj.isSaturday,
+                        'weekend-sun': dayObj.isSunday,
+                        'holiday': dayObj.isHoliday,
+                        'range-start': dayObj.isStartDate,
+                        'range-end': dayObj.isEndDate,
+                        'in-range': dayObj.isInRange,
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                      }"
+                      @click="selectDate(dayObj)"
+                    >
+                      {{ dayObj.day }}
+                    </span>
+                  </div>
+                </div>
+
+                <button class="calendar-nav-btn nav-next" type="button" @click="nextMonth">
+                  ›
+                </button>
+              </div>
+            </div>
           </div>
           <div class="picker-field">
             <label>투숙 인원</label>
@@ -918,6 +1097,82 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   background: white;
 }
 
+.calendar-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  padding: 1rem;
+  width: 100%;
+}
+.calendar-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.calendar-month {
+  width: 220px;
+}
+.calendar-month-title {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  font-size: 0.75rem;
+  color: var(--text-sub);
+  margin-bottom: 0.25rem;
+}
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.calendar-day {
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  text-align: center;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.calendar-day.empty {
+  visibility: hidden;
+  cursor: default;
+}
+.calendar-day.today {
+  border: 1px solid var(--primary);
+}
+.calendar-day.weekend-sat {
+  color: #2563eb;
+}
+.calendar-day.weekend-sun {
+  color: #dc2626;
+}
+.calendar-day.in-range {
+  background: #e6f4f1;
+}
+.calendar-day.range-start,
+.calendar-day.range-end {
+  background: var(--primary);
+  color: #000;
+  font-weight: 600;
+}
+.calendar-nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.4rem;
+  padding: 0.25rem 0.5rem;
+  color: var(--text-main);
+}
+
 /* Room Card */
 .room-card {
   border: 2px solid #ddd;
@@ -1100,6 +1355,14 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   .picker-row {
     flex-direction: column;
   }
+
+  .calendar-container {
+    flex-direction: column;
+  }
+
+  .calendar-month {
+    width: 100%;
+  }
   .room-card {
     flex-direction: column;
     padding: 1rem;
@@ -1149,3 +1412,5 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   }
 }
 </style>
+
+

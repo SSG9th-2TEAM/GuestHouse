@@ -78,7 +78,7 @@ const normalizeItem = (item) => {
   const price = Number(item.minPrice ?? item.price ?? 0)
   const rating = item.rating ?? null
   const reviewCount = item.reviewCount ?? null
-  const imageUrl = item.imageUrl || 'https://via.placeholder.com/400x300'
+  const imageUrl = item.imageUrl || 'https://placehold.co/400x300'
   const lat = Number(item.latitude ?? item.lat)
   const lng = Number(item.longitude ?? item.lng)
   return {
@@ -586,6 +586,7 @@ watch(
   color: #4b5563;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

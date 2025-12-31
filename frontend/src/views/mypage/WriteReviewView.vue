@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { createReview, getReviewTags } from '@/api/reviewApi'
+import { createReview, updateReview, getReviewTags, getMyReviews } from '@/api/reviewApi'
+import { groupTagsByCategory } from '@/constants/reviewTagCategories'
 
 const router = useRouter()
 const route = useRoute()
@@ -13,29 +14,83 @@ const reservation = ref({
   dates: '2025-11-20 ~ 2025-11-22'
 })
 
+// Edit Mode State
+const isEditMode = ref(false)
+const targetReviewId = ref(null)
+
 onMounted(async () => {
-  if (history.state && history.state.reservationData) {
-    reservation.value = history.state.reservationData
+  if (history.state) {
+    if (history.state.reservationData) {
+      reservation.value = history.state.reservationData
+    }
+    if (history.state.mode === 'edit') {
+      isEditMode.value = true
+      await fetchAndFillReviewData()
+    }
   }
 
   // 태그 목록 로드
   try {
     const tags = await getReviewTags()
-    availableTags.value = tags.map(tag => ({
-      id: tag.reviewTagId,
-      label: tag.reviewTagName
-    }))
+    // 카테고리별로 그룹화
+    groupedTags.value = groupTagsByCategory(tags)
+
+    // 수정 모드인 경우, 태그 로드 후 선택된 태그 복원
+    if (isEditMode.value && tempSelectedTagIds.value.length > 0) {
+      selectedTagIds.value = [...tempSelectedTagIds.value]
+    }
   } catch (error) {
     console.error('태그 로드 실패:', error)
   }
 })
 
+// 임시 저장용 (태그 로드 전)
+const tempSelectedTagIds = ref([])
+
+const fetchAndFillReviewData = async () => {
+  try {
+    const myReviews = await getMyReviews()
+    // 현재 숙소에 대한 리뷰 찾기
+    const review = myReviews.find(r => r.accommodationsId === reservation.value.accommodationId)
+    
+    if (review) {
+      targetReviewId.value = review.reviewId
+      rating.value = review.rating
+      reviewContent.value = review.content
+      
+      // 이미지 복원
+      if (review.images && review.images.length > 0) {
+        images.value = review.images.map(img => ({
+            preview: img.imageUrl,
+            base64: img.imageUrl, // 기존 URL 그대로 사용
+            isExisting: true
+        }))
+      }
+      
+      // 태그 복원 (ID 저장해뒀다가 태그 리스트 로드 후 매핑)
+      if (review.tags) {
+        tempSelectedTagIds.value = review.tags.map(t => t.reviewTagId)
+      }
+      
+      agreed.value = true // 수정 시에는 동의한 것으로 간주
+    } else {
+      openModal('리뷰 정보를 찾을 수 없습니다.', 'error', () => router.back())
+    }
+  } catch (error) {
+    console.error('리뷰 정보 불러오기 실패:', error)
+    openModal('리뷰 정보를 불러오는데 실패했습니다.', 'error')
+  }
+}
+
 // Form data
 const agreed = ref(false)
 const rating = ref(0)
 const reviewContent = ref('')
-const selectedTags = ref([])
+const selectedTagIds = ref([])  // 선택된 태그 ID 배열
 const isSubmitting = ref(false)
+
+// 카테고리별로 그룹화된 태그
+const groupedTags = ref([])
 
 // Image upload
 const MAX_IMAGES = 5
@@ -102,7 +157,7 @@ const handleFileSelect = async (event) => {
 // 이미지 삭제
 const removeImage = (index) => {
   const image = images.value[index]
-  if (image.preview) {
+  if (image.preview && !image.isExisting) {
     URL.revokeObjectURL(image.preview)
   }
   images.value.splice(index, 1)
@@ -129,23 +184,23 @@ const closeModal = () => {
   }
 }
 
-// Tag list from backend
-const availableTags = ref([])
-
-const toggleTag = (tag) => {
-  const idx = selectedTags.value.findIndex(t => t.id === tag.id)
+// 태그 선택/해제
+const toggleTag = (tagId) => {
+  const idx = selectedTagIds.value.indexOf(tagId)
   if (idx === -1) {
-    selectedTags.value.push(tag)
+    selectedTagIds.value.push(tagId)
   } else {
-    selectedTags.value.splice(idx, 1)
+    selectedTagIds.value.splice(idx, 1)
   }
 }
 
-const isTagSelected = (tag) => {
-  return selectedTags.value.some(t => t.id === tag.id)
+const isTagSelected = (tagId) => {
+  return selectedTagIds.value.includes(tagId)
 }
 
 const setRating = (star) => {
+  // 백엔드 업데이트가 텍스트/이미지만 지원하면 막을 수도 있지만
+  // UX상 놔두고, 백엔드가 무시하면 됨.
   rating.value = star
 }
 
@@ -174,27 +229,41 @@ const handleSubmit = async () => {
     return
   }
   if (!reservation.value.accommodationId) {
-    openModal('숙소 정보가 없습니다. 예약 내역에서 다시 시도해주세요.', 'error')
+    openModal('숙소 정보가 없습니다. 다시 시도해주세요.', 'error')
     return
   }
 
   isSubmitting.value = true
 
   try {
-    const reviewData = {
-      accommodationsId: reservation.value.accommodationId,
-      rating: rating.value,
-      content: reviewContent.value.trim(),
-      visitDate: getVisitDate(),
-      tagIds: selectedTags.value.map(tag => tag.id),
-      imageUrls: images.value.map(img => img.base64)
+    const imageUrls = images.value.map(img => img.base64)
+    
+    if (isEditMode.value) {
+        // 수정
+        const updateData = {
+           content: reviewContent.value.trim(),
+           imageUrls: imageUrls,
+           rating: rating.value,
+           tagIds: selectedTagIds.value
+        }
+        await updateReview(targetReviewId.value, updateData)
+        openModal('리뷰가 수정되었습니다!', 'success', () => router.push('/reviews'))
+    } else {
+        // 등록
+        const reviewData = {
+          accommodationsId: reservation.value.accommodationId,
+          rating: rating.value,
+          content: reviewContent.value.trim(),
+          visitDate: getVisitDate(),
+          tagIds: selectedTagIds.value,
+          imageUrls: imageUrls
+        }
+        await createReview(reviewData)
+        openModal('리뷰가 등록되었습니다!', 'success', () => router.push('/reviews'))
     }
-
-    await createReview(reviewData)
-    openModal('리뷰가 등록되었습니다!', 'success', () => router.push('/reviews'))
   } catch (error) {
-    console.error('리뷰 등록 실패:', error)
-    openModal(error.message || '리뷰 등록에 실패했습니다.', 'error')
+    console.error('리뷰 전송 실패:', error)
+    openModal(error.message || '리뷰 전송에 실패했습니다.', 'error')
   } finally {
     isSubmitting.value = false
   }
@@ -206,22 +275,10 @@ const handleSubmit = async () => {
     <!-- Header -->
     <div class="page-header">
       <button class="back-btn" @click="router.back()">←</button>
-      <h1>리뷰 작성</h1>
+      <h1>{{ isEditMode ? '리뷰 수정' : '리뷰 작성' }}</h1>
     </div>
 
-    <!-- Notice Box -->
-    <div class="notice-box">
-      <h3>리뷰 작성 전 확인해 주세요.</h3>
-      <ul>
-        <li>개인정보(실명, 얼굴사진 등)와 허위·비방 내용은 등록할 수 없습니다.</li>
-        <li>리뷰와 사진은 서비스 노출 및 운영 목적에 활용될 수 있습니다.</li>
-        <li>부정 리뷰(보상 목적, 방문 이력 없음 등)는 제한되며 삭제될 수 있습니다.</li>
-      </ul>
-      <label class="agree-label">
-        <input type="checkbox" v-model="agreed" />
-        <span>위 내용을 확인하고 리뷰 작성에 동의합니다.</span>
-      </label>
-    </div>
+
 
     <!-- Accommodation Info -->
     <div class="info-section">
@@ -296,18 +353,36 @@ const handleSubmit = async () => {
 
     <!-- Tags -->
     <div class="tags-section">
-      <span class="label">리뷰 태그:</span>
-      <div class="tags-grid">
-        <button
-          v-for="tag in availableTags"
-          :key="tag.id"
-          class="tag-btn"
-          :class="{ selected: isTagSelected(tag) }"
-          @click="toggleTag(tag)"
-        >
-          {{ tag.label }}
-        </button>
+      <span class="section-title">리뷰 태그를 선택해주세요</span>
+
+      <div v-for="category in groupedTags" :key="category.name" class="tag-category">
+        <h3 class="category-name">{{ category.name }}</h3>
+        <div class="tags-grid">
+          <button
+            v-for="tag in category.tags"
+            :key="tag.reviewTagId"
+            class="tag-btn"
+            :class="{ selected: isTagSelected(tag.reviewTagId) }"
+            @click="toggleTag(tag.reviewTagId)"
+          >
+            {{ tag.reviewTagName }}
+          </button>
+        </div>
       </div>
+    </div>
+
+    <!-- Notice Box -->
+    <div class="notice-box">
+      <h3>리뷰 작성 전 확인해 주세요.</h3>
+      <ul>
+        <li>개인정보(실명, 얼굴사진 등)와 허위·비방 내용은 등록할 수 없습니다.</li>
+        <li>리뷰와 사진은 서비스 노출 및 운영 목적에 활용될 수 있습니다.</li>
+        <li>부정 리뷰(보상 목적, 방문 이력 없음 등)는 제한되며 삭제될 수 있습니다.</li>
+      </ul>
+      <label class="agree-label">
+        <input type="checkbox" v-model="agreed" />
+        <span>위 내용을 확인하고 리뷰 작성에 동의합니다.</span>
+      </label>
     </div>
 
     <!-- Submit Button -->
@@ -316,7 +391,7 @@ const handleSubmit = async () => {
       @click="handleSubmit"
       :disabled="isSubmitting"
     >
-      {{ isSubmitting ? '등록 중...' : '리뷰 제출' }}
+      {{ isSubmitting ? (isEditMode ? '수정 중...' : '등록 중...') : (isEditMode ? '리뷰 수정' : '리뷰 제출') }}
     </button>
 
     <!-- Modal -->
@@ -550,11 +625,30 @@ const handleSubmit = async () => {
   margin-bottom: 2rem;
 }
 
+.section-title {
+  display: block;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.tag-category {
+  margin-bottom: 1.2rem;
+}
+
+.category-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.5rem;
+  padding-left: 0.25rem;
+}
+
 .tags-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 0.5rem;
 }
 
 .tag-btn {
@@ -570,14 +664,16 @@ const handleSubmit = async () => {
   transition: all 0.2s;
 }
 
+.tag-btn:hover {
+  border-color: var(--primary);
+  background: #f9fffe;
+}
+
 .tag-btn.selected {
   background: var(--primary);
   border-color: var(--primary);
   color: #004d40;
-}
-
-.tag-icon {
-  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 /* Submit */

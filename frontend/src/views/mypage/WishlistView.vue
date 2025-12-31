@@ -18,7 +18,7 @@ const loadWishlist = async () => {
         title: item.accommodationsName,
         location: [item.city, item.district, item.township].filter(Boolean).join(' '),
         rating: item.rating || 0.0,
-        image: getThumbnailUrl(item.mainImageUrl) || 'https://via.placeholder.com/300x200',
+        image: getThumbnailUrl(item.mainImageUrl) || 'https://placehold.co/300x200',
         price: item.minPrice,
         themes: item.themes || []
       }))

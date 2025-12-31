@@ -68,8 +68,76 @@ export async function getReviewTags() {
     return response.data
 }
 
+/**
+ * 리뷰 수정
+ * @param {number} reviewId - 리뷰 ID
+ * @param {Object} updateData - 수정할 데이터 { content, imageUrls }
+ * @returns {Promise<string>} - 성공 메시지
+ */
+export async function updateReview(reviewId, updateData) {
+    const response = await authenticatedRequest(`/api/reviews/${reviewId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
+    })
+
+    if (!response.ok) {
+        let errorMessage = '리뷰 수정에 실패했습니다.'
+        if (response.data) {
+            if (typeof response.data === 'string') {
+                errorMessage = response.data
+            } else if (response.data.message) {
+                errorMessage = response.data.message
+            } else if (response.data.error) {
+                errorMessage = response.data.error
+            }
+        }
+        console.error('리뷰 수정 에러:', response.status, response.data)
+        throw new Error(errorMessage)
+    }
+
+    return response.data
+}
+
+/**
+ * 내 리뷰 조회
+ * @returns {Promise<Array>} - 리뷰 목록
+ */
+export async function getMyReviews() {
+    const response = await authenticatedRequest('/api/reviews/my')
+
+    if (!response.ok) {
+        throw new Error(`내 리뷰 조회 실패: ${response.status}`)
+    }
+
+    return response.data
+}
+
+/**
+ * 리뷰 삭제
+ * @param {number} reviewId - 리뷰 ID
+ * @returns {Promise<string>} - 성공 메시지
+ */
+export async function deleteReview(reviewId) {
+    const response = await authenticatedRequest(`/api/reviews/${reviewId}`, {
+        method: 'DELETE'
+    })
+
+    if (!response.ok) {
+        let errorMessage = '리뷰 삭제에 실패했습니다.'
+        if (response.data && response.data.message) {
+            errorMessage = response.data.message
+        }
+        throw new Error(errorMessage)
+    }
+
+    return response.data
+}
+
 export default {
     createReview,
+    updateReview,
     getReviewsByAccommodation,
-    getReviewTags
+    getReviewTags,
+    getMyReviews,
+    deleteReview
 }

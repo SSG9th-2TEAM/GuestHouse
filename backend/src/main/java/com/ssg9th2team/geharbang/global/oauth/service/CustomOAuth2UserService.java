@@ -1,4 +1,4 @@
-package com.ssg9th2team.geharbang.global.oauth;
+package com.ssg9th2team.geharbang.global.oauth.service;
 
 import com.ssg9th2team.geharbang.domain.auth.entity.SocialProvider;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
@@ -16,7 +16,6 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -39,6 +38,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         if ("naver".equals(registrationId)) {
             oAuth2UserInfo = new NaverOAuth2UserInfo(oAuth2User.getAttributes());
+        } else if ("google".equals(registrationId)) {
+            oAuth2UserInfo = new GoogleOAuth2UserInfo(oAuth2User.getAttributes());
         } else {
             throw new OAuth2AuthenticationException("지원하지 않는 소셜 로그인입니다: " + registrationId);
         }
