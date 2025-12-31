@@ -1,62 +1,118 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getMyReviews } from '@/api/reviewApi'
 
 const router = useRouter()
 
-// Mock data
-const reviews = ref([
-  {
-    id: 1,
-    accommodationId: 1,
-    accommodationName: '제주 서핑 체험',
-    location: '제주시 한림읍',
-    rating: 5,
-    date: '2025.11.28',
-    content: '정말 즐거운 체험이었어요! 강사님이 친절하게 가르쳐주셔서 초보인 저도 금방 배울 수 있었습니다. 제주 바다도 너무 아름답고 시설도 깨끗해서 만족스러웠어요. 다음에 또 방문하고 싶습니다.',
-    images: [
-      'https://picsum.photos/id/11/200/150',
-      'https://picsum.photos/id/15/200/150',
-      'https://picsum.photos/id/18/200/150'
-    ],
-    tags: ['친절해요', '깨끗해요', '위치가 좋아요'],
-    helpfulCount: 12
-  },
-  {
-    id: 2,
-    accommodationId: 6,
-    accommodationName: '북촌 한옥마을 투어',
-    location: '서울시 종로구',
-    rating: 4,
-    date: '2025.11.15',
-    content: '한옥마을의 아름다움을 제대로 느낄 수 있었습니다. 가이드 분이 역사적 배경을 자세히 설명해주셔서 유익했어요. 다만 주말이라 사람이 많아서 조금 복잡했어요.',
-    images: [],
-    tags: ['가이드가 좋아요', '유익해요'],
-    helpfulCount: 8
-  },
-  {
-    id: 3,
-    accommodationId: 2,
-    accommodationName: '속초 맛집 투어',
-    location: '강원도 속초시',
-    rating: 5,
-    date: '2025.10.30',
-    content: '속초의 숨은 맛집들을 다 가볼 수 있어서 좋았어요! 특히 물회랑 닭강정이 정말 맛있었습니다. 혼자서는 찾기 힘든 곳들을 가이드와 함께 가니까 더 좋았어요.',
-    images: [
-      'https://picsum.photos/id/42/200/150'
-    ],
-    tags: ['맛있어요', '가성비 좋아요', '친절해요'],
-    helpfulCount: 24
+const reviews = ref([])
+const isLoading = ref(false)
+const errorMessage = ref('')
+
+// 날짜 포맷 함수
+const formatDate = (dateValue) => {
+  if (!dateValue) return ''
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}.${month}.${day}`
+}
+
+// 백엔드 응답을 프론트엔드 형식으로 변환
+const normalizeReview = (review) => {
+  const images = Array.isArray(review?.images) ? review.images : []
+  const imageUrls = images
+    .map((img) => img?.imageUrl ?? img)
+    .filter((url) => typeof url === 'string' && url.trim())
+
+  const tags = Array.isArray(review?.tags) ? review.tags : []
+  const tagNames = tags
+    .map((tag) => tag?.reviewTagName ?? tag?.name ?? tag)
+    .filter((tag) => typeof tag === 'string' && tag.trim())
+
+  const ratingValue = Number(review?.rating)
+
+  return {
+    id: review?.reviewId ?? review?.id,
+    accommodationId: review?.accommodationsId,
+    accommodationName: review?.accommodationName ?? '',
+    accommodationImage: review?.accommodationImage,
+    visitDate: review?.visitDate,
+    checkin: review?.checkin,
+    checkout: review?.checkout,
+    rating: Number.isFinite(ratingValue) ? Math.round(ratingValue) : 0,
+    date: formatDate(review?.createdAt),
+    content: review?.content ?? '',
+    images: imageUrls,
+    tags: tagNames,
+    replyContent: review?.replyContent ?? '',
+    replyUpdatedAt: formatDate(review?.replyUpdatedAt)
   }
-])
+}
+
+// 내 리뷰 조회
+const loadMyReviews = async () => {
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    const data = await getMyReviews()
+    reviews.value = Array.isArray(data) ? data.map(normalizeReview) : []
+  } catch (error) {
+    console.error('내 리뷰 조회 실패:', error)
+    errorMessage.value = error.message || '리뷰를 불러오는데 실패했습니다.'
+    reviews.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
 
 const goToDetail = (id) => {
   router.push(`/room/${id}`)
 }
 
 const renderStars = (rating) => {
-  return '★'.repeat(rating) + '☆'.repeat(5 - rating)
+  const safeRating = Math.min(Math.max(Number(rating) || 0, 0), 5)
+  return '★'.repeat(safeRating) + '☆'.repeat(5 - safeRating)
 }
+
+// 리뷰 수정
+const handleEditReview = (review) => {
+  router.push({
+    name: 'write-review',
+    state: {
+      mode: 'edit',
+      reservationData: {
+        accommodationId: review.accommodationId,
+        accommodationName: review.accommodationName,
+        dates: (review.checkin && review.checkout) 
+          ? `${formatDate(review.checkin)} ~ ${formatDate(review.checkout)}` 
+          : review.visitDate,
+        image: review.accommodationImage
+      }
+    }
+  })
+}
+
+// 리뷰 삭제
+import { deleteReview } from '@/api/reviewApi'
+
+const handleDeleteReview = async (reviewId) => {
+  if (!confirm('정말로 리뷰를 삭제하시겠습니까?')) return
+
+  try {
+    await deleteReview(reviewId)
+    // 목록 새로고침
+    await loadMyReviews()
+  } catch (error) {
+    console.error('리뷰 삭제 실패:', error)
+    alert(error.message || '리뷰 삭제 중 오류가 발생했습니다.')
+  }
+}
+
+onMounted(loadMyReviews)
 </script>
 
 <template>
@@ -67,8 +123,19 @@ const renderStars = (rating) => {
       <h1>리뷰 내역</h1>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="isLoading" class="loading-state">
+      <p>리뷰를 불러오는 중...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="errorMessage" class="error-state">
+      <p>{{ errorMessage }}</p>
+      <button class="retry-btn" @click="loadMyReviews">다시 시도</button>
+    </div>
+
     <!-- Empty State -->
-    <div v-if="reviews.length === 0" class="empty-state">
+    <div v-else-if="reviews.length === 0" class="empty-state">
       <div class="empty-icon">☆</div>
       <h2>아직 작성한 리뷰가 없어요</h2>
       <p>숙소를 이용한 후 리뷰를 남겨보세요.</p>
@@ -80,18 +147,16 @@ const renderStars = (rating) => {
       <div v-for="review in reviews" :key="review.id" class="review-card">
         <!-- Top Row: Accommodation Info -->
         <div class="review-top">
-          <img :src="review.images[0] || 'https://picsum.photos/id/100/60/60'" class="review-thumb" />
+          <img :src="review.accommodationImage || 'https://via.placeholder.com/60'" class="review-thumb" />
           <div class="review-info">
             <h3 class="acc-name" @click="goToDetail(review.accommodationId)">
               {{ review.accommodationName }}
             </h3>
-            <span class="acc-location">{{ review.location }}</span>
             <div class="rating-row">
               <span class="stars">{{ renderStars(review.rating) }}</span>
               <span class="date">{{ review.date }}</span>
             </div>
           </div>
-          <button class="more-btn">⋮</button>
         </div>
 
         <!-- Review Content -->
@@ -107,10 +172,17 @@ const renderStars = (rating) => {
           <img v-for="(img, idx) in review.images" :key="idx" :src="img" class="review-img" />
         </div>
 
-        <!-- Helpful Count -->
-        <div class="helpful-row">
-          <span class="helpful-icon">👍</span>
-          <span class="helpful-text">도움이 됐어요 {{ review.helpfulCount }}</span>
+        <!-- Host Reply -->
+        <div v-if="review.replyContent" class="host-reply">
+          <p class="reply-title">호스트 답글</p>
+          <p class="reply-content">{{ review.replyContent }}</p>
+          <p v-if="review.replyUpdatedAt" class="reply-date">{{ review.replyUpdatedAt }}</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="review-actions">
+          <button class="action-btn edit" @click="handleEditReview(review)">수정</button>
+          <button class="action-btn delete" @click="handleDeleteReview(review.id)">삭제</button>
         </div>
       </div>
     </div>
@@ -290,16 +362,93 @@ const renderStars = (rating) => {
   flex-shrink: 0;
 }
 
-/* Helpful */
-.helpful-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #2563eb;
+/* Host Reply */
+.host-reply {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  background: #f8fafc;
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.reply-title {
+  margin: 0;
+  font-weight: 700;
+  color: #0f172a;
   font-size: 0.9rem;
 }
 
-.helpful-icon {
-  font-size: 1rem;
+.reply-content {
+  margin: 0;
+  color: #334155;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.reply-date {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+/* Loading & Error States */
+.loading-state,
+.error-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #888;
+}
+
+.error-state p {
+  margin-bottom: 1rem;
+  color: #ef4444;
+}
+
+.retry-btn {
+  background: var(--primary);
+  color: #004d40;
+  border: none;
+  padding: 0.5rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* Action Buttons */
+.review-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  justify-content: flex-end;
+}
+
+.action-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #ddd;
+}
+
+.action-btn.edit {
+  background: white;
+  color: #004d40;
+  border-color: var(--primary);
+}
+
+.action-btn.edit:hover {
+  background: #f0fdf4;
+}
+
+.action-btn.delete {
+  background: white;
+  color: #e11d48;
+  border-color: #e11d48;
+}
+
+.action-btn.delete:hover {
+  background: #fff1f2;
 }
 </style>
