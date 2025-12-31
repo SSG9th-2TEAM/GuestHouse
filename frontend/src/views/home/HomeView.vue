@@ -1,29 +1,35 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import { useRouter } from 'vue-router'
 import { fetchThemes, fetchUserThemes } from '@/api/theme'
 import { fetchList } from '@/api/list'
 import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
-import { isAuthenticated } from '@/api/authClient'
+import { isAuthenticated, getUserId } from '@/api/authClient'
+import { fetchRecommendations } from '@/api/recommendation'
 
 const router = useRouter()
 const sections = ref([])
+const recommendations = ref([])
 const wishlistIds = ref(new Set())
 const isLoading = ref(false)
+const isLoadingRecommendations = ref(false)
 const loadError = ref('')
 const MAX_ROW_CARDS = 12
 const MAX_ITEMS_PER_ROW = MAX_ROW_CARDS - 1
 
 const normalizeItem = (item) => {
-  const id = item.accomodationsId ?? item.accommodationsId ?? item.id
-  const title = item.accomodationsName ?? item.accommodationsName ?? item.title ?? ''
+  const id = item.accomodationsId ?? item.accommodationsId ?? item.accommodationId ?? item.id
+  const title = item.accomodationsName ?? item.accommodationsName ?? item.accommodationName ?? item.title ?? ''
   const description = item.shortDescription ?? item.description ?? ''
   const rating = item.rating ?? null
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
   const price = Number(item.minPrice ?? item.price ?? 0)
   const imageUrl = item.imageUrl || 'https://placehold.co/400x300'
-  return { id, title, description, rating, location, price, imageUrl }
+  const score = item.score ?? null
+  const matchedThemes = item.matchedThemes ?? []
+  const matchedTags = item.matchedTags ?? []
+  return { id, title, description, rating, location, price, imageUrl, score, matchedThemes, matchedTags }
 }
 
 const visibleItems = (items) => items.slice(0, MAX_ITEMS_PER_ROW)
@@ -147,9 +153,38 @@ const loadSections = async () => {
   }
 }
 
+// 맞춤 추천 로딩
+const loadRecommendations = async () => {
+  if (!isAuthenticated()) return
+  
+  isLoadingRecommendations.value = true
+  try {
+    // userId 가져오기 - userInfo에서 먼저 확인, 없으면 API 호출
+    let userId = getUserId()
+    if (!userId) {
+      const { getCurrentUser } = await import('@/api/authClient')
+      const userResponse = await getCurrentUser()
+      if (userResponse.ok && userResponse.data?.userId) {
+        userId = userResponse.data.userId
+      }
+    }
+    if (!userId) return
+    
+    const response = await fetchRecommendations(userId, 10)
+    if (response.ok && response.data?.recommendations) {
+      recommendations.value = response.data.recommendations.map(normalizeItem)
+    }
+  } catch (error) {
+    console.error('Failed to load recommendations', error)
+  } finally {
+    isLoadingRecommendations.value = false
+  }
+}
+
 onMounted(() => {
   loadSections()
   loadWishlist()
+  loadRecommendations()
 })
 </script>
 
@@ -162,6 +197,32 @@ onMounted(() => {
         <h1 class="banner-title">지금, 이곳</h1>
       </div>
     </div>
+
+    <!-- 맞춤 추천 섹션 (로그인 사용자만) -->
+    <section v-if="recommendations.length > 0" class="theme-section recommendation-section">
+      <div class="section-header">
+        <h2 class="section-title recommendation-title">
+          <span>✨ 당신을 위한 맞춤 추천</span>
+        </h2>
+      </div>
+      <div class="row-scroll">
+        <GuesthouseCard 
+          v-for="item in recommendations" 
+          :key="item.id"
+          :id="item.id"
+          :title="item.title"
+          :description="item.description"
+          :rating="item.rating"
+          :location="item.location"
+          :price="item.price"
+          :image-url="item.imageUrl"
+          :is-favorite="wishlistIds.has(item.id)"
+          @toggle-favorite="toggleWishlist"
+          @click="router.push(`/room/${item.id}`)"
+          class="row-card"
+        />
+      </div>
+    </section>
 
     <div v-if="isLoading" class="empty-state">로딩 중입니다.</div>
     <div v-else-if="loadError" class="empty-state">{{ loadError }}</div>
@@ -393,5 +454,22 @@ onMounted(() => {
   padding: 1.5rem 0;
   color: var(--text-sub, #6b7280);
   font-weight: 600;
+}
+
+/* 맞춤 추천 섹션 스타일 */
+.recommendation-section {
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  padding: 1.5rem;
+  border-radius: 16px;
+  margin-bottom: 1rem;
+}
+
+.recommendation-title {
+  color: #7c3aed;
+  font-size: 1.25rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 </style>

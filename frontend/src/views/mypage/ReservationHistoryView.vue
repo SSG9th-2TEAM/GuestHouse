@@ -109,7 +109,7 @@ const handleCancel = (item) => {
     state: {
       reservationData: {
         id: item.reservationId,
-        hotelName: item.accommodationName,
+        accommodationName: item.accommodationName,
         location: item.accommodationAddress,
         checkin: formatDate(item.checkin),
         checkout: formatDate(item.checkout),

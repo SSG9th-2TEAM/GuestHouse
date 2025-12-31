@@ -30,91 +30,94 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtTokenProvider jwtTokenProvider;
-    private final CustomOAuth2UserService customOAuth2UserService;
-    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-    private final ClientRegistrationRepository clientRegistrationRepository;
+        private final JwtTokenProvider jwtTokenProvider;
+        private final CustomOAuth2UserService customOAuth2UserService;
+        private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+        private final ClientRegistrationRepository clientRegistrationRepository;
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-                // CSRF 비활성화 (JWT 사용)
-                .csrf(AbstractHttpConfigurer::disable)
+        @Bean
+        public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+                http
+                                // CSRF 비활성화 (JWT 사용)
+                                .csrf(AbstractHttpConfigurer::disable)
 
-                // CORS 설정
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                                // CORS 설정
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // 세션 사용 안 함 (JWT 사용)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                                // 세션 사용 안 함 (JWT 사용)
+                                .sessionManagement(session -> session
+                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // 요청 권한 설정
-                .authorizeHttpRequests(auth -> auth
-                        // 인증 없이 접근 가능한 경로
-                        .requestMatchers(
-                                "/api/auth/**",
-                                "/api/public/**",
-                                "/api/themes",
-                                "/api/list/**",
-                                "/uploads/**",
-                                "/error",
-                                "/oauth2/**",
-                                "/login/oauth2/**",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**")
-                        .permitAll()
-                        // 그 외 모든 요청은 인증 필요
-                        .anyRequest().authenticated())
+                                // 요청 권한 설정
+                                .authorizeHttpRequests(auth -> auth
+                                                // 인증 없이 접근 가능한 경로
+                                                .requestMatchers(
+                                                                "/api/auth/**",
+                                                                "/api/public/**",
+                                                                "/api/themes",
+                                                                "/api/list/**",
+                                                                "/api/recommendations/**",
+                                                                "/uploads/**",
+                                                                "/error",
+                                                                "/oauth2/**",
+                                                                "/login/oauth2/**",
+                                                                "/swagger-ui/**",
+                                                                "/v3/api-docs/**")
+                                                .permitAll()
+                                                // 그 외 모든 요청은 인증 필요
+                                                .anyRequest().authenticated())
 
-                // OAuth2 로그인 설정
-                .oauth2Login(oauth2 -> oauth2
-                        .authorizationEndpoint(authorization -> authorization
-                                .authorizationRequestResolver(authorizationRequestResolver()))
-                        .userInfoEndpoint(userInfo -> userInfo
-                                .userService(customOAuth2UserService))
-                        .successHandler(oAuth2AuthenticationSuccessHandler))
+                                // OAuth2 로그인 설정
+                                .oauth2Login(oauth2 -> oauth2
+                                                .authorizationEndpoint(authorization -> authorization
+                                                                .authorizationRequestResolver(
+                                                                                authorizationRequestResolver()))
+                                                .userInfoEndpoint(userInfo -> userInfo
+                                                                .userService(customOAuth2UserService))
+                                                .successHandler(oAuth2AuthenticationSuccessHandler))
 
-                // JWT 인증 필터 추가
-                .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider),
-                        UsernamePasswordAuthenticationFilter.class);
+                                // JWT 인증 필터 추가
+                                .addFilterBefore(
+                                                new JwtAuthenticationFilter(jwtTokenProvider),
+                                                UsernamePasswordAuthenticationFilter.class);
 
-        return http.build();
-    }
+                return http.build();
+        }
 
-    // 네이버 OAuth2 재인증 강제를 위한 커스텀 리졸버
-    @Bean
-    public OAuth2AuthorizationRequestResolver authorizationRequestResolver() {
-        DefaultOAuth2AuthorizationRequestResolver resolver = 
-                new DefaultOAuth2AuthorizationRequestResolver(
-                        clientRegistrationRepository, 
-                        "/oauth2/authorization");
-        
-        resolver.setAuthorizationRequestCustomizer(customizer -> {
-            OAuth2AuthorizationRequest.Builder builder = customizer;
-            
-            // 네이버 OAuth2의 경우 auth_type=reauthenticate 파라미터 추가
-            Map<String, Object> additionalParameters = new HashMap<>(builder.build().getAdditionalParameters());
-            additionalParameters.put("auth_type", "reauthenticate"); // 네이버 재인증 강제
-            
-            builder.additionalParameters(additionalParameters);
-        });
-        
-        return resolver;
-    }
+        // 네이버 OAuth2 재인증 강제를 위한 커스텀 리졸버
+        @Bean
+        public OAuth2AuthorizationRequestResolver authorizationRequestResolver() {
+                DefaultOAuth2AuthorizationRequestResolver resolver = new DefaultOAuth2AuthorizationRequestResolver(
+                                clientRegistrationRepository,
+                                "/oauth2/authorization");
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
+                resolver.setAuthorizationRequestCustomizer(customizer -> {
+                        OAuth2AuthorizationRequest.Builder builder = customizer;
 
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+                        // 네이버 OAuth2의 경우 auth_type=reauthenticate 파라미터 추가
+                        Map<String, Object> additionalParameters = new HashMap<>(
+                                        builder.build().getAdditionalParameters());
+                        additionalParameters.put("auth_type", "reauthenticate"); // 네이버 재인증 강제
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+                        builder.additionalParameters(additionalParameters);
+                });
 
-        return source;
-    }
+                return resolver;
+        }
+
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
+
+                configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+                configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+                configuration.setAllowedHeaders(Arrays.asList("*"));
+                configuration.setAllowCredentials(true);
+                configuration.setMaxAge(3600L);
+
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", configuration);
+
+                return source;
+        }
 }
