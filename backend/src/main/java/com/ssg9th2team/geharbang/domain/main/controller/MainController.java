@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.accommodation.service.AccommodationServi
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.main.dto.AccommodationDetailDto;
 import com.ssg9th2team.geharbang.domain.main.dto.MainAccommodationListResponse;
+import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.service.MainService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -27,7 +28,8 @@ public class MainController {
     @GetMapping("/list")
     public MainAccommodationListResponse list(
             Authentication authentication, // Inject Authentication object
-            @RequestParam(name = "themeIds", required = false) List<Long> themeIds) {
+            @RequestParam(name = "themeIds", required = false) List<Long> themeIds,
+            @RequestParam(name = "keyword", required = false) String keyword) {
 
         Long userId = null;
         if (authentication != null && authentication.isAuthenticated()) {
@@ -36,11 +38,21 @@ public class MainController {
                     .map(com.ssg9th2team.geharbang.domain.auth.entity.User::getId)
                     .orElse(null); // If user not found, userId remains null
         }
-        return mainService.getMainAccommodationList(userId, themeIds);
+        return mainService.getMainAccommodationList(userId, themeIds, keyword);
     }
 
     @GetMapping("/detail/{accommodationsId}")
     public AccommodationDetailDto accommodationDetail(@PathVariable Long accommodationsId) {
         return AccommodationDetailDto.from(accommodationService.getAccommodation(accommodationsId));
+    }
+
+    @GetMapping("/search")
+    public PublicListResponse search(
+            @RequestParam(name = "themeIds", required = false) List<Long> themeIds,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "24") int size
+    ) {
+        return mainService.searchPublicList(themeIds, keyword, page, size);
     }
 }

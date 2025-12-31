@@ -4,7 +4,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { fetchList } from '@/api/list'
 import FilterModal from '../../components/FilterModal.vue'
 import { useSearchStore } from '@/stores/search'
-import { matchesKeyword } from '@/utils/searchFilter'
 
 const router = useRouter()
 const route = useRoute()
@@ -83,9 +82,9 @@ const normalizeItem = (item) => {
   }
 }
 
-const loadList = async (themeIds = []) => {
+const loadList = async (themeIds = [], keyword = searchStore.keyword) => {
   try {
-    const response = await fetchList(themeIds)
+    const response = await fetchList(themeIds, keyword)
     if (response.ok) {
       const payload = response.data
       const list = Array.isArray(payload)
@@ -126,7 +125,7 @@ const updateMarkers = () => {
   const filteredItems = items.value.filter(item => {
     if (minPrice.value !== null && item.price < minPrice.value) return false
     if (maxPrice.value !== null && item.price > maxPrice.value) return false
-    return matchesKeyword(item, searchStore.keyword)
+    return true
   })
   const itemsWithCoords = filteredItems.filter(
     (item) => Number.isFinite(item.lat) && Number.isFinite(item.lng) && Number.isFinite(item.price) && item.price > 0
@@ -227,7 +226,7 @@ watch(
   () => route.query.keyword,
   () => {
     applyRouteKeyword()
-    updateMarkers()
+    loadList(selectedThemeIds.value)
   }
 )
 </script>
