@@ -1,7 +1,7 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { createReview, getReviewTags } from '@/api/reviewApi'
+import { createReview, updateReview, getReviewTags, getMyReviews } from '@/api/reviewApi'
 
 const router = useRouter()
 const route = useRoute()
@@ -13,9 +13,19 @@ const reservation = ref({
   dates: '2025-11-20 ~ 2025-11-22'
 })
 
+// Edit Mode State
+const isEditMode = ref(false)
+const targetReviewId = ref(null)
+
 onMounted(async () => {
-  if (history.state && history.state.reservationData) {
-    reservation.value = history.state.reservationData
+  if (history.state) {
+    if (history.state.reservationData) {
+      reservation.value = history.state.reservationData
+    }
+    if (history.state.mode === 'edit') {
+      isEditMode.value = true
+      await fetchAndFillReviewData()
+    }
   }
 
   // 태그 목록 로드
@@ -25,10 +35,53 @@ onMounted(async () => {
       id: tag.reviewTagId,
       label: tag.reviewTagName
     }))
+    
+    // 수정 모드인 경우, 태그 로드 후 선택된 태그 복원 (비동기 처리 순서 고려)
+    if (isEditMode.value && tempSelectedTagIds.value.length > 0) {
+        selectedTags.value = availableTags.value.filter(t => tempSelectedTagIds.value.includes(t.id))
+    }
   } catch (error) {
     console.error('태그 로드 실패:', error)
   }
 })
+
+// 임시 저장용 (태그 로드 전)
+const tempSelectedTagIds = ref([])
+
+const fetchAndFillReviewData = async () => {
+  try {
+    const myReviews = await getMyReviews()
+    // 현재 숙소에 대한 리뷰 찾기
+    const review = myReviews.find(r => r.accommodationsId === reservation.value.accommodationId)
+    
+    if (review) {
+      targetReviewId.value = review.reviewId
+      rating.value = review.rating
+      reviewContent.value = review.content
+      
+      // 이미지 복원
+      if (review.images && review.images.length > 0) {
+        images.value = review.images.map(img => ({
+            preview: img.imageUrl,
+            base64: img.imageUrl, // 기존 URL 그대로 사용
+            isExisting: true
+        }))
+      }
+      
+      // 태그 복원 (ID 저장해뒀다가 태그 리스트 로드 후 매핑)
+      if (review.tags) {
+        tempSelectedTagIds.value = review.tags.map(t => t.reviewTagId)
+      }
+      
+      agreed.value = true // 수정 시에는 동의한 것으로 간주
+    } else {
+      openModal('리뷰 정보를 찾을 수 없습니다.', 'error', () => router.back())
+    }
+  } catch (error) {
+    console.error('리뷰 정보 불러오기 실패:', error)
+    openModal('리뷰 정보를 불러오는데 실패했습니다.', 'error')
+  }
+}
 
 // Form data
 const agreed = ref(false)
@@ -102,7 +155,7 @@ const handleFileSelect = async (event) => {
 // 이미지 삭제
 const removeImage = (index) => {
   const image = images.value[index]
-  if (image.preview) {
+  if (image.preview && !image.isExisting) {
     URL.revokeObjectURL(image.preview)
   }
   images.value.splice(index, 1)
@@ -146,6 +199,8 @@ const isTagSelected = (tag) => {
 }
 
 const setRating = (star) => {
+  // 백엔드 업데이트가 텍스트/이미지만 지원하면 막을 수도 있지만
+  // UX상 놔두고, 백엔드가 무시하면 됨.
   rating.value = star
 }
 
@@ -174,27 +229,41 @@ const handleSubmit = async () => {
     return
   }
   if (!reservation.value.accommodationId) {
-    openModal('숙소 정보가 없습니다. 예약 내역에서 다시 시도해주세요.', 'error')
+    openModal('숙소 정보가 없습니다. 다시 시도해주세요.', 'error')
     return
   }
 
   isSubmitting.value = true
 
   try {
-    const reviewData = {
-      accommodationsId: reservation.value.accommodationId,
-      rating: rating.value,
-      content: reviewContent.value.trim(),
-      visitDate: getVisitDate(),
-      tagIds: selectedTags.value.map(tag => tag.id),
-      imageUrls: images.value.map(img => img.base64)
+    const imageUrls = images.value.map(img => img.base64)
+    
+    if (isEditMode.value) {
+        // 수정
+        const updateData = {
+           content: reviewContent.value.trim(),
+           imageUrls: imageUrls,
+           rating: rating.value,
+           tagIds: selectedTags.value.map(tag => tag.id)
+        }
+        await updateReview(targetReviewId.value, updateData)
+        openModal('리뷰가 수정되었습니다!', 'success', () => router.push('/reviews'))
+    } else {
+        // 등록
+        const reviewData = {
+          accommodationsId: reservation.value.accommodationId,
+          rating: rating.value,
+          content: reviewContent.value.trim(),
+          visitDate: getVisitDate(),
+          tagIds: selectedTags.value.map(tag => tag.id),
+          imageUrls: imageUrls
+        }
+        await createReview(reviewData)
+        openModal('리뷰가 등록되었습니다!', 'success', () => router.push('/reviews'))
     }
-
-    await createReview(reviewData)
-    openModal('리뷰가 등록되었습니다!', 'success', () => router.push('/reviews'))
   } catch (error) {
-    console.error('리뷰 등록 실패:', error)
-    openModal(error.message || '리뷰 등록에 실패했습니다.', 'error')
+    console.error('리뷰 전송 실패:', error)
+    openModal(error.message || '리뷰 전송에 실패했습니다.', 'error')
   } finally {
     isSubmitting.value = false
   }
@@ -206,22 +275,10 @@ const handleSubmit = async () => {
     <!-- Header -->
     <div class="page-header">
       <button class="back-btn" @click="router.back()">←</button>
-      <h1>리뷰 작성</h1>
+      <h1>{{ isEditMode ? '리뷰 수정' : '리뷰 작성' }}</h1>
     </div>
 
-    <!-- Notice Box -->
-    <div class="notice-box">
-      <h3>리뷰 작성 전 확인해 주세요.</h3>
-      <ul>
-        <li>개인정보(실명, 얼굴사진 등)와 허위·비방 내용은 등록할 수 없습니다.</li>
-        <li>리뷰와 사진은 서비스 노출 및 운영 목적에 활용될 수 있습니다.</li>
-        <li>부정 리뷰(보상 목적, 방문 이력 없음 등)는 제한되며 삭제될 수 있습니다.</li>
-      </ul>
-      <label class="agree-label">
-        <input type="checkbox" v-model="agreed" />
-        <span>위 내용을 확인하고 리뷰 작성에 동의합니다.</span>
-      </label>
-    </div>
+
 
     <!-- Accommodation Info -->
     <div class="info-section">
@@ -310,13 +367,27 @@ const handleSubmit = async () => {
       </div>
     </div>
 
+    <!-- Notice Box -->
+    <div class="notice-box">
+      <h3>리뷰 작성 전 확인해 주세요.</h3>
+      <ul>
+        <li>개인정보(실명, 얼굴사진 등)와 허위·비방 내용은 등록할 수 없습니다.</li>
+        <li>리뷰와 사진은 서비스 노출 및 운영 목적에 활용될 수 있습니다.</li>
+        <li>부정 리뷰(보상 목적, 방문 이력 없음 등)는 제한되며 삭제될 수 있습니다.</li>
+      </ul>
+      <label class="agree-label">
+        <input type="checkbox" v-model="agreed" />
+        <span>위 내용을 확인하고 리뷰 작성에 동의합니다.</span>
+      </label>
+    </div>
+
     <!-- Submit Button -->
     <button
       class="submit-btn"
       @click="handleSubmit"
       :disabled="isSubmitting"
     >
-      {{ isSubmitting ? '등록 중...' : '리뷰 제출' }}
+      {{ isSubmitting ? (isEditMode ? '수정 중...' : '등록 중...') : (isEditMode ? '리뷰 수정' : '리뷰 제출') }}
     </button>
 
     <!-- Modal -->

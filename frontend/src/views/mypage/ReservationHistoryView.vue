@@ -66,6 +66,20 @@ const getThumbnailUrl = (url) => {
   return url
 }
 
+// 리뷰 작성 가능 여부 확인 (체크아웃 후 7일 이내)
+const isReviewable = (checkoutDate) => {
+  const checkout = new Date(checkoutDate)
+  checkout.setHours(0, 0, 0, 0)
+  
+  const deadline = new Date(checkout)
+  deadline.setDate(deadline.getDate() + 7)
+  
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  
+  return now <= deadline
+}
+
 // 예약 목록 조회 (토큰 기반)
 const fetchReservations = async () => {
   try {
@@ -125,6 +139,22 @@ const handleWriteReview = (item) => {
   router.push({
     name: 'write-review',
     state: {
+      reservationData: {
+        reservationId: item.reservationId,
+        accommodationId: item.accommodationsId,
+        accommodationName: item.accommodationName,
+        dates: `${formatDate(item.checkin)} ~ ${formatDate(item.checkout)}`
+      }
+    }
+  })
+}
+
+// 리뷰 수정
+const handleEditReview = (item) => {
+  router.push({
+    name: 'write-review',
+    state: {
+      mode: 'edit',
       reservationData: {
         reservationId: item.reservationId,
         accommodationId: item.accommodationsId,
@@ -234,14 +264,25 @@ onMounted(() => {
             </div>
 
             <div class="card-actions">
-              <button
-                class="action-btn review"
-                :class="{ completed: item.hasReview }"
-                @click="handleWriteReview(item)"
-                :disabled="item.hasReview"
-              >
-                {{ item.hasReview ? '리뷰 등록 완료' : '리뷰 작성하기' }}
-              </button>
+              <template v-if="!item.hasReview">
+                 <button
+                  class="action-btn review"
+                  :class="{ disabled: !isReviewable(item.checkout) }"
+                  @click="handleWriteReview(item)"
+                  :disabled="!isReviewable(item.checkout)"
+                >
+                  {{ isReviewable(item.checkout) ? '리뷰 작성하기' : '작성 기한 만료' }}
+                </button>
+              </template>
+              <template v-else>
+                <button class="action-btn review completed" disabled>
+                  리뷰 등록 완료
+                </button>
+                <button class="action-btn edit" @click="handleEditReview(item)">
+                  리뷰 수정
+                </button>
+              </template>
+              
               <button class="icon-btn delete" @click="handleDelete(item.reservationId)">🗑</button>
             </div>
           </div>
@@ -442,5 +483,22 @@ onMounted(() => {
 
 .icon-btn.delete:hover {
   opacity: 0.9;
+}
+
+.action-btn.review.disabled {
+  background: #ccc;
+  border-color: #ccc;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.action-btn.edit {
+  background: white;
+  border: 1px solid var(--primary);
+  color: #004d40;
+}
+
+.action-btn.edit:hover {
+  background: #f0fdf4; /* primary light color */
 }
 </style>
