@@ -1,21 +1,37 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
+import { useHolidayStore } from '@/stores/holiday'
+import { useCalendarStore } from '@/stores/calendar'
 import { isAuthenticated, logout } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
+const holidayStore = useHolidayStore()
+const calendarStore = useCalendarStore()
+const searchKeyword = ref(searchStore.keyword || '')
+
+watch(
+  () => searchStore.keyword,
+  (value) => {
+    const next = value || ''
+    if (next !== searchKeyword.value) {
+      searchKeyword.value = next
+    }
+  }
+)
 
 const isMenuOpen = ref(false)
 const isSearchExpanded = ref(false)
 const isHostMode = ref(localStorage.getItem('isHostMode') === 'true')
-const isCalendarOpen = ref(false)
+const isCalendarOpen = computed(() => calendarStore.activeCalendar === 'header')
 const isGuestOpen = ref(false)
 const isLoggedIn = ref(isAuthenticated())
 const isHostRoute = computed(() => route.path.startsWith('/host'))
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
+
 
 // Toggle host mode and persist to localStorage
 const toggleHostMode = () => {
@@ -58,7 +74,7 @@ const isMobile = () => window.innerWidth <= 768
 const toggleGuestPicker = (e) => {
   e.stopPropagation()
   isGuestOpen.value = !isGuestOpen.value
-  isCalendarOpen.value = false
+  calendarStore.closeCalendar('header')
 }
 
 const increaseGuest = () => {
@@ -81,12 +97,23 @@ const nextMonthMonth = computed(() => nextMonthDate.value.getMonth())
 const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
 const weekDays = ['일', '월', '화', '수', '목', '금', '토']
 
+const toDateKey = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getHolidayInfo = (date) => holidayStore.getHolidayInfo(toDateKey(date))
+
 // Function to generate calendar days for any month
 const getCalendarDays = (year, month) => {
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
   const daysInMonth = lastDay.getDate()
   const startingDay = firstDay.getDay()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
   
   const days = []
   
@@ -98,10 +125,13 @@ const getCalendarDays = (year, month) => {
   // Days of the month
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, month, day)
+    const dayOfWeek = date.getDay()
     const isStartDate = searchStore.startDate && isSameDay(date, searchStore.startDate)
     const isEndDate = searchStore.endDate && isSameDay(date, searchStore.endDate)
     const isInRange = isDateInRange(date)
     const hasEndDate = searchStore.endDate !== null
+    const holidayInfo = getHolidayInfo(date)
+    const isDisabled = date.getTime() < today.getTime()
     
     days.push({
       day,
@@ -111,7 +141,12 @@ const getCalendarDays = (year, month) => {
       isStartDate,
       isEndDate,
       isInRange,
-      hasEndDate
+      hasEndDate,
+      isDisabled,
+      isSunday: dayOfWeek === 0,
+      isSaturday: dayOfWeek === 6,
+      isHoliday: Boolean(holidayInfo),
+      holidayName: holidayInfo?.name || ''
     })
   }
   
@@ -123,6 +158,15 @@ const calendarDays = computed(() => getCalendarDays(currentYear.value, currentMo
 
 // Next month calendar days
 const nextMonthDays = computed(() => getCalendarDays(nextMonthYear.value, nextMonthMonth.value))
+
+watch(
+  [currentYear, currentMonth],
+  () => {
+    holidayStore.loadMonth(currentYear.value, currentMonth.value + 1)
+    holidayStore.loadMonth(nextMonthYear.value, nextMonthMonth.value + 1)
+  },
+  { immediate: true }
+)
 
 const isSameDay = (date1, date2) => {
   return date1.getFullYear() === date2.getFullYear() &&
@@ -138,7 +182,7 @@ const isDateInRange = (date) => {
 
 const toggleCalendar = (e) => {
   e.stopPropagation()
-  isCalendarOpen.value = !isCalendarOpen.value
+  calendarStore.toggleCalendar('header')
   isGuestOpen.value = false
 }
 
@@ -151,7 +195,7 @@ const nextMonth = () => {
 }
 
 const selectDate = (dayObj) => {
-  if (dayObj.isEmpty) return
+  if (dayObj.isEmpty || dayObj.isDisabled) return
   
   const clickedDate = dayObj.date
   
@@ -171,8 +215,28 @@ const selectDate = (dayObj) => {
   }
 }
 
+const buildSearchQuery = () => {
+  const query = {}
+  const keyword = String(searchKeyword.value ?? '').trim()
+  searchStore.setKeyword(keyword)
+  searchKeyword.value = keyword
+  if (keyword) query.keyword = keyword
+
+  if (route.path === '/list' || route.path === '/map') {
+    const keys = ['min', 'max', 'minPrice', 'maxPrice', 'themeIds']
+    keys.forEach((key) => {
+      const value = route.query[key]
+      if (value !== undefined) {
+        query[key] = value
+      }
+    })
+  }
+
+  return query
+}
+
 const handleSearch = () => {
-  router.push('/list')
+  router.push({ path: '/list', query: buildSearchQuery() })
   isSearchExpanded.value = false
 }
 
@@ -191,7 +255,7 @@ const handleClickOutside = (e) => {
     isMenuOpen.value = false
   }
   if (!e.target.closest('.date-picker-wrapper')) {
-    isCalendarOpen.value = false
+    calendarStore.closeCalendar('header')
   }
   if (!e.target.closest('.guest-picker-wrapper')) {
     isGuestOpen.value = false
@@ -280,7 +344,7 @@ onUnmounted(() => {
             <span class="collapsed-text">{{ searchStore.dateDisplayText }}</span>
             <span class="collapsed-divider">|</span>
             <span class="collapsed-text">{{ searchStore.guestDisplayText }}</span>
-            <button class="search-btn-mini" aria-label="검색">
+            <button class="search-btn-mini" aria-label="검색" @click.stop="handleSearch">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
               </svg>
@@ -292,7 +356,7 @@ onUnmounted(() => {
             <div class="expanded-close" @click="isSearchExpanded = false">×</div>
             <div class="search-item-full">
               <label>여행지</label>
-              <input type="text" placeholder="어디로 갈까?">
+              <input v-model="searchKeyword" type="text" placeholder="어디로 갈까?" @keydown.enter.prevent="handleSearch">
             </div>
 
             <div class="search-item-full" @click="toggleCalendar">
@@ -317,7 +381,12 @@ onUnmounted(() => {
               </div>
               
               <div class="calendar-weekdays">
-                <span v-for="day in weekDays" :key="'mobile-current-' + day" class="weekday">{{ day }}</span>
+                <span
+                  v-for="(day, index) in weekDays"
+                  :key="'mobile-current-' + day"
+                  class="weekday"
+                  :class="{ sunday: index === 0, saturday: index === 6 }"
+                >{{ day }}</span>
               </div>
               <div class="calendar-days">
                 <span
@@ -330,8 +399,13 @@ onUnmounted(() => {
                     'range-start': dayObj.isStartDate,
                     'range-end': dayObj.isEndDate,
                     'in-range': dayObj.isInRange,
-                    'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                    'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                    'disabled': dayObj.isDisabled,
+                    'sunday': dayObj.isSunday,
+                    'saturday': dayObj.isSaturday,
+                    'holiday': dayObj.isHoliday
                   }"
+                  :title="dayObj.holidayName || null"
                   @click.stop="selectDate(dayObj)"
                 >
                   {{ dayObj.day }}
@@ -379,7 +453,7 @@ onUnmounted(() => {
           <div class="search-bar-desktop">
             <div class="search-item">
               <label>여행지</label>
-              <input type="text" placeholder="어디로 갈까?">
+              <input v-model="searchKeyword" type="text" placeholder="어디로 갈까?" @keydown.enter.prevent="handleSearch">
             </div>
 
           <div class="search-divider"></div>
@@ -404,7 +478,12 @@ onUnmounted(() => {
                 <div class="calendar-month">
                   <div class="calendar-month-title">{{ currentYear }}년 {{ monthNames[currentMonth] }}</div>
                   <div class="calendar-weekdays">
-                    <span v-for="day in weekDays" :key="'current-' + day" class="weekday">{{ day }}</span>
+                    <span
+                      v-for="(day, index) in weekDays"
+                      :key="'current-' + day"
+                      class="weekday"
+                      :class="{ sunday: index === 0, saturday: index === 6 }"
+                    >{{ day }}</span>
                   </div>
                   <div class="calendar-days">
                     <span
@@ -417,8 +496,13 @@ onUnmounted(() => {
                         'range-start': dayObj.isStartDate,
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
-                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                        'disabled': dayObj.isDisabled,
+                        'sunday': dayObj.isSunday,
+                        'saturday': dayObj.isSaturday,
+                        'holiday': dayObj.isHoliday
                       }"
+                      :title="dayObj.holidayName || null"
                       @click="selectDate(dayObj)"
                     >
                       {{ dayObj.day }}
@@ -430,7 +514,12 @@ onUnmounted(() => {
                 <div class="calendar-month">
                   <div class="calendar-month-title">{{ nextMonthYear }}년 {{ monthNames[nextMonthMonth] }}</div>
                   <div class="calendar-weekdays">
-                    <span v-for="day in weekDays" :key="'next-' + day" class="weekday">{{ day }}</span>
+                    <span
+                      v-for="(day, index) in weekDays"
+                      :key="'next-' + day"
+                      class="weekday"
+                      :class="{ sunday: index === 0, saturday: index === 6 }"
+                    >{{ day }}</span>
                   </div>
                   <div class="calendar-days">
                     <span
@@ -443,8 +532,13 @@ onUnmounted(() => {
                         'range-start': dayObj.isStartDate,
                         'range-end': dayObj.isEndDate,
                         'in-range': dayObj.isInRange,
-                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
+                        'has-end': dayObj.isStartDate && dayObj.hasEndDate,
+                        'disabled': dayObj.isDisabled,
+                        'sunday': dayObj.isSunday,
+                        'saturday': dayObj.isSaturday,
+                        'holiday': dayObj.isHoliday
                       }"
+                      :title="dayObj.holidayName || null"
                       @click="selectDate(dayObj)"
                     >
                       {{ dayObj.day }}
@@ -1120,7 +1214,9 @@ onUnmounted(() => {
   
   /* Mobile Calendar Popup */
   .mobile-calendar-popup {
-    background: #f9fafb;
+    background: #fff;
+    border: 1px solid #f0f0f0;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
     border-radius: 12px;
     padding: 16px;
     margin: 8px 0;
@@ -1212,7 +1308,7 @@ onUnmounted(() => {
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   padding: 24px;
-  z-index: 1001;
+  z-index: 90;
   font-family: 'Noto Sans KR', sans-serif;
   border: 1px solid #f0f0f0;
   animation: calendarFadeIn 0.2s ease;
@@ -1294,6 +1390,14 @@ onUnmounted(() => {
   padding: 8px 0;
 }
 
+.weekday.sunday {
+  color: #ef4444;
+}
+
+.weekday.saturday {
+  color: #2563eb;
+}
+
 .calendar-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1309,9 +1413,29 @@ onUnmounted(() => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
 }
 
-.calendar-day:not(.empty):hover {
+.calendar-day.disabled {
+  color: #b4b8bf;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.calendar-day.sunday:not(.range-start):not(.range-end):not(.disabled) {
+  color: #ef4444;
+}
+
+.calendar-day.holiday:not(.range-start):not(.range-end):not(.disabled) {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.calendar-day.saturday:not(.range-start):not(.range-end):not(.disabled) {
+  color: #2563eb;
+}
+
+.calendar-day:not(.empty):not(.disabled):hover {
   background-color: #f0f7f6;
   color: #6DC3BB;
 }
@@ -1320,7 +1444,7 @@ onUnmounted(() => {
   cursor: default;
 }
 
-.calendar-day.today:not(.range-start):not(.range-end):not(.in-range) {
+.calendar-day.today:not(.range-start):not(.range-end):not(.in-range):not(.disabled) {
   color: #6DC3BB;
   font-weight: 700;
 }
@@ -1328,7 +1452,7 @@ onUnmounted(() => {
 /* Range selection styles - using theme color #6DC3BB */
 .calendar-day.range-start,
 .calendar-day.range-end {
-  background-color: #4a9e96;
+  background-color: #5CC5B3;
   color: white;
   font-weight: 700;
   position: relative;
@@ -1342,7 +1466,7 @@ onUnmounted(() => {
   right: 0;
   width: 50%;
   height: 100%;
-  background-color: #d4f0ed;
+  background-color: #BFE7DF;
   z-index: -1;
 }
 
@@ -1354,18 +1478,18 @@ onUnmounted(() => {
   left: 0;
   width: 50%;
   height: 100%;
-  background-color: #d4f0ed;
+  background-color: #BFE7DF;
   z-index: -1;
 }
 
 .calendar-day.range-start:hover,
 .calendar-day.range-end:hover {
-  background-color: #3d8a82;
+  background-color: #49B5A3;
   color: white;
 }
 
 .calendar-day.in-range {
-  background-color: #d4f0ed;
+  background-color: #BFE7DF;
   color: #2d7a73;
   border-radius: 0;
 }
@@ -1416,6 +1540,11 @@ onUnmounted(() => {
     padding: 10px 0;
     font-size: 13px;
   }
+
+  .calendar-day.range-start.has-end::after,
+  .calendar-day.range-end::before {
+    display: none;
+  }
 }
 
 /* Navigation button positioning for desktop */
@@ -1442,7 +1571,7 @@ onUnmounted(() => {
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   padding: 24px;
-  z-index: 1001;
+  z-index: 90;
   font-family: 'Noto Sans KR', sans-serif;
   border: 1px solid #f0f0f0;
   animation: guestFadeIn 0.2s ease;
