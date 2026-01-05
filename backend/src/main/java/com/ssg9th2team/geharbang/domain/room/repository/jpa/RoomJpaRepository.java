@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface RoomJpaRepository extends JpaRepository<Room, Long> {
@@ -32,4 +33,25 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
             GROUP BY r.accommodationsId
             """)
     List<AccommodationGuestStats> findMaxGuestsByAccommodationIds(@Param("accommodationIds") List<Long> accommodationIds);
+
+    @Query(value = """
+            SELECT r.room_id
+            FROM room r
+            WHERE r.accommodations_id = :accommodationsId
+              AND r.room_status = 1
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM reservation res
+                  WHERE res.room_id = r.room_id
+                    AND res.is_deleted = 0
+                    AND res.reservation_status IN (2, 3)
+                    AND res.checkin < :checkout
+                    AND res.checkout > :checkin
+              )
+            """, nativeQuery = true)
+    List<Long> findAvailableRoomIds(
+            @Param("accommodationsId") Long accommodationsId,
+            @Param("checkin") LocalDateTime checkin,
+            @Param("checkout") LocalDateTime checkout
+    );
 }
