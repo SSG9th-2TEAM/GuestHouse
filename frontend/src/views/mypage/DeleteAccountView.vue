@@ -69,25 +69,45 @@ const openConfirmModal = () => {
 
 const confirmDelete = async () => {
   isLoading.value = true
+  console.log('회원 탈퇴 요청 시작')
+
   try {
     const reasonLabels = selectedReasons.value.map(id => reasons.value.find(r => r.id === id).label);
+    console.log('탈퇴 사유:', reasonLabels, '기타:', otherReasonText.value)
+
     const response = await deleteSelf(reasonLabels, otherReasonText.value);
-    
+    console.log('탈퇴 API 응답:', response)
+
     if (response.ok) {
+      console.log('탈퇴 성공')
       modalType.value = 'success'
     } else {
       // Handle known errors from the backend
+      console.error('탈퇴 실패:', response.status, response.data)
       modalType.value = 'error';
       modalTitle.value = '탈퇴 처리 실패';
-      modalMessage.value = response.data?.message || '알 수 없는 오류로 인해 탈퇴에 실패했습니다.';
+
+      // 더 상세한 에러 메시지 표시
+      if (response.data && response.data.message) {
+        modalMessage.value = response.data.message;
+      } else if (response.status === 409) {
+        modalMessage.value = '진행 중이거나 완료된 예약이 있어 탈퇴할 수 없습니다.';
+      } else if (response.status === 401) {
+        modalMessage.value = '로그인이 만료되었습니다. 다시 로그인해주세요.';
+      } else if (response.status === 500) {
+        modalMessage.value = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      } else {
+        modalMessage.value = `오류 코드: ${response.status}. 관리자에게 문의해주세요.`;
+      }
     }
   } catch (error) {
+    console.error("회원 탈퇴 중 예외 발생:", error);
     modalType.value = 'error';
     modalTitle.value = '요청 실패';
     modalMessage.value = '서버와 통신하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
-    console.error("Error deleting account:", error);
   } finally {
     isLoading.value = false
+    console.log('회원 탈퇴 요청 완료')
   }
 }
 
