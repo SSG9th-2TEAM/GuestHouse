@@ -15,6 +15,9 @@ public class HostForecastResponse {
     private LocalDate from;
     private LocalDate to;
     private Long accommodationId;
+    private String modelVersion;
+    private String explain;
+    private HostForecastDiagnostics diagnostics;
     private HostForecastBaseline baseline;
     private List<HostForecastDaily> forecastDaily;
     private HostForecastSummary forecastSummary;

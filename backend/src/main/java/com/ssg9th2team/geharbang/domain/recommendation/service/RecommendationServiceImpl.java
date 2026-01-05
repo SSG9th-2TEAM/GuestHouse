@@ -39,6 +39,12 @@ public class RecommendationServiceImpl implements RecommendationService {
         if (reservedIds == null)
             reservedIds = new HashSet<>();
 
+        // [Fallback] 사용자 선호 테마/태그가 없으면 인기 숙소 추천
+        if (userThemeIds.isEmpty() && preferredTagIds.isEmpty()) {
+            log.info("User {} has no preferences, using popularity-based fallback", userId);
+            return getPopularRecommendations(reservedIds, limit);
+        }
+
         // 4. 테마 기반 숙소 조회
         List<AccommodationScoreDto> themeMatched = new ArrayList<>();
         if (!userThemeIds.isEmpty()) {
@@ -143,6 +149,62 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .matchedThemes(List.of())
                 .matchedTags(List.of())
                 .build();
+    }
+
+    /**
+     * [Fallback] 인기 숙소 기반 추천
+     * 선호 테마/태그가 없는 신규 사용자를 위한 추천
+     */
+    private List<RecommendationResponse> getPopularRecommendations(Set<Long> excludeIds, int limit) {
+        List<AccommodationScoreDto> popularAccommodations = recommendationMapper.findPopularAccommodations(excludeIds,
+                limit);
+
+        List<RecommendationResponse> recommendations = new ArrayList<>();
+        for (AccommodationScoreDto dto : popularAccommodations) {
+            // 인기도 점수 계산 (예약 수 + 평점 기반)
+            double popularityScore = calculatePopularityScore(dto);
+
+            List<String> themeNames = recommendationMapper.findThemeNamesByAccommodationId(dto.getAccommodationId());
+            List<String> tagNames = recommendationMapper.findTopTagNamesByAccommodationId(dto.getAccommodationId());
+
+            RecommendationResponse response = RecommendationResponse.builder()
+                    .accommodationId(dto.getAccommodationId())
+                    .accommodationName(dto.getAccommodationName())
+                    .shortDescription(dto.getShortDescription())
+                    .city(dto.getCity())
+                    .district(dto.getDistrict())
+                    .imageUrl(dto.getImageUrl())
+                    .rating(dto.getRating())
+                    .minPrice(dto.getMinPrice() != null ? dto.getMinPrice().intValue() : 0)
+                    .score(Math.round(popularityScore * 100) / 100.0)
+                    .matchedThemes(themeNames != null ? themeNames : List.of())
+                    .matchedTags(tagNames != null ? tagNames : List.of())
+                    .build();
+
+            recommendations.add(response);
+        }
+
+        return recommendations;
+    }
+
+    /**
+     * 인기도 점수 계산 (Fallback용)
+     * - 예약 수 정규화 (최대 50건 기준)
+     * - 베이지안 평점
+     */
+    private double calculatePopularityScore(AccommodationScoreDto dto) {
+        // 예약 수 정규화 (50건 이상이면 1.0)
+        int reservationCount = dto.getReservationCount() != null ? dto.getReservationCount() : 0;
+        double normalizedReservations = Math.min(reservationCount / 50.0, 1.0);
+
+        // 베이지안 평점
+        double rating = dto.getRating() != null ? dto.getRating() : 0.0;
+        int reviewCount = dto.getReviewCount() != null ? dto.getReviewCount() : 0;
+        double bayesianRating = (reviewCount * rating + 5.0 * 4.0) / (reviewCount + 5.0);
+        double normalizedRating = bayesianRating / 5.0;
+
+        // 예약 수 50% + 평점 50%
+        return (normalizedReservations * 0.5) + (normalizedRating * 0.5);
     }
 
     // 점수 누적용 내부 클래스

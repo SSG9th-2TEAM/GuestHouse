@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
+import { useListingFilters } from '@/composables/useListingFilters'
 import { fetchAccommodationDetail, fetchAccommodationAvailability } from '@/api/accommodation'
 import { getReviewsByAccommodation } from '@/api/reviewApi'
 import { getDownloadableCoupons, issueCoupon, getMyCoupons } from '@/api/couponApi'
@@ -13,6 +14,7 @@ import MapSection from './room-detail/features/MapSection.vue'
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
+const { applyRouteFilters } = useListingFilters()
 
 const DEFAULT_IMAGE = 'https://placehold.co/800x600'
 const DEFAULT_HOST_IMAGE = 'https://picsum.photos/seed/host/100/100'
@@ -20,6 +22,24 @@ const DEFAULT_HOST_IMAGE = 'https://picsum.photos/seed/host/100/100'
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const hasFilterQuery = (query) => {
+  if (!query) return false
+  const keys = [
+    'guestCount',
+    'checkin',
+    'checkout',
+    'checkIn',
+    'checkOut',
+    'min',
+    'max',
+    'minPrice',
+    'maxPrice',
+    'themeIds',
+    'keyword'
+  ]
+  return keys.some((key) => query[key] !== undefined)
 }
 
 const getAccommodationId = () => {
@@ -377,7 +397,8 @@ const loadAvailability = async () => {
   try {
     const response = await fetchAccommodationAvailability(accommodationsId, {
       checkin: searchStore.startDate,
-      checkout: searchStore.endDate
+      checkout: searchStore.endDate,
+      guestCount: searchStore.guestCount
     })
     if (currentRequest !== availabilityRequestId) return
     if (response.ok && Array.isArray(response.data?.availableRoomIds)) {
@@ -616,6 +637,11 @@ const formatDate = (dateStr) => {
 
 onMounted(loadAccommodation)
 onMounted(() => {
+  if (hasFilterQuery(route.query)) {
+    applyRouteFilters(route.query)
+  }
+})
+onMounted(() => {
   document.addEventListener('click', handleClickOutside)
 })
 onUnmounted(() => {
@@ -623,7 +649,15 @@ onUnmounted(() => {
 })
 watch(() => route.params.id, loadAccommodation)
 watch(
-  () => [route.params.id, searchStore.startDate, searchStore.endDate],
+  () => route.query,
+  (query) => {
+    if (hasFilterQuery(query)) {
+      applyRouteFilters(query)
+    }
+  }
+)
+watch(
+  () => [route.params.id, searchStore.startDate, searchStore.endDate, searchStore.guestCount],
   () => {
     loadAvailability()
   },
