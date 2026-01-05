@@ -105,7 +105,7 @@ public class OpenAiSummaryClient implements AiSummaryClient {
     }
 
     private Map<String, Object> buildRequest(HostReviewReportSummaryResponse summary, HostReviewAiSummaryRequest request) {
-        String accommodationName = extractAccommodationName(summary);
+        String accommodationName = extractAccommodationName(summary, request);
         String tagLine = summary.getTopTags() == null ? "" : summary.getTopTags().stream()
                 .limit(10)
                 .map(tag -> tag.getTagName() + ":" + tag.getCount())
@@ -113,23 +113,42 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         String recentReviews = buildRecentReviews(summary.getRecentReviews());
 
         String prompt = String.format(Locale.KOREA,
-                "숙소명: %s\n기간: %s~%s\n평균평점: %.2f\n리뷰수: %d\n별점분포: %s\nTOP태그: %s\n최근리뷰:\n%s\n\n" +
-                        "위 데이터를 기반으로 다음 JSON 형태로 요약해줘.\n" +
-                        "{\n" +
-                        "  \"overview\": [\"총평 1\", \"총평 2\", \"총평 3\"],\n" +
-                        "  \"positives\": [\"좋았던 점 1\", \"좋았던 점 2\", \"좋았던 점 3\"],\n" +
-                        "  \"negatives\": [\"개선 포인트 1\", \"개선 포인트 2\", \"개선 포인트 3\"],\n" +
-                        "  \"actions\": [\"다음 액션 1\", \"다음 액션 2\", \"다음 액션 3\"],\n" +
-                        "  \"risks\": [\"주의 1\", \"주의 2\"]\n" +
-                        "}",
-                accommodationName,
+                "너는 게스트하우스 호스트를 위한 운영 컨설턴트다.\n" +
+                        "입력 데이터(평점/리뷰/태그/기간)만 근거로, 과장/추측 없이 실무적으로 요약해라.\n" +
+                        "출력은 반드시 한국어 마크다운으로만 작성한다.\n\n" +
+                        "[입력]\n" +
+                        "- 기간: %s ~ %s\n" +
+                        "- 숙소명: %s\n" +
+                        "- 리뷰 수: %d\n" +
+                        "- 평균 평점: %.2f\n" +
+                        "- 별점 분포: %s\n" +
+                        "- 상위 태그 TOP10: %s\n" +
+                        "- 최근 리뷰 샘플(최대 10개):\n%s\n\n" +
+                        "[출력 형식(고정)]\n" +
+                        "## 총평\n" +
+                        "- (1~2문장, 60자 이내)\n\n" +
+                        "## 좋았던 점 TOP 3\n" +
+                        "- (각 1줄, 20단어 이내, 가능하면 태그/근거 포함)\n\n" +
+                        "## 아쉬운 점 TOP 3\n" +
+                        "- (각 1줄, 20단어 이내, 없으면 \"유의미한 부정 신호 없음\"이라고 써라)\n\n" +
+                        "## 즉시 실행 액션 TOP 5\n" +
+                        "- [ ] (각 1줄, \"무엇을/어떻게\"가 들어가게)\n\n" +
+                        "## 주의/리스크\n" +
+                        "- (최대 2개)\n\n" +
+                        "## 근거 데이터\n" +
+                        "- 리뷰 수: %d, 평균 평점: %.2f\n" +
+                        "- 대표 태그: (topTag) (n건)\n" +
+                        "- 참고: 데이터가 부족하면 \"데이터 부족\"이라고 명시",
                 summary.getFrom(),
                 summary.getTo(),
-                summary.getAvgRating() != null ? summary.getAvgRating() : 0.0,
+                accommodationName,
                 summary.getReviewCount() != null ? summary.getReviewCount() : 0,
+                summary.getAvgRating() != null ? summary.getAvgRating() : 0.0,
                 summary.getRatingDistribution(),
                 tagLine,
-                recentReviews
+                recentReviews,
+                summary.getReviewCount() != null ? summary.getReviewCount() : 0,
+                summary.getAvgRating() != null ? summary.getAvgRating() : 0.0
         );
 
         Map<String, Object> system = Map.of("role", "system", "content", "너는 호스트 숙소 리뷰 리포트 분석가다.");
@@ -142,7 +161,10 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         return body;
     }
 
-    private String extractAccommodationName(HostReviewReportSummaryResponse summary) {
+    private String extractAccommodationName(HostReviewReportSummaryResponse summary, HostReviewAiSummaryRequest request) {
+        if (request != null && request.getAccommodationId() == null) {
+            return "전체 숙소";
+        }
         if (summary.getRecentReviews() == null || summary.getRecentReviews().isEmpty()) {
             return "해당 숙소";
         }
@@ -153,9 +175,14 @@ public class OpenAiSummaryClient implements AiSummaryClient {
     private String buildRecentReviews(List<HostReviewReportRecentRow> reviews) {
         if (reviews == null || reviews.isEmpty()) return "리뷰 데이터 없음";
         return reviews.stream()
-                .limit(5)
-                .map(review -> "- " + trimContent(review.getContent()))
+                .limit(10)
+                .map(review -> String.format("- %s점: %s", formatRating(review.getRating()), trimContent(review.getContent())))
                 .collect(Collectors.joining("\n"));
+    }
+
+    private String formatRating(Double rating) {
+        if (rating == null) return "0";
+        return String.format(Locale.KOREA, "%.1f", rating);
     }
 
     private String trimContent(String content) {
@@ -181,7 +208,12 @@ public class OpenAiSummaryClient implements AiSummaryClient {
 
     private HostReviewAiSummaryResponse parseResponse(String content, HostReviewAiSummaryResponse base) throws Exception {
         String trimmed = stripCodeFence(content).trim();
-        Map<String, List<String>> parsed = objectMapper.readValue(trimmed, new TypeReference<Map<String, List<String>>>() {});
+        Map<String, List<String>> parsed;
+        if (trimmed.startsWith("{")) {
+            parsed = objectMapper.readValue(trimmed, new TypeReference<Map<String, List<String>>>() {});
+        } else {
+            parsed = parseMarkdownSummary(trimmed);
+        }
 
         HostReviewAiSummaryResponse response = new HostReviewAiSummaryResponse();
         response.setAccommodationId(base.getAccommodationId());
@@ -194,6 +226,47 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         response.setActions(parsed.getOrDefault("actions", List.of()));
         response.setRisks(parsed.getOrDefault("risks", List.of()));
         return response;
+    }
+
+    private Map<String, List<String>> parseMarkdownSummary(String content) {
+        Map<String, List<String>> parsed = new HashMap<>();
+        String current = null;
+        for (String raw : content.split("\\r?\\n")) {
+            String line = raw.trim();
+            if (line.startsWith("## ")) {
+                current = mapHeading(line.substring(3).trim());
+                continue;
+            }
+            if (current == null || line.isEmpty()) continue;
+            String item = extractBullet(line);
+            if (item == null || item.isBlank()) continue;
+            parsed.computeIfAbsent(current, key -> new java.util.ArrayList<>()).add(item);
+        }
+        return parsed;
+    }
+
+    private String mapHeading(String heading) {
+        if (heading.contains("총평")) return "overview";
+        if (heading.contains("좋았던")) return "positives";
+        if (heading.contains("아쉬운")) return "negatives";
+        if (heading.contains("즉시") || heading.contains("액션")) return "actions";
+        if (heading.contains("주의") || heading.contains("리스크")) return "risks";
+        return null;
+    }
+
+    private String extractBullet(String line) {
+        String normalized = line;
+        if (normalized.startsWith("-")) {
+            normalized = normalized.substring(1).trim();
+        } else if (normalized.matches("^\\d+\\..*")) {
+            normalized = normalized.replaceFirst("^\\d+\\.\\s*", "");
+        } else {
+            return null;
+        }
+        if (normalized.startsWith("[ ]")) {
+            normalized = normalized.substring(3).trim();
+        }
+        return normalized;
     }
 
     private String stripCodeFence(String content) {
