@@ -57,14 +57,15 @@ public class MainController {
             @RequestParam(name = "checkin", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkin,
             @RequestParam(name = "checkout", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkout
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkout,
+            @RequestParam(name = "guestCount", required = false) Integer guestCount
     ) {
         if (checkin == null || checkout == null || !checkout.isAfter(checkin)) {
             return AvailableRoomResponse.of(List.of());
         }
         LocalDateTime checkinAt = checkin.atTime(15, 0);
         LocalDateTime checkoutAt = checkout.atTime(11, 0);
-        List<Long> roomIds = roomJpaRepository.findAvailableRoomIds(accommodationsId, checkinAt, checkoutAt);
+        List<Long> roomIds = roomJpaRepository.findAvailableRoomIds(accommodationsId, checkinAt, checkoutAt, guestCount);
         return AvailableRoomResponse.of(roomIds);
     }
 }
