@@ -2,6 +2,7 @@ package com.ssg9th2team.geharbang.domain.coupon.service;
 
 import com.ssg9th2team.geharbang.domain.coupon.entity.Coupon;
 import com.ssg9th2team.geharbang.domain.coupon.entity.UserCoupon;
+import com.ssg9th2team.geharbang.domain.coupon.entity.UserCouponStatus;
 import com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponJpaRepository;
 import com.ssg9th2team.geharbang.domain.coupon.repository.jpa.UserCouponJpaRepository;
 import com.ssg9th2team.geharbang.domain.review.entity.ReviewEntity;
@@ -98,7 +99,7 @@ public class UserCouponServiceTest {
         entityManager.flush();
 
         // then - 쿠폰이 발급되었는지 확인
-        List<UserCoupon> userCoupons = userCouponJpaRepository.findByUserIdAndStatus(testUserId, "ISSUED");
+        List<UserCoupon> userCoupons = userCouponJpaRepository.findByUserIdAndStatus(testUserId, UserCouponStatus.ISSUED);
         assertThat(userCoupons).hasSize(1);
         assertThat(userCoupons.get(0).getCouponId()).isEqualTo(rewardCoupon.getCouponId());
 
@@ -121,7 +122,7 @@ public class UserCouponServiceTest {
         entityManager.flush();
 
         // then - 쿠폰이 발급되지 않아야 함
-        List<UserCoupon> userCoupons = userCouponJpaRepository.findByUserIdAndStatus(testUserId, "ISSUED");
+        List<UserCoupon> userCoupons = userCouponJpaRepository.findByUserIdAndStatus(testUserId, UserCouponStatus.ISSUED);
         assertThat(userCoupons).isEmpty();
 
         System.out.println("리뷰 2회 - 쿠폰 발급 안됨 (정상)");
@@ -143,7 +144,7 @@ public class UserCouponServiceTest {
         entityManager.flush();
 
         // then - 쿠폰은 1개만 있어야 함
-        List<UserCoupon> userCoupons = userCouponJpaRepository.findByUserIdAndStatus(testUserId, "ISSUED");
+        List<UserCoupon> userCoupons = userCouponJpaRepository.findByUserIdAndStatus(testUserId, UserCouponStatus.ISSUED);
         assertThat(userCoupons).hasSize(1);
 
         System.out.println("리뷰 6회 - 쿠폰 중복 발급 방지 확인 (1개만 발급됨)");
@@ -163,7 +164,7 @@ public class UserCouponServiceTest {
         entityManager.flush();
 
         // then - 쿠폰이 없으므로 발급 안됨
-        List<UserCoupon> userCoupons = userCouponJpaRepository.findByUserIdAndStatus(testUserId, "ISSUED");
+        List<UserCoupon> userCoupons = userCouponJpaRepository.findByUserIdAndStatus(testUserId, UserCouponStatus.ISSUED);
         assertThat(userCoupons).isEmpty();
 
         System.out.println("쿠폰이 없을 때 - 발급 안됨 (정상)");

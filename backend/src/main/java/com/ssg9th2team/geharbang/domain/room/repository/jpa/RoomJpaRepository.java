@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,4 +45,29 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                         """)
         List<AccommodationGuestStats> findMaxGuestsByAccommodationIds(
                         @Param("accommodationIds") List<Long> accommodationIds);
+
+        /**
+         * 특정 숙소의 예약 가능한 객실 ID 목록 조회
+         * - 활성 상태 객실만 (room_status = 1)
+         * - 해당 기간에 확정/진행중 예약이 없는 객실
+         */
+        @Query(value = """
+                        SELECT r.room_id
+                        FROM room r
+                        WHERE r.accommodations_id = :accommodationsId
+                          AND r.room_status = 1
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM reservation res
+                              WHERE res.room_id = r.room_id
+                                AND res.is_deleted = 0
+                                AND res.reservation_status IN (2, 3)
+                                AND res.checkin < :checkout
+                                AND res.checkout > :checkin
+                          )
+                        """, nativeQuery = true)
+        List<Long> findAvailableRoomIds(
+                        @Param("accommodationsId") Long accommodationsId,
+                        @Param("checkin") LocalDateTime checkin,
+                        @Param("checkout") LocalDateTime checkout);
 }

@@ -158,7 +158,12 @@ class ConcurrencyTest {
                 Instant.now().plus(2, ChronoUnit.DAYS),
                 1,
                 10000,
+<<<<<<< HEAD
                 0,
+=======
+                null, // userCouponId
+                0, // couponDiscount
+>>>>>>> develop
                 "테스터",
                 "010-1234-5678");
 

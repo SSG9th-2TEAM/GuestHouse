@@ -21,6 +21,12 @@ public interface ReservationJpaRepository
         @Query("SELECT r FROM Reservation r WHERE r.userId = :userId AND r.isDeleted = false")
         List<Reservation> findByUserId(@Param("userId") Long userId);
 
+        // 활성 예약 조회 (취소되지 않은 예약, 임시 예약 제외)
+        // 예약 상태: 0(임시-결제대기), 1(요청), 2(확정), 3(체크인완료), 9(취소)
+        // 임시(0) 상태는 결제 대기 중이며 30분 후 자동 삭제되므로 활성 예약에서 제외
+        @Query("SELECT r FROM Reservation r WHERE r.userId = :userId AND r.isDeleted = false AND r.reservationStatus != 9 AND r.reservationStatus != 0")
+        List<Reservation> findActiveReservationsByUserId(@Param("userId") Long userId);
+
         @Query("SELECT r FROM Reservation r WHERE r.accommodationsId = :accommodationsId AND r.isDeleted = false")
         List<Reservation> findByAccommodationsId(@Param("accommodationsId") Long accommodationsId);
 
@@ -102,4 +108,5 @@ public interface ReservationJpaRepository
          */
         long countByUserIdAndReservationStatus(Long userId, Integer reservationStatus);
 
+        List<Reservation> findAllByUserId(Long userId);
 }

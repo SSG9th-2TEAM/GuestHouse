@@ -236,6 +236,15 @@ const selectDate = (dayObj) => {
   }
 }
 
+const formatDateParam = (date) => {
+  if (!(date instanceof Date)) return null
+  if (Number.isNaN(date.getTime())) return null
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const buildSearchQuery = () => {
   const query = {}
   const keyword = String(searchKeyword.value ?? '').trim()
@@ -243,6 +252,12 @@ const buildSearchQuery = () => {
   searchKeyword.value = keyword
   if (keyword) query.keyword = keyword
   if (searchStore.guestCount > 0) query.guestCount = String(searchStore.guestCount)
+  const checkin = formatDateParam(searchStore.startDate)
+  const checkout = formatDateParam(searchStore.endDate)
+  if (checkin && checkout) {
+    query.checkin = checkin
+    query.checkout = checkout
+  }
 
   if (route.path === '/list' || route.path === '/map') {
     if (searchStore.minPrice !== null) query.min = String(searchStore.minPrice)
@@ -638,7 +653,7 @@ onUnmounted(() => {
   border-bottom: 1px solid #e8ecf0;
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 200;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
@@ -1147,6 +1162,8 @@ onUnmounted(() => {
   }
   
   .collapsed-text {
+    flex: 1 1 0;
+    min-width: 0;
     font-size: 13px;
     color: #6b7280;
     white-space: nowrap;
@@ -1155,7 +1172,7 @@ onUnmounted(() => {
   }
 
   .collapsed-text--keyword {
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
   }
   
@@ -1176,7 +1193,6 @@ onUnmounted(() => {
     cursor: pointer;
     color: white;
     flex-shrink: 0;
-    margin-left: auto;
   }
   
   /* Expanded Mobile Search Bar */
