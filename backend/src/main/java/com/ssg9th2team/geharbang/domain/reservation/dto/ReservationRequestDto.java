@@ -10,6 +10,7 @@ public record ReservationRequestDto(
         Instant checkout,
         Integer guestCount,
         Integer totalAmount,
+        Long userCouponId,
         Integer couponDiscountAmount,
         String reserverName,
         String reserverPhone) {

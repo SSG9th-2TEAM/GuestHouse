@@ -1,61 +1,85 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getMyCoupons } from '@/api/couponApi'
 
 const router = useRouter()
-const activeTab = ref('available')
+const activeTab = ref('ISSUED')
+const coupons = ref([])
+const loading = ref(false)
+const error = ref(null)
 
-// Mock data - set to empty array to test empty state
-const availableCoupons = ref([
-  {
-    id: 1,
-    name: '신규 회원 환영 쿠폰',
-    discount: '10,000원 할인',
-    minPurchase: '50,000원 이상 구매 시',
-    expiry: '2026.01.31까지'
-  },
-  {
-    id: 2,
-    name: '주말 특가 할인',
-    discount: '20% 할인',
-    minPurchase: '30,000원 이상 구매 시',
-    expiry: '2025.12.31까지'
-  },
-  {
-    id: 3,
-    name: '제주 여행 특별 쿠폰',
-    discount: '15,000원 할인',
-    minPurchase: '100,000원 이상 구매 시',
-    expiry: '2026.02.28까지'
-  },
-  {
-    id: 4,
-    name: '리뷰 작성 감사 쿠폰',
-    discount: '3,000원 할인',
-    minPurchase: '10,000원 이상 구매 시',
-    expiry: '2026.03.31까지'
+// 탭별 쿠폰 개수
+const couponCounts = ref({
+  ISSUED: 0,
+  USED: 0,
+  EXPIRED: 0
+})
+
+// 쿠폰 조회
+async function fetchCoupons(status) {
+  loading.value = true
+  error.value = null
+  try {
+    coupons.value = await getMyCoupons(status)
+  } catch (e) {
+    console.error('쿠폰 조회 실패:', e)
+    error.value = e.message
+    coupons.value = []
+  } finally {
+    loading.value = false
   }
-])
-
-const expiredCoupons = ref([
-  {
-    id: 5,
-    name: '겨울 시즌 할인',
-    discount: '5,000원 할인',
-    minPurchase: '20,000원 이상 구매 시',
-    expiry: '2025.11.30까지',
-    expired: true
-  }
-])
-
-const currentCoupons = ref(availableCoupons.value)
-
-const switchTab = (tab) => {
-  activeTab.value = tab
-  currentCoupons.value = tab === 'available' ? availableCoupons.value : expiredCoupons.value
 }
 
-const hasCoupons = () => availableCoupons.value.length > 0 || expiredCoupons.value.length > 0
+// 모든 탭의 개수 조회
+async function fetchAllCounts() {
+  try {
+    const [issued, used, expired] = await Promise.all([
+      getMyCoupons('ISSUED'),
+      getMyCoupons('USED'),
+      getMyCoupons('EXPIRED')
+    ])
+    couponCounts.value = {
+      ISSUED: issued.length,
+      USED: used.length,
+      EXPIRED: expired.length
+    }
+  } catch (e) {
+    console.error('쿠폰 개수 조회 실패:', e)
+  }
+}
+
+// 탭 변경
+function switchTab(tab) {
+  activeTab.value = tab
+  fetchCoupons(tab)
+}
+
+// 할인 표시 포맷
+function formatDiscount(coupon) {
+  if (coupon.discountType === 'PERCENT') {
+    return `${coupon.discountValue}% 할인`
+  }
+  return `${coupon.discountValue.toLocaleString()}원 할인`
+}
+
+// 최소 금액 표시
+function formatMinPrice(minPrice) {
+  if (!minPrice || minPrice === 0) return '조건 없음'
+  return `${minPrice.toLocaleString()}원 이상 구매 시`
+}
+
+// 만료일 표시
+function formatExpiry(expiredAt) {
+  if (!expiredAt) return ''
+  const date = new Date(expiredAt)
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}까지`
+}
+
+onMounted(() => {
+  fetchCoupons('ISSUED')
+  fetchAllCounts()
+})
 </script>
 
 <template>
@@ -66,56 +90,77 @@ const hasCoupons = () => availableCoupons.value.length > 0 || expiredCoupons.val
       <h1>보유 쿠폰</h1>
     </div>
 
+    <!-- Tabs -->
+    <div class="tabs">
+      <button
+        class="tab"
+        :class="{ active: activeTab === 'ISSUED' }"
+        @click="switchTab('ISSUED')"
+      >
+        사용 가능<br><span class="count">{{ couponCounts.ISSUED }}개</span>
+      </button>
+      <button
+        class="tab"
+        :class="{ active: activeTab === 'USED' }"
+        @click="switchTab('USED')"
+      >
+        사용 완료<br><span class="count">{{ couponCounts.USED }}개</span>
+      </button>
+      <button
+        class="tab"
+        :class="{ active: activeTab === 'EXPIRED' }"
+        @click="switchTab('EXPIRED')"
+      >
+        만료됨<br><span class="count">{{ couponCounts.EXPIRED }}개</span>
+      </button>
+    </div>
+
+    <!-- Loading -->
+    <div v-if="loading" class="loading-state">
+      <p>쿠폰을 불러오는 중...</p>
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="error-state">
+      <p>{{ error }}</p>
+      <button @click="fetchCoupons(activeTab)">다시 시도</button>
+    </div>
+
     <!-- Empty State -->
-    <div v-if="!hasCoupons()" class="empty-state">
+    <div v-else-if="coupons.length === 0" class="empty-state">
       <div class="empty-icon">🎟️</div>
-      <h2>보유한 쿠폰이 없어요</h2>
-      <p>쿠폰을 받으면 더 저렴하게 예약할 수 있어요.</p>
+      <h2 v-if="activeTab === 'ISSUED'">사용 가능한 쿠폰이 없어요</h2>
+      <h2 v-else-if="activeTab === 'USED'">사용한 쿠폰이 없어요</h2>
+      <h2 v-else>만료된 쿠폰이 없어요</h2>
       <p>이벤트와 프로모션을 확인해보세요.</p>
     </div>
 
     <!-- Coupon List -->
     <template v-else>
-      <!-- Tabs -->
-      <div class="tabs">
-        <button 
-          class="tab" 
-          :class="{ active: activeTab === 'available' }"
-          @click="switchTab('available')"
-        >
-          사용 가능<br><span class="count">{{ availableCoupons.length }}개</span>
-        </button>
-        <button 
-          class="tab" 
-          :class="{ active: activeTab === 'expired' }"
-          @click="switchTab('expired')"
-        >
-          만료됨<br><span class="count">{{ expiredCoupons.length }}개</span>
-        </button>
-      </div>
-
       <!-- Section Title -->
       <div class="section-title">
-        <span v-if="activeTab === 'available'">✓ 사용 가능한 쿠폰</span>
+        <span v-if="activeTab === 'ISSUED'">✓ 사용 가능한 쿠폰</span>
+        <span v-else-if="activeTab === 'USED'">✓ 사용 완료된 쿠폰</span>
         <span v-else>⏱ 만료된 쿠폰</span>
       </div>
 
       <!-- Coupon Cards -->
       <div class="coupon-list">
-        <div 
-          v-for="coupon in currentCoupons" 
-          :key="coupon.id" 
+        <div
+          v-for="coupon in coupons"
+          :key="coupon.id"
           class="coupon-card"
-          :class="{ expired: coupon.expired }"
+          :class="{ expired: activeTab === 'EXPIRED', used: activeTab === 'USED' }"
         >
           <div class="coupon-icon">🏷️</div>
           <div class="coupon-info">
             <span class="coupon-name">{{ coupon.name }}</span>
-            <span class="coupon-discount">{{ coupon.discount }}</span>
-            <span class="coupon-condition">{{ coupon.minPurchase }}</span>
-            <span class="coupon-expiry">⏱ {{ coupon.expiry }}</span>
+            <span class="coupon-discount">{{ formatDiscount(coupon) }}</span>
+            <span class="coupon-condition">{{ formatMinPrice(coupon.minPrice) }}</span>
+            <span class="coupon-expiry">⏱ {{ formatExpiry(coupon.expiredAt) }}</span>
           </div>
-          <div v-if="coupon.expired" class="expired-badge">만료됨</div>
+          <div v-if="activeTab === 'EXPIRED'" class="status-badge expired-badge">만료됨</div>
+          <div v-if="activeTab === 'USED'" class="status-badge used-badge">사용완료</div>
         </div>
       </div>
     </template>
@@ -150,10 +195,28 @@ const hasCoupons = () => availableCoupons.value.length > 0 || expiredCoupons.val
   font-weight: 700;
 }
 
+/* Loading & Error */
+.loading-state,
+.error-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #666;
+}
+
+.error-state button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
 /* Empty State */
 .empty-state {
   text-align: center;
-  padding: 6rem 2rem;
+  padding: 4rem 2rem;
 }
 
 .empty-icon {
@@ -193,7 +256,7 @@ const hasCoupons = () => availableCoupons.value.length > 0 || expiredCoupons.val
   background: none;
   border: none;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #888;
   cursor: pointer;
   border-bottom: 2px solid transparent;
@@ -234,7 +297,8 @@ const hasCoupons = () => availableCoupons.value.length > 0 || expiredCoupons.val
   position: relative;
 }
 
-.coupon-card.expired {
+.coupon-card.expired,
+.coupon-card.used {
   opacity: 0.6;
 }
 
@@ -277,16 +341,24 @@ const hasCoupons = () => availableCoupons.value.length > 0 || expiredCoupons.val
   color: #888;
 }
 
-.expired-badge {
+.status-badge {
   position: absolute;
   right: 1rem;
   top: 50%;
   transform: translateY(-50%);
-  background: #f87171;
-  color: white;
   font-size: 0.75rem;
   padding: 4px 10px;
   border-radius: 12px;
   font-weight: bold;
+}
+
+.expired-badge {
+  background: #f87171;
+  color: white;
+}
+
+.used-badge {
+  background: #9ca3af;
+  color: white;
 }
 </style>

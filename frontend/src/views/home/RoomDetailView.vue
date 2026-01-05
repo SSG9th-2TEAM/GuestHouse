@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { fetchAccommodationDetail, fetchAccommodationAvailability } from '@/api/accommodation'
 import { getReviewsByAccommodation } from '@/api/reviewApi'
+import { getDownloadableCoupons, issueCoupon, getMyCoupons } from '@/api/couponApi'
+
 import ImageGallery from './room-detail/features/ImageGallery.vue'
 import ReviewSection from './room-detail/features/ReviewSection.vue'
 import MapSection from './room-detail/features/MapSection.vue'
@@ -209,6 +211,9 @@ const showAllRooms = ref(false)
 const currentDate = ref(new Date())
 const datePickerRef = ref(null)
 let availabilityRequestId = 0
+const availableCoupons = ref([])
+const isCouponModalOpen = ref(false)
+const downloadedCouponIds = ref(new Set())
 
 const canBook = computed(() => {
   return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
@@ -405,12 +410,14 @@ const loadAccommodation = async () => {
   showFullDescription.value = false
   showAllRooms.value = false
   guesthouse.value = createEmptyGuesthouse(accommodationsId)
+  downloadedCouponIds.value = new Set() // Reset set
 
   try {
     // 숙소 상세 정보와 리뷰를 병렬로 조회
-    const [detailResponse, reviewsData] = await Promise.all([
+    const [detailResponse, reviewsData, couponsData] = await Promise.all([
       fetchAccommodationDetail(accommodationsId),
-      getReviewsByAccommodation(accommodationsId).catch(() => [])
+      getReviewsByAccommodation(accommodationsId).catch(() => []),
+      getDownloadableCoupons(accommodationsId).catch(() => [])
     ])
 
     if (!detailResponse.ok || !detailResponse.data) {
@@ -424,6 +431,21 @@ const loadAccommodation = async () => {
       reviews: reviewsData
     }
     guesthouse.value = normalizeDetail(detailWithReviews)
+    availableCoupons.value = couponsData || []
+
+    // 내 쿠폰 목록 조회 (모든 상태: ISSUED, USED, EXPIRED 등)
+    try {
+      const myCoupons = await getMyCoupons('ALL')
+      // 내 쿠폰 중, 현재 다운로드 가능한 쿠폰과 ID가 같은 것들을 찾아 Set에 추가
+      myCoupons.forEach(userCoupon => {
+         // UserCouponResponseDto는 flatten된 구조 (couponId)
+         if (userCoupon.couponId) {
+             downloadedCouponIds.value.add(String(userCoupon.couponId))
+         }
+      })
+    } catch (e) {
+      console.warn('내 쿠폰 목록 조회 실패 (비로그인 상태일 수 있음):', e)
+    }
   } catch (error) {
     console.error('Failed to load accommodation detail', error)
     guesthouse.value = createEmptyGuesthouse(accommodationsId)
@@ -553,6 +575,43 @@ const handleClickOutside = (event) => {
   if (event.target.closest('.date-picker-wrapper')) return
   if (event.target.closest('.booking-hint')) return
   isCalendarOpen.value = false
+}
+
+const handleDownloadCoupon = async (coupon) => {
+  const cId = String(coupon.couponId)
+  if (downloadedCouponIds.value.has(cId)) return;
+  if (!confirm(`${coupon.name}\n\n이 쿠폰을 다운로드 하시겠습니까?`)) return
+
+  try {
+    await issueCoupon(coupon.couponId)
+    downloadedCouponIds.value.add(cId)
+    alert('쿠폰이 발급되었습니다. 마이페이지에서 확인하세요!')
+  } catch (error) {
+    if (error.message.includes('이미 발급')) {
+       downloadedCouponIds.value.add(cId)
+       // 내 쿠폰 목록 조회 (모든 상태: ISSUED, USED, EXPIRED 등)
+    try {
+      const myCoupons = await getMyCoupons('ALL')
+      // 내 쿠폰 중, 현재 다운로드 가능한 쿠폰과 ID가 같은 것들을 찾아 Set에 추가
+      myCoupons.forEach(userCoupon => {
+         // UserCouponResponseDto는 flatten된 구조 (couponId)
+         // Type mismatch 방지를 위해 String으로 변환하여 저장
+         if (userCoupon.couponId) {
+             downloadedCouponIds.value.add(String(userCoupon.couponId))
+         }
+      })
+    } catch (e) {
+      console.warn('내 쿠폰 목록 조회 실패 (비로그인 상태일 수 있음):', e)
+    }
+    }
+    alert(error.message)
+  }
+}
+
+const formatDate = (dateStr) => {
+    if(!dateStr) return '';
+    const date = new Date(dateStr);
+    return `${date.getFullYear()}.${date.getMonth()+1}.${date.getDate()}`;
 }
 
 onMounted(loadAccommodation)
@@ -719,7 +778,18 @@ watch(filteredRooms, (rooms) => {
 
     <!-- Room Selection -->
     <section class="section room-selection">
-      <h2>객실 선택</h2>
+      <div class="room-selection-header">
+        <h2>객실 선택</h2>
+        <!-- Coupon Button (Moved Here) -->
+        <button 
+           v-if="availableCoupons.length > 0" 
+           type="button" 
+           class="coupon-header-btn" 
+           @click="isCouponModalOpen = true"
+        >
+           쿠폰함
+        </button>
+      </div>
       
       <!-- Date & Guest Picker Mock -->
       <div class="picker-box">
@@ -811,6 +881,9 @@ watch(filteredRooms, (rooms) => {
               <button @click="increaseGuest">+</button>
             </div>
           </div>
+          
+           <!-- Square Coupon Button Removed -->
+
         </div>
       </div>
 
@@ -896,6 +969,39 @@ watch(filteredRooms, (rooms) => {
       </button>
     </div>
 
+
+    <!-- Coupon Modal -->
+    <div v-if="isCouponModalOpen" class="modal-overlay" @click.self="isCouponModalOpen = false">
+      <div class="modal-content coupon-modal">
+        <h3>사용 가능한 쿠폰</h3>
+        <p class="modal-desc">이 숙소에서 사용할 수 있는 쿠폰을 다운로드하세요.</p>
+        <div class="coupon-list-container">
+          <ul class="coupon-list" v-if="availableCoupons.length > 0">
+            <li v-for="coupon in availableCoupons" :key="coupon.couponId" class="coupon-item">
+               <div class="coupon-info">
+                 <div class="coupon-name">{{ coupon.name }}</div>
+                 <div class="coupon-desc">{{ coupon.description }}</div>
+                 <div class="coupon-meta">
+                   <span>{{ coupon.discountType === 'PERCENT' ? coupon.discountValue + '%' : coupon.discountValue.toLocaleString() + '원' }} 할인</span>
+                   <span v-if="coupon.minPrice">({{ coupon.minPrice.toLocaleString() }}원 이상)</span>
+                 </div>
+               </div>
+
+               <button 
+                 class="download-btn" 
+                 :class="{ 'downloaded': downloadedCouponIds.has(String(coupon.couponId)) }"
+                 :disabled="downloadedCouponIds.has(String(coupon.couponId))"
+                 @click="handleDownloadCoupon(coupon)"
+               >
+                 {{ downloadedCouponIds.has(String(coupon.couponId)) ? '발급완료' : '다운로드' }}
+               </button>
+            </li>
+          </ul>
+          <p v-else class="no-coupon">다운로드 가능한 쿠폰이 없습니다.</p>
+        </div>
+        <button class="close-modal-btn" @click="isCouponModalOpen = false">닫기</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1500,6 +1606,111 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
     justify-content: space-between;
   }
 }
+/* Coupon Styles */
+.room-selection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.room-selection-header h2 {
+  margin-bottom: 0;
+}
+.coupon-header-btn {
+  background: var(--primary);
+  color: #004d40;
+  border: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.coupon-header-btn:hover {
+  opacity: 0.9;
+}
+.download-btn.downloaded {
+  background: #ccc;
+  color: #666;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content.coupon-modal {
+  background: white;
+  padding: 2rem;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 450px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal-desc {
+  color: #666;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+}
+.coupon-list-container {
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    flex: 1;
+}
+.coupon-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.coupon-item {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  background: #fdfdfd;
+}
+.coupon-info { flex: 1; }
+.coupon-name { font-weight: bold; font-size: 1.05rem; margin-bottom: 0.25rem; }
+.coupon-desc { font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; }
+.coupon-meta { font-size: 0.85rem; color: #ff5722; font-weight: 600; }
+
+.download-btn {
+  background: var(--primary);
+  color: #004d40;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.download-btn:hover { filter: brightness(0.95); }
+.close-modal-btn {
+  width: 100%;
+  padding: 0.8rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #333;
+}
+.close-modal-btn:hover { background: #f5f5f5; }
 </style>
 
 
