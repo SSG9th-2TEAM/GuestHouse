@@ -635,13 +635,11 @@ const formatDate = (dateStr) => {
     return `${date.getFullYear()}.${date.getMonth()+1}.${date.getDate()}`;
 }
 
-onMounted(loadAccommodation)
 onMounted(() => {
+  loadAccommodation()
   if (hasFilterQuery(route.query)) {
     applyRouteFilters(route.query)
   }
-})
-onMounted(() => {
   document.addEventListener('click', handleClickOutside)
 })
 onUnmounted(() => {
