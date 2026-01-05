@@ -6,6 +6,7 @@ import { useListingFilters } from '@/composables/useListingFilters'
 import { fetchAccommodationDetail, fetchAccommodationAvailability } from '@/api/accommodation'
 import { getReviewsByAccommodation } from '@/api/reviewApi'
 import { getDownloadableCoupons, issueCoupon, getMyCoupons } from '@/api/couponApi'
+import { isAuthenticated } from '@/api/authClient'
 
 import ImageGallery from './room-detail/features/ImageGallery.vue'
 import ReviewSection from './room-detail/features/ReviewSection.vue'
@@ -558,6 +559,14 @@ const goToBooking = () => {
 
   const accommodationsId = guesthouse.value.id ?? getAccommodationId()
   if (!accommodationsId) return
+
+  if (!isAuthenticated()) {
+    const shouldLogin = confirm('로그인 후 예약 가능한 서비스입니다.\n로그인 페이지로 이동할까요?')
+    if (shouldLogin) {
+      router.push({ path: '/login', query: { redirect: route.fullPath } })
+    }
+    return
+  }
 
   // Format dates for display
   let dateDisplay = '날짜를 선택하세요'
