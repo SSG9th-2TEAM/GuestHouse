@@ -100,6 +100,8 @@ const forecastFilters = ref({
 const forecastLoading = ref(false)
 const forecastError = ref('')
 const forecastReport = ref(null)
+const forecastViewMode = ref('table')
+const isDesktop = ref(false)
 
 const reviewRatingEntries = computed(() => {
   const distribution = reviewSummary.value?.ratingDistribution || {}
@@ -214,6 +216,56 @@ const formatForecastRange = (row) => {
   const high = formatNumber(row.high ?? 0)
   return `${low} ~ ${high}`
 }
+const formatForecastShortDate = (value) => {
+  if (!value) return ''
+  const text = String(value)
+  const parts = text.split('-')
+  if (parts.length !== 3) return text
+  return `${parts[1]}-${parts[2]}`
+}
+const forecastChartSeries = computed(() => {
+  return forecastDaily.value.map((row) => ({
+    date: row.date,
+    label: formatForecastShortDate(row.date),
+    predicted: Number(row.predictedValue ?? 0),
+    low: Number(row.low ?? 0),
+    high: Number(row.high ?? 0)
+  }))
+})
+const forecastChartPaths = computed(() => {
+  const points = forecastChartSeries.value
+  if (!points.length) return null
+  const width = 1000
+  const height = 200
+  const paddingX = 30
+  const paddingY = 20
+  const minY = Math.min(...points.map((p) => p.low ?? p.predicted))
+  const maxY = Math.max(...points.map((p) => p.high ?? p.predicted))
+  const safeMin = Number.isFinite(minY) ? minY : 0
+  const safeMax = Number.isFinite(maxY) ? maxY : 0
+  const range = safeMax - safeMin || 1
+  const stepX = points.length > 1 ? (width - paddingX * 2) / (points.length - 1) : 0
+
+  const mapX = (idx) => paddingX + (stepX * idx)
+  const mapY = (value) => {
+    const clamped = Math.max(safeMin, Math.min(safeMax, value))
+    return height - paddingY - ((clamped - safeMin) / range) * (height - paddingY * 2)
+  }
+
+  const linePoints = points.map((point, idx) => `${mapX(idx)},${mapY(point.predicted)}`).join(' ')
+  const highPoints = points.map((point, idx) => `${mapX(idx)},${mapY(point.high)}`).join(' ')
+  const lowPoints = points.map((point, idx) => `${mapX(idx)},${mapY(point.low)}`).reverse().join(' ')
+  const areaPath = `M ${highPoints} L ${lowPoints} Z`
+
+  return {
+    width,
+    height,
+    linePoints,
+    areaPath,
+    minY: safeMin,
+    maxY: safeMax
+  }
+})
 
 const contextSummaryText = computed(() => {
   const reviewCount = formatNumber(reviewSummary.value?.reviewCount ?? 0)
@@ -373,11 +425,30 @@ onMounted(async () => {
     router.replace('/host')
     return
   }
+  if (typeof window !== 'undefined') {
+    const media = window.matchMedia('(min-width: 768px)')
+    const update = () => {
+      isDesktop.value = media.matches
+    }
+    update()
+    media.addEventListener?.('change', update)
+    media.addListener?.(update)
+  }
+  const saved = typeof window !== 'undefined' ? window.localStorage.getItem('hostForecastViewMode') : null
+  if (saved === 'table' || saved === 'cards') {
+    forecastViewMode.value = saved
+  }
   authReady.value = true
   await loadAccommodations()
   loadReviewReport()
   loadThemeReport()
   loadForecast()
+})
+
+watch(forecastViewMode, (value) => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem('hostForecastViewMode', value)
+  }
 })
 
 watch(reviewFilters, () => {
@@ -847,38 +918,95 @@ watch(forecastFilters, () => {
         <p v-if="forecastMetaText" class="forecast-meta">{{ forecastMetaText }}</p>
 
         <div v-if="forecastDaily.length === 0" class="empty-box">예측 데이터가 없습니다.</div>
-        <table v-else class="simple-table table-only forecast-table">
-          <thead>
-            <tr>
-              <th>날짜</th>
-              <th>요일</th>
-              <th class="cell-right">{{ forecastValueLabel }}</th>
-              <th class="cell-right">{{ forecastRangeLabel }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="row in forecastDaily"
-              :key="row.date"
-              :class="[{ 'forecast-weekend': row.isWeekend }, { 'forecast-holiday': row.isHoliday }]"
-            >
-              <td>{{ row.date }}</td>
-              <td>{{ row.dowLabel }}</td>
-              <td class="cell-right">{{ formatForecastValue(row.predictedValue) }}</td>
-              <td class="cell-right">{{ formatForecastRange(row) }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-if="forecastDaily.length" class="card-list mobile-only">
-          <div v-for="row in forecastDaily" :key="row.date" class="report-card">
-            <div class="report-card__row">
-              <strong>{{ row.date }}</strong>
-              <span>{{ formatForecastValue(row.predictedValue) }}</span>
+        <div v-else>
+          <div v-if="isDesktop" class="forecast-toolbar">
+            <div class="forecast-view-toggle" role="tablist" aria-label="예측 보기 전환">
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="forecastViewMode === 'table'"
+                :class="{ active: forecastViewMode === 'table' }"
+                @click="forecastViewMode = 'table'"
+              >테이블</button>
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="forecastViewMode === 'cards'"
+                :class="{ active: forecastViewMode === 'cards' }"
+                @click="forecastViewMode = 'cards'"
+              >카드</button>
             </div>
-            <p class="muted forecast-card-meta">
-              {{ row.dowLabel }}{{ row.isHoliday ? ' · 공휴일' : row.isWeekend ? ' · 주말' : '' }}
-            </p>
-            <p class="muted forecast-card-range">예측 범위 {{ formatForecastRange(row) }}</p>
+          </div>
+
+          <div v-if="isDesktop && forecastViewMode === 'table'" class="forecast-table-wrap">
+            <div v-if="forecastChartPaths" class="forecast-chart">
+              <div class="forecast-chart__legend">
+                <span class="legend-item"><span class="legend-dot"></span>예측</span>
+                <span class="legend-item"><span class="legend-band"></span>범위</span>
+              </div>
+              <svg
+                class="forecast-chart__canvas"
+                viewBox="0 0 1000 200"
+                role="img"
+                aria-label="수요 예측 차트"
+                preserveAspectRatio="none"
+              >
+                <path class="forecast-chart__band" :d="forecastChartPaths.areaPath" />
+                <polyline class="forecast-chart__line" :points="forecastChartPaths.linePoints" />
+                <g class="forecast-chart__points">
+                  <circle
+                    v-for="(row, idx) in forecastChartSeries"
+                    :key="row.date"
+                    :cx="30 + ((1000 - 60) / Math.max(1, forecastChartSeries.length - 1)) * idx"
+                    :cy="180 - ((row.predicted - forecastChartPaths.minY) / (forecastChartPaths.maxY - forecastChartPaths.minY || 1)) * 160"
+                    r="3"
+                  >
+                    <title>{{ row.date }} · {{ formatForecastValue(row.predicted) }} · {{ formatForecastRange(row) }}</title>
+                  </circle>
+                </g>
+              </svg>
+              <div class="forecast-chart__axis">
+                <span>{{ forecastChartSeries[0]?.label }}</span>
+                <span>{{ forecastChartSeries[forecastChartSeries.length - 1]?.label }}</span>
+              </div>
+            </div>
+            <div v-else class="empty-box">예측 데이터가 없습니다.</div>
+
+            <table class="simple-table forecast-table">
+              <thead>
+                <tr>
+                  <th>날짜</th>
+                  <th>요일</th>
+                  <th class="cell-right">{{ forecastValueLabel }}</th>
+                  <th class="cell-right">{{ forecastRangeLabel }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in forecastDaily"
+                  :key="row.date"
+                  :class="[{ 'forecast-weekend': row.isWeekend }, { 'forecast-holiday': row.isHoliday }]"
+                >
+                  <td>{{ row.date }}</td>
+                  <td>{{ row.dowLabel }}</td>
+                  <td class="cell-right">{{ formatForecastValue(row.predictedValue) }}</td>
+                  <td class="cell-right">{{ formatForecastRange(row) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div v-if="!isDesktop || forecastViewMode === 'cards'" class="card-list forecast-cards">
+            <div v-for="row in forecastDaily" :key="row.date" class="report-card">
+              <div class="report-card__row">
+                <strong>{{ row.date }}</strong>
+                <span>{{ formatForecastValue(row.predictedValue) }}</span>
+              </div>
+              <p class="muted forecast-card-meta">
+                {{ row.dowLabel }}{{ row.isHoliday ? ' · 공휴일' : row.isWeekend ? ' · 주말' : '' }}
+              </p>
+              <p class="muted forecast-card-range">예측 범위 {{ formatForecastRange(row) }}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1377,6 +1505,114 @@ watch(forecastFilters, () => {
   background: #f8fafc;
 }
 
+.forecast-toolbar {
+  display: none;
+  justify-content: flex-end;
+  margin: 0 0 0.6rem;
+}
+
+.forecast-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--brand-border);
+  background: #f8fafc;
+}
+
+.forecast-view-toggle button {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.forecast-view-toggle button.active {
+  background: var(--brand-primary);
+  color: var(--brand-accent);
+}
+
+.forecast-cards {
+  margin-top: 0.6rem;
+}
+
+.forecast-table-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.forecast-chart {
+  border: 1px solid var(--brand-border);
+  border-radius: 0.9rem;
+  background: #f8fafc;
+  padding: 0.75rem 0.9rem 0.9rem;
+}
+
+.forecast-chart__legend {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--brand-accent);
+  display: inline-block;
+}
+
+.legend-band {
+  width: 14px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.2);
+  display: inline-block;
+}
+
+.forecast-chart__canvas {
+  width: 100%;
+  height: 180px;
+  display: block;
+}
+
+.forecast-chart__band {
+  fill: rgba(15, 118, 110, 0.15);
+  stroke: none;
+}
+
+.forecast-chart__line {
+  fill: none;
+  stroke: var(--brand-accent);
+  stroke-width: 2;
+}
+
+.forecast-chart__points circle {
+  fill: var(--brand-accent);
+}
+
+.forecast-chart__axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
 .theme-table tbody tr {
   transition: background 0.2s ease;
 }
@@ -1730,6 +1966,10 @@ watch(forecastFilters, () => {
 
   .theme-grid-stack {
     display: none;
+  }
+
+  .forecast-toolbar {
+    display: flex;
   }
 }
 

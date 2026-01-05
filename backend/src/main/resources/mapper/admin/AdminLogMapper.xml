@@ -11,6 +11,7 @@
             target_id,
             action_type,
             reason,
+            metadata_json,
             created_at
         ) VALUES (
             #{adminId},
@@ -18,7 +19,64 @@
             #{targetId},
             #{actionType},
             #{reason},
+            #{metadataJson},
             NOW()
         )
     </insert>
+
+    <select id="selectAdminLogs" resultType="com.ssg9th2team.geharbang.domain.admin.dto.AdminLogRow">
+        SELECT
+            log_id AS logId,
+            admin_id AS adminId,
+            target_type AS targetType,
+            target_id AS targetId,
+            action_type AS actionType,
+            reason AS reason,
+            metadata_json AS metadataJson,
+            created_at AS createdAt
+        FROM admin_log
+        WHERE 1=1
+        <if test="start != null">
+            AND created_at &gt;= #{start}
+        </if>
+        <if test="end != null">
+            AND created_at &lt; #{end}
+        </if>
+        <if test="actionType != null and actionType != ''">
+            AND action_type = #{actionType}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                reason LIKE CONCAT('%', #{keyword}, '%')
+                OR target_type LIKE CONCAT('%', #{keyword}, '%')
+                OR CAST(target_id AS CHAR) LIKE CONCAT('%', #{keyword}, '%')
+                OR metadata_json LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        ORDER BY created_at DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countAdminLogs" resultType="long">
+        SELECT COUNT(*)
+        FROM admin_log
+        WHERE 1=1
+        <if test="start != null">
+            AND created_at &gt;= #{start}
+        </if>
+        <if test="end != null">
+            AND created_at &lt; #{end}
+        </if>
+        <if test="actionType != null and actionType != ''">
+            AND action_type = #{actionType}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                reason LIKE CONCAT('%', #{keyword}, '%')
+                OR target_type LIKE CONCAT('%', #{keyword}, '%')
+                OR CAST(target_id AS CHAR) LIKE CONCAT('%', #{keyword}, '%')
+                OR metadata_json LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+    </select>
 </mapper>

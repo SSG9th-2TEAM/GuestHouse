@@ -46,3 +46,5 @@ export const resolveAdminReport = (reportId, payload) =>
     method: 'POST',
     body: JSON.stringify(payload ?? {})
   })
+
+export const fetchAdminLogs = (params = {}) => adminGet('/logs', params)
