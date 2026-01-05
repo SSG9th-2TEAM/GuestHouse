@@ -169,6 +169,19 @@ const modalMessage = ref('')
 const modalType = ref('info')
 const modalCallback = ref(null)
 
+// Coupon Modal State
+const showCouponModal = ref(false)
+
+const closeCouponModal = () => {
+  showCouponModal.value = false
+  router.push('/reviews')
+}
+
+const goToCouponPage = () => {
+  showCouponModal.value = false
+  router.push('/coupons')
+}
+
 const openModal = (message, type = 'info', callback = null) => {
   modalMessage.value = message
   modalType.value = type
@@ -258,8 +271,14 @@ const handleSubmit = async () => {
           tagIds: selectedTagIds.value,
           imageUrls: imageUrls
         }
-        await createReview(reviewData)
-        openModal('리뷰가 등록되었습니다!', 'success', () => router.push('/reviews'))
+        const response = await createReview(reviewData)
+
+        // 쿠폰 발급 여부 확인
+        if (response && response.couponIssued) {
+          showCouponModal.value = true
+        } else {
+          openModal('리뷰가 등록되었습니다!', 'success', () => router.push('/reviews'))
+        }
     }
   } catch (error) {
     console.error('리뷰 전송 실패:', error)
@@ -404,6 +423,19 @@ const handleSubmit = async () => {
         </div>
         <p class="modal-message">{{ modalMessage }}</p>
         <button class="modal-btn" @click="closeModal">확인</button>
+      </div>
+    </div>
+
+    <!-- Coupon Modal -->
+    <div v-if="showCouponModal" class="modal-overlay">
+      <div class="coupon-modal-content">
+        <button class="coupon-modal-close" @click="closeCouponModal">&times;</button>
+        <div class="coupon-modal-icon">
+          <span>🎉</span>
+        </div>
+        <h2 class="coupon-modal-title">쿠폰이 발급되었습니다!</h2>
+        <p class="coupon-modal-message">리뷰 작성 감사 쿠폰이 발급되었습니다.<br/>쿠폰함을 확인해주세요!</p>
+        <button class="coupon-modal-btn" @click="goToCouponPage">쿠폰함으로 가기</button>
       </div>
     </div>
   </div>
@@ -765,5 +797,74 @@ const handleSubmit = async () => {
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Coupon Modal */
+.coupon-modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 340px;
+  width: 90%;
+  text-align: center;
+  position: relative;
+}
+
+.coupon-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #f5f5f5;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.coupon-modal-close:hover {
+  background: #eee;
+  color: #333;
+}
+
+.coupon-modal-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.coupon-modal-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 0.8rem;
+}
+
+.coupon-modal-message {
+  font-size: 0.95rem;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.coupon-modal-btn {
+  width: 100%;
+  padding: 0.9rem;
+  background: var(--primary);
+  color: #004d40;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.coupon-modal-btn:hover {
+  opacity: 0.9;
 }
 </style>

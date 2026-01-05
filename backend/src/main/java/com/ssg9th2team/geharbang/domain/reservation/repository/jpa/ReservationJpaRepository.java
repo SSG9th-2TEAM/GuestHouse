@@ -97,4 +97,9 @@ public interface ReservationJpaRepository
                         @Param("checkin") LocalDateTime checkin,
                         @Param("checkout") LocalDateTime checkout);
 
+        /**
+         * 유저의 결제 완료된 예약 수 카운트 (reservationStatus = 2: 확정)
+         */
+        long countByUserIdAndReservationStatus(Long userId, Integer reservationStatus);
+
 }
