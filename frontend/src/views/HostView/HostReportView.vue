@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
 import { getUserInfo } from '@/api/authClient'
 import {
@@ -18,6 +19,7 @@ const tabs = [
 ]
 
 const activeTab = ref('reviews')
+const router = useRouter()
 const userInfo = ref(getUserInfo())
 const authReady = ref(false)
 const isHostUser = computed(() => {
@@ -44,6 +46,7 @@ const reviewFilters = ref({
   to: defaultTo
 })
 const reviewPreset = ref('30days')
+const themePreset = ref('30days')
 const reviewSummary = ref(null)
 const reviewTrend = ref([])
 const reviewLoading = ref(false)
@@ -110,8 +113,74 @@ const reviewRatingEntries = computed(() => {
 
 const reviewHasData = computed(() => (reviewSummary.value?.reviewCount ?? 0) > 0)
 const canGenerateAi = computed(() => reviewHasData.value && !reviewLoading.value && !aiLoading.value)
+const aiMetaChips = computed(() => {
+  const chips = []
+  if (reviewFilters.value.from && reviewFilters.value.to) {
+    chips.push(`기간 ${reviewFilters.value.from} ~ ${reviewFilters.value.to}`)
+  }
+  const count = formatNumber(reviewSummary.value?.reviewCount ?? 0)
+  chips.push(`리뷰 ${count}건 기준`)
+  if (aiSummary.value?.generatedAt) {
+    chips.push(`생성 ${formatGeneratedAt(aiSummary.value.generatedAt)}`)
+  }
+  return chips
+})
+
+const aiNegativesDisplay = computed(() => {
+  const negatives = Array.isArray(aiSummary.value?.negatives) ? [...aiSummary.value.negatives] : []
+  const ratingDist = reviewSummary.value?.ratingDistribution ?? {}
+  const lowRatingCount = [1, 2, 3].reduce((sum, rating) => sum + Number(ratingDist?.[rating] ?? 0), 0)
+  const fallbacks = []
+  if (lowRatingCount > 0) {
+    fallbacks.push('낮은 평점(3점 이하) 리뷰가 있습니다. 원인 태그를 점검하세요.')
+  } else {
+    fallbacks.push('부정 신호가 적습니다(유지관리 권장).')
+  }
+  fallbacks.push('반복 키워드/불만 흐름을 주간으로 모니터링하세요.')
+  fallbacks.push('청소·소음·응대 체크리스트를 정기 점검하세요.')
+  fallbacks.push('체크인 안내/응대 속도에 대한 피드백을 점검하세요.')
+
+  fallbacks.forEach((item) => {
+    if (negatives.length < 3 && !negatives.includes(item)) {
+      negatives.push(item)
+    }
+  })
+  return negatives.slice(0, 3)
+})
 
 const themeRows = computed(() => themeReport.value?.rows ?? [])
+const themeTotals = computed(() => {
+  return themeRows.value.reduce((acc, row) => {
+    acc.reservations += Number(row.reservationCount ?? 0)
+    acc.revenue += Number(row.revenueSum ?? 0)
+    return acc
+  }, { reservations: 0, revenue: 0 })
+})
+const themeTopRow = computed(() => {
+  if (themeRows.value.length === 0) return null
+  const key = themeFilters.value.metric === 'revenue' ? 'revenueSum' : 'reservationCount'
+  return themeRows.value.reduce((best, row) => {
+    const value = Number(row[key] ?? 0)
+    if (!best) return row
+    return value > Number(best[key] ?? 0) ? row : best
+  }, null)
+})
+const themeKpis = computed(() => ([
+  {
+    label: '기간 예약수',
+    value: `${formatNumber(themeTotals.value.reservations)}건`
+  },
+  {
+    label: '기간 매출',
+    value: `${formatNumber(themeTotals.value.revenue)}원`
+  },
+  {
+    label: 'Top 테마',
+    value: themeTopRow.value?.themeName ?? '데이터 없음'
+  }
+]))
+const themeViewMode = ref('cards')
+const isZeroValue = (value) => Number(value ?? 0) === 0
 const forecastDaily = computed(() => forecastReport.value?.forecastDaily ?? [])
 const topTagLabel = computed(() => {
   const tags = reviewSummary.value?.topTags ?? []
@@ -127,6 +196,24 @@ const formatForecastValue = (value) => {
 const forecastValueLabel = computed(() => (
   forecastFilters.value.target === 'revenue' ? '예측 매출(원)' : '예측 예약(건)'
 ))
+const forecastRangeLabel = computed(() => (
+  forecastFilters.value.target === 'revenue' ? '예측 범위(원)' : '예측 범위(건)'
+))
+const forecastMetaText = computed(() => {
+  const explain = forecastReport.value?.explain
+  const mape = forecastReport.value?.diagnostics?.mape
+  const parts = []
+  if (explain) parts.push(explain)
+  if (Number.isFinite(mape)) parts.push(`백테스트 MAPE ${formatNumber(mape)}%`)
+  return parts.join(' · ')
+})
+const formatForecastRange = (row) => {
+  if (!row || (!row.low && !row.high)) return '-'
+  if (Number(row.low) === 0 && Number(row.high) === 0) return '-'
+  const low = formatNumber(row.low ?? 0)
+  const high = formatNumber(row.high ?? 0)
+  return `${low} ~ ${high}`
+}
 
 const contextSummaryText = computed(() => {
   const reviewCount = formatNumber(reviewSummary.value?.reviewCount ?? 0)
@@ -135,35 +222,31 @@ const contextSummaryText = computed(() => {
   return `기간 ${reviewFilters.value.from} ~ ${reviewFilters.value.to} · 리뷰 ${reviewCount} · 평점 ${avgRating}${tag}`
 })
 
+const getPresetRange = (preset) => {
+  if (preset === '7days') {
+    return { from: daysAgoISO(7), to: todayISO() }
+  }
+  if (preset === '30days') {
+    return { from: daysAgoISO(30), to: todayISO() }
+  }
+  const date = new Date()
+  const from = new Date(date.getFullYear(), date.getMonth(), 1)
+  return { from: from.toISOString().slice(0, 10), to: todayISO() }
+}
+
+const applyPreset = (filtersRef, preset) => {
+  const range = getPresetRange(preset)
+  filtersRef.value = { ...filtersRef.value, ...range }
+}
+
 const applyReviewPreset = (preset) => {
   reviewPreset.value = preset
-  if (preset === '7days') {
-    reviewFilters.value.from = daysAgoISO(7)
-    reviewFilters.value.to = todayISO()
-  } else if (preset === '30days') {
-    reviewFilters.value.from = daysAgoISO(30)
-    reviewFilters.value.to = todayISO()
-  } else if (preset === 'thisMonth') {
-    const date = new Date()
-    const from = new Date(date.getFullYear(), date.getMonth(), 1)
-    reviewFilters.value.from = from.toISOString().slice(0, 10)
-    reviewFilters.value.to = todayISO()
-  }
+  applyPreset(reviewFilters, preset)
 }
 
 const applyThemePreset = (preset) => {
-  if (preset === '7days') {
-    themeFilters.value.from = daysAgoISO(7)
-    themeFilters.value.to = todayISO()
-  } else if (preset === '30days') {
-    themeFilters.value.from = daysAgoISO(30)
-    themeFilters.value.to = todayISO()
-  } else if (preset === 'thisMonth') {
-    const date = new Date()
-    const from = new Date(date.getFullYear(), date.getMonth(), 1)
-    themeFilters.value.from = from.toISOString().slice(0, 10)
-    themeFilters.value.to = todayISO()
-  }
+  themePreset.value = preset
+  applyPreset(themeFilters, preset)
 }
 
 const loadAccommodations = async () => {
@@ -282,6 +365,14 @@ const loadForecast = async () => {
 }
 
 onMounted(async () => {
+  if (!userInfo.value) {
+    router.replace('/login')
+    return
+  }
+  if (!isHostUser.value) {
+    router.replace('/host')
+    return
+  }
   authReady.value = true
   await loadAccommodations()
   loadReviewReport()
@@ -298,9 +389,7 @@ watch(reviewFilters, () => {
 }, { deep: true })
 
 watch(themeFilters, () => {
-  if (activeTab.value === 'themes') {
-    loadThemeReport()
-  }
+  loadThemeReport()
 }, { deep: true })
 
 watch(forecastFilters, () => {
@@ -434,14 +523,22 @@ watch(forecastFilters, () => {
               <p class="muted">선택 기간 리뷰를 기반으로 핵심 포인트를 정리합니다.</p>
             </div>
             <div class="ai-meta">
-              <span class="muted">생성: {{ formatGeneratedAt(aiSummary?.generatedAt) }}</span>
-              <button type="button" class="ghost-btn" :disabled="!canGenerateAi || aiLoading" @click="loadAiSummary">
+              <button
+                type="button"
+                class="primary-btn ai-btn"
+                :disabled="!canGenerateAi || aiLoading"
+                :aria-busy="aiLoading ? 'true' : 'false'"
+                @click="loadAiSummary"
+              >
+                <span v-if="aiLoading" class="spinner" aria-hidden="true"></span>
                 {{ aiLoading ? '생성 중...' : aiHasContent ? '재생성' : 'AI 요약 생성' }}
               </button>
+              <div class="ai-meta-chips">
+                <span v-for="chip in aiMetaChips" :key="chip" class="ai-chip">{{ chip }}</span>
+              </div>
             </div>
           </div>
-          <div v-if="aiLoading" class="loading-box ai-state">AI 요약 생성 중...</div>
-          <div v-else-if="aiError" class="error-box ai-state">
+          <div v-if="aiError" class="error-box ai-state">
             <p>{{ aiError }}</p>
             <button type="button" class="link-btn" @click="loadAiSummary">다시 시도</button>
           </div>
@@ -462,7 +559,7 @@ watch(forecastFilters, () => {
             <div class="ai-block">
               <h4>개선 포인트</h4>
               <ul>
-                <li v-for="line in aiSummary.negatives" :key="line">{{ line }}</li>
+                <li v-for="line in aiNegativesDisplay" :key="line">{{ line }}</li>
               </ul>
             </div>
             <div class="ai-block">
@@ -536,83 +633,165 @@ watch(forecastFilters, () => {
     </section>
 
     <section v-else-if="activeTab === 'themes'" class="report-section">
-      <div class="filter-card">
-        <div class="filter-title">필터</div>
-        <div class="filters filters-grid">
-          <label>
-            숙소
-            <select v-model="themeFilters.accommodationId">
-              <option value="all">전체 숙소</option>
-              <option v-for="acc in accommodations" :key="acc.accommodationsId" :value="acc.accommodationsId">
-                {{ acc.accommodationsName }}
-              </option>
-            </select>
-          </label>
-          <div class="filter-group">
-            <button type="button" @click="applyThemePreset('7days')">7일</button>
-            <button type="button" @click="applyThemePreset('30days')">30일</button>
-            <button type="button" @click="applyThemePreset('thisMonth')">이번달</button>
-          </div>
-          <label>
-            시작일
-            <input type="date" v-model="themeFilters.from" />
-          </label>
-          <label>
-            종료일
-            <input type="date" v-model="themeFilters.to" />
-          </label>
-          <label>
-            지표
-            <select v-model="themeFilters.metric">
-              <option value="reservations">예약수</option>
-              <option value="revenue">매출</option>
-            </select>
-          </label>
-        </div>
-      </div>
+      <div class="theme-section-wrap">
+        <div class="theme-layout">
+          <aside class="filter-card theme-filter">
+            <div class="filter-title">필터</div>
+            <div class="filters filters-grid">
+              <label>
+                숙소
+                <select v-model="themeFilters.accommodationId">
+                  <option value="all">전체 숙소</option>
+                  <option v-for="acc in accommodations" :key="acc.accommodationsId" :value="acc.accommodationsId">
+                    {{ acc.accommodationsName }}
+                  </option>
+                </select>
+              </label>
+              <div class="filter-group">
+                <button type="button" :class="{ active: themePreset === '7days' }" @click="applyThemePreset('7days')">7일</button>
+                <button type="button" :class="{ active: themePreset === '30days' }" @click="applyThemePreset('30days')">30일</button>
+                <button type="button" :class="{ active: themePreset === 'thisMonth' }" @click="applyThemePreset('thisMonth')">이번달</button>
+              </div>
+              <label>
+                시작일
+                <input type="date" v-model="themeFilters.from" />
+              </label>
+              <label>
+                종료일
+                <input type="date" v-model="themeFilters.to" />
+              </label>
+              <label>
+                지표
+                <select v-model="themeFilters.metric">
+                  <option value="reservations">예약수</option>
+                  <option value="revenue">매출</option>
+                </select>
+              </label>
+            </div>
+          </aside>
 
-      <div v-if="themeLoading" class="loading-box">테마 리포트 로딩 중...</div>
-      <div v-else-if="themeError" class="error-box">{{ themeError }}</div>
-      <div v-else>
-        <div v-if="themeRows.length === 0" class="empty-box">선택한 기간에 테마 데이터가 없습니다.</div>
-        <table v-else class="simple-table table-only theme-table">
-          <thead>
-            <tr>
-              <th>테마</th>
-              <th class="cell-right">예약수</th>
-              <th class="cell-right">매출</th>
-              <th class="cell-right">숙소수</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in themeRows" :key="row.themeId">
-              <td>{{ row.themeName }}</td>
-              <td class="cell-right">{{ formatNumber(row.reservationCount) }}건</td>
-              <td class="cell-right">{{ formatNumber(row.revenueSum) }}원</td>
-              <td class="cell-right">{{ formatNumber(row.accommodationCount) }}개</td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-if="themeRows.length" class="theme-grid mobile-only">
-          <article v-for="row in themeRows" :key="row.themeId" class="theme-card">
-            <div class="theme-card__head">
-              <strong>{{ row.themeName }}</strong>
-            </div>
-            <div class="theme-card__metrics">
-              <div class="theme-metric">
-                <span>예약수</span>
-                <strong>예약 {{ formatNumber(row.reservationCount) }}건</strong>
-              </div>
-              <div class="theme-metric">
-                <span>매출</span>
-                <strong>매출 {{ formatNumber(row.revenueSum) }}원</strong>
-              </div>
-              <div class="theme-metric">
-                <span>숙소수</span>
-                <strong>숙소 {{ formatNumber(row.accommodationCount) }}개</strong>
+          <div class="theme-content">
+            <div class="theme-kpi-grid">
+              <div v-for="item in themeKpis" :key="item.label" class="kpi-card">
+                <div>
+                  <p>{{ item.label }}</p>
+                  <strong>{{ item.value }}</strong>
+                </div>
               </div>
             </div>
-          </article>
+
+            <div class="theme-results-card">
+              <div class="theme-results-head">
+                <div>
+                  <h4>테마 인기 결과</h4>
+                  <p class="muted">선택 기간 기준으로 테마별 성과를 보여줍니다.</p>
+                </div>
+                <div class="theme-view-toggle" role="tablist" aria-label="보기 전환">
+                  <button
+                    type="button"
+                    role="tab"
+                    :aria-selected="themeViewMode === 'cards'"
+                    :class="{ active: themeViewMode === 'cards' }"
+                    @click="themeViewMode = 'cards'"
+                  >카드</button>
+                  <button
+                    type="button"
+                    role="tab"
+                    :aria-selected="themeViewMode === 'table'"
+                    :class="{ active: themeViewMode === 'table' }"
+                    @click="themeViewMode = 'table'"
+                  >테이블</button>
+                </div>
+              </div>
+
+              <div class="theme-results-body">
+                <div v-if="themeLoading" class="loading-box">테마 리포트 로딩 중...</div>
+                <div v-else-if="themeError" class="error-box">{{ themeError }}</div>
+                <div v-else>
+                  <div v-if="themeRows.length === 0" class="empty-box">선택한 기간에 테마 데이터가 없습니다.</div>
+
+                  <div v-else>
+                    <div v-if="themeViewMode === 'cards'" class="theme-grid-desktop">
+                      <article v-for="row in themeRows" :key="row.themeId" class="theme-card">
+                        <div class="theme-card__head">
+                          <strong>{{ row.themeName }}</strong>
+                        </div>
+                        <div class="theme-card__metrics">
+                          <div class="theme-metric">
+                            <span>예약</span>
+                            <strong>{{ formatNumber(row.reservationCount) }}건</strong>
+                          </div>
+                          <div class="theme-metric">
+                            <span>매출</span>
+                            <strong>{{ formatNumber(row.revenueSum) }}원</strong>
+                          </div>
+                          <div class="theme-metric">
+                            <span>숙소</span>
+                            <strong>{{ formatNumber(row.accommodationCount) }}개</strong>
+                          </div>
+                        </div>
+                      </article>
+                    </div>
+
+                    <div v-else class="theme-table-wrapper">
+                      <table class="simple-table theme-table">
+                        <thead>
+                          <tr>
+                            <th>테마</th>
+                            <th class="cell-right">예약(건)</th>
+                            <th class="cell-right">매출(원)</th>
+                            <th class="cell-right">숙소(개)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="row in themeRows" :key="row.themeId">
+                            <td>{{ row.themeName }}</td>
+                            <td class="cell-right">
+                              <span :class="{ 'zero-value': isZeroValue(row.reservationCount) }">
+                                {{ formatNumber(row.reservationCount) }}
+                              </span>
+                            </td>
+                            <td class="cell-right">
+                              <span :class="{ 'zero-value': isZeroValue(row.revenueSum) }">
+                                {{ formatNumber(row.revenueSum) }}
+                              </span>
+                            </td>
+                            <td class="cell-right">
+                              <span :class="{ 'zero-value': isZeroValue(row.accommodationCount) }">
+                                {{ formatNumber(row.accommodationCount) }}
+                              </span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div v-if="themeRows.length" class="theme-grid theme-grid-stack">
+                    <article v-for="row in themeRows" :key="row.themeId" class="theme-card">
+                      <div class="theme-card__head">
+                        <strong>{{ row.themeName }}</strong>
+                      </div>
+                      <div class="theme-card__metrics">
+                        <div class="theme-metric">
+                          <span>예약</span>
+                          <strong>{{ formatNumber(row.reservationCount) }}건</strong>
+                        </div>
+                        <div class="theme-metric">
+                          <span>매출</span>
+                          <strong>{{ formatNumber(row.revenueSum) }}원</strong>
+                        </div>
+                        <div class="theme-metric">
+                          <span>숙소</span>
+                          <strong>{{ formatNumber(row.accommodationCount) }}개</strong>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -653,11 +832,11 @@ watch(forecastFilters, () => {
       <div v-else>
         <div class="kpi-grid">
           <div class="kpi-card">
-            <p>최근 7일 평균</p>
+            <p>최근 7일 평균{{ forecastFilters.target === 'revenue' ? '(원/일)' : '(건/일)' }}</p>
             <strong>{{ formatForecastValue(forecastReport?.baseline?.recentAvg7 ?? 0) }}</strong>
           </div>
           <div class="kpi-card">
-            <p>최근 28일 평균</p>
+            <p>최근 28일 평균{{ forecastFilters.target === 'revenue' ? '(원/일)' : '(건/일)' }}</p>
             <strong>{{ formatForecastValue(forecastReport?.baseline?.recentAvg28 ?? 0) }}</strong>
           </div>
           <div class="kpi-card">
@@ -665,19 +844,28 @@ watch(forecastFilters, () => {
             <strong>{{ formatForecastValue(forecastReport?.forecastSummary?.predictedTotal ?? 0) }}</strong>
           </div>
         </div>
+        <p v-if="forecastMetaText" class="forecast-meta">{{ forecastMetaText }}</p>
 
         <div v-if="forecastDaily.length === 0" class="empty-box">예측 데이터가 없습니다.</div>
-        <table v-else class="simple-table table-only">
+        <table v-else class="simple-table table-only forecast-table">
           <thead>
             <tr>
               <th>날짜</th>
-              <th>{{ forecastValueLabel }}</th>
+              <th>요일</th>
+              <th class="cell-right">{{ forecastValueLabel }}</th>
+              <th class="cell-right">{{ forecastRangeLabel }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in forecastDaily" :key="row.date">
+            <tr
+              v-for="row in forecastDaily"
+              :key="row.date"
+              :class="[{ 'forecast-weekend': row.isWeekend }, { 'forecast-holiday': row.isHoliday }]"
+            >
               <td>{{ row.date }}</td>
-              <td>{{ formatForecastValue(row.predictedValue) }}</td>
+              <td>{{ row.dowLabel }}</td>
+              <td class="cell-right">{{ formatForecastValue(row.predictedValue) }}</td>
+              <td class="cell-right">{{ formatForecastRange(row) }}</td>
             </tr>
           </tbody>
         </table>
@@ -687,6 +875,10 @@ watch(forecastFilters, () => {
               <strong>{{ row.date }}</strong>
               <span>{{ formatForecastValue(row.predictedValue) }}</span>
             </div>
+            <p class="muted forecast-card-meta">
+              {{ row.dowLabel }}{{ row.isHoliday ? ' · 공휴일' : row.isWeekend ? ' · 주말' : '' }}
+            </p>
+            <p class="muted forecast-card-range">예측 범위 {{ formatForecastRange(row) }}</p>
           </div>
         </div>
       </div>
@@ -893,6 +1085,119 @@ watch(forecastFilters, () => {
   margin-top: 1rem;
 }
 
+.theme-section-wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.theme-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.theme-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.theme-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.theme-results-card {
+  border: 1px solid var(--brand-border);
+  border-radius: 1rem;
+  background: var(--bg-white);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.theme-results-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.theme-results-head h4 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.theme-results-head p {
+  margin: 0;
+}
+
+.theme-results-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.theme-view-toggle {
+  display: none;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--brand-border);
+  background: #f8fafc;
+}
+
+.theme-view-toggle button {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.theme-view-toggle button.active {
+  background: var(--brand-primary);
+  color: var(--brand-accent);
+}
+
+.theme-grid-desktop {
+  display: none;
+  gap: 1rem;
+}
+
+.theme-grid-stack {
+  display: grid;
+}
+
+.theme-table-wrapper {
+  display: none;
+  border: 1px solid var(--brand-border);
+  border-radius: 0.9rem;
+  overflow: hidden;
+  background: var(--bg-white);
+}
+
+.theme-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 1;
+}
+
+.theme-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.zero-value {
+  color: var(--text-muted);
+}
+
 .theme-card {
   background: var(--bg-white);
   border: 1px solid var(--brand-border);
@@ -1053,6 +1358,25 @@ watch(forecastFilters, () => {
   text-align: left;
 }
 
+.simple-table tr.forecast-weekend td {
+  background: #f8fafc;
+}
+
+.simple-table tr.forecast-holiday td {
+  background: #fff7ed;
+}
+
+.forecast-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 1;
+}
+
+.forecast-table tbody tr:not(.forecast-holiday):hover td {
+  background: #f8fafc;
+}
+
 .theme-table tbody tr {
   transition: background 0.2s ease;
 }
@@ -1083,6 +1407,18 @@ watch(forecastFilters, () => {
   color: var(--text-muted);
 }
 
+.forecast-meta {
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.forecast-card-meta,
+.forecast-card-range {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+}
+
 .section-toolbar {
   display: flex;
   align-items: center;
@@ -1105,11 +1441,39 @@ watch(forecastFilters, () => {
   border-radius: 999px;
   font-weight: 700;
   cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .primary-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.primary-btn:not(:disabled):hover {
+  background: var(--brand-primary-strong);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+  transform: translateY(-1px);
+}
+
+.primary-btn:not(:disabled):active {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+}
+
+.ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 40px;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
 }
 
 .ghost-btn {
@@ -1140,11 +1504,28 @@ watch(forecastFilters, () => {
 
 .ai-meta {
   display: flex;
+  flex-direction: column;
   flex-wrap: wrap;
   gap: 0.5rem;
-  align-items: center;
+  align-items: flex-end;
   justify-content: flex-end;
   text-align: right;
+}
+
+.ai-meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.ai-chip {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: #f8fafc;
+  border: 1px solid var(--brand-border);
 }
 
 .ai-kicker {
@@ -1157,12 +1538,25 @@ watch(forecastFilters, () => {
 
 .ai-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0.85rem;
+  align-items: stretch;
+  grid-auto-rows: 1fr;
 }
 
 .ai-wide {
   grid-column: 1 / -1;
+}
+
+.ai-block {
+  border: 1px solid var(--brand-border);
+  border-radius: 0.9rem;
+  padding: 0.9rem 1rem;
+  background: #fafafa;
+  max-width: 46ch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .ai-block h4 {
@@ -1172,7 +1566,14 @@ watch(forecastFilters, () => {
 .ai-block ul {
   padding-left: 1.1rem;
   margin: 0.35rem 0 0;
+  line-height: 1.6;
+  display: grid;
+  gap: 0.35rem;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  flex: 1;
 }
+
 
 .ai-state {
   margin-top: 0;
@@ -1231,6 +1632,24 @@ watch(forecastFilters, () => {
   .mobile-only {
     display: block;
   }
+
+  .ai-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ai-meta {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .ai-meta-chips {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1268,7 +1687,67 @@ watch(forecastFilters, () => {
   }
 
   .ai-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .theme-layout {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .theme-filter {
+    flex: 0 0 300px;
+    position: sticky;
+    top: 96px;
+  }
+
+  .theme-content {
+    flex: 1;
+  }
+
+  .theme-kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .theme-view-toggle {
+    display: flex;
+  }
+
+  .theme-results-head {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .theme-grid-desktop {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .theme-table-wrapper {
+    display: block;
+  }
+
+  .theme-grid-stack {
+    display: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .theme-grid-desktop {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1440px) {
+  .theme-grid-desktop {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>

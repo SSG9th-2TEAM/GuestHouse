@@ -3,6 +3,8 @@ package com.ssg9th2team.geharbang.domain.report.host.service;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostForecastResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportSummaryResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostThemeReportResponse;
+import com.ssg9th2team.geharbang.domain.report.host.forecast.HostDemandForecastCalculator;
+import com.ssg9th2team.geharbang.domain.report.host.forecast.HostDemandForecastResult;
 import com.ssg9th2team.geharbang.domain.report.host.repository.mybatis.HostReportMapper;
 import com.ssg9th2team.geharbang.domain.report.host.ai.AiSummaryClient;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewAiSummaryRequest;
@@ -11,24 +13,24 @@ import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportRatingRo
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportRecentRow;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportTagRow;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportTrendRow;
-import com.ssg9th2team.geharbang.domain.report.host.dto.HostForecastBaseline;
-import com.ssg9th2team.geharbang.domain.report.host.dto.HostForecastDaily;
-import com.ssg9th2team.geharbang.domain.report.host.dto.HostForecastSummary;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostDemandDailyRow;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostThemeReportRow;
+import com.ssg9th2team.geharbang.domain.holiday.service.HolidayService;
+import com.ssg9th2team.geharbang.domain.holiday.dto.HolidayItemResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,13 +41,17 @@ public class HostReportService {
 
     private final HostReportMapper hostReportMapper;
     private final AiSummaryClient aiSummaryClient;
+    private final HolidayService holidayService;
+    private final HostDemandForecastCalculator forecastCalculator = new HostDemandForecastCalculator();
 
     public HostReportService(
             HostReportMapper hostReportMapper,
-            @Qualifier("aiSummaryClientFacade") AiSummaryClient aiSummaryClient
+            @Qualifier("aiSummaryClientFacade") AiSummaryClient aiSummaryClient,
+            HolidayService holidayService
     ) {
         this.hostReportMapper = hostReportMapper;
         this.aiSummaryClient = aiSummaryClient;
+        this.holidayService = holidayService;
     }
 
     public HostReviewReportSummaryResponse getReviewSummary(Long hostId, Long accommodationId, LocalDate from, LocalDate to) {
@@ -157,6 +163,7 @@ public class HostReportService {
         LocalDate today = LocalDate.now(KST);
         LocalDate historyStart = today.minusDays(safeHistoryDays);
         LocalDate historyEnd = today.plusDays(1);
+        LocalDate forecastEnd = today.plusDays(safeHorizonDays);
 
         List<HostDemandDailyRow> rows = hostReportMapper.selectDemandDaily(
                 hostId,
@@ -181,56 +188,14 @@ public class HostReportService {
             }
         }
 
-        double recentAvg7 = averageForLastDays(dailyValues, 7);
-        double recentAvg28 = averageForLastDays(dailyValues, 28);
-        double baseAverage = (recentAvg7 * 0.6) + (recentAvg28 * 0.4);
-
-        Map<DayOfWeek, Double> weekdayAverages = new LinkedHashMap<>();
-        for (DayOfWeek day : DayOfWeek.values()) {
-            weekdayAverages.put(day, 0.0);
-        }
-        Map<DayOfWeek, List<Double>> grouped = dailyValues.entrySet().stream()
-                .collect(Collectors.groupingBy(entry -> entry.getKey().getDayOfWeek(), LinkedHashMap::new,
-                        Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
-        for (Map.Entry<DayOfWeek, List<Double>> entry : grouped.entrySet()) {
-            weekdayAverages.put(entry.getKey(), average(entry.getValue()));
-        }
-
-        double overallAvg = average(new ArrayList<>(dailyValues.values()));
-        Map<String, Double> weekdayFactors = new LinkedHashMap<>();
-        for (DayOfWeek day : DayOfWeek.values()) {
-            double factor = overallAvg > 0 ? weekdayAverages.getOrDefault(day, 0.0) / overallAvg : 1.0;
-            weekdayFactors.put(day.name(), roundOneDecimal(factor));
-        }
-
-        List<HostForecastDaily> forecastDaily = new ArrayList<>();
-        double predictedTotal = 0.0;
-        for (int i = 1; i <= safeHorizonDays; i++) {
-            LocalDate date = today.plusDays(i);
-            DayOfWeek day = date.getDayOfWeek();
-            double factor = weekdayFactors.getOrDefault(day.name(), 1.0);
-            double predicted = baseAverage * factor;
-            if ("reservations".equals(safeTarget)) {
-                predicted = Math.max(0, Math.round(predicted));
-            } else {
-                predicted = Math.max(0, Math.round(predicted));
-            }
-            predictedTotal += predicted;
-
-            HostForecastDaily daily = new HostForecastDaily();
-            daily.setDate(date);
-            daily.setPredictedValue(predicted);
-            forecastDaily.add(daily);
-        }
-
-        HostForecastBaseline baseline = new HostForecastBaseline();
-        baseline.setRecentAvg7(roundOneDecimal(recentAvg7));
-        baseline.setRecentAvg28(roundOneDecimal(recentAvg28));
-        baseline.setWeekdayFactors(weekdayFactors);
-
-        HostForecastSummary summary = new HostForecastSummary();
-        summary.setPredictedTotal(roundOneDecimal(predictedTotal));
-        summary.setPredictedAvgPerDay(roundOneDecimal(predictedTotal / safeHorizonDays));
+        Set<LocalDate> holidays = loadHolidaySet(historyStart, forecastEnd);
+        HostDemandForecastResult computed = forecastCalculator.generate(
+                dailyValues,
+                holidays,
+                today,
+                safeHorizonDays,
+                safeHistoryDays
+        );
 
         HostForecastResponse response = new HostForecastResponse();
         response.setTarget(safeTarget);
@@ -239,9 +204,12 @@ public class HostReportService {
         response.setFrom(historyStart);
         response.setTo(today);
         response.setAccommodationId(accommodationId);
-        response.setBaseline(baseline);
-        response.setForecastDaily(forecastDaily);
-        response.setForecastSummary(summary);
+        response.setModelVersion(computed.getModelVersion());
+        response.setExplain(computed.getExplain());
+        response.setDiagnostics(computed.getDiagnostics());
+        response.setBaseline(computed.getBaseline());
+        response.setForecastDaily(computed.getDaily());
+        response.setForecastSummary(computed.getSummary());
         return response;
     }
 
@@ -276,23 +244,29 @@ public class HostReportService {
         }
     }
 
-    private double averageForLastDays(Map<LocalDate, Double> values, int days) {
-        if (values.isEmpty()) return 0.0;
-        List<Double> list = new ArrayList<>(values.values());
-        int start = Math.max(0, list.size() - days);
-        return average(list.subList(start, list.size()));
-    }
+    private Set<LocalDate> loadHolidaySet(LocalDate from, LocalDate to) {
+        Set<LocalDate> holidays = new HashSet<>();
+        LocalDate cursor = from.withDayOfMonth(1);
+        LocalDate endCursor = to.withDayOfMonth(1);
 
-    private double average(List<Double> values) {
-        if (values == null || values.isEmpty()) return 0.0;
-        double sum = 0.0;
-        for (double value : values) {
-            sum += value;
+        while (!cursor.isAfter(endCursor)) {
+            try {
+                List<HolidayItemResponse> items = holidayService.getHolidays(cursor.getYear(), cursor.getMonthValue());
+                if (items != null) {
+                    for (HolidayItemResponse item : items) {
+                        if (item == null || item.getDate() == null || !item.isHoliday()) continue;
+                        LocalDate date = LocalDate.parse(item.getDate());
+                        if ((date.isAfter(from) || date.isEqual(from)) && (date.isBefore(to) || date.isEqual(to))) {
+                            holidays.add(date);
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                // ignore holiday fetch errors and continue
+            }
+            cursor = cursor.plusMonths(1);
         }
-        return sum / values.size();
-    }
 
-    private double roundOneDecimal(double value) {
-        return Math.round(value * 10.0) / 10.0;
+        return holidays;
     }
 }
