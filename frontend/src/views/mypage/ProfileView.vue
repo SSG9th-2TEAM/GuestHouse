@@ -9,7 +9,6 @@ const user = ref({
   email: '',
   phone: '',
   nickname: '',
-  role: '',
   gender: ''
 })
 const editableUser = ref({})
@@ -48,7 +47,6 @@ const loadUserData = async () => {
         email: response.data.email || '',
         phone: response.data.phone || '정보 없음',
         nickname: response.data.nickname || '',
-        role: response.data.role || 'USER',
         gender: response.data.gender || ''
       }
     } else {
@@ -110,11 +108,13 @@ const handleProfileUpdate = async () => {
     const response = await updateUserProfile({
       nickname: editableUser.value.nickname,
       phone: editableUser.value.phone,
+      gender: editableUser.value.gender,
     })
 
     if (response.ok) {
       user.value.nickname = editableUser.value.nickname
       user.value.phone = editableUser.value.phone
+      user.value.gender = editableUser.value.gender
       updateMessage.value = '변경에 성공했습니다.'
       updateMessageType.value = 'success'
       // 2초 후 편집 모드 종료
@@ -134,12 +134,6 @@ const handleProfileUpdate = async () => {
     updateMessage.value = '프로필 업데이트 중 오류가 발생했습니다.'
     updateMessageType.value = 'error'
   }
-}
-
-const getRoleText = (role) => {
-  if (role === 'HOST') return '호스트'
-  if (role === 'USER') return '일반 사용자'
-  return '일반 사용자'
 }
 
 const getGenderText = (gender) => {
@@ -162,261 +156,616 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="profile-page container">
-    <div class="sub-header">
-      <button class="back-btn" @click="goBack">‹</button>
-      <h3>프로필 정보</h3>
-      <div class="header-buttons">
-        <template v-if="!isEditMode">
-          <button class="edit-btn" @click="startEdit">✎</button>
-        </template>
-        <template v-else>
-          <button class="cancel-btn" @click="cancelEdit">취소</button>
-          <button class="save-btn" @click="handleProfileUpdate">저장</button>
-        </template>
+  <div class="profile-page">
+    <!-- Header -->
+    <div class="header-wrapper">
+      <div class="header-content">
+        <button class="back-btn" @click="goBack">
+          <span class="back-icon">←</span>
+        </button>
+        <h1 class="page-title">프로필</h1>
+        <div class="header-actions">
+          <template v-if="!isEditMode">
+            <button class="icon-btn edit-btn" @click="startEdit">
+              <span>✏️</span>
+            </button>
+          </template>
+          <template v-else>
+            <button class="action-btn cancel-btn" @click="cancelEdit">취소</button>
+            <button class="action-btn save-btn" @click="handleProfileUpdate">저장</button>
+          </template>
+        </div>
       </div>
     </div>
 
-    <div v-if="isLoading" class="loading-state">로딩 중...</div>
-    <div v-else-if="error" class="error-state">{{ error }}</div>
+    <!-- Loading State -->
+    <div v-if="isLoading" class="loading-state">
+      <div class="spinner"></div>
+      <p>로딩 중...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="error-state">
+      <span class="error-icon">⚠️</span>
+      <p>{{ error }}</p>
+    </div>
+
+    <!-- Profile Content -->
     <div v-else class="profile-content">
-      <div class="profile-avatar-large">
-        👤
-      </div>
-
-      <div class="info-group">
-        <label>이름</label>
-        <div class="info-value">
-          {{ user.name || '정보 없음' }}
-        </div>
-      </div>
-
-      <div class="info-group">
-        <label>이메일</label>
-        <div class="info-value">
-          {{ user.email || '정보 없음' }}
-        </div>
-        <p class="info-help">이메일은 변경할 수 없습니다</p>
-      </div>
-
-      <div class="info-group">
-        <label for="nickname-input">닉네임</label>
-        <div v-if="!isEditMode" class="info-value">
-          {{ user.nickname || '정보 없음' }}
-        </div>
-        <template v-else>
-          <input id="nickname-input" v-model="editableUser.nickname" type="text" class="info-input" />
-          <p v-if="validationErrors.nickname" class="error-text">{{ validationErrors.nickname }}</p>
-          <!-- Update Message -->
-          <div v-if="updateMessage && isEditMode" class="update-message" :class="updateMessageType">
-            {{ updateMessage }}
+      <!-- Avatar Section -->
+      <div class="avatar-section">
+        <div class="avatar-container">
+          <div class="avatar-circle">
+            <span class="avatar-emoji">👤</span>
           </div>
-        </template>
-      </div>
-
-      <div class="info-group">
-        <label for="phone-input">전화번호</label>
-        <div v-if="!isEditMode" class="info-value">
-          {{ user.phone || '정보 없음' }}
+          <div class="avatar-badge" :class="{ 'edit-mode': isEditMode }">
+            {{ isEditMode ? '수정 중' : '활성' }}
+          </div>
         </div>
-        <template v-else>
-          <input id="phone-input" v-model="editableUser.phone" type="tel" class="info-input" placeholder="010-1234-5678" maxlength="13"/>
-          <p v-if="validationErrors.phone" class="error-text">{{ validationErrors.phone }}</p>
-        </template>
-      </div>
-
-      <div class="info-group">
-        <label>성별</label>
-        <div class="info-value">
-          {{ getGenderText(user.gender) || '정보 없음' }}
+        <div class="user-name-display">
+          <h2>{{ user.name || '사용자' }}</h2>
+          <p class="user-nickname">@{{ user.nickname || 'nickname' }}</p>
         </div>
       </div>
 
-      <div class="info-group">
-        <label>역할</label>
-        <div class="info-value">
-          {{ getRoleText(user.role) }}
+      <!-- Update Message -->
+      <transition name="fade">
+        <div v-if="updateMessage" class="update-message-card" :class="updateMessageType">
+          <span class="message-icon">{{ updateMessageType === 'success' ? '✓' : '✕' }}</span>
+          <span>{{ updateMessage }}</span>
+        </div>
+      </transition>
+
+      <!-- Info Cards -->
+      <div class="info-cards">
+        <!-- Name Card -->
+        <div class="info-card">
+          <div class="card-icon">👤</div>
+          <div class="card-content">
+            <label class="card-label">이름</label>
+            <div class="card-value">{{ user.name || '정보 없음' }}</div>
+          </div>
+        </div>
+
+        <!-- Email Card -->
+        <div class="info-card">
+          <div class="card-icon">📧</div>
+          <div class="card-content">
+            <label class="card-label">이메일</label>
+            <div class="card-value">{{ user.email || '정보 없음' }}</div>
+            <p class="card-hint">변경할 수 없습니다</p>
+          </div>
+        </div>
+
+        <!-- Nickname Card -->
+        <div class="info-card" :class="{ 'editing': isEditMode }">
+          <div class="card-icon">🏷️</div>
+          <div class="card-content">
+            <label for="nickname-input" class="card-label">닉네임</label>
+            <div v-if="!isEditMode" class="card-value">{{ user.nickname || '정보 없음' }}</div>
+            <template v-else>
+              <input
+                id="nickname-input"
+                v-model="editableUser.nickname"
+                type="text"
+                class="card-input"
+                placeholder="닉네임을 입력하세요"
+              />
+              <p v-if="validationErrors.nickname" class="error-text">{{ validationErrors.nickname }}</p>
+            </template>
+          </div>
+        </div>
+
+        <!-- Phone Card -->
+        <div class="info-card" :class="{ 'editing': isEditMode }">
+          <div class="card-icon">📱</div>
+          <div class="card-content">
+            <label for="phone-input" class="card-label">전화번호</label>
+            <div v-if="!isEditMode" class="card-value">{{ user.phone || '정보 없음' }}</div>
+            <template v-else>
+              <input
+                id="phone-input"
+                v-model="editableUser.phone"
+                type="tel"
+                class="card-input"
+                placeholder="010-1234-5678"
+                maxlength="13"
+              />
+              <p v-if="validationErrors.phone" class="error-text">{{ validationErrors.phone }}</p>
+            </template>
+          </div>
+        </div>
+
+        <!-- Gender Card -->
+        <div class="info-card" :class="{ 'editing': isEditMode }">
+          <div class="card-icon">{{ user.gender === 'MALE' ? '♂️' : user.gender === 'FEMALE' ? '♀️' : '⚧' }}</div>
+          <div class="card-content">
+            <label for="gender-select" class="card-label">성별</label>
+            <div v-if="!isEditMode" class="card-value">{{ getGenderText(user.gender) || '정보 없음' }}</div>
+            <template v-else>
+              <select id="gender-select" v-model="editableUser.gender" class="card-select">
+                <option value="MALE">남성</option>
+                <option value="FEMALE">여성</option>
+              </select>
+            </template>
+          </div>
         </div>
       </div>
 
-      <div v-if="!isEditMode" class="delete-account-row">
-        <span class="delete-account" @click="router.push('/delete-account')">회원 탈퇴</span>
+      <!-- Delete Account Section -->
+      <div v-if="!isEditMode" class="danger-zone">
+        <button class="delete-account-btn" @click="router.push('/delete-account')">
+          <span class="delete-icon">🗑️</span>
+          <span>회원 탈퇴</span>
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.profile-page {
-  max-width: 600px;
-  margin: 2rem auto;
-  background: white;
-  padding: 2rem;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+/* Reset & Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.sub-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 0.5rem;
+.profile-page {
+  min-height: 100vh;
+  background: #ffffff;
+  padding-bottom: 2rem;
+}
+
+/* Header */
+.header-wrapper {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 100;
   border-bottom: 1px solid #f0f0f0;
 }
 
-.sub-header h3 {
-  flex-grow: 1;
-  text-align: center;
-  font-size: 1.25rem;
+.header-content {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.page-title {
+  font-size: 1.5rem;
   font-weight: 700;
-  margin: 0;
+  color: #333;
+  flex: 1;
+  text-align: center;
 }
 
 .back-btn {
   background: none;
-  font-size: 2rem;
-  padding: 0 0.5rem;
-  line-height: 1;
-  color: #333;
+  border: none;
   cursor: pointer;
+  padding: 0.5rem;
+  transition: transform 0.2s;
 }
 
-.header-buttons {
+.back-btn:hover {
+  transform: translateX(-4px);
+}
+
+.back-icon {
+  font-size: 1.5rem;
+  color: #666;
+}
+
+.header-actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
 }
 
-.edit-btn, .save-btn, .cancel-btn {
-  background-color: var(--primary);
-  border-radius: 8px;
+.icon-btn {
+  background: #BFE7DF;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
-  color: #004d40;
-  cursor: pointer;
-  font-weight: 600;
-  padding: 0.5rem 1rem;
+  transition: all 0.3s;
 }
 
-.edit-btn {
-  width: 36px;
-  height: 36px;
+.icon-btn:hover {
+  background: #a8d6cc;
+  transform: translateY(-2px);
+}
+
+.icon-btn span {
   font-size: 1.2rem;
-  padding: 0;
+}
+
+.action-btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 0.9rem;
+}
+
+.save-btn {
+  background: #BFE7DF;
+  color: #333;
+}
+
+.save-btn:hover {
+  background: #a8d6cc;
+  transform: translateY(-2px);
 }
 
 .cancel-btn {
-  background-color: #f0f0f0;
-  color: #555;
+  background: #f5f5f5;
+  color: #666;
 }
 
-
-.loading-state,
-.error-state {
-  text-align: center;
-  padding: 2rem;
-  color: #6b7280;
+.cancel-btn:hover {
+  background: #e8e8e8;
 }
 
-.error-state {
-  color: #ef4444;
-}
-
-.profile-avatar-large {
-  width: 100px;
-  height: 100px;
-  background: #f3f4f6;
-  border-radius: 50%;
-  margin: 0 auto 2.5rem;
+/* Loading & Error States */
+.loading-state {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 3rem;
+  padding: 4rem 2rem;
+  color: #666;
 }
 
-.info-group {
-  margin-bottom: 2rem;
-}
-
-.info-group label {
-  display: block;
-  font-size: 0.9rem;
-  color: #888;
-  margin-bottom: 0.5rem;
-}
-
-.info-value {
-  font-size: 1.1rem;
-  color: #333;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.info-input {
-  width: 100%;
-  padding: 0.75rem;
-  font-size: 1.1rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  box-sizing: border-box;
-}
-
-.info-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(0, 77, 64, 0.2);
-}
-
-.error-text {
-  color: #ef4444;
-  font-size: 0.8rem;
-  margin-top: 0.5rem;
-}
-
-.info-help {
-  font-size: 0.8rem;
-  color: #aaa;
-  margin-top: 0.25rem;
-  margin-left: 0;
-}
-
-.delete-account-row {
-  margin-top: 3rem;
-  border-top: 1px solid #eee;
-  padding-top: 1.5rem;
-  text-align: center;
-}
-
-.delete-account {
-  color: #004d40;
-  background: var(--primary);
-  padding: 0.5rem 1.5rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.update-message {
-  padding: 1rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  text-align: center;
-  margin-top: 1rem;
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f0f0f0;
+  border-top-color: #BFE7DF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
   margin-bottom: 1rem;
 }
 
-.update-message.success {
-  background-color: #d1fae5;
-  color: #065f46;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.update-message.error {
-  background-color: #fee2e2;
-  color: #dc2626;
+.loading-state p {
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4rem 2rem;
+  color: #666;
+}
+
+.error-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.error-state p {
+  font-size: 1.1rem;
+}
+
+/* Profile Content */
+.profile-content {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+/* Avatar Section */
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.avatar-container {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.avatar-circle {
+  width: 120px;
+  height: 120px;
+  background: #BFE7DF;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 3px solid #ffffff;
+}
+
+.avatar-emoji {
+  font-size: 3.5rem;
+}
+
+.avatar-badge {
+  position: absolute;
+  bottom: 0;
+  right: -5px;
+  background: #A4DD6E;
+  color: #333;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+}
+
+.avatar-badge.edit-mode {
+  background: #FFB84D;
+  color: #333;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.user-name-display {
+  text-align: center;
+  color: #333;
+}
+
+.user-name-display h2 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 0.3rem;
+}
+
+.user-nickname {
+  font-size: 1rem;
+  color: #666;
+  font-weight: 500;
+}
+
+/* Update Message Card */
+.update-message-card {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.update-message-card.success {
+  background: #BFE7DF;
+  color: #333;
+  border: 1px solid #a8d6cc;
+}
+
+.update-message-card.error {
+  background: #ffe5e5;
+  color: #d32f2f;
+  border: 1px solid #ffcccc;
+}
+
+.message-icon {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+/* Fade Transition */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* Info Cards */
+.info-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.info-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+  transition: all 0.3s;
+}
+
+.info-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-color: #BFE7DF;
+}
+
+.info-card.editing {
+  border: 2px solid #BFE7DF;
+  box-shadow: 0 2px 8px rgba(191, 231, 223, 0.3);
+}
+
+.card-icon {
+  font-size: 2rem;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f8f8;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.card-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.card-hint {
+  font-size: 0.8rem;
+  color: #999;
+  font-style: italic;
+}
+
+.card-input,
+.card-select {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  font-size: 1rem;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  background: #fafafa;
+  transition: all 0.3s;
+  font-weight: 500;
+  color: #333;
+}
+
+.card-input:focus,
+.card-select:focus {
+  outline: none;
+  border-color: #BFE7DF;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(191, 231, 223, 0.2);
+}
+
+.card-select {
+  cursor: pointer;
+}
+
+.error-text {
+  color: #d32f2f;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.error-text::before {
+  content: '⚠️';
+}
+
+/* Danger Zone */
+.danger-zone {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #f0f0f0;
+  text-align: center;
+}
+
+.delete-account-btn {
+  background: #ffffff;
+  color: #d32f2f;
+  border: 2px solid #ffcccc;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s;
+}
+
+.delete-account-btn:hover {
+  background: #ffe5e5;
+  border-color: #d32f2f;
+  transform: translateY(-2px);
+}
+
+.delete-icon {
+  font-size: 1.2rem;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .profile-content {
+    padding: 1.5rem 1rem;
+  }
+
+  .header-content {
+    padding: 1rem;
+  }
+
+  .page-title {
+    font-size: 1.3rem;
+  }
+
+  .avatar-circle {
+    width: 100px;
+    height: 100px;
+  }
+
+  .avatar-emoji {
+    font-size: 3rem;
+  }
+
+  .user-name-display h2 {
+    font-size: 1.5rem;
+  }
+
+  .info-card {
+    padding: 1.2rem;
+  }
+
+  .card-icon {
+    font-size: 1.8rem;
+    width: 45px;
+    height: 45px;
+  }
 }
 </style>
