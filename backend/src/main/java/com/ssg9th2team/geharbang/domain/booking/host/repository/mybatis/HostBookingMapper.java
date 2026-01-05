@@ -9,21 +9,48 @@ import java.util.List;
 
 @Mapper
 public interface HostBookingMapper {
-    List<HostBookingResponse> selectHostBookings(@Param("hostId") Long hostId);
-
-    List<HostBookingResponse> selectHostBookingsByRange(
-            @Param("hostId") Long hostId,
+    List<HostBookingResponse> selectHostBookingsPaged(
+            @Param("hostUserId") Long hostUserId,
             @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end
+            @Param("end") LocalDateTime end,
+            @Param("upcomingOnly") boolean upcomingOnly,
+            @Param("rangeMode") String rangeMode,
+            @Param("sort") String sort,
+            @Param("size") int size,
+            @Param("offset") int offset
     );
 
-    List<HostBookingResponse> selectHostBookingsUpcoming(
-            @Param("hostId") Long hostId,
-            @Param("start") LocalDateTime start
+    List<HostBookingResponse> selectHostBookingsCursor(
+            @Param("hostUserId") Long hostUserId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("upcomingOnly") boolean upcomingOnly,
+            @Param("rangeMode") String rangeMode,
+            @Param("sort") String sort,
+            @Param("cursorValue") LocalDateTime cursorValue,
+            @Param("cursorId") Long cursorId,
+            @Param("size") int size
+    );
+
+    List<HostBookingResponse> selectHostBookingsAll(
+            @Param("hostUserId") Long hostUserId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("upcomingOnly") boolean upcomingOnly,
+            @Param("rangeMode") String rangeMode,
+            @Param("sort") String sort
+    );
+
+    long countHostBookings(
+            @Param("hostUserId") Long hostUserId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("upcomingOnly") boolean upcomingOnly,
+            @Param("rangeMode") String rangeMode
     );
 
     HostBookingResponse selectHostBookingById(
-            @Param("hostId") Long hostId,
+            @Param("hostUserId") Long hostUserId,
             @Param("reservationId") Long reservationId
     );
 }

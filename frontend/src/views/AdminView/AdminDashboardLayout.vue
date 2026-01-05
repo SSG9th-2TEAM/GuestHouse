@@ -6,7 +6,8 @@ const route = useRoute()
 const tabs = [
   { to: '/admin/dashboard', label: '요약', exact: true },
   { to: '/admin/dashboard/issues', label: '운영 이슈 센터' },
-  { to: '/admin/dashboard/weekly', label: '주간 리포트' }
+  { to: '/admin/dashboard/weekly', label: '주간 리포트' },
+  { to: '/admin/dashboard/audit', label: '감사 로그' }
 ]
 
 const isActive = (to, exact = false) =>
