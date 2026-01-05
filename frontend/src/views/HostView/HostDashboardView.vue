@@ -15,7 +15,8 @@ const tabs = [
   { id: 'property', label: '숙소', icon: NavStay, path: '/host/accommodation' },
   { id: 'booking', label: '예약', icon: NavReservation, path: '/host/booking' },
   { id: 'revenue', label: '매출', icon: NavSales, path: '/host/revenue' },
-  { id: 'review', label: '리뷰', icon: NavReview, path: '/host/review' }
+  { id: 'review', label: '리뷰', icon: NavReview, path: '/host/review' },
+  { id: 'report', label: '리포트', icon: NavSales, path: '/host/report' }
 ]
 
 const activeTab = computed(() => {
@@ -32,6 +33,7 @@ const activeTab = computed(() => {
   if (path === '/host/booking' || path.startsWith('/host/booking/')) return 'booking'
   if (path === '/host/revenue' || path.startsWith('/host/revenue/')) return 'revenue'
   if (path === '/host/review' || path.startsWith('/host/review/')) return 'review'
+  if (path === '/host/report' || path.startsWith('/host/report/')) return 'report'
   return 'dashboard'
 })
 
