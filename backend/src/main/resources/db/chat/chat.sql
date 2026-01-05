@@ -1,19 +1,3 @@
-<<<<<<<< HEAD:backend/src/main/resources/db/khg/V002__erd_updates.sql
--- ERD 업데이트 반영 (신규 테이블 + 컬럼 추가)
--- 안전하게 기존 데이터 보존을 위해 ALTER/CREATE만 수행합니다.
-
-SET FOREIGN_KEY_CHECKS = 0;
-
-use guesthouse;
-
--- accommodation: 운영 정보 확장 (MySQL 5.7 호환성 이슈로 컬럼 추가는 V005에서 처리)
-
--- room: 주말 요금 컬럼 추가(옵션)
-ALTER TABLE room
-    ADD COLUMN IF NOT EXISTS weekend_price INT UNSIGNED NULL COMMENT '주말 1박 요금';
-
-========
->>>>>>>> develop:backend/src/main/resources/db/chat/chat.sql
 -- 채팅방 테이블
 CREATE TABLE IF NOT EXISTS chat_room
 (
