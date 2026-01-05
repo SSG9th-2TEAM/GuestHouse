@@ -1,4 +1,4 @@
-package com.ssg9th2team.geharbang.domain.room.repository.jpa;
+ï»¿package com.ssg9th2team.geharbang.domain.room.repository.jpa;
 
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,8 +15,8 @@ import java.util.Optional;
 public interface RoomJpaRepository extends JpaRepository<Room, Long> {
 
         /**
-         * ºñ°üÀû ¶ô(Pessimistic Lock)À¸·Î Room Á¶È¸
-         * µ¿½Ã¼º Á¦¾î¸¦ À§ÇØ ¸ÕÀú Á¶È¸ÇÏ´Â Æ®·£Àè¼ÇÀÌ ¶ôÀ» È¹µæÇÔ
+         * ë¹„ê´€ì  ë½(Pessimistic Lock)ìœ¼ë¡œ Room ì¡°íšŒ
+         * ë™ì‹œì„± ì œì–´ë¥¼ ìœ„í•´ ë¨¼ì € ì¡°íšŒí•˜ëŠ” íŠ¸ëœì­ì…˜ì´ ë½ì„ íšë“í•¨
          */
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("SELECT r FROM Room r WHERE r.roomId = :id")
@@ -47,9 +47,9 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                         @Param("accommodationIds") List<Long> accommodationIds);
 
         /**
-         * Æ¯Á¤ ¼÷¼ÒÀÇ ¿¹¾à °¡´ÉÇÑ °´½Ç ID ¸ñ·Ï Á¶È¸
-         * - È°¼º »óÅÂ °´½Ç¸¸ (room_status = 1)
-         * - ÇØ´ç ±â°£¿¡ È®Á¤/ÁøÇàÁß ¿¹¾àÀÌ ¾ø´Â °´½Ç
+         * íŠ¹ì • ìˆ™ì†Œì˜ ì˜ˆì•½ ê°€ëŠ¥í•œ ê°ì‹¤ ID ëª©ë¡ ì¡°íšŒ
+         * - í™œì„± ìƒíƒœ ê°ì‹¤ë§Œ (room_status = 1)
+         * - í•´ë‹¹ ê¸°ê°„ì— í™•ì •/ì§„í–‰ì¤‘ ì˜ˆì•½ì´ ì—†ëŠ” ê°ì‹¤
          */
         @Query(value = """
                 WITH RECURSIVE stay_dates (stay_date) AS (
@@ -98,5 +98,6 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                 @Param("guestCount") Integer guestCount
         );
 }
+
 
 
