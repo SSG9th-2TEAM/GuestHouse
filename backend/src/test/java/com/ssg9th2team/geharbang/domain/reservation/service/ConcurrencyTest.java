@@ -105,6 +105,7 @@ class ConcurrencyTest {
                 Instant.now().plus(2, ChronoUnit.DAYS),
                 1, // guestCount (1명씩 예약)
                 10000,
+                null, // userCouponId
                 0, // couponDiscount
                 "테스터",
                 "010-1234-5678");

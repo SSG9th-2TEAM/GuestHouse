@@ -8,20 +8,15 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.dto.MainAccommodationListResponse;
-import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.repository.AccommodationImageProjection;
-import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
 import com.ssg9th2team.geharbang.domain.main.repository.MainRepository;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.AccommodationGuestStats;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -74,78 +69,6 @@ public class BaseMainService implements MainService {
     }
 
 
-    @Override
-    public PublicListResponse searchPublicList(
-            List<Long> themeIds,
-            String keyword,
-            int page,
-            int size,
-            Double minLat,
-            Double maxLat,
-            Double minLng,
-            Double maxLng,
-            LocalDateTime checkin,
-            LocalDateTime checkout,
-            Integer guestCount
-    ) {
-        PageRequest pageable = PageRequest.of(page, size);
-        String normalizedKeyword = normalizeKeyword(keyword);
-        Page<ListDtoProjection> resultPage;
-
-        boolean hasBounds = minLat != null && maxLat != null && minLng != null && maxLng != null;
-        Double south = null;
-        Double north = null;
-        Double west = null;
-        Double east = null;
-        if (hasBounds) {
-            south = Math.min(minLat, maxLat);
-            north = Math.max(minLat, maxLat);
-            west = Math.min(minLng, maxLng);
-            east = Math.max(minLng, maxLng);
-        }
-
-        if (themeIds == null || themeIds.isEmpty()) {
-            if (hasBounds) {
-                resultPage = mainRepository.searchPublicListByBounds(
-                        normalizedKeyword,
-                        south,
-                        north,
-                        west,
-                        east,
-                        checkin,
-                        checkout,
-                        guestCount,
-                        pageable
-                );
-            } else {
-                resultPage = mainRepository.searchPublicList(normalizedKeyword, checkin, checkout, guestCount, pageable);
-            }
-        } else {
-            if (hasBounds) {
-                resultPage = mainRepository.searchPublicListByThemeAndBounds(
-                        themeIds,
-                        normalizedKeyword,
-                        south,
-                        north,
-                        west,
-                        east,
-                        checkin,
-                        checkout,
-                        guestCount,
-                        pageable
-                );
-            } else {
-                resultPage = mainRepository.searchPublicListByTheme(themeIds, normalizedKeyword, checkin, checkout, guestCount, pageable);
-            }
-        }
-
-        List<ListDto> items = resultPage.getContent().stream()
-                .map(this::toListDto)
-                .toList();
-
-        return PublicListResponse.of(items, resultPage);
-    }
-
     private String normalizeKeyword(String keyword) {
         if (keyword == null) {
             return null;
@@ -177,24 +100,6 @@ public class BaseMainService implements MainService {
         return accommodations.stream()
                 .map(accommodation -> toListDto(accommodation, imageById, maxGuestsById))
                 .toList();
-    }
-
-    private ListDto toListDto(ListDtoProjection projection) {
-        return ListDto.builder()
-                .accomodationsId(projection.getAccomodationsId())
-                .accomodationsName(projection.getAccomodationsName())
-                .shortDescription(projection.getShortDescription())
-                .city(projection.getCity())
-                .district(projection.getDistrict())
-                .township(projection.getTownship())
-                .latitude(projection.getLatitude())
-                .longitude(projection.getLongitude())
-                .minPrice(projection.getMinPrice())
-                .rating(projection.getRating())
-                .reviewCount(projection.getReviewCount())
-                .maxGuests(projection.getMaxGuests())
-                .imageUrl(projection.getImageUrl())
-                .build();
     }
 
     private Set<Long> getUserThemeIds(Long userId) {

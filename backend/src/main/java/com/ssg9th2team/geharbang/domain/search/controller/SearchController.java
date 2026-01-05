@@ -1,7 +1,7 @@
 package com.ssg9th2team.geharbang.domain.search.controller;
 
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
-import com.ssg9th2team.geharbang.domain.main.service.MainService;
+import com.ssg9th2team.geharbang.domain.search.service.SearchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +18,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SearchController {
 
-    private final MainService mainService;
+    private final SearchService searchService;
 
     @GetMapping("/search")
     public PublicListResponse search(
@@ -38,7 +38,7 @@ public class SearchController {
     ) {
         LocalDateTime checkinAt = checkin != null ? checkin.atTime(15, 0) : null;
         LocalDateTime checkoutAt = checkout != null ? checkout.atTime(11, 0) : null;
-        return mainService.searchPublicList(
+        return searchService.searchPublicList(
                 themeIds,
                 keyword,
                 page,
