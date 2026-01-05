@@ -1,10 +1,12 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { searchList } from '@/api/list'
 import FilterModal from '../../components/FilterModal.vue'
 import { useSearchStore } from '@/stores/search'
 import { useListingFilters } from '@/composables/useListingFilters'
+import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
+import { isAuthenticated } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
@@ -17,6 +19,7 @@ const mapInstance = ref(null)
 const activeOverlays = ref([])
 const isLoading = ref(false)
 const isMapVisible = ref(false)
+const wishlistIds = ref(new Set())
 
 const MAP_PAGE_SIZE = 200
 const MAX_MAP_RESULTS = 600
@@ -36,6 +39,12 @@ let autoFitPending = true
 let initialLoadDone = false
 let allowGlobalFallback = true
 
+const isSelectedFavorite = computed(() => {
+  const id = selectedItem.value?.id
+  if (id === null || id === undefined) return false
+  return wishlistIds.value.has(id)
+})
+
 const getKeywordFromRoute = () => {
   const raw = route.query.keyword
   if (Array.isArray(raw)) {
@@ -51,8 +60,56 @@ const applyRouteKeyword = () => {
   }
 }
 
+const loadWishlist = async () => {
+  if (!isAuthenticated()) return
+  try {
+    const res = await fetchWishlistIds()
+    if (res.status === 200 && Array.isArray(res.data)) {
+      wishlistIds.value = new Set(res.data.map((value) => {
+        const numeric = Number(value)
+        return Number.isFinite(numeric) ? numeric : value
+      }))
+      syncMarkerFavoriteState()
+    }
+  } catch (e) {
+    console.error('Failed to load wishlist', e)
+  }
+}
+
+const toggleWishlist = async (id) => {
+  if (!id) return
+  if (!isAuthenticated()) {
+    if (confirm('로그인이 필요합니다.\n로그인 페이지로 이동하시겠습니까?')) {
+      router.push('/login')
+    }
+    return
+  }
+
+  const isAdded = wishlistIds.value.has(id)
+  if (isAdded) {
+    wishlistIds.value.delete(id)
+    try {
+      await removeWishlist(id)
+    } catch (e) {
+      wishlistIds.value.add(id)
+      console.error(e)
+    }
+  } else {
+    wishlistIds.value.add(id)
+    try {
+      await addWishlist(id)
+    } catch (e) {
+      wishlistIds.value.delete(id)
+      console.error(e)
+    }
+  }
+  syncMarkerFavoriteState()
+}
+
 const normalizeItem = (item) => {
-  const id = item.accomodationsId ?? item.accommodationsId ?? item.id
+  const rawId = item.accomodationsId ?? item.accommodationsId ?? item.id
+  const numericId = Number(rawId)
+  const id = Number.isFinite(numericId) ? numericId : rawId
   const title = item.accomodationsName ?? item.accommodationsName ?? item.title ?? ''
   const description = item.shortDescription ?? item.description ?? ''
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
@@ -265,6 +322,14 @@ const syncMarkerActiveState = () => {
   })
 }
 
+const syncMarkerFavoriteState = () => {
+  activeOverlays.value.forEach(({ element, itemId }) => {
+    if (!element) return
+    const isFavorite = wishlistIds.value.has(itemId)
+    element.classList.toggle('price-marker--favorite', isFavorite)
+  })
+}
+
 const updateMarkers = () => {
   if (!mapInstance.value) return
 
@@ -290,6 +355,9 @@ const updateMarkers = () => {
     if (isSelected) {
       content.classList.add('price-marker--active')
     }
+    if (wishlistIds.value.has(item.id)) {
+      content.classList.add('price-marker--favorite')
+    }
     content.innerHTML = `₩${item.price.toLocaleString()}`
     
     content.onclick = () => {
@@ -308,6 +376,7 @@ const updateMarkers = () => {
   })
 
   syncMarkerActiveState()
+  syncMarkerFavoriteState()
   return itemsWithCoords
 }
 
@@ -369,6 +438,7 @@ const goToList = () => {
 }
 
 onMounted(() => {
+  loadWishlist()
   applyRouteFilters(route.query)
   applyRouteKeyword()
   if (!window.kakao?.maps?.load) {
@@ -471,6 +541,17 @@ watch(
 
     <div v-if="selectedItem" class="map-card">
       <button class="map-card-close" type="button" @click="closeCard" aria-label="닫기">×</button>
+      <button
+        class="map-card-favorite"
+        :class="{ 'map-card-favorite--active': isSelectedFavorite }"
+        type="button"
+        :aria-pressed="isSelectedFavorite"
+        aria-label="위시리스트"
+        @click.stop="toggleWishlist(selectedItem.id)"
+      >
+        <span v-if="isSelectedFavorite">&#9829;</span>
+        <span v-else>&#9825;</span>
+      </button>
       <div class="map-card-content" @click="goToDetail(selectedItem.id)">
         <img
           v-if="selectedItem.imageUrl"
@@ -503,8 +584,8 @@ watch(
 /* Global styles for the keys injected into the map */
 .price-marker {
   background-color: white;
-  padding: 8px 12px;
-  border-radius: 20px;
+  padding: 4px 10px 6px;
+  border-radius: 18px;
   font-weight: 700;
   font-size: 0.9rem;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
@@ -513,6 +594,9 @@ watch(
   border: 1px solid rgba(0,0,0,0.05);
   transition: transform 0.2s, background-color 0.2s;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .price-marker:hover {
@@ -527,6 +611,15 @@ watch(
   background-color: #222;
   color: white;
   z-index: 110;
+}
+
+.price-marker--favorite::before {
+  content: '♥';
+  color: #ef4444;
+  font-size: 1.05rem;
+  line-height: 1;
+  position: relative;
+  top: 1px;
 }
 </style>
 
@@ -730,5 +823,33 @@ watch(
 
 .map-card-close:hover {
   background: rgba(0, 0, 0, 0.15);
+}
+
+.map-card-favorite {
+  position: absolute;
+  top: 8px;
+  right: 44px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #111;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: transform 0.1s, color 0.2s, background-color 0.2s;
+}
+
+.map-card-favorite--active {
+  color: #ef4444;
+}
+
+.map-card-favorite:active {
+  transform: scale(0.9);
 }
 </style>
