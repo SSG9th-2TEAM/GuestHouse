@@ -44,6 +44,7 @@ const reviewFilters = ref({
   to: defaultTo
 })
 const reviewPreset = ref('30days')
+const themePreset = ref('30days')
 const reviewSummary = ref(null)
 const reviewTrend = ref([])
 const reviewLoading = ref(false)
@@ -135,35 +136,31 @@ const contextSummaryText = computed(() => {
   return `기간 ${reviewFilters.value.from} ~ ${reviewFilters.value.to} · 리뷰 ${reviewCount} · 평점 ${avgRating}${tag}`
 })
 
+const getPresetRange = (preset) => {
+  if (preset === '7days') {
+    return { from: daysAgoISO(7), to: todayISO() }
+  }
+  if (preset === '30days') {
+    return { from: daysAgoISO(30), to: todayISO() }
+  }
+  const date = new Date()
+  const from = new Date(date.getFullYear(), date.getMonth(), 1)
+  return { from: from.toISOString().slice(0, 10), to: todayISO() }
+}
+
+const applyPreset = (filtersRef, preset) => {
+  const range = getPresetRange(preset)
+  filtersRef.value = { ...filtersRef.value, ...range }
+}
+
 const applyReviewPreset = (preset) => {
   reviewPreset.value = preset
-  if (preset === '7days') {
-    reviewFilters.value.from = daysAgoISO(7)
-    reviewFilters.value.to = todayISO()
-  } else if (preset === '30days') {
-    reviewFilters.value.from = daysAgoISO(30)
-    reviewFilters.value.to = todayISO()
-  } else if (preset === 'thisMonth') {
-    const date = new Date()
-    const from = new Date(date.getFullYear(), date.getMonth(), 1)
-    reviewFilters.value.from = from.toISOString().slice(0, 10)
-    reviewFilters.value.to = todayISO()
-  }
+  applyPreset(reviewFilters, preset)
 }
 
 const applyThemePreset = (preset) => {
-  if (preset === '7days') {
-    themeFilters.value.from = daysAgoISO(7)
-    themeFilters.value.to = todayISO()
-  } else if (preset === '30days') {
-    themeFilters.value.from = daysAgoISO(30)
-    themeFilters.value.to = todayISO()
-  } else if (preset === 'thisMonth') {
-    const date = new Date()
-    const from = new Date(date.getFullYear(), date.getMonth(), 1)
-    themeFilters.value.from = from.toISOString().slice(0, 10)
-    themeFilters.value.to = todayISO()
-  }
+  themePreset.value = preset
+  applyPreset(themeFilters, preset)
 }
 
 const loadAccommodations = async () => {
@@ -298,9 +295,7 @@ watch(reviewFilters, () => {
 }, { deep: true })
 
 watch(themeFilters, () => {
-  if (activeTab.value === 'themes') {
-    loadThemeReport()
-  }
+  loadThemeReport()
 }, { deep: true })
 
 watch(forecastFilters, () => {
@@ -549,9 +544,9 @@ watch(forecastFilters, () => {
             </select>
           </label>
           <div class="filter-group">
-            <button type="button" @click="applyThemePreset('7days')">7일</button>
-            <button type="button" @click="applyThemePreset('30days')">30일</button>
-            <button type="button" @click="applyThemePreset('thisMonth')">이번달</button>
+            <button type="button" :class="{ active: themePreset === '7days' }" @click="applyThemePreset('7days')">7일</button>
+            <button type="button" :class="{ active: themePreset === '30days' }" @click="applyThemePreset('30days')">30일</button>
+            <button type="button" :class="{ active: themePreset === 'thisMonth' }" @click="applyThemePreset('thisMonth')">이번달</button>
           </div>
           <label>
             시작일
