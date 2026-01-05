@@ -57,6 +57,9 @@ public class ReviewServiceTest {
     @MockBean
     private ReviewMapper reviewMapper;
 
+    @MockBean
+    private com.ssg9th2team.geharbang.domain.coupon.service.UserCouponService userCouponService;
+
     private Long testUserId;
     private Long testAccommodationId;
 
@@ -68,6 +71,9 @@ public class ReviewServiceTest {
 
         // ReviewMapper Mock 설정 (태그 저장)
         Mockito.doNothing().when(reviewMapper).insertReviewTags(anyLong(), anyList());
+
+        // UserCouponService Mock 설정
+        Mockito.doNothing().when(userCouponService).issueReviewRewardCoupon(anyLong());
 
         testUserId = 1L;  // HOST 유저
         testAccommodationId = createTestAccommodation("리뷰 테스트 숙소");

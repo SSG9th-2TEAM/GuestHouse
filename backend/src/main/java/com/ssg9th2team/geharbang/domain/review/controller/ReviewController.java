@@ -12,7 +12,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/reviews")
@@ -24,7 +26,7 @@ public class ReviewController {
 
     // 리뷰 등록
     @PostMapping
-    public ResponseEntity<String> createReview(
+    public ResponseEntity<Map<String, Object>> createReview(
             Authentication authentication,
             @RequestBody ReviewCreateDto reviewCreateDto) {
 
@@ -33,9 +35,13 @@ public class ReviewController {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
 
-        reviewService.createReview(user.getId(), reviewCreateDto);
+        boolean couponIssued = reviewService.createReview(user.getId(), reviewCreateDto);
 
-        return ResponseEntity.ok("리뷰가 등록되었습니다");
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "리뷰가 등록되었습니다");
+        response.put("couponIssued", couponIssued);
+
+        return ResponseEntity.ok(response);
     }
 
     // 리뷰 수정
@@ -84,8 +90,6 @@ public class ReviewController {
 
 
 
-
-
     // 내 리뷰 조회
     @GetMapping("/my")
     public ResponseEntity<List<ReviewResponseDto>> getMyReviews(Authentication authentication) {
@@ -96,7 +100,6 @@ public class ReviewController {
         List<ReviewResponseDto> reviews = reviewService.getReviewsByUserId(user.getId());
         return ResponseEntity.ok(reviews);
     }
-
 
 
 

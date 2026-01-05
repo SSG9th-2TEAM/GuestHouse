@@ -48,6 +48,9 @@ public class Reservation {
     @Column(name = "total_amount_before_dc", nullable = false)
     private Integer totalAmountBeforeDc;
 
+    @Column(name = "user_coupon_id")
+    private Long userCouponId;
+
     @Column(name = "coupon_discount_amount", nullable = false)
     private Integer couponDiscountAmount;
 

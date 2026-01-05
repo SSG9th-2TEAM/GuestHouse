@@ -16,13 +16,11 @@ public interface ReviewJpaRepository extends JpaRepository<ReviewEntity, Long> {
     // 리뷰 수정, 리뷰 삭제에서 사용
     Optional<ReviewEntity> findByReviewIdAndIsDeletedFalse(Long reviewId);
 
-    // 특정 사용자의 특정 리뷰 조회 (권한 체크용)
-    Optional<ReviewEntity> findByReviewIdAndUserIdAndIsDeletedFalse(Long reviewId, Long userId);
-
     // 이미 리뷰 작성했는지 확인
     boolean existsByUserIdAndAccommodationsIdAndIsDeletedFalse(Long userId, Long accommodationsId);
 
-
+    // 유저의 리뷰 개수 카운트 (쿠폰 발급용)
+    long countByUserIdAndIsDeletedFalse(Long userId);
 
 }
 
