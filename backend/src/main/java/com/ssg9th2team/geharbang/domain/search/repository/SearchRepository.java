@@ -13,12 +13,12 @@ import java.util.List;
 
 public interface SearchRepository extends JpaRepository<Accommodation, Long> {
     @Query(value = """
-            WITH RECURSIVE stay_dates AS (
-                SELECT DATE(:checkin) AS stay_date
+            WITH RECURSIVE stay_dates (stay_date) AS (
+                SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT DATE_ADD(stay_date, INTERVAL 1 DAY)
+                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
                 FROM stay_dates
-                WHERE stay_date < DATE_SUB(DATE(:checkout), INTERVAL 1 DAY)
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
             )
             SELECT
                 a.accommodations_id AS accomodationsId,
@@ -29,7 +29,47 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 a.township AS township,
                 a.latitude AS latitude,
                 a.longitude AS longitude,
-                a.min_price AS minPrice,
+                CASE
+                    WHEN (:checkin IS NULL OR :checkout IS NULL)
+                         AND (:guestCount IS NULL OR :guestCount < 2)
+                        THEN a.min_price
+                    ELSE (
+                        SELECT COALESCE(MIN(rp.price), a.min_price)
+                        FROM room rp
+                        WHERE rp.accommodations_id = a.accommodations_id
+                          AND rp.room_status = 1
+                          AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rp.max_guests, 0) >= :guestCount)
+                          AND (
+                              (:checkin IS NULL OR :checkout IS NULL)
+                              OR (
+                                  ((:guestCount IS NULL OR :guestCount = 0)
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM reservation res
+                                          WHERE res.room_id = rp.room_id
+                                            AND res.is_deleted = 0
+                                            AND res.reservation_status IN (2, 3)
+                                            AND res.checkin < :checkout
+                                            AND res.checkout > :checkin
+                                      ))
+                                  OR
+                                  ((:guestCount IS NOT NULL AND :guestCount > 0)
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM stay_dates d
+                                          LEFT JOIN reservation res
+                                            ON res.room_id = rp.room_id
+                                           AND res.is_deleted = 0
+                                           AND res.reservation_status IN (2, 3)
+                                           AND d.stay_date >= CAST(res.checkin AS DATE)
+                                           AND d.stay_date < CAST(res.checkout AS DATE)
+                                          GROUP BY d.stay_date
+                                          HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(rp.max_guests, 0)
+                                      ))
+                              )
+                          )
+                    )
+                END AS minPrice,
                 a.rating AS rating,
                 a.review_count AS reviewCount,
                 COALESCE(rmax.maxGuests, 0) AS maxGuests,
@@ -84,8 +124,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                                       ON res.room_id = r.room_id
                                      AND res.is_deleted = 0
                                      AND res.reservation_status IN (2, 3)
-                                     AND d.stay_date >= DATE(res.checkin)
-                                     AND d.stay_date < DATE(res.checkout)
+                                     AND d.stay_date >= CAST(res.checkin AS DATE)
+                                     AND d.stay_date < CAST(res.checkout AS DATE)
                                     GROUP BY d.stay_date
                                     HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(r.max_guests, 0)
                                 ))
@@ -94,12 +134,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             ORDER BY a.accommodations_id DESC
             """,
             countQuery = """
-            WITH RECURSIVE stay_dates AS (
-                SELECT DATE(:checkin) AS stay_date
+            WITH RECURSIVE stay_dates (stay_date) AS (
+                SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT DATE_ADD(stay_date, INTERVAL 1 DAY)
+                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
                 FROM stay_dates
-                WHERE stay_date < DATE_SUB(DATE(:checkout), INTERVAL 1 DAY)
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
             )
             SELECT COUNT(*)
             FROM accommodation a
@@ -142,8 +182,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                                       ON res.room_id = r.room_id
                                      AND res.is_deleted = 0
                                      AND res.reservation_status IN (2, 3)
-                                     AND d.stay_date >= DATE(res.checkin)
-                                     AND d.stay_date < DATE(res.checkout)
+                                     AND d.stay_date >= CAST(res.checkin AS DATE)
+                                     AND d.stay_date < CAST(res.checkout AS DATE)
                                     GROUP BY d.stay_date
                                     HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(r.max_guests, 0)
                                 ))
@@ -160,12 +200,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
     );
 
     @Query(value = """
-            WITH RECURSIVE stay_dates AS (
-                SELECT DATE(:checkin) AS stay_date
+            WITH RECURSIVE stay_dates (stay_date) AS (
+                SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT DATE_ADD(stay_date, INTERVAL 1 DAY)
+                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
                 FROM stay_dates
-                WHERE stay_date < DATE_SUB(DATE(:checkout), INTERVAL 1 DAY)
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
             )
             SELECT DISTINCT
                 a.accommodations_id AS accomodationsId,
@@ -176,7 +216,47 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 a.township AS township,
                 a.latitude AS latitude,
                 a.longitude AS longitude,
-                a.min_price AS minPrice,
+                CASE
+                    WHEN (:checkin IS NULL OR :checkout IS NULL)
+                         AND (:guestCount IS NULL OR :guestCount < 2)
+                        THEN a.min_price
+                    ELSE (
+                        SELECT COALESCE(MIN(rp.price), a.min_price)
+                        FROM room rp
+                        WHERE rp.accommodations_id = a.accommodations_id
+                          AND rp.room_status = 1
+                          AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rp.max_guests, 0) >= :guestCount)
+                          AND (
+                              (:checkin IS NULL OR :checkout IS NULL)
+                              OR (
+                                  ((:guestCount IS NULL OR :guestCount = 0)
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM reservation res
+                                          WHERE res.room_id = rp.room_id
+                                            AND res.is_deleted = 0
+                                            AND res.reservation_status IN (2, 3)
+                                            AND res.checkin < :checkout
+                                            AND res.checkout > :checkin
+                                      ))
+                                  OR
+                                  ((:guestCount IS NOT NULL AND :guestCount > 0)
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM stay_dates d
+                                          LEFT JOIN reservation res
+                                            ON res.room_id = rp.room_id
+                                           AND res.is_deleted = 0
+                                           AND res.reservation_status IN (2, 3)
+                                           AND d.stay_date >= CAST(res.checkin AS DATE)
+                                           AND d.stay_date < CAST(res.checkout AS DATE)
+                                          GROUP BY d.stay_date
+                                          HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(rp.max_guests, 0)
+                                      ))
+                              )
+                          )
+                    )
+                END AS minPrice,
                 a.rating AS rating,
                 a.review_count AS reviewCount,
                 COALESCE(rmax.maxGuests, 0) AS maxGuests,
@@ -233,8 +313,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                                       ON res.room_id = r.room_id
                                      AND res.is_deleted = 0
                                      AND res.reservation_status IN (2, 3)
-                                     AND d.stay_date >= DATE(res.checkin)
-                                     AND d.stay_date < DATE(res.checkout)
+                                     AND d.stay_date >= CAST(res.checkin AS DATE)
+                                     AND d.stay_date < CAST(res.checkout AS DATE)
                                     GROUP BY d.stay_date
                                     HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(r.max_guests, 0)
                                 ))
@@ -243,12 +323,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             ORDER BY a.accommodations_id DESC
             """,
             countQuery = """
-            WITH RECURSIVE stay_dates AS (
-                SELECT DATE(:checkin) AS stay_date
+            WITH RECURSIVE stay_dates (stay_date) AS (
+                SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT DATE_ADD(stay_date, INTERVAL 1 DAY)
+                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
                 FROM stay_dates
-                WHERE stay_date < DATE_SUB(DATE(:checkout), INTERVAL 1 DAY)
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
             )
             SELECT COUNT(DISTINCT a.accommodations_id)
             FROM accommodation a
@@ -293,8 +373,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                                       ON res.room_id = r.room_id
                                      AND res.is_deleted = 0
                                      AND res.reservation_status IN (2, 3)
-                                     AND d.stay_date >= DATE(res.checkin)
-                                     AND d.stay_date < DATE(res.checkout)
+                                     AND d.stay_date >= CAST(res.checkin AS DATE)
+                                     AND d.stay_date < CAST(res.checkout AS DATE)
                                     GROUP BY d.stay_date
                                     HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(r.max_guests, 0)
                                 ))
@@ -312,12 +392,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
     );
 
     @Query(value = """
-            WITH RECURSIVE stay_dates AS (
-                SELECT DATE(:checkin) AS stay_date
+            WITH RECURSIVE stay_dates (stay_date) AS (
+                SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT DATE_ADD(stay_date, INTERVAL 1 DAY)
+                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
                 FROM stay_dates
-                WHERE stay_date < DATE_SUB(DATE(:checkout), INTERVAL 1 DAY)
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
             )
             SELECT
                 a.accommodations_id AS accomodationsId,
@@ -328,7 +408,47 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 a.township AS township,
                 a.latitude AS latitude,
                 a.longitude AS longitude,
-                a.min_price AS minPrice,
+                CASE
+                    WHEN (:checkin IS NULL OR :checkout IS NULL)
+                         AND (:guestCount IS NULL OR :guestCount < 2)
+                        THEN a.min_price
+                    ELSE (
+                        SELECT COALESCE(MIN(rp.price), a.min_price)
+                        FROM room rp
+                        WHERE rp.accommodations_id = a.accommodations_id
+                          AND rp.room_status = 1
+                          AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rp.max_guests, 0) >= :guestCount)
+                          AND (
+                              (:checkin IS NULL OR :checkout IS NULL)
+                              OR (
+                                  ((:guestCount IS NULL OR :guestCount = 0)
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM reservation res
+                                          WHERE res.room_id = rp.room_id
+                                            AND res.is_deleted = 0
+                                            AND res.reservation_status IN (2, 3)
+                                            AND res.checkin < :checkout
+                                            AND res.checkout > :checkin
+                                      ))
+                                  OR
+                                  ((:guestCount IS NOT NULL AND :guestCount > 0)
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM stay_dates d
+                                          LEFT JOIN reservation res
+                                            ON res.room_id = rp.room_id
+                                           AND res.is_deleted = 0
+                                           AND res.reservation_status IN (2, 3)
+                                           AND d.stay_date >= CAST(res.checkin AS DATE)
+                                           AND d.stay_date < CAST(res.checkout AS DATE)
+                                          GROUP BY d.stay_date
+                                          HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(rp.max_guests, 0)
+                                      ))
+                              )
+                          )
+                    )
+                END AS minPrice,
                 a.rating AS rating,
                 a.review_count AS reviewCount,
                 COALESCE(rmax.maxGuests, 0) AS maxGuests,
@@ -387,8 +507,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                                       ON res.room_id = r.room_id
                                      AND res.is_deleted = 0
                                      AND res.reservation_status IN (2, 3)
-                                     AND d.stay_date >= DATE(res.checkin)
-                                     AND d.stay_date < DATE(res.checkout)
+                                     AND d.stay_date >= CAST(res.checkin AS DATE)
+                                     AND d.stay_date < CAST(res.checkout AS DATE)
                                     GROUP BY d.stay_date
                                     HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(r.max_guests, 0)
                                 ))
@@ -397,12 +517,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             ORDER BY a.accommodations_id DESC
             """,
             countQuery = """
-            WITH RECURSIVE stay_dates AS (
-                SELECT DATE(:checkin) AS stay_date
+            WITH RECURSIVE stay_dates (stay_date) AS (
+                SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT DATE_ADD(stay_date, INTERVAL 1 DAY)
+                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
                 FROM stay_dates
-                WHERE stay_date < DATE_SUB(DATE(:checkout), INTERVAL 1 DAY)
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
             )
             SELECT COUNT(*)
             FROM accommodation a
@@ -449,8 +569,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                                       ON res.room_id = r.room_id
                                      AND res.is_deleted = 0
                                      AND res.reservation_status IN (2, 3)
-                                     AND d.stay_date >= DATE(res.checkin)
-                                     AND d.stay_date < DATE(res.checkout)
+                                     AND d.stay_date >= CAST(res.checkin AS DATE)
+                                     AND d.stay_date < CAST(res.checkout AS DATE)
                                     GROUP BY d.stay_date
                                     HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(r.max_guests, 0)
                                 ))
@@ -471,12 +591,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
     );
 
     @Query(value = """
-            WITH RECURSIVE stay_dates AS (
-                SELECT DATE(:checkin) AS stay_date
+            WITH RECURSIVE stay_dates (stay_date) AS (
+                SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT DATE_ADD(stay_date, INTERVAL 1 DAY)
+                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
                 FROM stay_dates
-                WHERE stay_date < DATE_SUB(DATE(:checkout), INTERVAL 1 DAY)
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
             )
             SELECT DISTINCT
                 a.accommodations_id AS accomodationsId,
@@ -487,7 +607,47 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 a.township AS township,
                 a.latitude AS latitude,
                 a.longitude AS longitude,
-                a.min_price AS minPrice,
+                CASE
+                    WHEN (:checkin IS NULL OR :checkout IS NULL)
+                         AND (:guestCount IS NULL OR :guestCount < 2)
+                        THEN a.min_price
+                    ELSE (
+                        SELECT COALESCE(MIN(rp.price), a.min_price)
+                        FROM room rp
+                        WHERE rp.accommodations_id = a.accommodations_id
+                          AND rp.room_status = 1
+                          AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rp.max_guests, 0) >= :guestCount)
+                          AND (
+                              (:checkin IS NULL OR :checkout IS NULL)
+                              OR (
+                                  ((:guestCount IS NULL OR :guestCount = 0)
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM reservation res
+                                          WHERE res.room_id = rp.room_id
+                                            AND res.is_deleted = 0
+                                            AND res.reservation_status IN (2, 3)
+                                            AND res.checkin < :checkout
+                                            AND res.checkout > :checkin
+                                      ))
+                                  OR
+                                  ((:guestCount IS NOT NULL AND :guestCount > 0)
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM stay_dates d
+                                          LEFT JOIN reservation res
+                                            ON res.room_id = rp.room_id
+                                           AND res.is_deleted = 0
+                                           AND res.reservation_status IN (2, 3)
+                                           AND d.stay_date >= CAST(res.checkin AS DATE)
+                                           AND d.stay_date < CAST(res.checkout AS DATE)
+                                          GROUP BY d.stay_date
+                                          HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(rp.max_guests, 0)
+                                      ))
+                              )
+                          )
+                    )
+                END AS minPrice,
                 a.rating AS rating,
                 a.review_count AS reviewCount,
                 COALESCE(rmax.maxGuests, 0) AS maxGuests,
@@ -548,8 +708,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                                       ON res.room_id = r.room_id
                                      AND res.is_deleted = 0
                                      AND res.reservation_status IN (2, 3)
-                                     AND d.stay_date >= DATE(res.checkin)
-                                     AND d.stay_date < DATE(res.checkout)
+                                     AND d.stay_date >= CAST(res.checkin AS DATE)
+                                     AND d.stay_date < CAST(res.checkout AS DATE)
                                     GROUP BY d.stay_date
                                     HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(r.max_guests, 0)
                                 ))
@@ -558,12 +718,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             ORDER BY a.accommodations_id DESC
             """,
             countQuery = """
-            WITH RECURSIVE stay_dates AS (
-                SELECT DATE(:checkin) AS stay_date
+            WITH RECURSIVE stay_dates (stay_date) AS (
+                SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT DATE_ADD(stay_date, INTERVAL 1 DAY)
+                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
                 FROM stay_dates
-                WHERE stay_date < DATE_SUB(DATE(:checkout), INTERVAL 1 DAY)
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
             )
             SELECT COUNT(DISTINCT a.accommodations_id)
             FROM accommodation a
@@ -612,8 +772,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                                       ON res.room_id = r.room_id
                                      AND res.is_deleted = 0
                                      AND res.reservation_status IN (2, 3)
-                                     AND d.stay_date >= DATE(res.checkin)
-                                     AND d.stay_date < DATE(res.checkout)
+                                     AND d.stay_date >= CAST(res.checkin AS DATE)
+                                     AND d.stay_date < CAST(res.checkout AS DATE)
                                     GROUP BY d.stay_date
                                     HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(r.max_guests, 0)
                                 ))
@@ -634,4 +794,5 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             Pageable pageable
     );
 }
+
 

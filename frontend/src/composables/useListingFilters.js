@@ -27,8 +27,8 @@ const parseThemeIds = (value) => {
 
 const parseGuestCount = (value) => {
   const parsed = parseNumberParam(value)
-  if (!Number.isFinite(parsed)) return 0
-  return Math.max(0, parsed)
+  if (!Number.isFinite(parsed)) return 1
+  return Math.max(1, parsed)
 }
 
 const parseDateParam = (value) => {

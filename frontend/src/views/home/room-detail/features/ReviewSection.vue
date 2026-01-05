@@ -179,7 +179,8 @@ watch(
         </button>
       </div>
     </div>
-    <div class="review-list">
+    <p v-if="!reviews.length" class="review-empty">작성된 리뷰가 없습니다.</p>
+    <div v-else class="review-list">
       <div v-for="review in pagedReviews" :key="review.id" class="review-item">
         <div class="review-header">
           <span class="author">{{ review.author }}</span>
@@ -333,6 +334,11 @@ h2 {
   flex-direction: column;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+.review-empty {
+  padding: 1.2rem 0;
+  color: var(--text-sub);
+  font-weight: 600;
 }
 .review-tag-summary-header {
   display: flex;

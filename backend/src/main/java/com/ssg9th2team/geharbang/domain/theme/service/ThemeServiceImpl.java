@@ -2,11 +2,15 @@ package com.ssg9th2team.geharbang.domain.theme.service;
 
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import com.ssg9th2team.geharbang.domain.theme.repository.ThemeRepository;
+import com.ssg9th2team.geharbang.domain.theme.repository.ThemeAccommodationCountProjection;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -18,5 +22,17 @@ public class ThemeServiceImpl implements ThemeService {
     @Override
     public List<Theme> findAllThemes() {
         return themeRepository.findAll();
+    }
+
+    @Override
+    public Map<Long, Long> getThemeAccommodationCounts() {
+        return themeRepository.findThemeAccommodationCounts()
+                .stream()
+                .collect(Collectors.toMap(
+                        ThemeAccommodationCountProjection::getThemeId,
+                        ThemeAccommodationCountProjection::getAccommodationCount,
+                        (existing, ignored) -> existing,
+                        HashMap::new
+                ));
     }
 }

@@ -15,8 +15,8 @@ import java.util.Optional;
 public interface RoomJpaRepository extends JpaRepository<Room, Long> {
 
         /**
-         * 비관적 락(Pessimistic Lock)으로 Room 조회
-         * 동시성 제어를 위해 먼저 조회하는 트랜잭션이 락을 획득함
+         * 鍮꾧?????Pessimistic Lock)?쇰줈 Room 議고쉶
+         * ?숈떆???쒖뼱瑜??꾪빐 癒쇱? 議고쉶?섎뒗 ?몃옖??뀡???쎌쓣 ?띾뱷??
          */
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("SELECT r FROM Room r WHERE r.roomId = :id")
@@ -47,17 +47,17 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                         @Param("accommodationIds") List<Long> accommodationIds);
 
         /**
-         * 특정 숙소의 예약 가능한 객실 ID 목록 조회
-         * - 활성 상태 객실만 (room_status = 1)
-         * - 해당 기간에 확정/진행중 예약이 없는 객실
+         * ?뱀젙 ?숈냼???덉빟 媛?ν븳 媛앹떎 ID 紐⑸줉 議고쉶
+         * - ?쒖꽦 ?곹깭 媛앹떎留?(room_status = 1)
+         * - ?대떦 湲곌컙???뺤젙/吏꾪뻾以??덉빟???녿뒗 媛앹떎
          */
         @Query(value = """
-                WITH RECURSIVE stay_dates AS (
-                    SELECT DATE(:checkin) AS stay_date
+                WITH RECURSIVE stay_dates (stay_date) AS (
+                    SELECT CAST(:checkin AS DATE) AS stay_date
                     UNION ALL
-                    SELECT DATE_ADD(stay_date, INTERVAL 1 DAY)
+                    SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
                     FROM stay_dates
-                    WHERE stay_date < DATE_SUB(DATE(:checkout), INTERVAL 1 DAY)
+                    WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
                 )
                 SELECT r.room_id
                 FROM room r
@@ -84,8 +84,8 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                                 ON res.room_id = r.room_id
                                AND res.is_deleted = 0
                                AND res.reservation_status IN (2, 3)
-                               AND d.stay_date >= DATE(res.checkin)
-                               AND d.stay_date < DATE(res.checkout)
+                               AND d.stay_date >= CAST(res.checkin AS DATE)
+                               AND d.stay_date < CAST(res.checkout AS DATE)
                               GROUP BY d.stay_date
                               HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(r.max_guests, 0)
                           ))
@@ -98,3 +98,4 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                 @Param("guestCount") Integer guestCount
         );
 }
+
