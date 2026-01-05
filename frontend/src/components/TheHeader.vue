@@ -236,6 +236,15 @@ const selectDate = (dayObj) => {
   }
 }
 
+const formatDateParam = (date) => {
+  if (!(date instanceof Date)) return null
+  if (Number.isNaN(date.getTime())) return null
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const buildSearchQuery = () => {
   const query = {}
   const keyword = String(searchKeyword.value ?? '').trim()
@@ -243,6 +252,12 @@ const buildSearchQuery = () => {
   searchKeyword.value = keyword
   if (keyword) query.keyword = keyword
   if (searchStore.guestCount > 0) query.guestCount = String(searchStore.guestCount)
+  const checkin = formatDateParam(searchStore.startDate)
+  const checkout = formatDateParam(searchStore.endDate)
+  if (checkin && checkout) {
+    query.checkin = checkin
+    query.checkout = checkout
+  }
 
   if (route.path === '/list' || route.path === '/map') {
     if (searchStore.minPrice !== null) query.min = String(searchStore.minPrice)

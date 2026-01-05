@@ -96,7 +96,15 @@ const toggleWishlist = async (id) => {
   }
 }
 
-const loadList = async ({ themeIds = searchStore.themeIds, keyword = searchStore.keyword, page: pageParam = 0, reset = false } = {}) => {
+const loadList = async ({
+  themeIds = searchStore.themeIds,
+  keyword = searchStore.keyword,
+  checkin = searchStore.startDate,
+  checkout = searchStore.endDate,
+  guestCount = searchStore.guestCount,
+  page: pageParam = 0,
+  reset = false
+} = {}) => {
   if (isLoading.value || isLoadingMore.value) return
   if (reset) {
     isLoading.value = true
@@ -105,7 +113,15 @@ const loadList = async ({ themeIds = searchStore.themeIds, keyword = searchStore
     isLoadingMore.value = true
   }
   try {
-    const response = await searchList({ themeIds, keyword, page: pageParam, size: PAGE_SIZE })
+    const response = await searchList({
+      themeIds,
+      keyword,
+      checkin,
+      checkout,
+      guestCount,
+      page: pageParam,
+      size: PAGE_SIZE
+    })
     if (response.ok) {
       const payload = response.data
       const list = Array.isArray(payload?.items) ? payload.items : []
@@ -211,8 +227,19 @@ onUnmounted(() => {
 })
 
 watch(
-  () => route.query.keyword,
+  () => [
+    route.query.keyword,
+    route.query.themeIds,
+    route.query.min,
+    route.query.max,
+    route.query.minPrice,
+    route.query.maxPrice,
+    route.query.guestCount,
+    route.query.checkin,
+    route.query.checkout
+  ],
   () => {
+    applyRouteFilters(route.query)
     applyRouteKeyword()
     loadList({ reset: true })
   }

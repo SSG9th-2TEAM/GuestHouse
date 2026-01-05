@@ -3,6 +3,7 @@ package com.ssg9th2team.geharbang.domain.main.service;
 import com.ssg9th2team.geharbang.domain.main.dto.MainAccommodationListResponse;
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface MainService {
@@ -17,6 +18,9 @@ public interface MainService {
             Double minLat,
             Double maxLat,
             Double minLng,
-            Double maxLng
+            Double maxLng,
+            LocalDateTime checkin,
+            LocalDateTime checkout,
+            Integer guestCount
     );
 }

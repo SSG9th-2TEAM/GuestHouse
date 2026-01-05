@@ -21,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -82,7 +83,10 @@ public class BaseMainService implements MainService {
             Double minLat,
             Double maxLat,
             Double minLng,
-            Double maxLng
+            Double maxLng,
+            LocalDateTime checkin,
+            LocalDateTime checkout,
+            Integer guestCount
     ) {
         PageRequest pageable = PageRequest.of(page, size);
         String normalizedKeyword = normalizeKeyword(keyword);
@@ -102,15 +106,36 @@ public class BaseMainService implements MainService {
 
         if (themeIds == null || themeIds.isEmpty()) {
             if (hasBounds) {
-                resultPage = mainRepository.searchPublicListByBounds(normalizedKeyword, south, north, west, east, pageable);
+                resultPage = mainRepository.searchPublicListByBounds(
+                        normalizedKeyword,
+                        south,
+                        north,
+                        west,
+                        east,
+                        checkin,
+                        checkout,
+                        guestCount,
+                        pageable
+                );
             } else {
-                resultPage = mainRepository.searchPublicList(normalizedKeyword, pageable);
+                resultPage = mainRepository.searchPublicList(normalizedKeyword, checkin, checkout, guestCount, pageable);
             }
         } else {
             if (hasBounds) {
-                resultPage = mainRepository.searchPublicListByThemeAndBounds(themeIds, normalizedKeyword, south, north, west, east, pageable);
+                resultPage = mainRepository.searchPublicListByThemeAndBounds(
+                        themeIds,
+                        normalizedKeyword,
+                        south,
+                        north,
+                        west,
+                        east,
+                        checkin,
+                        checkout,
+                        guestCount,
+                        pageable
+                );
             } else {
-                resultPage = mainRepository.searchPublicListByTheme(themeIds, normalizedKeyword, pageable);
+                resultPage = mainRepository.searchPublicListByTheme(themeIds, normalizedKeyword, checkin, checkout, guestCount, pageable);
             }
         }
 

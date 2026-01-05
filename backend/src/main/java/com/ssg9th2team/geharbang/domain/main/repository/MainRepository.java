@@ -90,6 +90,31 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               AND a.approval_status = 'APPROVED'
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+              AND (:guestCount IS NULL OR :guestCount = 0
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room rcap
+                      WHERE rcap.accommodations_id = a.accommodations_id
+                        AND rcap.room_status = 1
+                        AND COALESCE(rcap.max_guests, 0) >= :guestCount
+                   ))
+              AND (:checkin IS NULL OR :checkout IS NULL
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room r
+                      WHERE r.accommodations_id = a.accommodations_id
+                        AND r.room_status = 1
+                        AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(r.max_guests, 0) >= :guestCount)
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM reservation res
+                            WHERE res.room_id = r.room_id
+                              AND res.is_deleted = 0
+                              AND res.reservation_status IN (2, 3)
+                              AND res.checkin < :checkout
+                              AND res.checkout > :checkin
+                        )
+                   ))
             ORDER BY a.accommodations_id DESC
             """,
             countQuery = """
@@ -99,9 +124,40 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               AND a.approval_status = 'APPROVED'
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+              AND (:guestCount IS NULL OR :guestCount = 0
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room rcap
+                      WHERE rcap.accommodations_id = a.accommodations_id
+                        AND rcap.room_status = 1
+                        AND COALESCE(rcap.max_guests, 0) >= :guestCount
+                   ))
+              AND (:checkin IS NULL OR :checkout IS NULL
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room r
+                      WHERE r.accommodations_id = a.accommodations_id
+                        AND r.room_status = 1
+                        AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(r.max_guests, 0) >= :guestCount)
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM reservation res
+                            WHERE res.room_id = r.room_id
+                              AND res.is_deleted = 0
+                              AND res.reservation_status IN (2, 3)
+                              AND res.checkin < :checkout
+                              AND res.checkout > :checkin
+                        )
+                   ))
             """,
             nativeQuery = true)
-    Page<ListDtoProjection> searchPublicList(@Param("keyword") String keyword, Pageable pageable);
+    Page<ListDtoProjection> searchPublicList(
+            @Param("keyword") String keyword,
+            @Param("checkin") java.time.LocalDateTime checkin,
+            @Param("checkout") java.time.LocalDateTime checkout,
+            @Param("guestCount") Integer guestCount,
+            Pageable pageable
+    );
 
     @Query(value = """
             SELECT DISTINCT
@@ -135,6 +191,31 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               AND a.approval_status = 'APPROVED'
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+              AND (:guestCount IS NULL OR :guestCount = 0
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room rcap
+                      WHERE rcap.accommodations_id = a.accommodations_id
+                        AND rcap.room_status = 1
+                        AND COALESCE(rcap.max_guests, 0) >= :guestCount
+                   ))
+              AND (:checkin IS NULL OR :checkout IS NULL
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room r
+                      WHERE r.accommodations_id = a.accommodations_id
+                        AND r.room_status = 1
+                        AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(r.max_guests, 0) >= :guestCount)
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM reservation res
+                            WHERE res.room_id = r.room_id
+                              AND res.is_deleted = 0
+                              AND res.reservation_status IN (2, 3)
+                              AND res.checkin < :checkout
+                              AND res.checkout > :checkin
+                        )
+                   ))
             ORDER BY a.accommodations_id DESC
             """,
             countQuery = """
@@ -146,11 +227,39 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               AND a.approval_status = 'APPROVED'
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+              AND (:guestCount IS NULL OR :guestCount = 0
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room rcap
+                      WHERE rcap.accommodations_id = a.accommodations_id
+                        AND rcap.room_status = 1
+                        AND COALESCE(rcap.max_guests, 0) >= :guestCount
+                   ))
+              AND (:checkin IS NULL OR :checkout IS NULL
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room r
+                      WHERE r.accommodations_id = a.accommodations_id
+                        AND r.room_status = 1
+                        AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(r.max_guests, 0) >= :guestCount)
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM reservation res
+                            WHERE res.room_id = r.room_id
+                              AND res.is_deleted = 0
+                              AND res.reservation_status IN (2, 3)
+                              AND res.checkin < :checkout
+                              AND res.checkout > :checkin
+                        )
+                   ))
             """,
             nativeQuery = true)
     Page<ListDtoProjection> searchPublicListByTheme(
             @Param("themeIds") List<Long> themeIds,
             @Param("keyword") String keyword,
+            @Param("checkin") java.time.LocalDateTime checkin,
+            @Param("checkout") java.time.LocalDateTime checkout,
+            @Param("guestCount") Integer guestCount,
             Pageable pageable
     );
 
@@ -188,6 +297,31 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               AND a.longitude BETWEEN :minLng AND :maxLng
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+              AND (:guestCount IS NULL OR :guestCount = 0
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room rcap
+                      WHERE rcap.accommodations_id = a.accommodations_id
+                        AND rcap.room_status = 1
+                        AND COALESCE(rcap.max_guests, 0) >= :guestCount
+                   ))
+              AND (:checkin IS NULL OR :checkout IS NULL
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room r
+                      WHERE r.accommodations_id = a.accommodations_id
+                        AND r.room_status = 1
+                        AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(r.max_guests, 0) >= :guestCount)
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM reservation res
+                            WHERE res.room_id = r.room_id
+                              AND res.is_deleted = 0
+                              AND res.reservation_status IN (2, 3)
+                              AND res.checkin < :checkout
+                              AND res.checkout > :checkin
+                        )
+                   ))
             ORDER BY a.accommodations_id DESC
             """,
             countQuery = """
@@ -201,6 +335,31 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               AND a.longitude BETWEEN :minLng AND :maxLng
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+              AND (:guestCount IS NULL OR :guestCount = 0
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room rcap
+                      WHERE rcap.accommodations_id = a.accommodations_id
+                        AND rcap.room_status = 1
+                        AND COALESCE(rcap.max_guests, 0) >= :guestCount
+                   ))
+              AND (:checkin IS NULL OR :checkout IS NULL
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room r
+                      WHERE r.accommodations_id = a.accommodations_id
+                        AND r.room_status = 1
+                        AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(r.max_guests, 0) >= :guestCount)
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM reservation res
+                            WHERE res.room_id = r.room_id
+                              AND res.is_deleted = 0
+                              AND res.reservation_status IN (2, 3)
+                              AND res.checkin < :checkout
+                              AND res.checkout > :checkin
+                        )
+                   ))
             """,
             nativeQuery = true)
     Page<ListDtoProjection> searchPublicListByBounds(
@@ -209,6 +368,9 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
             @Param("maxLat") Double maxLat,
             @Param("minLng") Double minLng,
             @Param("maxLng") Double maxLng,
+            @Param("checkin") java.time.LocalDateTime checkin,
+            @Param("checkout") java.time.LocalDateTime checkout,
+            @Param("guestCount") Integer guestCount,
             Pageable pageable
     );
 
@@ -248,6 +410,31 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               AND a.longitude BETWEEN :minLng AND :maxLng
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+              AND (:guestCount IS NULL OR :guestCount = 0
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room rcap
+                      WHERE rcap.accommodations_id = a.accommodations_id
+                        AND rcap.room_status = 1
+                        AND COALESCE(rcap.max_guests, 0) >= :guestCount
+                   ))
+              AND (:checkin IS NULL OR :checkout IS NULL
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room r
+                      WHERE r.accommodations_id = a.accommodations_id
+                        AND r.room_status = 1
+                        AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(r.max_guests, 0) >= :guestCount)
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM reservation res
+                            WHERE res.room_id = r.room_id
+                              AND res.is_deleted = 0
+                              AND res.reservation_status IN (2, 3)
+                              AND res.checkin < :checkout
+                              AND res.checkout > :checkin
+                        )
+                   ))
             ORDER BY a.accommodations_id DESC
             """,
             countQuery = """
@@ -263,6 +450,31 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               AND a.longitude BETWEEN :minLng AND :maxLng
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+              AND (:guestCount IS NULL OR :guestCount = 0
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room rcap
+                      WHERE rcap.accommodations_id = a.accommodations_id
+                        AND rcap.room_status = 1
+                        AND COALESCE(rcap.max_guests, 0) >= :guestCount
+                   ))
+              AND (:checkin IS NULL OR :checkout IS NULL
+                   OR EXISTS (
+                      SELECT 1
+                      FROM room r
+                      WHERE r.accommodations_id = a.accommodations_id
+                        AND r.room_status = 1
+                        AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(r.max_guests, 0) >= :guestCount)
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM reservation res
+                            WHERE res.room_id = r.room_id
+                              AND res.is_deleted = 0
+                              AND res.reservation_status IN (2, 3)
+                              AND res.checkin < :checkout
+                              AND res.checkout > :checkin
+                        )
+                   ))
             """,
             nativeQuery = true)
     Page<ListDtoProjection> searchPublicListByThemeAndBounds(
@@ -272,6 +484,9 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
             @Param("maxLat") Double maxLat,
             @Param("minLng") Double minLng,
             @Param("maxLng") Double maxLng,
+            @Param("checkin") java.time.LocalDateTime checkin,
+            @Param("checkout") java.time.LocalDateTime checkout,
+            @Param("guestCount") Integer guestCount,
             Pageable pageable
     );
 }

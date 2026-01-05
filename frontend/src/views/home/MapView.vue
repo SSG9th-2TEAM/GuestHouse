@@ -93,9 +93,24 @@ const getBounds = () => {
   }
 }
 
-const buildQueryKey = (bounds, themeIds, keyword) => {
+const formatDateKey = (value) => {
+  if (!value) return ''
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return ''
+    const year = value.getFullYear()
+    const month = String(value.getMonth() + 1).padStart(2, '0')
+    const day = String(value.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  return String(value).trim()
+}
+
+const buildQueryKey = (bounds, themeIds, keyword, guestCount, checkin, checkout) => {
   const themeKey = [...(themeIds || [])].sort((a, b) => a - b).join(',')
   const safeKeyword = String(keyword ?? '').trim()
+  const guestKey = Number.isFinite(guestCount) ? String(guestCount) : ''
+  const checkinKey = formatDateKey(checkin)
+  const checkoutKey = formatDateKey(checkout)
   const format = (value) => Number(value).toFixed(4)
   return [
     format(bounds.minLat),
@@ -103,16 +118,35 @@ const buildQueryKey = (bounds, themeIds, keyword) => {
     format(bounds.minLng),
     format(bounds.maxLng),
     themeKey,
-    safeKeyword
+    safeKeyword,
+    guestKey,
+    checkinKey,
+    checkoutKey
   ].join('|')
 }
 
-const fetchAllPages = async ({ themeIds = [], keyword = searchStore.keyword, bounds }) => {
+const fetchAllPages = async ({
+  themeIds = [],
+  keyword = searchStore.keyword,
+  bounds,
+  checkin = searchStore.startDate,
+  checkout = searchStore.endDate,
+  guestCount = searchStore.guestCount
+}) => {
   const allItems = []
   let page = 0
 
   while (true) {
-    const response = await searchList({ themeIds, keyword, page, size: MAP_PAGE_SIZE, bounds })
+    const response = await searchList({
+      themeIds,
+      keyword,
+      checkin,
+      checkout,
+      guestCount,
+      page,
+      size: MAP_PAGE_SIZE,
+      bounds
+    })
     if (!response.ok) {
       console.error('Failed to load list', response.status)
       break
@@ -128,20 +162,28 @@ const fetchAllPages = async ({ themeIds = [], keyword = searchStore.keyword, bou
   return allItems
 }
 
-const loadList = async ({ themeIds = searchStore.themeIds, keyword = searchStore.keyword, bounds, queryKey } = {}) => {
+const loadList = async ({
+  themeIds = searchStore.themeIds,
+  keyword = searchStore.keyword,
+  bounds,
+  checkin = searchStore.startDate,
+  checkout = searchStore.endDate,
+  guestCount = searchStore.guestCount,
+  queryKey
+} = {}) => {
   if (!bounds) return
   if (isLoading.value) {
-    pendingLoad = { themeIds, keyword, bounds, queryKey }
+    pendingLoad = { themeIds, keyword, bounds, checkin, checkout, guestCount, queryKey }
     return
   }
 
   const currentRequest = ++requestId
   isLoading.value = true
   try {
-    let list = await fetchAllPages({ themeIds, keyword, bounds })
+    let list = await fetchAllPages({ themeIds, keyword, bounds, checkin, checkout, guestCount })
     if (currentRequest !== requestId) return
     if (!list.length && bounds && allowGlobalFallback) {
-      const fallbackList = await fetchAllPages({ themeIds, keyword })
+      const fallbackList = await fetchAllPages({ themeIds, keyword, checkin, checkout, guestCount })
       if (currentRequest !== requestId) return
       if (fallbackList.length) {
         list = fallbackList
@@ -176,13 +218,19 @@ const loadList = async ({ themeIds = searchStore.themeIds, keyword = searchStore
   }
 }
 
-const scheduleLoad = ({ themeIds = searchStore.themeIds, keyword = searchStore.keyword } = {}) => {
+const scheduleLoad = ({
+  themeIds = searchStore.themeIds,
+  keyword = searchStore.keyword,
+  checkin = searchStore.startDate,
+  checkout = searchStore.endDate,
+  guestCount = searchStore.guestCount
+} = {}) => {
   const bounds = getBounds()
   if (!bounds) return
-  const queryKey = buildQueryKey(bounds, themeIds, keyword)
+  const queryKey = buildQueryKey(bounds, themeIds, keyword, guestCount, checkin, checkout)
   if (queryKey === lastQueryKey) return
 
-  pendingLoad = { themeIds, keyword, bounds, queryKey }
+  pendingLoad = { themeIds, keyword, bounds, checkin, checkout, guestCount, queryKey }
   if (idleTimer) {
     clearTimeout(idleTimer)
   }
@@ -355,8 +403,19 @@ onMounted(() => {
 })
 
 watch(
-  () => route.query.keyword,
+  () => [
+    route.query.keyword,
+    route.query.themeIds,
+    route.query.min,
+    route.query.max,
+    route.query.minPrice,
+    route.query.maxPrice,
+    route.query.guestCount,
+    route.query.checkin,
+    route.query.checkout
+  ],
   () => {
+    applyRouteFilters(route.query)
     applyRouteKeyword()
     autoFitPending = true
     allowGlobalFallback = true
