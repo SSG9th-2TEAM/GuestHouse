@@ -97,7 +97,7 @@ public class AdminPaymentService {
     }
 
     @Transactional
-    public PaymentResponseDto refundPayment(Long paymentId, String reason, Integer amount, Boolean override) {
+    public PaymentResponseDto refundPayment(Long adminUserId, Long paymentId, String reason, Integer amount, Boolean override) {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ERR_PAYMENT_NOT_FOUND));
         boolean hasRefund = paymentRefundRepository.findByPaymentId(paymentId).stream()
@@ -178,7 +178,7 @@ public class AdminPaymentService {
         entityManager.clear();
         Payment updated = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ERR_PAYMENT_NOT_FOUND));
-        adminLogService.writeLog(AdminLogConstants.TARGET_PAYMENT, paymentId, AdminLogConstants.ACTION_REFUND, logReason);
+        adminLogService.writeLog(adminUserId, AdminLogConstants.ACTION_REFUND, AdminLogConstants.TARGET_PAYMENT, paymentId, logReason, null);
         return PaymentResponseDto.from(updated);
     }
 

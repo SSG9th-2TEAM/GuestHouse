@@ -73,24 +73,38 @@ public class AdminAccommodationService {
         return toDetail(accommodation, metrics);
     }
 
-    public AdminAccommodationDetail approveAccommodation(Long accommodationId) {
+    public AdminAccommodationDetail approveAccommodation(Long adminUserId, Long accommodationId) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
         accommodation.updateApprovalStatus(ApprovalStatus.APPROVED, null);
         promoteUserToHost(accommodation.getUserId());
         Accommodation saved = accommodationRepository.save(accommodation);
-        adminLogService.writeLog(AdminLogConstants.TARGET_ACCOMMODATION, accommodationId, AdminLogConstants.ACTION_APPROVE, null);
+        adminLogService.writeLog(
+                adminUserId,
+                AdminLogConstants.ACTION_APPROVE,
+                AdminLogConstants.TARGET_ACCOMMODATION,
+                accommodationId,
+                null,
+                null
+        );
         AdminAccommodationMetrics metrics = loadMetrics(List.of(saved))
                 .get(saved.getAccommodationsId());
         return toDetail(saved, metrics);
     }
 
-    public AdminAccommodationDetail rejectAccommodation(Long accommodationId, String reason) {
+    public AdminAccommodationDetail rejectAccommodation(Long adminUserId, Long accommodationId, String reason) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
         accommodation.reject(reason);
         Accommodation saved = accommodationRepository.save(accommodation);
-        adminLogService.writeLog(AdminLogConstants.TARGET_ACCOMMODATION, accommodationId, AdminLogConstants.ACTION_REJECT, reason);
+        adminLogService.writeLog(
+                adminUserId,
+                AdminLogConstants.ACTION_REJECT,
+                AdminLogConstants.TARGET_ACCOMMODATION,
+                accommodationId,
+                reason,
+                null
+        );
         AdminAccommodationMetrics metrics = loadMetrics(List.of(saved))
                 .get(saved.getAccommodationsId());
         return toDetail(saved, metrics);
