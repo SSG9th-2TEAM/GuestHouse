@@ -20,7 +20,7 @@ export async function fetchAccommodationDetail(accommodationId) {
   return hostGet(`/public/detail/${accommodationId}`)
 }
 
-export async function fetchAccommodationAvailability(accommodationId, { checkin, checkout } = {}) {
+export async function fetchAccommodationAvailability(accommodationId, { checkin, checkout, guestCount } = {}) {
   if (!accommodationId) {
     return { ok: false, status: 400, data: null }
   }
@@ -32,6 +32,10 @@ export async function fetchAccommodationAvailability(accommodationId, { checkin,
   }
   if (normalizedCheckout) {
     params.checkout = normalizedCheckout
+  }
+  const normalizedGuestCount = Number(guestCount)
+  if (Number.isFinite(normalizedGuestCount) && normalizedGuestCount > 0) {
+    params.guestCount = normalizedGuestCount
   }
   return hostGet(`/public/detail/${accommodationId}/availability`, params)
 }
