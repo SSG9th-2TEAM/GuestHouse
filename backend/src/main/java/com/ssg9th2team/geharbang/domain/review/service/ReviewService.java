@@ -9,8 +9,8 @@ import java.util.List;
 
 public interface ReviewService {
 
-    // 리뷰 등록
-    void createReview(Long userId, ReviewCreateDto reviewCreateDto);
+    // 리뷰 등록 (쿠폰 발급 여부 반환)
+    boolean createReview(Long userId, ReviewCreateDto reviewCreateDto);
 
     // 리뷰 수정
     void updateReview(Long userId, Long reviewId, ReviewUpdateDto reviewUpdateDto);

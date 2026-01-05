@@ -8,6 +8,16 @@ const router = useRouter()
 const reviews = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
+const activeMenuId = ref(null)
+
+const toggleMenu = (id) => {
+  activeMenuId.value = activeMenuId.value === id ? null : id
+}
+
+// 클릭 외부 감지해서 닫기 (선택사항, 간단하게 구현)
+const closeMenu = () => {
+  activeMenuId.value = null
+}
 
 // 날짜 포맷 함수
 const formatDate = (dateValue) => {
@@ -44,6 +54,9 @@ const normalizeReview = (review) => {
     checkout: review?.checkout,
     rating: Number.isFinite(ratingValue) ? Math.round(ratingValue) : 0,
     date: formatDate(review?.createdAt),
+    stayPeriod: (review?.checkin && review?.checkout)
+      ? `${formatDate(review.checkin)} ~ ${formatDate(review.checkout)}`
+      : (review?.visitDate || formatDate(review?.createdAt)),
     content: review?.content ?? '',
     images: imageUrls,
     tags: tagNames,
@@ -87,9 +100,7 @@ const handleEditReview = (review) => {
       reservationData: {
         accommodationId: review.accommodationId,
         accommodationName: review.accommodationName,
-        dates: (review.checkin && review.checkout) 
-          ? `${formatDate(review.checkin)} ~ ${formatDate(review.checkout)}` 
-          : review.visitDate,
+        dates: review.stayPeriod,
         image: review.accommodationImage
       }
     }
@@ -145,18 +156,34 @@ onMounted(loadMyReviews)
     <!-- Review List -->
     <div v-else class="review-list">
       <div v-for="review in reviews" :key="review.id" class="review-card">
-        <!-- Top Row: Accommodation Info -->
+        <!-- Top Row: Accommodation Info & Actions -->
         <div class="review-top">
-          <img :src="review.accommodationImage || 'https://via.placeholder.com/60'" class="review-thumb" />
-          <div class="review-info">
-            <h3 class="acc-name" @click="goToDetail(review.accommodationId)">
-              {{ review.accommodationName }}
-            </h3>
-            <div class="rating-row">
-              <span class="stars">{{ renderStars(review.rating) }}</span>
-              <span class="date">{{ review.date }}</span>
+          <div class="info-left">
+            <img :src="review.accommodationImage || 'https://via.placeholder.com/60'" class="review-thumb" />
+            <div class="review-info">
+              <h3 class="acc-name" @click="goToDetail(review.accommodationId)">
+                {{ review.accommodationName }}
+              </h3>
+              <div class="rating-row">
+                <span class="stars">{{ renderStars(review.rating) }}</span>
+                <span class="date">{{ review.stayPeriod }}</span>
+              </div>
             </div>
           </div>
+          
+          <!-- Kebab Menu (Actions) -->
+          <div class="review-actions-menu">
+            <button class="more-btn" @click.stop="toggleMenu(review.id)">⋮</button>
+            <div v-if="activeMenuId === review.id" class="menu-dropdown">
+              <button class="menu-item" @click="handleEditReview(review)">수정</button>
+              <button class="menu-item delete" @click="handleDeleteReview(review.id)">삭제</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review Images (Moved Above Content) -->
+        <div v-if="review.images && review.images.length > 0" class="review-images">
+          <img v-for="(img, idx) in review.images" :key="idx" :src="img" class="review-img" />
         </div>
 
         <!-- Review Content -->
@@ -167,22 +194,11 @@ onMounted(loadMyReviews)
           <span v-for="tag in review.tags" :key="tag" class="tag">{{ tag }}</span>
         </div>
 
-        <!-- Review Images -->
-        <div v-if="review.images && review.images.length > 0" class="review-images">
-          <img v-for="(img, idx) in review.images" :key="idx" :src="img" class="review-img" />
-        </div>
-
         <!-- Host Reply -->
         <div v-if="review.replyContent" class="host-reply">
           <p class="reply-title">호스트 답글</p>
           <p class="reply-content">{{ review.replyContent }}</p>
           <p v-if="review.replyUpdatedAt" class="reply-date">{{ review.replyUpdatedAt }}</p>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="review-actions">
-          <button class="action-btn edit" @click="handleEditReview(review)">수정</button>
-          <button class="action-btn delete" @click="handleDeleteReview(review.id)">삭제</button>
         </div>
       </div>
     </div>
@@ -260,23 +276,35 @@ onMounted(loadMyReviews)
   border-bottom: 1px solid #eee;
 }
 
+/* Review Top Layout */
 .review-top {
   display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  justify-content: space-between; /* Space between info and menu */
   align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.info-left {
+  display: flex;
+  gap: 12px;
+  flex: 1;
 }
 
 .review-thumb {
-  width: 50px;
-  height: 50px;
+  width: 54px;
+  height: 54px;
   border-radius: 8px;
   object-fit: cover;
   background: #eee;
+  flex-shrink: 0;
+  border: 1px solid #f0f0f0;
 }
 
 .review-info {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center text vertically relative to image */
+  min-height: 54px;
 }
 
 .acc-name {
@@ -284,6 +312,8 @@ onMounted(loadMyReviews)
   font-weight: 700;
   cursor: pointer;
   color: #333;
+  margin-bottom: 4px;
+  line-height: 1.3;
 }
 
 .acc-name:hover {
@@ -291,35 +321,83 @@ onMounted(loadMyReviews)
   text-decoration: underline;
 }
 
-.acc-location {
-  font-size: 0.85rem;
-  color: #888;
-  display: block;
-  margin-bottom: 4px;
-}
-
 .rating-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 6px;
 }
 
 .stars {
   color: #fbbf24;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  padding-bottom: 1px;
 }
 
 .date {
-  font-size: 0.85rem;
-  color: #888;
+  font-size: 0.8rem;
+  color: #999;
+}
+
+/* Actions Menu */
+.review-actions-menu {
+  position: relative;
 }
 
 .more-btn {
   background: none;
   border: none;
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   color: #888;
   cursor: pointer;
+  line-height: 1;
+  padding: 0 0.5rem;
+}
+
+.more-btn:hover {
+  color: #333;
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #eee;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 10;
+  width: 80px;
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-item {
+  width: 100%;
+  padding: 0.8rem;
+  text-align: center;
+  border: none;
+  background: white;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: #333;
+  transition: background 0.2s;
+}
+
+.menu-item:not(:last-child) {
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.menu-item:hover {
+  background: #f9f9f9;
+}
+
+.menu-item.delete {
+  color: #e11d48;
+}
+
+.menu-item.delete:hover {
+  background: #fff1f2;
 }
 
 .review-content {
@@ -328,6 +406,7 @@ onMounted(loadMyReviews)
   color: #333;
   margin-bottom: 1rem;
 }
+
 
 /* Review Tags */
 .review-tags {
@@ -415,40 +494,5 @@ onMounted(loadMyReviews)
   font-weight: 600;
   cursor: pointer;
 }
-/* Action Buttons */
-.review-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  justify-content: flex-end;
-}
 
-.action-btn {
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid #ddd;
-}
-
-.action-btn.edit {
-  background: white;
-  color: #004d40;
-  border-color: var(--primary);
-}
-
-.action-btn.edit:hover {
-  background: #f0fdf4;
-}
-
-.action-btn.delete {
-  background: white;
-  color: #e11d48;
-  border-color: #e11d48;
-}
-
-.action-btn.delete:hover {
-  background: #fff1f2;
-}
 </style>

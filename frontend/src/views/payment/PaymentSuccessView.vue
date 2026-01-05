@@ -10,9 +10,38 @@ const isLoading = ref(true)
 const isSuccess = ref(false)
 const errorMessage = ref('')
 const paymentResult = ref(null)
+const reservationIdRef = ref(null)
+
+// 쿠폰 모달 상태
+const showCouponModal = ref(false)
+const couponName = ref('')
+
+const goToBookingSuccess = () => {
+  router.replace({
+    name: 'booking-success',
+    state: {
+      bookingData: {
+        reservationId: reservationIdRef.value,
+        paymentId: paymentResult.value?.payment?.paymentId,
+        totalPrice: paymentResult.value?.payment?.approvedAmount
+      }
+    }
+  })
+}
+
+const closeCouponModal = () => {
+  showCouponModal.value = false
+  goToBookingSuccess()
+}
+
+const goToCouponPage = () => {
+  showCouponModal.value = false
+  router.replace('/coupons')
+}
 
 onMounted(async () => {
   const { paymentKey, orderId, amount, reservationId } = route.query
+  reservationIdRef.value = reservationId
 
   // 필수 파라미터 없으면 홈으로
   if (!paymentKey || !orderId || !amount) {
@@ -34,30 +63,28 @@ onMounted(async () => {
     paymentResult.value = result
     isSuccess.value = true
 
-    // 2초 후 예약 완료 페이지로 이동 (replace 사용하여 뒤로가기 방지)
-    setTimeout(() => {
-      router.replace({
-        name: 'booking-success',
-        state: {
-          bookingData: {
-            reservationId: reservationId,
-            paymentId: result.paymentId,
-            totalPrice: result.approvedAmount
-          }
-        }
-      })
-    }, 2000)
+    // 쿠폰 발급 여부 확인
+    if (result.couponIssued) {
+      couponName.value = result.couponName || '첫 예약 감사 쿠폰'
+      // 1초 후 쿠폰 모달 표시
+      setTimeout(() => {
+        showCouponModal.value = true
+      }, 1000)
+    } else {
+      // 쿠폰 발급 없으면 2초 후 예약 완료 페이지로 이동
+      setTimeout(() => goToBookingSuccess(), 2000)
+    }
 
   } catch (error) {
     console.error('결제 승인 실패:', error)
-    
+
     // 이미 처리된 결제인 경우 (중복 요청)
     if (error.message?.includes('이미') || error.message?.includes('중복')) {
       errorMessage.value = '이미 처리된 결제입니다. 예약 내역을 확인해주세요.'
     } else {
       errorMessage.value = error.message || '결제 승인에 실패했습니다.'
     }
-    
+
     // 3초 후 홈으로 이동
     setTimeout(() => router.replace('/'), 3000)
   } finally {
@@ -100,14 +127,14 @@ const goHome = () => router.replace('/')
       <div class="check-icon">✓</div>
       <h1>결제가 완료되었습니다!</h1>
       <p>잠시 후 예약 완료 페이지로 이동합니다...</p>
-      <div class="payment-info" v-if="paymentResult">
+      <div class="payment-info" v-if="paymentResult?.payment">
         <div class="info-row">
           <span>결제 금액</span>
-          <span>₩{{ paymentResult.approvedAmount?.toLocaleString() }}</span>
+          <span>₩{{ paymentResult.payment.approvedAmount?.toLocaleString() }}</span>
         </div>
         <div class="info-row">
           <span>결제 수단</span>
-          <span>{{ getPaymentMethodName(paymentResult.paymentMethod) }}</span>
+          <span>{{ getPaymentMethodName(paymentResult.payment.paymentMethod) }}</span>
         </div>
       </div>
     </div>
@@ -118,6 +145,19 @@ const goHome = () => router.replace('/')
       <h1>결제 승인에 실패했습니다</h1>
       <p class="error-message">{{ errorMessage }}</p>
       <button class="btn" @click="goHome">홈으로 돌아가기</button>
+    </div>
+
+    <!-- 쿠폰 발급 모달 -->
+    <div v-if="showCouponModal" class="modal-overlay">
+      <div class="coupon-modal-content">
+        <button class="coupon-modal-close" @click="closeCouponModal">&times;</button>
+        <div class="coupon-modal-icon">
+          <span>🎉</span>
+        </div>
+        <h2 class="coupon-modal-title">쿠폰이 발급되었습니다!</h2>
+        <p class="coupon-modal-message">{{ couponName }}이(가) 발급되었습니다.<br/>쿠폰함을 확인해주세요!</p>
+        <button class="coupon-modal-btn" @click="goToCouponPage">쿠폰함으로 가기</button>
+      </div>
     </div>
   </div>
 </template>
@@ -217,5 +257,87 @@ p {
   border-radius: 8px;
   font-size: 1rem;
   cursor: pointer;
+}
+
+/* 쿠폰 모달 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.coupon-modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 340px;
+  width: 90%;
+  text-align: center;
+  position: relative;
+}
+
+.coupon-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #f5f5f5;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.coupon-modal-close:hover {
+  background: #eee;
+  color: #333;
+}
+
+.coupon-modal-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.coupon-modal-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 0.8rem;
+}
+
+.coupon-modal-message {
+  font-size: 0.95rem;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.coupon-modal-btn {
+  width: 100%;
+  padding: 0.9rem;
+  background: #10B981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.coupon-modal-btn:hover {
+  opacity: 0.9;
 }
 </style>
