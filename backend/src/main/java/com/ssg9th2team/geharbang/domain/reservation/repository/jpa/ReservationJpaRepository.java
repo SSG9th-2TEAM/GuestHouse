@@ -88,13 +88,10 @@ public interface ReservationJpaRepository
                         "where r.createdAt >= :start and r.createdAt < :end")
         long countDistinctHost(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-<<<<<<< Updated upstream
         /**
          * 유저의 결제 완료된 예약 수 카운트 (reservationStatus = 2: 확정)
          */
         long countByUserIdAndReservationStatus(Long userId, Integer reservationStatus);
 
-=======
         List<Reservation> findAllByUserId(Long userId);
->>>>>>> Stashed changes
 }
