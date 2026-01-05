@@ -73,12 +73,19 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
                 a.min_price AS minPrice,
                 a.rating AS rating,
                 a.review_count AS reviewCount,
+                COALESCE(rmax.maxGuests, 0) AS maxGuests,
                 ai.image_url AS imageUrl
             FROM accommodation a
             LEFT JOIN accommodation_image ai
               ON ai.accommodations_id = a.accommodations_id
              AND ai.sort_order = 0
              AND ai.image_type = 'banner'
+            LEFT JOIN (
+                SELECT accommodations_id, MAX(max_guests) AS maxGuests
+                FROM room
+                WHERE room_status = 1
+                GROUP BY accommodations_id
+            ) rmax ON rmax.accommodations_id = a.accommodations_id
             WHERE a.accommodation_status = 1
               AND a.approval_status = 'APPROVED'
               AND (:keyword IS NULL OR :keyword = ''
@@ -109,6 +116,7 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
                 a.min_price AS minPrice,
                 a.rating AS rating,
                 a.review_count AS reviewCount,
+                COALESCE(rmax.maxGuests, 0) AS maxGuests,
                 ai.image_url AS imageUrl
             FROM accommodation a
             JOIN accommodation_theme at ON at.accommodations_id = a.accommodations_id
@@ -116,6 +124,12 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
               ON ai.accommodations_id = a.accommodations_id
              AND ai.sort_order = 0
              AND ai.image_type = 'banner'
+            LEFT JOIN (
+                SELECT accommodations_id, MAX(max_guests) AS maxGuests
+                FROM room
+                WHERE room_status = 1
+                GROUP BY accommodations_id
+            ) rmax ON rmax.accommodations_id = a.accommodations_id
             WHERE at.theme_id IN (:themeIds)
               AND a.accommodation_status = 1
               AND a.approval_status = 'APPROVED'
@@ -137,6 +151,127 @@ public interface MainRepository extends JpaRepository<Accommodation, Long> {
     Page<ListDtoProjection> searchPublicListByTheme(
             @Param("themeIds") List<Long> themeIds,
             @Param("keyword") String keyword,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            SELECT
+                a.accommodations_id AS accomodationsId,
+                a.accommodations_name AS accomodationsName,
+                a.short_description AS shortDescription,
+                a.city AS city,
+                a.district AS district,
+                a.township AS township,
+                a.latitude AS latitude,
+                a.longitude AS longitude,
+                a.min_price AS minPrice,
+                a.rating AS rating,
+                a.review_count AS reviewCount,
+                COALESCE(rmax.maxGuests, 0) AS maxGuests,
+                ai.image_url AS imageUrl
+            FROM accommodation a
+            LEFT JOIN accommodation_image ai
+              ON ai.accommodations_id = a.accommodations_id
+             AND ai.sort_order = 0
+             AND ai.image_type = 'banner'
+            LEFT JOIN (
+                SELECT accommodations_id, MAX(max_guests) AS maxGuests
+                FROM room
+                WHERE room_status = 1
+                GROUP BY accommodations_id
+            ) rmax ON rmax.accommodations_id = a.accommodations_id
+            WHERE a.accommodation_status = 1
+              AND a.approval_status = 'APPROVED'
+              AND a.latitude IS NOT NULL
+              AND a.longitude IS NOT NULL
+              AND a.latitude BETWEEN :minLat AND :maxLat
+              AND a.longitude BETWEEN :minLng AND :maxLng
+              AND (:keyword IS NULL OR :keyword = ''
+                   OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+            ORDER BY a.accommodations_id DESC
+            """,
+            countQuery = """
+            SELECT COUNT(*)
+            FROM accommodation a
+            WHERE a.accommodation_status = 1
+              AND a.approval_status = 'APPROVED'
+              AND a.latitude IS NOT NULL
+              AND a.longitude IS NOT NULL
+              AND a.latitude BETWEEN :minLat AND :maxLat
+              AND a.longitude BETWEEN :minLng AND :maxLng
+              AND (:keyword IS NULL OR :keyword = ''
+                   OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+            """,
+            nativeQuery = true)
+    Page<ListDtoProjection> searchPublicListByBounds(
+            @Param("keyword") String keyword,
+            @Param("minLat") Double minLat,
+            @Param("maxLat") Double maxLat,
+            @Param("minLng") Double minLng,
+            @Param("maxLng") Double maxLng,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            SELECT DISTINCT
+                a.accommodations_id AS accomodationsId,
+                a.accommodations_name AS accomodationsName,
+                a.short_description AS shortDescription,
+                a.city AS city,
+                a.district AS district,
+                a.township AS township,
+                a.latitude AS latitude,
+                a.longitude AS longitude,
+                a.min_price AS minPrice,
+                a.rating AS rating,
+                a.review_count AS reviewCount,
+                COALESCE(rmax.maxGuests, 0) AS maxGuests,
+                ai.image_url AS imageUrl
+            FROM accommodation a
+            JOIN accommodation_theme at ON at.accommodations_id = a.accommodations_id
+            LEFT JOIN accommodation_image ai
+              ON ai.accommodations_id = a.accommodations_id
+             AND ai.sort_order = 0
+             AND ai.image_type = 'banner'
+            LEFT JOIN (
+                SELECT accommodations_id, MAX(max_guests) AS maxGuests
+                FROM room
+                WHERE room_status = 1
+                GROUP BY accommodations_id
+            ) rmax ON rmax.accommodations_id = a.accommodations_id
+            WHERE at.theme_id IN (:themeIds)
+              AND a.accommodation_status = 1
+              AND a.approval_status = 'APPROVED'
+              AND a.latitude IS NOT NULL
+              AND a.longitude IS NOT NULL
+              AND a.latitude BETWEEN :minLat AND :maxLat
+              AND a.longitude BETWEEN :minLng AND :maxLng
+              AND (:keyword IS NULL OR :keyword = ''
+                   OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+            ORDER BY a.accommodations_id DESC
+            """,
+            countQuery = """
+            SELECT COUNT(DISTINCT a.accommodations_id)
+            FROM accommodation a
+            JOIN accommodation_theme at ON at.accommodations_id = a.accommodations_id
+            WHERE at.theme_id IN (:themeIds)
+              AND a.accommodation_status = 1
+              AND a.approval_status = 'APPROVED'
+              AND a.latitude IS NOT NULL
+              AND a.longitude IS NOT NULL
+              AND a.latitude BETWEEN :minLat AND :maxLat
+              AND a.longitude BETWEEN :minLng AND :maxLng
+              AND (:keyword IS NULL OR :keyword = ''
+                   OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+            """,
+            nativeQuery = true)
+    Page<ListDtoProjection> searchPublicListByThemeAndBounds(
+            @Param("themeIds") List<Long> themeIds,
+            @Param("keyword") String keyword,
+            @Param("minLat") Double minLat,
+            @Param("maxLat") Double maxLat,
+            @Param("minLng") Double minLng,
+            @Param("maxLng") Double maxLng,
             Pageable pageable
     );
 }

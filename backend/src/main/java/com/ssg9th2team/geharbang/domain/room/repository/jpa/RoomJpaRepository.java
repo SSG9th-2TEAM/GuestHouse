@@ -6,9 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import jakarta.persistence.LockModeType;
-import org.springframework.data.jpa.repository.Lock;
-import java.util.Optional;
+import java.util.List;
 
 public interface RoomJpaRepository extends JpaRepository<Room, Long> {
 
@@ -25,7 +23,13 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
             """)
     RoomStats findRoomStats(@Param("accommodationId") Long accommodationId);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT r FROM Room r WHERE r.id = :id")
-    Optional<Room> findByIdWithLock(@Param("id") Long id);
+    @Query("""
+            SELECT r.accommodationsId AS accommodationsId,
+                   MAX(r.maxGuests) AS maxGuests
+            FROM Room r
+            WHERE r.accommodationsId IN :accommodationIds
+              AND r.roomStatus = 1
+            GROUP BY r.accommodationsId
+            """)
+    List<AccommodationGuestStats> findMaxGuestsByAccommodationIds(@Param("accommodationIds") List<Long> accommodationIds);
 }

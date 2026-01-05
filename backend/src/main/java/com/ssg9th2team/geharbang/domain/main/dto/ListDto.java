@@ -18,6 +18,7 @@ public class ListDto {
     private Long minPrice;
     private Double rating;
     private Integer reviewCount;
+    private Integer maxGuests;
     private String imageUrl;
 
 }

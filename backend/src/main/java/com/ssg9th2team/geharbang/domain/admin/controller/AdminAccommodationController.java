@@ -1,9 +1,11 @@
 package com.ssg9th2team.geharbang.domain.admin.controller;
 
+import com.ssg9th2team.geharbang.domain.accommodation.service.AccommodationGeoService;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationSummary;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminRejectRequest;
+import com.ssg9th2team.geharbang.domain.admin.dto.GeoBackfillResponse;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminAccommodationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminAccommodationController {
 
     private final AdminAccommodationService accommodationService;
+    private final AccommodationGeoService accommodationGeoService;
 
     @GetMapping
     public AdminPageResponse<AdminAccommodationSummary> getAccommodations(
@@ -53,6 +56,11 @@ public class AdminAccommodationController {
     public AdminAccommodationDetail rejectAccommodation(@PathVariable Long accommodationId,
                                                         @RequestBody AdminRejectRequest request) {
         return accommodationService.rejectAccommodation(accommodationId, request != null ? request.reason() : null);
+    }
+
+    @PostMapping("/geo/backfill")
+    public GeoBackfillResponse backfillMissingCoordinates(@RequestParam(defaultValue = "100") int limit) {
+        return accommodationGeoService.backfillMissingCoordinates(limit);
     }
 
     private String normalizeFilter(String value) {

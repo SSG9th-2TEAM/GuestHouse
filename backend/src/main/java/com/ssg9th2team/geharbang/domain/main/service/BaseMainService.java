@@ -12,6 +12,8 @@ import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.repository.AccommodationImageProjection;
 import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
 import com.ssg9th2team.geharbang.domain.main.repository.MainRepository;
+import com.ssg9th2team.geharbang.domain.room.repository.jpa.AccommodationGuestStats;
+import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -30,6 +32,7 @@ public class BaseMainService implements MainService {
     private final MainRepository mainRepository;
     private final UserRepository userRepository;
     private final AccommodationThemeRepository accommodationThemeRepository;
+    private final RoomJpaRepository roomJpaRepository;
 
     private static final int RECOMMENDATION_LIMIT = 5; // 최대 추천 숙소 개수
 
@@ -71,14 +74,44 @@ public class BaseMainService implements MainService {
 
 
     @Override
-    public PublicListResponse searchPublicList(List<Long> themeIds, String keyword, int page, int size) {
+    public PublicListResponse searchPublicList(
+            List<Long> themeIds,
+            String keyword,
+            int page,
+            int size,
+            Double minLat,
+            Double maxLat,
+            Double minLng,
+            Double maxLng
+    ) {
         PageRequest pageable = PageRequest.of(page, size);
         String normalizedKeyword = normalizeKeyword(keyword);
         Page<ListDtoProjection> resultPage;
+
+        boolean hasBounds = minLat != null && maxLat != null && minLng != null && maxLng != null;
+        Double south = null;
+        Double north = null;
+        Double west = null;
+        Double east = null;
+        if (hasBounds) {
+            south = Math.min(minLat, maxLat);
+            north = Math.max(minLat, maxLat);
+            west = Math.min(minLng, maxLng);
+            east = Math.max(minLng, maxLng);
+        }
+
         if (themeIds == null || themeIds.isEmpty()) {
-            resultPage = mainRepository.searchPublicList(normalizedKeyword, pageable);
+            if (hasBounds) {
+                resultPage = mainRepository.searchPublicListByBounds(normalizedKeyword, south, north, west, east, pageable);
+            } else {
+                resultPage = mainRepository.searchPublicList(normalizedKeyword, pageable);
+            }
         } else {
-            resultPage = mainRepository.searchPublicListByTheme(themeIds, normalizedKeyword, pageable);
+            if (hasBounds) {
+                resultPage = mainRepository.searchPublicListByThemeAndBounds(themeIds, normalizedKeyword, south, north, west, east, pageable);
+            } else {
+                resultPage = mainRepository.searchPublicListByTheme(themeIds, normalizedKeyword, pageable);
+            }
         }
 
         List<ListDto> items = resultPage.getContent().stream()
@@ -115,8 +148,9 @@ public class BaseMainService implements MainService {
             return Collections.emptyList();
         }
         Map<Long, String> imageById = loadRepresentativeImages(accommodations);
+        Map<Long, Integer> maxGuestsById = loadMaxGuests(accommodations);
         return accommodations.stream()
-                .map(accommodation -> toListDto(accommodation, imageById))
+                .map(accommodation -> toListDto(accommodation, imageById, maxGuestsById))
                 .toList();
     }
 
@@ -133,6 +167,7 @@ public class BaseMainService implements MainService {
                 .minPrice(projection.getMinPrice())
                 .rating(projection.getRating())
                 .reviewCount(projection.getReviewCount())
+                .maxGuests(projection.getMaxGuests())
                 .imageUrl(projection.getImageUrl())
                 .build();
     }
@@ -206,6 +241,22 @@ public class BaseMainService implements MainService {
         return toListDtos(recommended);
     }
 
+    private Map<Long, Integer> loadMaxGuests(List<Accommodation> accommodations) {
+        if (accommodations.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = accommodations.stream()
+                .map(Accommodation::getAccommodationsId)
+                .toList();
+        return roomJpaRepository.findMaxGuestsByAccommodationIds(ids)
+                .stream()
+                .collect(Collectors.toMap(
+                        AccommodationGuestStats::getAccommodationsId,
+                        stats -> stats.getMaxGuests() != null ? stats.getMaxGuests() : 0,
+                        (existing, ignored) -> existing
+                ));
+    }
+
 
     private Map<Long, String> loadRepresentativeImages(List<Accommodation> accommodations) {
         if (accommodations.isEmpty()) {
@@ -223,7 +274,7 @@ public class BaseMainService implements MainService {
                 ));
     }
 
-    private ListDto toListDto(Accommodation accommodation, Map<Long, String> imageById) {
+    private ListDto toListDto(Accommodation accommodation, Map<Long, String> imageById, Map<Long, Integer> maxGuestsById) {
         return ListDto.builder()
                 .accomodationsId(accommodation.getAccommodationsId())
                 .accomodationsName(accommodation.getAccommodationsName())
@@ -236,6 +287,7 @@ public class BaseMainService implements MainService {
                 .minPrice(accommodation.getMinPrice() != null ? accommodation.getMinPrice().longValue() : null)
                 .rating(accommodation.getRating() != null ? accommodation.getRating().doubleValue() : 0.0)
                 .reviewCount(accommodation.getReviewCount())
+                .maxGuests(maxGuestsById.getOrDefault(accommodation.getAccommodationsId(), 0))
                 .imageUrl(imageById.get(accommodation.getAccommodationsId()))
                 .build();
     }

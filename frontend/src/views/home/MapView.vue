@@ -1,46 +1,40 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { fetchList } from '@/api/list'
+import { searchList } from '@/api/list'
 import FilterModal from '../../components/FilterModal.vue'
 import { useSearchStore } from '@/stores/search'
+import { useListingFilters } from '@/composables/useListingFilters'
 
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
+const { applyRouteFilters, buildFilterQuery } = useListingFilters()
 const items = ref([])
 const selectedItem = ref(null)
 const mapContainer = ref(null)
 const mapInstance = ref(null)
 const activeOverlays = ref([])
+const isLoading = ref(false)
+const isMapVisible = ref(false)
+
+const MAP_PAGE_SIZE = 200
+const MAX_MAP_RESULTS = 600
+const AUTO_FIT_SINGLE_LEVEL = 6
+const AUTO_FIT_ZOOM_IN_LEVELS = 1
+const AUTO_FIT_MIN_LEVEL = 6
+const AUTO_FIT_MAX_LEVEL_FOR_ZOOM_IN = 9
 
 // Filter State
 const isFilterModalOpen = ref(false)
-const minPrice = ref(null)
-const maxPrice = ref(null)
-const selectedThemeIds = ref([])
 
-const parseNumberParam = (value) => {
-  if (value === undefined || value === null || value === '') return null
-  const raw = Array.isArray(value) ? value[0] : value
-  const numberValue = Number(raw)
-  return Number.isFinite(numberValue) ? numberValue : null
-}
-
-const parseThemeIds = (value) => {
-  if (!value) return []
-  const raw = Array.isArray(value) ? value.join(',') : String(value)
-  return raw
-    .split(',')
-    .map((item) => Number(item))
-    .filter((item) => Number.isFinite(item))
-}
-
-const applyRouteFilters = () => {
-  minPrice.value = parseNumberParam(route.query.min ?? route.query.minPrice)
-  maxPrice.value = parseNumberParam(route.query.max ?? route.query.maxPrice)
-  selectedThemeIds.value = parseThemeIds(route.query.themeIds)
-}
+let requestId = 0
+let lastQueryKey = ''
+let pendingLoad = null
+let idleTimer = null
+let autoFitPending = true
+let initialLoadDone = false
+let allowGlobalFallback = true
 
 const getKeywordFromRoute = () => {
   const raw = route.query.keyword
@@ -66,6 +60,8 @@ const normalizeItem = (item) => {
   const rating = item.rating ?? null
   const reviewCount = item.reviewCount ?? null
   const imageUrl = item.imageUrl || 'https://placehold.co/400x300'
+  const maxGuestsValue = Number(item.maxGuests ?? item.capacity ?? item.maxGuest ?? 0)
+  const maxGuests = Number.isFinite(maxGuestsValue) ? maxGuestsValue : 0
   const lat = Number(item.latitude ?? item.lat)
   const lng = Number(item.longitude ?? item.lng)
   return {
@@ -77,27 +73,125 @@ const normalizeItem = (item) => {
     rating,
     reviewCount,
     imageUrl,
+    maxGuests,
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null
   }
 }
 
-const loadList = async (themeIds = [], keyword = searchStore.keyword) => {
-  try {
-    const response = await fetchList(themeIds, keyword)
-    if (response.ok) {
-      const payload = response.data
-      const list = Array.isArray(payload)
-        ? payload
-        : payload?.items ?? payload?.content ?? payload?.data ?? []
-      items.value = list.map(normalizeItem)
-      updateMarkers()
-    } else {
+const getBounds = () => {
+  if (!mapInstance.value) return null
+  const bounds = mapInstance.value.getBounds()
+  if (!bounds) return null
+  const southWest = bounds.getSouthWest()
+  const northEast = bounds.getNorthEast()
+  return {
+    minLat: southWest.getLat(),
+    maxLat: northEast.getLat(),
+    minLng: southWest.getLng(),
+    maxLng: northEast.getLng()
+  }
+}
+
+const buildQueryKey = (bounds, themeIds, keyword) => {
+  const themeKey = [...(themeIds || [])].sort((a, b) => a - b).join(',')
+  const safeKeyword = String(keyword ?? '').trim()
+  const format = (value) => Number(value).toFixed(4)
+  return [
+    format(bounds.minLat),
+    format(bounds.maxLat),
+    format(bounds.minLng),
+    format(bounds.maxLng),
+    themeKey,
+    safeKeyword
+  ].join('|')
+}
+
+const fetchAllPages = async ({ themeIds = [], keyword = searchStore.keyword, bounds }) => {
+  const allItems = []
+  let page = 0
+
+  while (true) {
+    const response = await searchList({ themeIds, keyword, page, size: MAP_PAGE_SIZE, bounds })
+    if (!response.ok) {
       console.error('Failed to load list', response.status)
+      break
     }
+    const list = Array.isArray(response.data?.items) ? response.data.items : []
+    allItems.push(...list)
+    const pageInfo = response.data?.page
+    if (!pageInfo?.hasNext) break
+    if (allItems.length >= MAX_MAP_RESULTS) break
+    page += 1
+  }
+
+  return allItems
+}
+
+const loadList = async ({ themeIds = searchStore.themeIds, keyword = searchStore.keyword, bounds, queryKey } = {}) => {
+  if (!bounds) return
+  if (isLoading.value) {
+    pendingLoad = { themeIds, keyword, bounds, queryKey }
+    return
+  }
+
+  const currentRequest = ++requestId
+  isLoading.value = true
+  try {
+    let list = await fetchAllPages({ themeIds, keyword, bounds })
+    if (currentRequest !== requestId) return
+    if (!list.length && bounds && allowGlobalFallback) {
+      const fallbackList = await fetchAllPages({ themeIds, keyword })
+      if (currentRequest !== requestId) return
+      if (fallbackList.length) {
+        list = fallbackList
+      }
+    }
+    items.value = list.map(normalizeItem)
+    const itemsWithCoords = updateMarkers()
+    fitToMarkers(itemsWithCoords)
+    if (!initialLoadDone) {
+      initialLoadDone = true
+      isMapVisible.value = true
+    }
+    if (queryKey) {
+      lastQueryKey = queryKey
+    }
+    allowGlobalFallback = false
   } catch (error) {
     console.error('Failed to load list', error)
+  } finally {
+    if (currentRequest === requestId) {
+      isLoading.value = false
+    }
+    if (currentRequest === requestId && !initialLoadDone) {
+      initialLoadDone = true
+      isMapVisible.value = true
+    }
+    if (pendingLoad && currentRequest === requestId) {
+      const nextLoad = pendingLoad
+      pendingLoad = null
+      loadList(nextLoad)
+    }
   }
+}
+
+const scheduleLoad = ({ themeIds = searchStore.themeIds, keyword = searchStore.keyword } = {}) => {
+  const bounds = getBounds()
+  if (!bounds) return
+  const queryKey = buildQueryKey(bounds, themeIds, keyword)
+  if (queryKey === lastQueryKey) return
+
+  pendingLoad = { themeIds, keyword, bounds, queryKey }
+  if (idleTimer) {
+    clearTimeout(idleTimer)
+  }
+  idleTimer = setTimeout(() => {
+    if (!pendingLoad) return
+    const nextLoad = pendingLoad
+    pendingLoad = null
+    loadList(nextLoad)
+  }, 250)
 }
 
 const handleMarkerClick = (item) => {
@@ -114,22 +208,23 @@ const goToDetail = (id) => {
   router.push({ path: `/room/${id}`, query })
 }
 
+const syncMarkerActiveState = () => {
+  const selectedId = selectedItem.value?.id
+  activeOverlays.value.forEach(({ element, itemId }) => {
+    if (!element) return
+    const isActive = selectedId !== null && selectedId !== undefined && String(itemId) === String(selectedId)
+    element.classList.toggle('price-marker--active', isActive)
+  })
+}
+
 const updateMarkers = () => {
   if (!mapInstance.value) return
 
   // Clear existing markers
-  activeOverlays.value.forEach(overlay => overlay.setMap(null))
+  activeOverlays.value.forEach(({ overlay }) => overlay.setMap(null))
   activeOverlays.value = []
 
-  // Filter items
-  const filteredItems = items.value.filter(item => {
-    if (minPrice.value !== null && item.price < minPrice.value) return false
-    if (maxPrice.value !== null && item.price > maxPrice.value) return false
-    return true
-  })
-  const itemsWithCoords = filteredItems.filter(
-    (item) => Number.isFinite(item.lat) && Number.isFinite(item.lng) && Number.isFinite(item.price) && item.price > 0
-  )
+  const itemsWithCoords = getItemsWithCoords()
 
   if (selectedItem.value) {
     const nextSelected = itemsWithCoords.find(item => item.id === selectedItem.value.id)
@@ -143,6 +238,10 @@ const updateMarkers = () => {
     // Custom Overlay Content
     const content = document.createElement('div')
     content.className = 'price-marker'
+    const isSelected = selectedItem.value && String(selectedItem.value.id) === String(item.id)
+    if (isSelected) {
+      content.classList.add('price-marker--active')
+    }
     content.innerHTML = `₩${item.price.toLocaleString()}`
     
     content.onclick = () => {
@@ -157,42 +256,64 @@ const updateMarkers = () => {
     })
 
     customOverlay.setMap(mapInstance.value)
-    activeOverlays.value.push(customOverlay)
+    activeOverlays.value.push({ overlay: customOverlay, element: content, itemId: item.id })
   })
 
-  if (!itemsWithCoords.length) return
+  syncMarkerActiveState()
+  return itemsWithCoords
+}
 
+const getItemsWithCoords = () => {
+  const minValue = searchStore.minPrice
+  const maxValue = searchStore.maxPrice
+  const guestCount = searchStore.guestCount
+  const filteredItems = items.value.filter(item => {
+    if (minValue !== null && item.price < minValue) return false
+    if (maxValue !== null && item.price > maxValue) return false
+    if (guestCount > 0 && item.maxGuests < guestCount) return false
+    return true
+  })
+
+  return filteredItems.filter(
+    (item) => Number.isFinite(item.lat) && Number.isFinite(item.lng) && Number.isFinite(item.price) && item.price > 0
+  )
+}
+
+const fitToMarkers = (itemsWithCoords) => {
+  if (!mapInstance.value || !autoFitPending) return
+  if (!itemsWithCoords || itemsWithCoords.length === 0) return
+
+  autoFitPending = false
   if (itemsWithCoords.length === 1) {
-    mapInstance.value.setCenter(
-      new window.kakao.maps.LatLng(itemsWithCoords[0].lat, itemsWithCoords[0].lng)
-    )
-    mapInstance.value.setLevel(5)
+    const target = itemsWithCoords[0]
+    mapInstance.value.setCenter(new window.kakao.maps.LatLng(target.lat, target.lng))
+    const currentLevel = mapInstance.value.getLevel()
+    const nextLevel = Math.min(currentLevel, AUTO_FIT_SINGLE_LEVEL)
+    mapInstance.value.setLevel(nextLevel)
     return
   }
 
   const bounds = new window.kakao.maps.LatLngBounds()
-  itemsWithCoords.forEach((item) => {
+  itemsWithCoords.forEach(item => {
     bounds.extend(new window.kakao.maps.LatLng(item.lat, item.lng))
   })
   mapInstance.value.setBounds(bounds)
+  const currentLevel = mapInstance.value.getLevel()
+  if (currentLevel <= AUTO_FIT_MIN_LEVEL || currentLevel > AUTO_FIT_MAX_LEVEL_FOR_ZOOM_IN) return
+  const nextLevel = Math.max(1, currentLevel - AUTO_FIT_ZOOM_IN_LEVELS)
+  if (nextLevel !== currentLevel) {
+    mapInstance.value.setLevel(nextLevel)
+  }
 }
 
-const handleApplyFilter = ({ min, max, themeIds = [] }) => {
-  minPrice.value = min
-  maxPrice.value = max
-  selectedThemeIds.value = themeIds
+const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 0 }) => {
+  searchStore.setPriceRange(min, max)
+  searchStore.setThemeIds(themeIds)
+  searchStore.setGuestCount(guestCount)
+  autoFitPending = true
   isFilterModalOpen.value = false
-  loadList(themeIds)
-}
-
-const buildFilterQuery = () => {
-  const query = {}
-  if (minPrice.value !== null) query.min = String(minPrice.value)
-  if (maxPrice.value !== null) query.max = String(maxPrice.value)
-  if (selectedThemeIds.value.length) query.themeIds = selectedThemeIds.value.join(',')
-  const keyword = (searchStore.keyword || '').trim()
-  if (keyword) query.keyword = keyword
-  return query
+  updateMarkers()
+  scheduleLoad({ themeIds })
 }
 
 const goToList = () => {
@@ -200,7 +321,7 @@ const goToList = () => {
 }
 
 onMounted(() => {
-  applyRouteFilters()
+  applyRouteFilters(route.query)
   applyRouteKeyword()
   if (!window.kakao?.maps?.load) {
     console.error('Kakao Maps SDK not loaded')
@@ -217,8 +338,19 @@ onMounted(() => {
 
     mapInstance.value = new window.kakao.maps.Map(mapContainer.value, options)
 
+    const disableAutoFit = () => {
+      autoFitPending = false
+    }
+
+    window.kakao.maps.event.addListener(mapInstance.value, 'dragstart', disableAutoFit)
+    window.kakao.maps.event.addListener(mapInstance.value, 'zoom_start', disableAutoFit)
+
+    window.kakao.maps.event.addListener(mapInstance.value, 'idle', () => {
+      scheduleLoad()
+    })
+
     // Initial render
-    loadList(selectedThemeIds.value)
+    scheduleLoad()
   })
 })
 
@@ -226,7 +358,23 @@ watch(
   () => route.query.keyword,
   () => {
     applyRouteKeyword()
-    loadList(selectedThemeIds.value)
+    autoFitPending = true
+    allowGlobalFallback = true
+    scheduleLoad()
+  }
+)
+
+watch(
+  () => selectedItem.value?.id,
+  () => {
+    syncMarkerActiveState()
+  }
+)
+
+watch(
+  () => [searchStore.minPrice, searchStore.maxPrice, searchStore.guestCount],
+  () => {
+    updateMarkers()
   }
 )
 </script>
@@ -234,7 +382,7 @@ watch(
 <template>
   <div class="map-wrapper">
     <!-- Map Container -->
-    <div ref="mapContainer" class="map-container"></div>
+    <div ref="mapContainer" class="map-container" :class="{ 'map-container--hidden': !isMapVisible }"></div>
 
     <!-- Filter Button -->
     <div class="filter-btn-wrapper">
@@ -254,9 +402,10 @@ watch(
     <!-- Filter Modal -->
     <FilterModal 
       :is-open="isFilterModalOpen"
-      :current-min="minPrice"
-      :current-max="maxPrice"
-      :current-themes="selectedThemeIds"
+      :current-min="searchStore.minPrice"
+      :current-max="searchStore.maxPrice"
+      :current-themes="searchStore.themeIds"
+      :current-guest-count="searchStore.guestCount"
       @close="isFilterModalOpen = false"
       @apply="handleApplyFilter"
     />
@@ -316,6 +465,13 @@ watch(
   color: white;
   z-index: 100;
 }
+
+.price-marker--active {
+  transform: scale(1.07);
+  background-color: #222;
+  color: white;
+  z-index: 110;
+}
 </style>
 
 <style scoped>
@@ -329,6 +485,11 @@ watch(
 .map-container {
   width: 100%;
   height: 100%;
+}
+
+.map-container--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Floating Button Styles */
