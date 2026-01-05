@@ -15,8 +15,8 @@ import java.util.Optional;
 public interface RoomJpaRepository extends JpaRepository<Room, Long> {
 
         /**
-         * é®ê¾§?????Pessimistic Lock)?ì‡°ì¤ˆ Room è­°ê³ ì‰¶
-         * ?ìˆˆë–†???ì’–ë¼±ç‘œ??ê¾ªë¹ ç™’ì‡±? è­°ê³ ì‰¶?ì„ë’— ?ëªƒì˜–??ë€¡???ìŒì“£ ?ë¾ë±·??
+         * ºñ°üÀû ¶ô(Pessimistic Lock)À¸·Î Room Á¶È¸
+         * µ¿½Ã¼º Á¦¾î¸¦ À§ÇØ ¸ÕÀú Á¶È¸ÇÏ´Â Æ®·£Àè¼ÇÀÌ ¶ôÀ» È¹µæÇÔ
          */
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("SELECT r FROM Room r WHERE r.roomId = :id")
@@ -47,9 +47,9 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                         @Param("accommodationIds") List<Long> accommodationIds);
 
         /**
-         * ?ë±€ì ™ ?ìˆˆëƒ¼???ë‰ë¹Ÿ åª›Â€?Î½ë¸³ åª›ì•¹ë– ID ï§â‘¸ì¤‰ è­°ê³ ì‰¶
-         * - ?ì’–ê½¦ ?ê³¹ê¹­ åª›ì•¹ë–ï§?(room_status = 1)
-         * - ?ëŒ€ë–¦ æ¹²ê³Œì»™???ëº¤ì ™/ï§ê¾ªë»¾ä»¥??ë‰ë¹Ÿ???ë…¿ë’— åª›ì•¹ë–
+         * Æ¯Á¤ ¼÷¼ÒÀÇ ¿¹¾à °¡´ÉÇÑ °´½Ç ID ¸ñ·Ï Á¶È¸
+         * - È°¼º »óÅÂ °´½Ç¸¸ (room_status = 1)
+         * - ÇØ´ç ±â°£¿¡ È®Á¤/ÁøÇàÁß ¿¹¾àÀÌ ¾ø´Â °´½Ç
          */
         @Query(value = """
                 WITH RECURSIVE stay_dates (stay_date) AS (
@@ -98,4 +98,5 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                 @Param("guestCount") Integer guestCount
         );
 }
+
 
