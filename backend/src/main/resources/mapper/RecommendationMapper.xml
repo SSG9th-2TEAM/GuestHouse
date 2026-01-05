@@ -114,4 +114,37 @@
         LIMIT 3
     </select>
 
+    <!-- [Fallback] 인기 숙소 추천 (신규 사용자용) -->
+    <!-- 예약 수 + 평점 기반 정렬 -->
+    <select id="findPopularAccommodations" resultType="com.ssg9th2team.geharbang.domain.recommendation.dto.AccommodationScoreDto">
+        SELECT 
+            a.accommodations_id as accommodationId,
+            a.accommodations_name as accommodationName,
+            a.short_description as shortDescription,
+            a.city,
+            a.district,
+            (SELECT ai.image_url FROM accommodation_image ai WHERE ai.accommodations_id = a.accommodations_id LIMIT 1) as imageUrl,
+            a.rating,
+            a.min_price as minPrice,
+            0 as themeMatchCount,
+            0 as tagMatchCount,
+            (SELECT COUNT(*) FROM review r WHERE r.accommodations_id = a.accommodations_id) as reviewCount,
+            (SELECT COUNT(*) FROM accommodation_theme ate WHERE ate.accommodations_id = a.accommodations_id) as totalThemeCount,
+            (SELECT COUNT(*) FROM reservation res WHERE res.accommodations_id = a.accommodations_id AND res.reservation_status = 2) as reservationCount
+        FROM accommodation a
+        WHERE a.approval_status = 'APPROVED'
+          AND a.accommodation_status = 1
+          <if test="excludeIds != null and excludeIds.size() > 0">
+            AND a.accommodations_id NOT IN
+            <foreach collection="excludeIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+          </if>
+        ORDER BY 
+            reservationCount DESC,
+            a.rating DESC,
+            a.created_at DESC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

@@ -22,4 +22,5 @@ public class AccommodationScoreDto {
     private Integer tagMatchCount;
     private Integer reviewCount; // 베이지안 평점용
     private Integer totalThemeCount; // 테마 Jaccard 유사도용 ('숙소'가 가진 전체 테마 수)
+    private Integer reservationCount; // 인기도 점수용 (예약 수)
 }

@@ -28,9 +28,9 @@ public class ReservationServiceImpl implements ReservationService {
         private final com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository accommodationRepository;
         private final com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper accommodationMapper;
         private final UserRepository userRepository;
-        private final ReservationJpaRepository reservationJpaRepository;
         private final ReviewJpaRepository reviewJpaRepository;
         private final PaymentService paymentService;
+        private final com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository roomJpaRepository;
 
         @Override
         @Transactional
@@ -49,6 +49,13 @@ public class ReservationServiceImpl implements ReservationService {
                         throw new IllegalArgumentException("Room ID is required for reservation.");
                 }
 
+                // [동시성 제어] 비관적 락(Pessimistic Lock)으로 Room 선점
+                // 먼저 조회하는 트랜잭션이 락을 획득하고, 후속 요청은 대기함 (직렬화)
+                com.ssg9th2team.geharbang.domain.room.entity.Room room = roomJpaRepository
+                                .findByIdWithLock(requestDto.roomId())
+                                .orElseThrow(() -> new IllegalArgumentException(
+                                                "객실을 찾을 수 없습니다: " + requestDto.roomId()));
+
                 // Instant를 LocalDate로 변환 (시스템 기본 시간대 사용)
                 java.time.LocalDate checkinDate = java.time.LocalDateTime.ofInstant(
                                 requestDto.checkin(), java.time.ZoneId.systemDefault()).toLocalDate();
@@ -59,11 +66,18 @@ public class ReservationServiceImpl implements ReservationService {
                 java.time.LocalDateTime checkinDateTime = checkinDate.atTime(15, 0);
                 java.time.LocalDateTime checkoutDateTime = checkoutDate.atTime(11, 0);
 
-                // 날짜 겹침 체크 (해당 객실에 같은 날짜에 확정된 예약이 있는지)
-                boolean hasConflict = reservationRepository.hasConflictingReservation(
+                // [정원 기반 재고 관리] 날짜가 겹치는 기존 예약의 총 인원 조회
+                Integer reservedGuestCount = reservationRepository.sumGuestCountByRoomIdAndDateRange(
                                 requestDto.roomId(), checkinDateTime, checkoutDateTime);
-                if (hasConflict) {
-                        throw new IllegalStateException("해당 객실은 선택한 날짜에 이미 예약이 있습니다.");
+
+                // 잔여 정원 계산 및 검증
+                int maxGuests = room.getMaxGuests() != null ? room.getMaxGuests() : 0;
+                int remainingCapacity = maxGuests - reservedGuestCount;
+
+                if (requestDto.guestCount() > remainingCapacity) {
+                        throw new IllegalStateException(
+                                        "정원 초과: 해당 날짜의 남은 정원은 " + remainingCapacity + "명입니다. (최대 정원: " + maxGuests
+                                                        + "명)");
                 }
 
                 // 숙박 박수 계산
@@ -246,7 +260,7 @@ public class ReservationServiceImpl implements ReservationService {
         // 객실별 예약 조회
         @Override
         public List<ReservationResponseDto> getReservationByUserId(Long roomId) {
-                List<Reservation> reservations = reservationJpaRepository.findByRoomId(roomId);
+                List<Reservation> reservations = reservationRepository.findByRoomId(roomId);
                 return reservations.stream()
                                 .map(ReservationResponseDto::from)
                                 .collect(Collectors.toList());
