@@ -143,7 +143,7 @@ const booking = computed(() => {
   return {
     accommodationsId: parseInt(props.accommodationsId) || parseInt(route.params.id) || 2,
     roomId: parseInt(props.roomId) || parseInt(route.query.roomId) || 2,
-    hotelName: acc?.accommodationsName || route.query.hotelName || '숙소명 없음',
+    accommodationName: acc?.accommodationsName || route.query.accommodationName || '숙소명 없음',
     address: address || '주소 정보 없음',
     rating: acc?.rating || parseFloat(route.query.rating) || 0,
     reviewCount: acc?.reviewCount || parseInt(route.query.reviewCount) || 0,
@@ -262,13 +262,13 @@ const handlePayment = async () => {
       <div class="booking-card">
         <!-- Hero Image -->
         <div class="card-image" :style="{ backgroundImage: `url(${booking.image})` }">
-          <span class="img-placeholder" v-if="!booking.image">[호텔 이미지]</span>
+          <span class="img-placeholder" v-if="!booking.image">[숙소 이미지]</span>
         </div>
 
         <div class="card-body">
           <!-- Property Info -->
           <div class="property-info">
-            <h2>{{ booking.hotelName }}</h2>
+            <h2>{{ booking.accommodationName }}</h2>
             <p class="address">{{ booking.address }}</p>
             <p class="rating" v-if="booking.rating">★ {{ booking.rating }} (후기 {{ booking.reviewCount }}개)</p>
           </div>

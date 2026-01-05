@@ -3,8 +3,9 @@ import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import FilterModal from '../../components/FilterModal.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { searchList } from '@/api/list'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useSearchStore } from '@/stores/search'
+import { useListingFilters } from '@/composables/useListingFilters'
 
 import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
 import { isAuthenticated } from '@/api/authClient'
@@ -12,20 +13,21 @@ import { isAuthenticated } from '@/api/authClient'
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
+const { applyRouteFilters, buildFilterQuery } = useListingFilters()
 const items = ref([])
 const wishlistIds = ref(new Set())
 const page = ref(0)
 const totalPages = ref(1)
 const isLoading = ref(false)
 const isLoadingMore = ref(false)
+const loadMoreTrigger = ref(null)
 
-const PAGE_SIZE = 24
+const PAGE_SIZE = 16
+
+let observer = null
 
 // Filter State
 const isFilterModalOpen = ref(false)
-const minPrice = ref(null)
-const maxPrice = ref(null)
-const selectedThemeIds = ref([])
 
 const normalizeItem = (item) => {
   const id = item.accomodationsId ?? item.accommodationsId ?? item.id
@@ -35,7 +37,9 @@ const normalizeItem = (item) => {
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
   const price = Number(item.minPrice ?? item.price ?? 0)
   const imageUrl = item.imageUrl || 'https://placehold.co/400x300'
-  return { id, title, description, rating, location, price, imageUrl }
+  const maxGuestsValue = Number(item.maxGuests ?? item.capacity ?? item.maxGuest ?? 0)
+  const maxGuests = Number.isFinite(maxGuestsValue) ? maxGuestsValue : 0
+  return { id, title, description, rating, location, price, imageUrl, maxGuests }
 }
 
 const getKeywordFromRoute = () => {
@@ -92,7 +96,7 @@ const toggleWishlist = async (id) => {
   }
 }
 
-const loadList = async ({ themeIds = selectedThemeIds.value, keyword = searchStore.keyword, page: pageParam = 0, reset = false } = {}) => {
+const loadList = async ({ themeIds = searchStore.themeIds, keyword = searchStore.keyword, page: pageParam = 0, reset = false } = {}) => {
   if (isLoading.value || isLoadingMore.value) return
   if (reset) {
     isLoading.value = true
@@ -129,62 +133,81 @@ const loadList = async ({ themeIds = selectedThemeIds.value, keyword = searchSto
 
 // Computed Items
 const filteredItems = computed(() => {
+  const minValue = searchStore.minPrice
+  const maxValue = searchStore.maxPrice
+  const guestCount = searchStore.guestCount
   return items.value.filter(item => {
-    if (minPrice.value !== null && item.price < minPrice.value) return false
-    if (maxPrice.value !== null && item.price > maxPrice.value) return false
+    if (minValue !== null && item.price < minValue) return false
+    if (maxValue !== null && item.price > maxValue) return false
+    if (guestCount > 0 && item.maxGuests < guestCount) return false
     return true
   })
 })
 
-const handleApplyFilter = ({ min, max, themeIds = [] }) => {
-  minPrice.value = min
-  maxPrice.value = max
-  selectedThemeIds.value = themeIds
+const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 0 }) => {
+  searchStore.setPriceRange(min, max)
+  searchStore.setThemeIds(themeIds)
+  searchStore.setGuestCount(guestCount)
   isFilterModalOpen.value = false
   loadList({ themeIds, reset: true })
-}
-
-const buildFilterQuery = () => {
-  const query = {}
-  if (minPrice.value !== null) query.min = String(minPrice.value)
-  if (maxPrice.value !== null) query.max = String(maxPrice.value)
-  if (selectedThemeIds.value.length) query.themeIds = selectedThemeIds.value.join(',')
-  const keyword = (searchStore.keyword || '').trim()
-  if (keyword) query.keyword = keyword
-  return query
 }
 
 const goToMap = () => {
   router.push({ path: '/map', query: buildFilterQuery() })
 }
 
-const parseNumberParam = (value) => {
-  if (value === undefined || value === null || value === '') return null
-  const raw = Array.isArray(value) ? value[0] : value
-  const numberValue = Number(raw)
-  return Number.isFinite(numberValue) ? numberValue : null
+const hasMore = computed(() => page.value + 1 < totalPages.value)
+
+const loadMore = () => {
+  if (!hasMore.value || isLoading.value || isLoadingMore.value) return
+  const nextPage = page.value + 1
+  loadList({ page: nextPage })
 }
 
-const parseThemeIds = (value) => {
-  if (!value) return []
-  const raw = Array.isArray(value) ? value.join(',') : String(value)
-  return raw
-    .split(',')
-    .map((item) => Number(item))
-    .filter((item) => Number.isFinite(item))
+const teardownObserver = () => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
 }
 
-const applyRouteFilters = () => {
-  minPrice.value = parseNumberParam(route.query.min ?? route.query.minPrice)
-  maxPrice.value = parseNumberParam(route.query.max ?? route.query.maxPrice)
-  selectedThemeIds.value = parseThemeIds(route.query.themeIds)
+const setupObserver = () => {
+  if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return
+  teardownObserver()
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (!entries.length) return
+      if (entries[0].isIntersecting) {
+        loadMore()
+      }
+    },
+    { root: null, rootMargin: '200px', threshold: 0.1 }
+  )
+  if (loadMoreTrigger.value) {
+    observer.observe(loadMoreTrigger.value)
+  }
 }
 
-onMounted(() => {
+const refreshObserver = async () => {
+  if (!hasMore.value) {
+    teardownObserver()
+    return
+  }
+  await nextTick()
+  setupObserver()
+}
+
+onMounted(async () => {
   loadWishlist()
-  applyRouteFilters()
+  applyRouteFilters(route.query)
   applyRouteKeyword()
   loadList({ reset: true })
+  await nextTick()
+  refreshObserver()
+})
+
+onUnmounted(() => {
+  teardownObserver()
 })
 
 watch(
@@ -195,13 +218,19 @@ watch(
   }
 )
 
-const hasMore = computed(() => page.value + 1 < totalPages.value)
+watch(
+  () => hasMore.value,
+  () => {
+    refreshObserver()
+  }
+)
 
-const loadMore = () => {
-  if (!hasMore.value || isLoading.value || isLoadingMore.value) return
-  const nextPage = page.value + 1
-  loadList({ page: nextPage })
-}
+watch(
+  () => loadMoreTrigger.value,
+  () => {
+    refreshObserver()
+  }
+)
 </script>
 
 <template>
@@ -229,10 +258,8 @@ const loadMore = () => {
       />
     </div>
 
-    <div class="list-footer" v-if="hasMore">
-      <button class="load-more-btn" @click="loadMore" :disabled="isLoadingMore">
-        {{ isLoadingMore ? '불러오는 중...' : '더 보기' }}
-      </button>
+    <div ref="loadMoreTrigger" class="list-footer list-footer--observer" v-if="hasMore">
+      <span v-if="isLoadingMore" class="load-more-status">불러오는 중...</span>
     </div>
 
     <!-- Floating Map Button -->
@@ -245,9 +272,10 @@ const loadMore = () => {
     <!-- Filter Modal -->
     <FilterModal 
       :is-open="isFilterModalOpen"
-      :current-min="minPrice"
-      :current-max="maxPrice"
-      :current-themes="selectedThemeIds"
+      :current-min="searchStore.minPrice"
+      :current-max="searchStore.maxPrice"
+      :current-themes="searchStore.themeIds"
+      :current-guest-count="searchStore.guestCount"
       @close="isFilterModalOpen = false"
       @apply="handleApplyFilter"
     />
@@ -282,6 +310,10 @@ const loadMore = () => {
 }
 
 .filter-btn {
+  position: fixed;
+  top: 96px;
+  right: 1rem;
+  z-index: 120;
   padding: 8px 16px;
   border: 1px solid #ddd;
   border-radius: 20px;
@@ -296,6 +328,13 @@ const loadMore = () => {
 
 .filter-btn:hover {
   background-color: #f5f5f5;
+}
+
+@media (max-width: 768px) {
+  .filter-btn {
+    top: calc(120px + env(safe-area-inset-top));
+    right: 12px;
+  }
 }
 
 .list-container {
@@ -318,26 +357,20 @@ const loadMore = () => {
   display: flex;
   justify-content: center;
   margin: 2rem 0 1rem;
+  min-height: 48px;
 }
 
-.load-more-btn {
+.list-footer--observer {
+  align-items: center;
+}
+
+.load-more-status {
   padding: 10px 18px;
   border: 1px solid #ddd;
   border-radius: 24px;
   background: white;
   font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s, transform 0.2s;
-}
-
-.load-more-btn:hover:not(:disabled) {
-  background-color: #f5f5f5;
-  transform: translateY(-1px);
-}
-
-.load-more-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  color: #6b7280;
 }
 
 /* Floating Button Styles */

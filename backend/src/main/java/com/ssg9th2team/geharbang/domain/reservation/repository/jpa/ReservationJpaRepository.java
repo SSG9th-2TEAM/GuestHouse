@@ -16,33 +16,42 @@ import java.util.Optional;
 public interface ReservationJpaRepository
                 extends JpaRepository<Reservation, Long>, JpaSpecificationExecutor<Reservation> {
 
-        List<Reservation> findByUserId(Long userId);
+        // Soft Delete 적용: 삭제되지 않은 예약만 조회
 
-        List<Reservation> findByAccommodationsId(Long accommodationsId);
+        @Query("SELECT r FROM Reservation r WHERE r.userId = :userId AND r.isDeleted = false")
+        List<Reservation> findByUserId(@Param("userId") Long userId);
 
-        List<Reservation> findByUserIdOrderByCreatedAtDesc(Long userId);
+        @Query("SELECT r FROM Reservation r WHERE r.accommodationsId = :accommodationsId AND r.isDeleted = false")
+        List<Reservation> findByAccommodationsId(@Param("accommodationsId") Long accommodationsId);
 
-        List<Reservation> findByRoomId(Long roomId); // roomId로 예약 조회
+        @Query("SELECT r FROM Reservation r WHERE r.userId = :userId AND r.isDeleted = false ORDER BY r.createdAt DESC")
+        List<Reservation> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+
+        // roomId로 예약 조회
+        @Query("SELECT r FROM Reservation r WHERE r.roomId = :roomId AND r.isDeleted = false")
+        List<Reservation> findByRoomId(@Param("roomId") Long roomId);
 
         /**
-         * 30분 이상 경과한 대기(0) 상태 예약 삭제
+         * 30분 이상 경과한 대기(0) 상태 예약 삭제 (물리적 삭제 유지)
          */
         @Modifying
         @Query("DELETE FROM Reservation r WHERE r.reservationStatus = 0 AND r.createdAt < :cutoffTime")
         int deleteOldPendingReservations(@Param("cutoffTime") LocalDateTime cutoffTime);
 
         /**
-         * 대기 상태 예약 삭제 (사용자가 결제 취소 시)
+         * 대기 상태 예약 삭제 (사용자가 결제 취소 시) (물리적 삭제 유지)
          */
         @Modifying
         @Query("DELETE FROM Reservation r WHERE r.id = :reservationId AND r.reservationStatus = 0")
         int deletePendingReservation(@Param("reservationId") Long reservationId);
 
         /**
-         * 이용 완료된 예약만 삭제 (체크인 날짜가 현재 이전 + 확정 상태)
+         * 이용 완료된 예약 삭제 (Soft Delete 처리)
+         * 체크아웃 시간이 지난 확정 또는 대기 예약
+         * Soft Delete: is_deleted = true 로 업데이트
          */
         @Modifying
-        @Query("DELETE FROM Reservation r WHERE r.id = :reservationId AND r.reservationStatus = 2 AND r.checkin < :now")
+        @Query("UPDATE Reservation r SET r.isDeleted = true WHERE r.id = :reservationId AND (r.reservationStatus = 2 OR r.reservationStatus = 0) AND r.checkout < :now")
         int deleteCompletedReservation(@Param("reservationId") Long reservationId, @Param("now") LocalDateTime now);
 
         /**
@@ -52,6 +61,7 @@ public interface ReservationJpaRepository
         @Query("SELECT COUNT(r) > 0 FROM Reservation r " +
                         "WHERE r.roomId = :roomId " +
                         "AND r.reservationStatus = 2 " +
+                        "AND r.isDeleted = false " + // 삭제된 예약은 제외
                         "AND r.checkin < :checkout " +
                         "AND r.checkout > :checkin")
         boolean hasConflictingReservation(

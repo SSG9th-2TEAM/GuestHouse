@@ -188,6 +188,11 @@ const router = createRouter({
                     path: 'revenue',
                     name: 'host-revenue',
                     component: () => import('../views/HostView/HostRevenueView.vue')
+                },
+                {
+                    path: 'report',
+                    name: 'host-report',
+                    component: () => import('../views/HostView/HostReportView.vue')
                 }
             ]
         },
@@ -266,11 +271,23 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     const userInfo = getUserInfo();
     const isAdminRoute = to.path.startsWith('/admin');
+    const isHostReportRoute = to.path.startsWith('/host/report');
 
     if (isAdminRoute && (!userInfo || userInfo.role !== 'ADMIN')) {
         // 관리자 페이지에 접근하려 하지만, 관리자가 아닌 경우
         alert('접근 권한이 없습니다.');
         next('/'); // 메인 페이지로 리디렉션
+    } else if (isHostReportRoute) {
+        if (!userInfo) {
+            next('/login');
+            return;
+        }
+        if (userInfo.role !== 'HOST' && userInfo.role !== 'ROLE_HOST') {
+            alert('접근 권한이 없습니다.');
+            next('/host');
+            return;
+        }
+        next();
     } else {
         next(); // 그 외의 경우는 정상적으로 진행
     }

@@ -15,4 +15,6 @@ public interface PaymentRefundJpaRepository extends JpaRepository<PaymentRefund,
     Optional<PaymentRefund> findByPgRefundKey(String pgRefundKey);
 
     void deleteByPaymentIdIn(List<Long> paymentIds);
+
+    void deleteByPaymentId(Long paymentId);
 }

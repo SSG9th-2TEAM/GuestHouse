@@ -294,8 +294,10 @@ const goToTodayBookings = () => {
     path: '/host/booking',
     query: {
       view: 'list',
+      range: 'today',
+      type: 'all',
       sort: 'checkin',
-      mode: 'today',
+      includePast: 0,
       date: toLocalDateString(new Date())
     }
   })
@@ -669,7 +671,7 @@ watch(selectedPeriod, () => {
 
         <div v-if="!filteredTasks.length && !isLoading && !scheduleError" class="status-card">
           <p>{{ emptyMessage }}</p>
-          <button class="ghost-btn" type="button" @click="goTo('/host/booking')">목록 보기</button>
+          <button class="ghost-btn" type="button" @click="goToTodayBookings">목록 보기</button>
         </div>
         <p v-else-if="isLoading" class="empty">일정을 불러오는 중입니다.</p>
         <p v-else-if="hasMemo" class="footnote">메모가 있는 일정은 📝 로 표시됩니다.</p>

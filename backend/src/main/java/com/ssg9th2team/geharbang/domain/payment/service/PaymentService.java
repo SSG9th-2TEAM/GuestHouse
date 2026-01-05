@@ -38,4 +38,9 @@ public interface PaymentService {
      * 전체 환불 내역 조회 (관리자용)
      */
     List<RefundResponseDto> getAllRefunds();
+
+    /**
+     * 예약 ID와 관련된 모든 결제 및 환불 데이터 삭제 (예약 삭제 시 호출)
+     */
+    void deleteAllPaymentDataByReservationId(Long reservationId);
 }

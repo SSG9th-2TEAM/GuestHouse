@@ -9,6 +9,11 @@ export const useSearchStore = defineStore('search', () => {
     // Guest state
     const guestCount = ref(0)
 
+    // Price/theme filter state
+    const minPrice = ref(null)
+    const maxPrice = ref(null)
+    const themeIds = ref([])
+
     // Keyword state (location or guesthouse name)
     const keyword = ref('')
 
@@ -78,10 +83,28 @@ export const useSearchStore = defineStore('search', () => {
         keyword.value = String(value)
     }
 
+    const setPriceRange = (min, max) => {
+        minPrice.value = Number.isFinite(min) ? min : null
+        maxPrice.value = Number.isFinite(max) ? max : null
+    }
+
+    const setThemeIds = (ids) => {
+        themeIds.value = Array.isArray(ids) ? [...ids] : []
+    }
+
+    const resetFilters = () => {
+        minPrice.value = null
+        maxPrice.value = null
+        themeIds.value = []
+    }
+
     return {
         startDate,
         endDate,
         guestCount,
+        minPrice,
+        maxPrice,
+        themeIds,
         keyword,
         dateDisplayText,
         guestDisplayText,
@@ -92,6 +115,9 @@ export const useSearchStore = defineStore('search', () => {
         increaseGuest,
         decreaseGuest,
         resetDates,
-        setKeyword
+        setKeyword,
+        setPriceRange,
+        setThemeIds,
+        resetFilters
     }
 })

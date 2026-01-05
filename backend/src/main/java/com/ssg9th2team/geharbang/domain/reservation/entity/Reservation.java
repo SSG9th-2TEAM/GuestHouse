@@ -66,6 +66,10 @@ public class Reservation {
     @Column(name = "reserver_phone", nullable = false, length = 20)
     private String reserverPhone;
 
+    @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
+    private Boolean isDeleted = false; // Soft Delete 여부
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -76,11 +80,17 @@ public class Reservation {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+        if (reservationStatus != null && reservationStatus == 3 && (paymentStatus == null || paymentStatus != 1)) {
+            throw new IllegalStateException("체크인 완료는 결제 완료 상태에서만 가능합니다.");
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+        if (reservationStatus != null && reservationStatus == 3 && (paymentStatus == null || paymentStatus != 1)) {
+            throw new IllegalStateException("체크인 완료는 결제 완료 상태에서만 가능합니다.");
+        }
     }
 
     /**

@@ -9,6 +9,8 @@ const email = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const isLoading = ref(false)
+const passwordError = ref('')
+const loginError = ref('')
 
 // Modal State
 const showModal = ref(false)
@@ -36,10 +38,20 @@ const togglePassword = () => {
 }
 
 const handleLogin = async () => {
+  // 에러 초기화
+  passwordError.value = ''
+  loginError.value = ''
+
   // 입력 검증
-  if (!email.value || !password.value) {
-    openModal('이메일과 비밀번호를 입력해주세요.', 'error')
+  if (!password.value) {
+    passwordError.value = '비밀번호를 입력해주세요.'
     return
+  }
+
+  if (!email.value) {
+    // 이메일 필드에 대한 검증도 추가할 수 있습니다.
+    // 예: emailError.value = '이메일을 입력해주세요.';
+    // 여기서는 비밀번호만 검증하도록 요청되었으므로 넘어갑니다.
   }
 
   isLoading.value = true
@@ -52,20 +64,18 @@ const handleLogin = async () => {
       // 로그인 성공
       const userRole = response.data.role
 
-      openModal('로그인 성공!', 'success', () => {
-        if (userRole === 'ADMIN') {
-          router.push('/admin')
-        } else {
-          router.push('/')
-        }
-      })
+      if (userRole === 'ADMIN') {
+        router.push('/admin')
+      } else {
+        router.push('/')
+      }
     } else {
       // 로그인 실패
-      openModal('로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해주세요.', 'error')
+      loginError.value = '이메일 또는 비밀번호를 잘못 입력하셨거나 등록 되지 않은 이메일입니다.'
     }
   } catch (error) {
     console.error('로그인 에러:', error)
-    openModal('로그인 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.', 'error')
+    loginError.value = '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
   } finally {
     isLoading.value = false
   }
@@ -80,8 +90,8 @@ const socialLogin = (provider) => {
     Naver: `${baseUrl}/oauth2/authorization/naver` // Naver OAuth2 (구현 완료)
   }
 
-  if (provider === 'Naver') {
-    // 네이버 로그인은 구현되어 있으므로 바로 리다이렉트
+  if (provider === 'Naver' || provider === 'Google' || provider === 'Kakao') {
+    // 네이버, 구글, 카카오 로그인은 바로 리다이렉트
     window.location.href = urls[provider]
   } else {
     // 다른 소셜 로그인은 아직 구현되지 않음
@@ -103,6 +113,10 @@ const goToSignup = () => {
       </div>
 
       <div class="login-form">
+        <div v-if="loginError" class="error-message">
+          {{ loginError }}
+        </div>
+
         <div class="input-group">
           <label>이메일</label>
           <div class="input-wrapper">
@@ -115,7 +129,7 @@ const goToSignup = () => {
           </div>
         </div>
 
-        <div class="input-group">
+        <div class="input-group" :class="{ 'error': passwordError }">
           <label>비밀번호</label>
           <div class="input-wrapper">
             <input
@@ -124,10 +138,12 @@ const goToSignup = () => {
                 placeholder="비밀번호를 입력하세요"
                 @keyup.enter="handleLogin"
             />
+            <span v-if="passwordError" class="warning-icon">!</span>
             <button class="toggle-btn" @click="togglePassword">
               {{ showPassword ? '숨김' : '보기' }}
             </button>
           </div>
+          <div v-if="passwordError" class="password-error-text">{{ passwordError }}</div>
         </div>
 
         <button class="login-btn" @click="handleLogin" :disabled="isLoading">
@@ -253,6 +269,33 @@ const goToSignup = () => {
 
 .input-wrapper:focus-within {
   border-color: #00796b;
+}
+
+.error-message {
+  background-color: #ffebee;
+  color: #c62828;
+  border-radius: 8px;
+  padding: 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.input-group.error .input-wrapper {
+  border-color: #dc2626;
+}
+
+.warning-icon {
+  color: #dc2626;
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+
+.password-error-text {
+  color: #dc2626;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
 }
 
 .input-wrapper input {

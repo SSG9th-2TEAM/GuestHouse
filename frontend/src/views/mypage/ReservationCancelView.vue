@@ -11,7 +11,7 @@ const errorMessage = ref('')
 
 const reservation = ref({
   id: route.params.id,
-  hotelName: '',
+  accommodationName: '',
   location: '',
   checkin: '',
   checkout: '',
@@ -37,7 +37,7 @@ onMounted(async () => {
       const data = history.state.reservationData
       reservation.value = {
         id: data.id,
-        hotelName: data.hotelName,
+        accommodationName: data.accommodationName,
         location: data.location,
         checkin: data.checkin,
         checkout: data.checkout,
@@ -200,7 +200,7 @@ const loadRefundQuote = async (reservationId) => {
       <div class="info-card">
         <img :src="reservation.image || 'https://picsum.photos/200/200'" class="info-img" />
         <div class="info-content">
-          <h3>{{ reservation.hotelName }}</h3>
+          <h3>{{ reservation.accommodationName }}</h3>
           <p class="loc">{{ reservation.location }}</p>
           <p class="date">{{ reservation.checkin }} ~ {{ reservation.checkout }}</p>
           <p class="guests">게스트 {{ reservation.guests }}명</p>

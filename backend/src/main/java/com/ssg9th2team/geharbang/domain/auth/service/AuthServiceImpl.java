@@ -34,7 +34,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-
 import com.ssg9th2team.geharbang.domain.auth.entity.Admin;
 import com.ssg9th2team.geharbang.domain.auth.repository.AdminRepository;
 import com.ssg9th2team.geharbang.domain.coupon.entity.CouponTriggerType;
@@ -166,8 +165,7 @@ public class AuthServiceImpl implements AuthService {
         // 1. 인증 코드 확인
         boolean isVerified = verificationCodeService.verifyCode(
                 resetPasswordRequest.getEmail(),
-                resetPasswordRequest.getCode()
-        );
+                resetPasswordRequest.getCode());
 
         if (!isVerified) {
             throw new IllegalArgumentException("인증 코드가 유효하지 않거나 만료되었습니다.");
@@ -203,6 +201,7 @@ public class AuthServiceImpl implements AuthService {
                 .refreshToken(refreshToken)
                 .accessTokenExpiresIn(jwtTokenProvider.getAccessTokenExpiration())
                 .role("ADMIN")
+                .userId(admin.getId())
                 .build();
     }
 
@@ -224,6 +223,7 @@ public class AuthServiceImpl implements AuthService {
                 .refreshToken(refreshToken)
                 .accessTokenExpiresIn(jwtTokenProvider.getAccessTokenExpiration())
                 .role(user.getRole().name())
+                .userId(user.getId())
                 .build();
     }
 
@@ -239,8 +239,7 @@ public class AuthServiceImpl implements AuthService {
         return userRepository.existsByNickname(nickname);
     }
 
-
-    //이메일 인증 코드 전송
+    // 이메일 인증 코드 전송
     @Override
     public void sendVerificationCode(String email) {
         // 1. 이메일 중복 체크
@@ -257,16 +256,15 @@ public class AuthServiceImpl implements AuthService {
         log.info("인증 코드 전송 완료: {} (코드: {})", email, verificationCode);
     }
 
-
-    //이메일 인증 코드 확인. -> verifyCodeRequest
-    //인증 코드가 유효하지 않거나 만료된 경우  -> IllegalArgumentException
+    // 이메일 인증 코드 확인. -> verifyCodeRequest
+    // 인증 코드가 유효하지 않거나 만료된 경우 -> IllegalArgumentException
     @Override
     @Transactional(readOnly = true)
     public boolean verifyEmailCode(VerifyCodeRequest verifyCodeRequest) {
         return verificationCodeService.verifyCode(verifyCodeRequest.getEmail(), verifyCodeRequest.getCode());
     }
 
-    //이메일 인증 코드 확인만 (삭제하지 않음) - 비밀번호 찾기용
+    // 이메일 인증 코드 확인만 (삭제하지 않음) - 비밀번호 찾기용
     @Override
     @Transactional(readOnly = true)
     public boolean verifyEmailCodeOnly(VerifyCodeRequest verifyCodeRequest) {
