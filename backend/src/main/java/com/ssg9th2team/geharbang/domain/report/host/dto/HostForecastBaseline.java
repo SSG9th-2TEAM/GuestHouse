@@ -11,4 +11,7 @@ public class HostForecastBaseline {
     private double recentAvg7;
     private double recentAvg28;
     private Map<String, Double> weekdayFactors;
+    private double level;
+    private double trendPerDay;
+    private double holidayFactor;
 }
