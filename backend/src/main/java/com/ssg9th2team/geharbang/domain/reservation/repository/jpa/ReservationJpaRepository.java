@@ -89,6 +89,21 @@ public interface ReservationJpaRepository
         long countDistinctHost(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
         /**
+         * [동시성 제어] 특정 객실, 특정 날짜 범위에 예약된 총 인원 수 조회
+         * - 취소(9) 및 삭제된 예약 제외
+         * - 날짜 겹침 조건: 새 체크인 < 기존 체크아웃 AND 새 체크아웃 > 기존 체크인
+         */
+        @Query("SELECT COALESCE(SUM(r.guestCount), 0) FROM Reservation r " +
+                        "WHERE r.roomId = :roomId " +
+                        "AND r.isDeleted = false " +
+                        "AND r.reservationStatus != 9 " +
+                        "AND r.checkin < :checkout AND r.checkout > :checkin")
+        Integer sumGuestCountByRoomIdAndDateRange(
+                        @Param("roomId") Long roomId,
+                        @Param("checkin") LocalDateTime checkin,
+                        @Param("checkout") LocalDateTime checkout);
+
+        /**
          * 유저의 결제 완료된 예약 수 카운트 (reservationStatus = 2: 확정)
          */
         long countByUserIdAndReservationStatus(Long userId, Integer reservationStatus);
