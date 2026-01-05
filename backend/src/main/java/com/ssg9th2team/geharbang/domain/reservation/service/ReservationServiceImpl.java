@@ -87,6 +87,7 @@ public class ReservationServiceImpl implements ReservationService {
                                 .guestCount(requestDto.guestCount())
                                 .reservationStatus(0) // 0: 결제 대기
                                 .totalAmountBeforeDc(requestDto.totalAmount())
+                                .userCouponId(requestDto.userCouponId())
                                 .couponDiscountAmount(couponDiscount)
                                 .finalPaymentAmount(finalAmount)
                                 .paymentStatus(0) // 0: 미결제

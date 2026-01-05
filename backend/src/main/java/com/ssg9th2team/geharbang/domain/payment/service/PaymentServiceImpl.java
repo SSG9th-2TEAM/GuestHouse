@@ -3,6 +3,7 @@ package com.ssg9th2team.geharbang.domain.payment.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentConfirmRequestDto;
+import com.ssg9th2team.geharbang.domain.payment.dto.PaymentConfirmResponseDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentResponseDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.RefundPolicyResult;
 import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
@@ -11,6 +12,7 @@ import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaReposit
 import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
+import com.ssg9th2team.geharbang.domain.coupon.service.UserCouponService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +39,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRefundJpaRepository paymentRefundRepository;
     private final RefundPolicyService refundPolicyService;
     private final ReservationJpaRepository reservationRepository;
+    private final UserCouponService userCouponService;
     private final ObjectMapper objectMapper;
 
     @Value("${tosspayments.secret-key}")
@@ -46,7 +49,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public PaymentResponseDto confirmPayment(PaymentConfirmRequestDto requestDto) {
+    public PaymentConfirmResponseDto confirmPayment(PaymentConfirmRequestDto requestDto) {
         log.info("결제 승인 요청: orderId={}, amount={}", requestDto.orderId(), requestDto.amount());
 
         // orderId에서 reservationId 추출 (형식: ORDER_예약ID_타임스탬프)
@@ -120,31 +123,72 @@ public class PaymentServiceImpl implements PaymentService {
             reservation.updatePaymentCompleted();
             reservationRepository.save(reservation);
 
+            // 쿠폰 사용 처리
+            if (reservation.getUserCouponId() != null) {
+                userCouponService.useCoupon(reservation.getUserId(), reservation.getUserCouponId());
+                log.info("쿠폰 사용 처리 완료: userCouponId={}", reservation.getUserCouponId());
+            }
+
+            // 첫 예약 완료 쿠폰 발급
+            boolean firstReservationCouponIssued = userCouponService.issueFirstReservationCoupon(reservation.getUserId());
+            if (firstReservationCouponIssued) {
+                log.info("첫 예약 쿠폰 발급 완료: userId={}", reservation.getUserId());
+            }
+
             log.info("결제 승인 완료: paymentId={}, reservationId={}", savedPayment.getId(), reservationId);
 
-            return PaymentResponseDto.from(savedPayment);
+            return PaymentConfirmResponseDto.of(PaymentResponseDto.from(savedPayment), firstReservationCouponIssued);
+
 
         } catch (Exception e) {
-            log.error("결제 승인 실패", e);
+            log.error("결제 승인 중 오류 발생 (결제 취소 진행)", e);
 
-            // 실패 Payment 저장
-            Payment failedPayment = Payment.builder()
-                    .reservationId(reservationId)
-                    .pgProviderCode("TOSS")
-                    .paymentMethod("UNKNOWN")
-                    .orderId(requestDto.orderId())
-                    .requestAmount(requestDto.amount())
-                    .paymentStatus(2) // 실패
-                    .failureMessage(e.getMessage())
-                    .build();
+            // 1. 이미 승인된 결제가 있다면 취소 (돈 환불)
+            try {
+                if (requestDto.paymentKey() != null) {
+                    RestTemplate restTemplate = new RestTemplate();
+                    
+                    String encodedSecretKey = Base64.getEncoder()
+                            .encodeToString((secretKey + ":").getBytes(StandardCharsets.UTF_8));
 
-            paymentRepository.save(failedPayment);
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.setContentType(new MediaType("application", "json", StandardCharsets.UTF_8));
+                    headers.set("Authorization", "Basic " + encodedSecretKey);
 
-            // 예약 결제 상태를 실패로 업데이트
-            reservation.updatePaymentFailed();
-            reservationRepository.save(reservation);
+                    Map<String, Object> body = new HashMap<>();
+                    body.put("cancelReason", "시스템 오류로 인한 자동 취소: " + e.getMessage());
 
-            throw new RuntimeException("결제 승인에 실패했습니다: " + e.getMessage());
+                    HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+                    String cancelUrl = "https://api.tosspayments.com/v1/payments/" + requestDto.paymentKey() + "/cancel";
+
+                    restTemplate.exchange(cancelUrl, HttpMethod.POST, entity, String.class);
+                    log.info("결제 자동 취소 성공: paymentKey={}", requestDto.paymentKey());
+                }
+            } catch (Exception cancelEx) {
+                log.error("결제 자동 취소 실패! (수동 환불 필요) paymentKey={}", requestDto.paymentKey(), cancelEx);
+            }
+
+            // 2. DB 상태 업데이트 시도 (트랜잭션 롤백 상태면 실패할 수 있음 - 무시)
+            try {
+               Payment failedPayment = Payment.builder()
+                       .reservationId(reservationId)
+                       .pgProviderCode("TOSS")
+                       .paymentMethod("UNKNOWN")
+                       .orderId(requestDto.orderId())
+                       .requestAmount(requestDto.amount())
+                       .paymentStatus(2) // 실패
+                       .failureMessage(e.getMessage())
+                       .build();
+               paymentRepository.save(failedPayment);
+               
+               reservation.updatePaymentFailed();
+               reservationRepository.save(reservation);
+            } catch (Exception dbEx) {
+                log.warn("실패 내역 DB 저장 불가 (트랜잭션 롤백됨): {}", dbEx.getMessage());
+            }
+
+            throw new RuntimeException(e.getMessage());
         }
     }
 
@@ -215,6 +259,11 @@ public class PaymentServiceImpl implements PaymentService {
             paymentRefundRepository.save(paymentRefund);
             reservation.updateRefunded();
             reservationRepository.save(reservation);
+            // 환불 금액이 0이어도 쿠폰은 복구
+            if (reservation.getUserCouponId() != null) {
+                userCouponService.restoreCoupon(reservation.getUserId(), reservation.getUserCouponId());
+                log.info("쿠폰 복구 완료 (환불 불가 정책): userCouponId={}", reservation.getUserCouponId());
+            }
             log.info("환불 불가 정책 적용: reservationId={}, refundAmount=0", reservationId);
             return PaymentResponseDto.from(payment);
         }
@@ -257,6 +306,12 @@ public class PaymentServiceImpl implements PaymentService {
             // 예약 상태 업데이트 (취소/환불)
             reservation.updateRefunded();
             reservationRepository.save(reservation);
+
+            // 쿠폰 복구 처리
+            if (reservation.getUserCouponId() != null) {
+                userCouponService.restoreCoupon(reservation.getUserId(), reservation.getUserCouponId());
+                log.info("쿠폰 복구 완료: userCouponId={}", reservation.getUserCouponId());
+            }
 
             log.info("환불 처리 완료: reservationId={}, refundAmount={}", reservationId, actualRefundAmount);
 

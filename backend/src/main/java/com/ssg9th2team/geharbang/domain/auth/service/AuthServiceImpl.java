@@ -37,6 +37,8 @@ import java.util.Set;
 
 import com.ssg9th2team.geharbang.domain.auth.entity.Admin;
 import com.ssg9th2team.geharbang.domain.auth.repository.AdminRepository;
+import com.ssg9th2team.geharbang.domain.coupon.entity.CouponTriggerType;
+import com.ssg9th2team.geharbang.domain.coupon.service.UserCouponService;
 
 import java.util.Optional;
 
@@ -52,6 +54,7 @@ public class AuthServiceImpl implements AuthService {
     private final ThemeRepository themeRepository;
     private final EmailService emailService; // 이메일 서비스
     private final VerificationCodeService verificationCodeService; // 인증 코드 관리 서비스
+    private final UserCouponService userCouponService; // 쿠폰 서비스
 
     @Override
     @Transactional
@@ -92,6 +95,9 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        // 회원가입 축하 쿠폰 발급
+        userCouponService.issueByTrigger(savedUser.getId(), CouponTriggerType.SIGNUP);
 
         log.info("회원가입 완료: {}", savedUser.getEmail());
         return UserResponse.from(savedUser);
@@ -319,6 +325,9 @@ public class AuthServiceImpl implements AuthService {
         user.completeSocialSignup(request.getMarketingAgreed(), themes);
 
         User savedUser = userRepository.save(user);
+
+        // 회원가입 축하 쿠폰 발급
+        userCouponService.issueByTrigger(savedUser.getId(), CouponTriggerType.SIGNUP);
 
         log.info("소셜 회원가입 완료: {}", savedUser.getEmail());
         return UserResponse.from(savedUser);

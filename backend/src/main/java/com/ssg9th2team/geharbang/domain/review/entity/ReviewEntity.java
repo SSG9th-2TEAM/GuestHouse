@@ -63,8 +63,10 @@ public class ReviewEntity {
 
     // 수정 메서드 (텍스트 + 별점 + 이미지) -> 이미지 전체 삭제 후 재등록
     public void updateReview(String content, BigDecimal rating, List<ReviewImageEntity> newImages) {
-        if (content != null) this.content = content;
-        if (rating != null) this.rating = rating;
+        if (content != null)
+            this.content = content;
+        if (rating != null)
+            this.rating = rating;
         
         if (newImages != null) {
             this.images.clear(); // orphanRemoval → 기존 이미지 전부 삭제
@@ -72,6 +74,8 @@ public class ReviewEntity {
             this.images.addAll(newImages);
         }
     }
+
+
 
     // 소프트 삭제
     public void softDelete() {

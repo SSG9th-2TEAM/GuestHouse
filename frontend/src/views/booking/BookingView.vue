@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { createReservation } from '@/api/reservationApi'
 import { fetchAccommodationDetail } from '@/api/accommodation'
 import { getCurrentUser } from '@/api/userClient'
+import { getMyCoupons } from '@/api/couponApi'
 
 const router = useRouter()
 const route = useRoute()
@@ -54,7 +55,15 @@ onMounted(async () => {
   } catch (error) {
     console.error('사용자 정보 조회 실패:', error)
   }
-  
+
+  // 사용 가능한 쿠폰 조회
+  try {
+    const couponList = await getMyCoupons('ISSUED')
+    coupons.value = couponList || []
+  } catch (error) {
+    console.error('쿠폰 조회 실패:', error)
+  }
+
   isDataLoading.value = false
 })
 
@@ -154,18 +163,28 @@ const booking = computed(() => {
   }
 })
 
-const coupons = [
-  { id: 1, name: '신규 가입 환영 쿠폰', discount: 10000 },
-  { id: 2, name: '주말 깜짝 할인', discount: 5000 }
-]
+const coupons = ref([])
 
 const selectedCoupon = ref(null)
 const isLoading = ref(false)
 const errorMessage = ref('')
 
+// 쿠폰 할인 금액 계산
+const calculateDiscount = (coupon, price) => {
+  if (!coupon) return 0
+  if (coupon.discountType === 'PERCENT') {
+    const discount = Math.floor(price * coupon.discountValue / 100)
+    return coupon.maxDiscount ? Math.min(discount, coupon.maxDiscount) : discount
+  }
+  return coupon.discountValue || 0
+}
+
+const couponDiscount = computed(() => {
+  return calculateDiscount(selectedCoupon.value, booking.value.price)
+})
+
 const finalPrice = computed(() => {
-  const discount = selectedCoupon.value ? selectedCoupon.value.discount : 0
-  return booking.value.price - discount
+  return booking.value.price - couponDiscount.value
 })
 
 const goBack = () => router.back()
@@ -201,8 +220,8 @@ const handlePayment = async () => {
       checkout: checkoutDate.toISOString(),
       guestCount: booking.value.guestCount,
       totalAmount: booking.value.price,
-      couponId: selectedCoupon.value?.id || null,
-      couponDiscountAmount: selectedCoupon.value?.discount || 0,
+      userCouponId: selectedCoupon.value?.id || null,
+      couponDiscountAmount: couponDiscount.value || 0,
       reserverName: currentUser.value?.email || '예약자',
       reserverPhone: currentUser.value?.phone || ''
     }
@@ -288,7 +307,7 @@ const handlePayment = async () => {
             <select v-model="selectedCoupon" class="coupon-select">
               <option :value="null">쿠폰 선택 안함</option>
               <option v-for="coupon in coupons" :key="coupon.id" :value="coupon">
-                {{ coupon.name }} (-{{ coupon.discount.toLocaleString() }}원)
+                {{ coupon.name }} ({{ coupon.discountType === 'PERCENT' ? coupon.discountValue + '%' : coupon.discountValue.toLocaleString() + '원' }} 할인)
               </option>
             </select>
           </div>
@@ -302,8 +321,8 @@ const handlePayment = async () => {
               <span>₩{{ booking.price.toLocaleString() }}</span>
             </div>
             <div class="price-row" v-if="selectedCoupon">
-              <span>쿠폰 할인</span>
-              <span class="discount-text">-₩{{ selectedCoupon.discount.toLocaleString() }}</span>
+              <span>쿠폰 할인 ({{ selectedCoupon.name }})</span>
+              <span class="discount-text">-₩{{ couponDiscount.toLocaleString() }}</span>
             </div>
             <div class="total-row">
               <span>총 합계</span>

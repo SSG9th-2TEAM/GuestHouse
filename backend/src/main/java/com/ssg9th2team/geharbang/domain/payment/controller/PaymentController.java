@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.payment.controller;
 
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentConfirmRequestDto;
+import com.ssg9th2team.geharbang.domain.payment.dto.PaymentConfirmResponseDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.PaymentResponseDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.RefundRequestDto;
 import com.ssg9th2team.geharbang.domain.payment.dto.RefundResponseDto;
@@ -20,9 +21,9 @@ public class PaymentController {
      * 결제 승인
      */
     @PostMapping("/confirm")
-    public ResponseEntity<PaymentResponseDto> confirmPayment(
+    public ResponseEntity<PaymentConfirmResponseDto> confirmPayment(
             @RequestBody PaymentConfirmRequestDto requestDto) {
-        PaymentResponseDto response = paymentService.confirmPayment(requestDto);
+        PaymentConfirmResponseDto response = paymentService.confirmPayment(requestDto);
         return ResponseEntity.ok(response);
     }
 
