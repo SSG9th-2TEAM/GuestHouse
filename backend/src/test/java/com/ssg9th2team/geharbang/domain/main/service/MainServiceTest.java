@@ -8,9 +8,6 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.dto.MainAccommodationListResponse;
-import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
-import com.ssg9th2team.geharbang.domain.main.repository.AccommodationImageProjection;
-import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
 import com.ssg9th2team.geharbang.domain.main.repository.MainRepository;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
@@ -21,20 +18,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 public class MainServiceTest {
@@ -196,188 +189,5 @@ public class MainServiceTest {
         assertThat(response.getRecommendedAccommodations()).hasSize(1);
         assertThat(response.getRecommendedAccommodations().get(0).getAccomodationsName()).isEqualTo("오션뷰 파티하우스");
         assertThat(response.getGeneralAccommodations()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("공개 검색은 페이지 메타와 아이템을 매핑한다")
-    void testSearchPublicListMapsPage() {
-        ListDtoProjection projection = new ListProjectionStub(
-                10L,
-                "테스트 숙소",
-                "설명",
-                "부산",
-                "해운대",
-                "우동",
-                35.1,
-                129.1,
-                120000L,
-                4.7,
-                12,
-                4,
-                "https://example.com/image.jpg"
-        );
-        PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 24), 1);
-        when(mainRepository.searchPublicList(eq("부산"), any(PageRequest.class))).thenReturn(page);
-
-        PublicListResponse response = mainService.searchPublicList(Collections.emptyList(), " 부산 ", 0, 24, null, null, null, null);
-
-        assertThat(response.items()).hasSize(1);
-        assertThat(response.items().get(0).getAccomodationsName()).isEqualTo("테스트 숙소");
-        assertThat(response.page().totalElements()).isEqualTo(1);
-        assertThat(response.page().hasNext()).isFalse();
-    }
-
-    @Test
-    @DisplayName("테마 검색은 테마 전용 쿼리를 호출한다")
-    void testSearchPublicListUsesThemeQuery() {
-        ListDtoProjection projection = new ListProjectionStub(
-                11L,
-                "테마 숙소",
-                "설명",
-                "서울",
-                "마포",
-                "연남",
-                37.5,
-                126.9,
-                90000L,
-                4.2,
-                5,
-                3,
-                "https://example.com/theme.jpg"
-        );
-        PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(1, 10), 11);
-        when(mainRepository.searchPublicListByTheme(eq(List.of(2L)), eq("오션뷰"), any(PageRequest.class))).thenReturn(page);
-
-        PublicListResponse response = mainService.searchPublicList(List.of(2L), "오션뷰", 1, 10, null, null, null, null);
-
-        assertThat(response.items()).hasSize(1);
-        verify(mainRepository).searchPublicListByTheme(eq(List.of(2L)), eq("오션뷰"), any(PageRequest.class));
-    }
-
-    @Test
-    @DisplayName("뷰포트 검색은 좌표 조건 쿼리를 호출한다")
-    void testSearchPublicListUsesBoundsQuery() {
-        ListDtoProjection projection = new ListProjectionStub(
-                12L,
-                "지도 숙소",
-                "설명",
-                "부산",
-                "해운대",
-                "우동",
-                35.2,
-                129.1,
-                130000L,
-                4.1,
-                8,
-                2,
-                "https://example.com/map.jpg"
-        );
-        PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 50), 1);
-        when(mainRepository.searchPublicListByBounds(eq("부산"), eq(35.0), eq(36.0), eq(126.0), eq(128.0), any(PageRequest.class)))
-                .thenReturn(page);
-
-        PublicListResponse response = mainService.searchPublicList(Collections.emptyList(), "부산", 0, 50, 35.0, 36.0, 126.0, 128.0);
-
-        assertThat(response.items()).hasSize(1);
-        verify(mainRepository).searchPublicListByBounds(eq("부산"), eq(35.0), eq(36.0), eq(126.0), eq(128.0), any(PageRequest.class));
-    }
-
-    private static final class ListProjectionStub implements ListDtoProjection {
-        private final Long accomodationsId;
-        private final String accomodationsName;
-        private final String shortDescription;
-        private final String city;
-        private final String district;
-        private final String township;
-        private final Double latitude;
-        private final Double longitude;
-        private final Long minPrice;
-        private final Double rating;
-        private final Integer reviewCount;
-        private final Integer maxGuests;
-        private final String imageUrl;
-
-        private ListProjectionStub(Long accomodationsId, String accomodationsName, String shortDescription, String city,
-                                   String district, String township, Double latitude, Double longitude, Long minPrice,
-                                   Double rating, Integer reviewCount, Integer maxGuests, String imageUrl) {
-            this.accomodationsId = accomodationsId;
-            this.accomodationsName = accomodationsName;
-            this.shortDescription = shortDescription;
-            this.city = city;
-            this.district = district;
-            this.township = township;
-            this.latitude = latitude;
-            this.longitude = longitude;
-            this.minPrice = minPrice;
-            this.rating = rating;
-            this.reviewCount = reviewCount;
-            this.maxGuests = maxGuests;
-            this.imageUrl = imageUrl;
-        }
-
-        @Override
-        public Long getAccomodationsId() {
-            return accomodationsId;
-        }
-
-        @Override
-        public String getAccomodationsName() {
-            return accomodationsName;
-        }
-
-        @Override
-        public String getShortDescription() {
-            return shortDescription;
-        }
-
-        @Override
-        public String getCity() {
-            return city;
-        }
-
-        @Override
-        public String getDistrict() {
-            return district;
-        }
-
-        @Override
-        public String getTownship() {
-            return township;
-        }
-
-        @Override
-        public Double getLatitude() {
-            return latitude;
-        }
-
-        @Override
-        public Double getLongitude() {
-            return longitude;
-        }
-
-        @Override
-        public Long getMinPrice() {
-            return minPrice;
-        }
-
-        @Override
-        public Double getRating() {
-            return rating;
-        }
-
-        @Override
-        public Integer getReviewCount() {
-            return reviewCount;
-        }
-
-        @Override
-        public Integer getMaxGuests() {
-            return maxGuests;
-        }
-
-        @Override
-        public String getImageUrl() {
-            return imageUrl;
-        }
     }
 }

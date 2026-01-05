@@ -110,10 +110,11 @@ public class User {
         this.phone = phone;
     }
 
-    // 닉네임, 전화번호만 업데이트
-    public void updateProfile(String nickname, String phone) {
+    // 닉네임, 전화번호, 성별 업데이트
+    public void updateProfile(String nickname, String phone, Gender gender) {
         this.nickname = nickname;
         this.phone = phone;
+        this.gender = gender;
     }
 
     // 역할 변경 (예: USER -> HOST)

@@ -15,4 +15,6 @@ public interface UserCouponJpaRepository extends JpaRepository<UserCoupon, Long>
 
     // 만료 대상 쿠폰 조회 (ISSUED 상태이면서 만료일이 지난 쿠폰)
     List<UserCoupon> findByStatusAndExpiredAtBefore(UserCouponStatus status, LocalDateTime now);
+
+    List<UserCoupon> findByUserIdAndStatus(Long userId, UserCouponStatus status);
 }

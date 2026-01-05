@@ -1,0 +1,22 @@
+package com.ssg9th2team.geharbang.domain.search.service;
+
+import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+public interface SearchService {
+    PublicListResponse searchPublicList(
+            List<Long> themeIds,
+            String keyword,
+            int page,
+            int size,
+            Double minLat,
+            Double maxLat,
+            Double minLng,
+            Double maxLng,
+            LocalDateTime checkin,
+            LocalDateTime checkout,
+            Integer guestCount
+    );
+}

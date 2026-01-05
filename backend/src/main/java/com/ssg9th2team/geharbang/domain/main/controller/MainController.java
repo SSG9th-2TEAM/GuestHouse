@@ -2,11 +2,13 @@ package com.ssg9th2team.geharbang.domain.main.controller;
 
 import com.ssg9th2team.geharbang.domain.accommodation.service.AccommodationService;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.main.dto.AvailableRoomResponse;
 import com.ssg9th2team.geharbang.domain.main.dto.AccommodationDetailDto;
 import com.ssg9th2team.geharbang.domain.main.dto.MainAccommodationListResponse;
-import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.service.MainService;
+import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -24,6 +28,7 @@ public class MainController {
     private final MainService mainService;
     private final AccommodationService accommodationService;
     private final UserRepository userRepository; // Inject UserRepository
+    private final RoomJpaRepository roomJpaRepository;
 
     @GetMapping("/list")
     public MainAccommodationListResponse list(
@@ -46,17 +51,20 @@ public class MainController {
         return AccommodationDetailDto.from(accommodationService.getAccommodation(accommodationsId));
     }
 
-    @GetMapping("/search")
-    public PublicListResponse search(
-            @RequestParam(name = "themeIds", required = false) List<Long> themeIds,
-            @RequestParam(name = "keyword", required = false) String keyword,
-            @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "24") int size,
-            @RequestParam(name = "minLat", required = false) Double minLat,
-            @RequestParam(name = "maxLat", required = false) Double maxLat,
-            @RequestParam(name = "minLng", required = false) Double minLng,
-            @RequestParam(name = "maxLng", required = false) Double maxLng
+    @GetMapping("/detail/{accommodationsId}/availability")
+    public AvailableRoomResponse availableRooms(
+            @PathVariable Long accommodationsId,
+            @RequestParam(name = "checkin", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkin,
+            @RequestParam(name = "checkout", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkout
     ) {
-        return mainService.searchPublicList(themeIds, keyword, page, size, minLat, maxLat, minLng, maxLng);
+        if (checkin == null || checkout == null || !checkout.isAfter(checkin)) {
+            return AvailableRoomResponse.of(List.of());
+        }
+        LocalDateTime checkinAt = checkin.atTime(15, 0);
+        LocalDateTime checkoutAt = checkout.atTime(11, 0);
+        List<Long> roomIds = roomJpaRepository.findAvailableRoomIds(accommodationsId, checkinAt, checkoutAt);
+        return AvailableRoomResponse.of(roomIds);
     }
 }

@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
-import { fetchAccommodationDetail } from '@/api/accommodation'
+import { fetchAccommodationDetail, fetchAccommodationAvailability } from '@/api/accommodation'
 import { getReviewsByAccommodation } from '@/api/reviewApi'
 import { getDownloadableCoupons, issueCoupon, getMyCoupons } from '@/api/couponApi'
 
@@ -34,6 +34,9 @@ const buildMapQuery = () => {
   if (minValue !== undefined) query.min = String(minValue)
   if (maxValue !== undefined) query.max = String(maxValue)
   if (route.query.themeIds) query.themeIds = String(route.query.themeIds)
+  if (route.query.guestCount) query.guestCount = String(route.query.guestCount)
+  if (route.query.checkin) query.checkin = String(route.query.checkin)
+  if (route.query.checkout) query.checkout = String(route.query.checkout)
   return query
 }
 
@@ -200,11 +203,14 @@ const normalizeDetail = (data) => {
 
 const guesthouse = ref(createEmptyGuesthouse(getAccommodationId()))
 const selectedRoom = ref(null)
+const availableRoomIds = ref(null)
+const isAvailabilityLoading = ref(false)
 const isCalendarOpen = ref(false)
 const showFullDescription = ref(false)
 const showAllRooms = ref(false)
 const currentDate = ref(new Date())
 const datePickerRef = ref(null)
+let availabilityRequestId = 0
 const availableCoupons = ref([])
 const isCouponModalOpen = ref(false)
 const downloadedCouponIds = ref(new Set())
@@ -213,14 +219,33 @@ const canBook = computed(() => {
   return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
 })
 
-const visibleRooms = computed(() => {
+const hasDateRange = computed(() => Boolean(searchStore.startDate && searchStore.endDate))
+
+const filteredRooms = computed(() => {
   const rooms = guesthouse.value.rooms || []
+  const guestCount = searchStore.guestCount
+  const hasGuestFilter = guestCount > 0
+  const applyAvailability = hasDateRange.value && availableRoomIds.value instanceof Set
+
+  return rooms.filter((room) => {
+    if (hasGuestFilter && room.capacity < guestCount) return false
+    if (applyAvailability && !availableRoomIds.value.has(room.id)) return false
+    return true
+  })
+})
+
+const visibleRooms = computed(() => {
+  const rooms = filteredRooms.value
   return showAllRooms.value ? rooms : rooms.slice(0, 4)
 })
 
 const hasMoreRooms = computed(() => {
-  const rooms = guesthouse.value.rooms || []
-  return rooms.length > 4
+  return filteredRooms.value.length > 4
+})
+
+const showNoAvailability = computed(() => {
+  const hasFilter = hasDateRange.value || searchStore.guestCount > 0
+  return hasFilter && !isAvailabilityLoading.value && filteredRooms.value.length === 0
 })
 
 const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
@@ -336,6 +361,42 @@ const selectDate = (dayObj) => {
   isCalendarOpen.value = false
 }
 
+const loadAvailability = async () => {
+  const accommodationsId = getAccommodationId()
+  if (!accommodationsId) {
+    availableRoomIds.value = null
+    return
+  }
+  if (!searchStore.startDate || !searchStore.endDate) {
+    availableRoomIds.value = null
+    return
+  }
+
+  const currentRequest = ++availabilityRequestId
+  isAvailabilityLoading.value = true
+  try {
+    const response = await fetchAccommodationAvailability(accommodationsId, {
+      checkin: searchStore.startDate,
+      checkout: searchStore.endDate
+    })
+    if (currentRequest !== availabilityRequestId) return
+    if (response.ok && Array.isArray(response.data?.availableRoomIds)) {
+      availableRoomIds.value = new Set(response.data.availableRoomIds)
+    } else {
+      availableRoomIds.value = new Set()
+    }
+  } catch (error) {
+    console.error('Failed to load room availability', error)
+    if (currentRequest === availabilityRequestId) {
+      availableRoomIds.value = null
+    }
+  } finally {
+    if (currentRequest === availabilityRequestId) {
+      isAvailabilityLoading.value = false
+    }
+  }
+}
+
 const loadAccommodation = async () => {
   const accommodationsId = getAccommodationId()
   if (!accommodationsId) {
@@ -344,6 +405,8 @@ const loadAccommodation = async () => {
   }
 
   selectedRoom.value = null
+  availableRoomIds.value = null
+  isAvailabilityLoading.value = false
   showFullDescription.value = false
   showAllRooms.value = false
   guesthouse.value = createEmptyGuesthouse(accommodationsId)
@@ -559,6 +622,20 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 watch(() => route.params.id, loadAccommodation)
+watch(
+  () => [route.params.id, searchStore.startDate, searchStore.endDate],
+  () => {
+    loadAvailability()
+  },
+  { immediate: true }
+)
+watch(filteredRooms, (rooms) => {
+  if (!selectedRoom.value) return
+  const stillAvailable = rooms.some((room) => room.id === selectedRoom.value.id)
+  if (!stillAvailable) {
+    selectedRoom.value = null
+  }
+})
 </script>
 
 <template>
@@ -811,7 +888,10 @@ watch(() => route.params.id, loadAccommodation)
       </div>
 
       <!-- Room List -->
-      <div class="room-list">
+      <div v-if="showNoAvailability" class="room-empty">
+        예약 가능한 객실이 없습니다. 날짜나 인원수를 변경해 주세요.
+      </div>
+      <div v-else class="room-list">
         <div v-for="room in visibleRooms" :key="room.id"
              class="room-card"
              :class="{ selected: selectedRoom?.id === room.id, unavailable: !room.available }"
@@ -1280,6 +1360,15 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 
 /* Room Card */
+.room-empty {
+  padding: 1.5rem;
+  border: 1px dashed #d1d5db;
+  border-radius: var(--radius-md);
+  background: #f9fafb;
+  color: var(--text-sub);
+  text-align: center;
+  font-weight: 600;
+}
 .room-card {
   border: 2px solid #ddd;
   border-radius: var(--radius-md);
