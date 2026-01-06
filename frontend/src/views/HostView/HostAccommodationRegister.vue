@@ -6,8 +6,8 @@ import { getAccessToken, getCurrentUser, saveUserInfo } from '../../api/authClie
 const router = useRouter()
 const emit = defineEmits(['cancel', 'submit'])
 
-// API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+// API Base URL (프록시 사용: /api -> http://localhost:8080/api)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 // ========== Business License Verification ==========
 const isVerified = ref(false)
@@ -213,16 +213,36 @@ const checkOutMinute = computed({
 // ========== 유효성 검사 ==========
 const errors = ref({})
 
-// 이메일 형식 검증
+// 이메일 형식 검증 (도메인 필수: .com, .co.kr, .net 등)
 const isValidEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const emailRegex = /^[^\s@]+@[^\s@]+\.(com|co\.kr|net|org|kr|io|me|info|biz|ac\.kr|go\.kr)$/i
   return emailRegex.test(email)
 }
 
-// 전화번호 형식 검증
+// 전화번호 형식 검증 (다양한 형식 허용)
+// 010-XXXX-XXXX (11자리), 02-XXX-XXXX (9~10자리), 0507-XXXX-XXXX (12자리) 등
 const isValidPhone = (phone) => {
-  const phoneRegex = /^[\d\-]+$/
-  return phone.length >= 9 && phoneRegex.test(phone)
+  const digitsOnly = phone.replace(/[^0-9]/g, '')
+  // 9자리(02 지역번호) ~ 12자리(0507 인터넷전화) 허용
+  return digitsOnly.length >= 9 && digitsOnly.length <= 12
+}
+
+// 예금주 형식 검증 (한글 완성형 또는 영어만 허용, 자음/모음만 불가)
+const isValidAccountHolder = (name) => {
+  // 한글 완성형(가-힣) 또는 영문(a-zA-Z)과 공백만 허용
+  const validNameRegex = /^[가-힣a-zA-Z\s]+$/
+  // 자음만 있는지 체크 (ㄱ-ㅎ)
+  const consonantOnly = /^[ㄱ-ㅎ\s]+$/
+  // 모음만 있는지 체크 (ㅏ-ㅣ)
+  const vowelOnly = /^[ㅏ-ㅣ\s]+$/
+  // 자음이나 모음이 포함되어 있는지 체크
+  const hasConsonantOrVowel = /[ㄱ-ㅎㅏ-ㅣ]/
+
+  if (!validNameRegex.test(name)) return false
+  if (consonantOnly.test(name) || vowelOnly.test(name)) return false
+  if (hasConsonantOrVowel.test(name)) return false
+
+  return true
 }
 
 // 숫자만 입력되도록 필터링
@@ -259,7 +279,7 @@ const validateField = (fieldName, value) => {
       if (!value || !value.trim()) {
         errors.value.phone = '연락처를 입력해주세요.'
       } else if (!isValidPhone(value)) {
-        errors.value.phone = '올바른 연락처 형식이 아닙니다.'
+        errors.value.phone = '올바른 전화번호 형식이 아닙니다. (예: 010-1234-5678, 02-123-4567)'
       } else {
         delete errors.value.phone
       }
@@ -268,7 +288,7 @@ const validateField = (fieldName, value) => {
       if (!value || !value.trim()) {
         errors.value.email = '이메일을 입력해주세요.'
       } else if (!isValidEmail(value)) {
-        errors.value.email = '올바른 이메일 형식이 아닙니다.'
+        errors.value.email = '올바른 이메일 형식이 아닙니다. (예: example@email.com)'
       } else {
         delete errors.value.email
       }
@@ -304,6 +324,8 @@ const validateField = (fieldName, value) => {
     case 'accountHolder':
       if (!value || !value.trim()) {
         errors.value.accountHolder = '예금주를 입력해주세요.'
+      } else if (!isValidAccountHolder(value)) {
+        errors.value.accountHolder = '예금주는 한글 또는 영문만 입력해주세요.'
       } else {
         delete errors.value.accountHolder
       }
@@ -347,8 +369,8 @@ const validateForm = () => {
     errorMessages.push('연락처')
     isValid = false
   } else if (!isValidPhone(form.value.phone)) {
-    errors.value.phone = '올바른 연락처 형식이 아닙니다.'
-    errorMessages.push('연락처 형식')
+    errors.value.phone = '올바른 전화번호 형식이 아닙니다. (예: 010-1234-5678, 02-123-4567)'
+    errorMessages.push('전화번호 형식')
     isValid = false
   }
   if (!form.value.email?.trim()) {
@@ -356,7 +378,7 @@ const validateForm = () => {
     errorMessages.push('이메일')
     isValid = false
   } else if (!isValidEmail(form.value.email)) {
-    errors.value.email = '올바른 이메일 형식이 아닙니다.'
+    errors.value.email = '올바른 이메일 형식이 아닙니다. (예: example@email.com)'
     errorMessages.push('이메일 형식')
     isValid = false
   }
@@ -406,6 +428,10 @@ const validateForm = () => {
   if (!form.value.accountHolder?.trim()) {
     errors.value.accountHolder = '예금주를 입력해주세요.'
     errorMessages.push('예금주')
+    isValid = false
+  } else if (!isValidAccountHolder(form.value.accountHolder)) {
+    errors.value.accountHolder = '예금주는 한글 또는 영문만 입력해주세요.'
+    errorMessages.push('예금주 형식')
     isValid = false
   }
   if (!form.value.accountNumber?.trim()) {
@@ -563,6 +589,7 @@ const loadThemes = async () => {
     themeOptions.value = grouped
   } catch (error) {
     console.error('테마 로드 실패:', error)
+    openModal('테마 목록을 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.')
   }
 }
 
@@ -1042,7 +1069,6 @@ onMounted(() => {
         </div>
         
         <div class="action-buttons">
-          <button class="btn-outline" @click="handleTempSave">임시 저장</button>
           <button class="btn-primary" @click="handleSubmit" :disabled="isSubmitting">{{ isSubmitting ? '등록 중...' : '저장하기' }}</button>
         </div>
       </div>
@@ -1093,7 +1119,7 @@ onMounted(() => {
             type="text"
             placeholder="숙소 이름을 입력하세요"
             :class="{ 'input-error': errors.name }"
-            @blur="validateField('name', form.name)"
+            @input="validateField('name', form.name)"
           />
           <span v-if="errors.name" class="error-message">{{ errors.name }}</span>
         </div>
@@ -1120,7 +1146,7 @@ onMounted(() => {
             rows="5"
             placeholder="숙소의 매력 포인트, 주변 환경, 호스팅 스타일 등을 상세히 적어주세요."
             :class="{ 'input-error': errors.description }"
-            @blur="validateField('description', form.description)"
+            @input="validateField('description', form.description)"
           ></textarea>
           <span v-if="errors.description" class="error-message">{{ errors.description }}</span>
         </div>
@@ -1132,7 +1158,7 @@ onMounted(() => {
             type="tel"
             placeholder="010-1234-5678"
             :class="{ 'input-error': errors.phone }"
-            @blur="validateField('phone', form.phone)"
+            @input="validateField('phone', form.phone)"
           />
           <span v-if="errors.phone" class="error-message">{{ errors.phone }}</span>
         </div>
@@ -1144,7 +1170,7 @@ onMounted(() => {
             type="email"
             placeholder="example@email.com"
             :class="{ 'input-error': errors.email }"
-            @blur="validateField('email', form.email)"
+            @input="validateField('email', form.email)"
           />
           <span v-if="errors.email" class="error-message">{{ errors.email }}</span>
         </div>
@@ -1170,7 +1196,7 @@ onMounted(() => {
             type="text"
             placeholder="예: 서울특별시"
             :class="{ 'input-error': errors.city }"
-            @blur="validateField('city', form.city)"
+            @input="validateField('city', form.city)"
           />
           <span v-if="errors.city" class="error-message">{{ errors.city }}</span>
         </div>
@@ -1182,7 +1208,7 @@ onMounted(() => {
             type="text"
             placeholder="예: 강남구"
             :class="{ 'input-error': errors.district }"
-            @blur="validateField('district', form.district)"
+            @input="validateField('district', form.district)"
           />
           <span v-if="errors.district" class="error-message">{{ errors.district }}</span>
         </div>
@@ -1203,7 +1229,7 @@ onMounted(() => {
             type="text"
             placeholder="예: 테헤란로 123, 456호"
             :class="{ 'input-error': errors.address }"
-            @blur="validateField('address', form.address)"
+            @input="validateField('address', form.address)"
           />
           <span v-if="errors.address" class="error-message">{{ errors.address }}</span>
         </div>
@@ -1416,7 +1442,7 @@ onMounted(() => {
             type="text"
             placeholder="예금주명을 입력해주세요"
             :class="{ 'input-error': errors.accountHolder }"
-            @blur="validateField('accountHolder', form.accountHolder)"
+            @input="validateField('accountHolder', form.accountHolder)"
           />
           <span v-if="errors.accountHolder" class="error-message">{{ errors.accountHolder }}</span>
         </div>
@@ -1428,8 +1454,7 @@ onMounted(() => {
             type="text"
             placeholder="'-' 없이 숫자만 입력"
             :class="{ 'input-error': errors.accountNumber }"
-            @input="filterNumberInput"
-            @blur="validateField('accountNumber', form.accountNumber)"
+            @input="(e) => { filterNumberInput(e); validateField('accountNumber', form.accountNumber) }"
           />
           <span v-if="errors.accountNumber" class="error-message">{{ errors.accountNumber }}</span>
         </div>

@@ -7,8 +7,10 @@ const route = useRoute()
 const router = useRouter()
 const accommodationId = route.params.id
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
-const SERVER_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:8080'
+// API Base URL (프록시 사용: /api -> http://localhost:8080/api)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+// 이미지 URL용 서버 기본 경로
+const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8080'
 
 // 이미지 URL을 전체 경로로 변환
 const getFullImageUrl = (url) => {
@@ -113,6 +115,7 @@ const loadThemes = async () => {
     themeOptions.value = grouped
   } catch (error) {
     console.error('테마 로드 실패:', error)
+    openModal('테마 목록을 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.')
   }
 }
 
@@ -155,6 +158,7 @@ const form = ref({
   parkingInfo: '',
   sns: '',
   isActive: true,
+  approvalStatus: 'PENDING', // 승인 상태: PENDING, APPROVED, REJECTED
   houseRules: '', // DB 스키마에 없으면 생략 가능하지만 UI엔 있었음
   // Readonly Lists
   amenities: [], // IDs
@@ -322,7 +326,8 @@ const loadAccommodation = async () => {
       checkInTime: data.checkInTime || '',
       checkOutTime: data.checkOutTime || '',
       isActive: data.accommodationStatus === 1,
-      
+      approvalStatus: data.approvalStatus || 'PENDING', // 승인 상태
+
       amenities: data.amenityIds || [], // IDs
       themes: data.themeIds ? data.themeIds.map(id => getThemeNameById(id)).filter(Boolean) : [],
       
@@ -761,48 +766,60 @@ const filterNumberInput = (event) => {
 const validateRoomForm = () => {
     roomErrors.value = {}
     let isValid = true
+    const errorFields = []
 
     if (!roomForm.value.name?.trim()) {
         roomErrors.value.name = '객실명을 입력해주세요.'
+        errorFields.push('객실명')
         isValid = false
     }
 
     // 숫자 유효성 검사 (Regex for non-digits)
     const isNumeric = (val) => /^\d+$/.test(val)
 
-    if (!roomForm.value.weekdayPrice || !isNumeric(roomForm.value.weekdayPrice) || parseInt(roomForm.value.weekdayPrice) <= 0) {
-        roomErrors.value.weekdayPrice = '올바른 숫자를 입력해주세요.'
+    if (!roomForm.value.weekdayPrice || !isNumeric(String(roomForm.value.weekdayPrice)) || parseInt(roomForm.value.weekdayPrice) <= 0) {
+        roomErrors.value.weekdayPrice = '주중 요금을 입력해주세요.'
+        errorFields.push('주중 요금')
         isValid = false
     }
-    if (!roomForm.value.weekendPrice || !isNumeric(roomForm.value.weekendPrice) || parseInt(roomForm.value.weekendPrice) <= 0) {
-        roomErrors.value.weekendPrice = '올바른 숫자를 입력해주세요.'
+    if (!roomForm.value.weekendPrice || !isNumeric(String(roomForm.value.weekendPrice)) || parseInt(roomForm.value.weekendPrice) <= 0) {
+        roomErrors.value.weekendPrice = '주말 요금을 입력해주세요.'
+        errorFields.push('주말 요금')
         isValid = false
     }
-    if (!roomForm.value.minGuests || !isNumeric(roomForm.value.minGuests) || parseInt(roomForm.value.minGuests) < 1) {
-        roomErrors.value.minGuests = '1명 이상 입력해주세요.'
+    if (!roomForm.value.minGuests || !isNumeric(String(roomForm.value.minGuests)) || parseInt(roomForm.value.minGuests) < 1) {
+        roomErrors.value.minGuests = '최소 인원을 입력해주세요.'
+        errorFields.push('최소 인원')
         isValid = false
     }
-    if (!roomForm.value.maxGuests || !isNumeric(roomForm.value.maxGuests) || parseInt(roomForm.value.maxGuests) < 1) {
-        roomErrors.value.maxGuests = '1명 이상 입력해주세요.'
+    if (!roomForm.value.maxGuests || !isNumeric(String(roomForm.value.maxGuests)) || parseInt(roomForm.value.maxGuests) < 1) {
+        roomErrors.value.maxGuests = '최대 인원을 입력해주세요.'
+        errorFields.push('최대 인원')
         isValid = false
     }
     if (parseInt(roomForm.value.minGuests) > parseInt(roomForm.value.maxGuests)) {
         roomErrors.value.maxGuests = '최대 인원은 최소 인원보다 커야 합니다.'
         isValid = false
     }
-    if (roomForm.value.bedCount && !isNumeric(roomForm.value.bedCount)) {
-        roomErrors.value.bedCount = '숫자만 입력해주세요.'
+    if (roomForm.value.bedCount && !isNumeric(String(roomForm.value.bedCount))) {
+        roomErrors.value.bedCount = '침대 수는 숫자만 입력해주세요.'
+        errorFields.push('침대 수')
         isValid = false
     }
-     if (roomForm.value.bathroomCount && !isNumeric(roomForm.value.bathroomCount)) {
-        roomErrors.value.bathroomCount = '숫자만 입력해주세요.'
+    if (roomForm.value.bathroomCount && !isNumeric(String(roomForm.value.bathroomCount))) {
+        roomErrors.value.bathroomCount = '욕실 수는 숫자만 입력해주세요.'
+        errorFields.push('욕실 수')
         isValid = false
     }
 
     if (!roomForm.value.representativeImage && !roomForm.value.representativeImagePreview) {
-        roomErrors.value.representativeImage = '이미지를 등록해주세요.'
+        roomErrors.value.representativeImage = '대표 이미지를 등록해주세요.'
+        errorFields.push('대표 이미지')
         isValid = false
     }
+
+    // 에러 필드 목록 저장 (모달 메시지용)
+    roomErrors.value._errorFields = errorFields
 
     return isValid
 }
@@ -822,8 +839,12 @@ const removeRoomImage = () => {
 // 객실 추가/수정
 const saveRoom = () => {
     if (!validateRoomForm()) {
-        const errors = Object.values(roomErrors.value).join('\n')
-        openModal(`객실 정보를 확인해주세요.\n${errors}`)
+        const errorFields = roomErrors.value._errorFields || []
+        if (errorFields.length > 0) {
+            openModal(`다음 항목을 확인해주세요: ${errorFields.join(', ')}`)
+        } else {
+            openModal('객실 정보를 확인해주세요.')
+        }
         return
     }
 
@@ -917,8 +938,16 @@ const deleteRoom = async (id) => {
     }
 }
 
+// 승인 상태 확인 (APPROVED인지)
+const isApproved = () => form.value.approvalStatus === 'APPROVED'
+
 // 숙소 운영상태 토글
 const toggleAccommodationStatus = () => {
+    // 승인 전에는 토글 불가
+    if (!isApproved()) {
+        openModal('관리자 승인 후 운영 상태를 변경할 수 있습니다.')
+        return
+    }
     // 운영 중지로 변경하려는 경우 알럿 표시
     if (form.value.isActive) {
         alert('숙소 운영 상태가 비활성화 되었습니다')
@@ -928,6 +957,11 @@ const toggleAccommodationStatus = () => {
 
 // 객실 운영상태 토글
 const toggleRoomStatus = (room) => {
+    // 승인 전에는 토글 불가
+    if (!isApproved()) {
+        openModal('관리자 승인 후 객실 운영 상태를 변경할 수 있습니다.')
+        return
+    }
     // 운영 중지로 변경하려는 경우 알럿 표시
     if (room.isActive) {
         alert('객실 운영 상태가 비활성화 되었습니다 ')
@@ -937,6 +971,11 @@ const toggleRoomStatus = (room) => {
 
 // 객실 폼 운영상태 토글 (수정 모드에서)
 const toggleRoomFormStatus = () => {
+    // 승인 전에는 토글 불가
+    if (!isApproved()) {
+        openModal('관리자 승인 후 객실 운영 상태를 변경할 수 있습니다.')
+        return
+    }
     // 운영 중지로 변경하려는 경우 알럿 표시
     if (roomForm.value.isActive) {
         alert('객실 사용 중지')
@@ -1063,9 +1102,18 @@ onMounted(async () => {
       
       <!-- Toggle & Actions -->
       <div class="header-controls">
-        <div class="toggle-wrapper">
+        <!-- 승인 상태 배지 -->
+        <div class="approval-status-badge" :class="form.approvalStatus.toLowerCase()">
+          {{ form.approvalStatus === 'APPROVED' ? '승인완료' : form.approvalStatus === 'PENDING' ? '승인대기' : '승인거절' }}
+        </div>
+
+        <div class="toggle-wrapper" :class="{ disabled: form.approvalStatus !== 'APPROVED' }">
           <span class="toggle-label">{{ form.isActive ? '운영 중' : '운영 중지' }}</span>
-          <div class="toggle-switch" :class="{ active: form.isActive }" @click="toggleAccommodationStatus">
+          <div
+            class="toggle-switch"
+            :class="{ active: form.isActive, disabled: form.approvalStatus !== 'APPROVED' }"
+            @click="toggleAccommodationStatus"
+          >
             <div class="toggle-slider"></div>
           </div>
         </div>
@@ -1323,11 +1371,11 @@ onMounted(async () => {
             <template v-if="editingRoomId !== room.id">
               <div class="room-header">
                 <h4 class="room-name">{{ room.name }}</h4>
-                <div class="room-toggle">
+                <div class="room-toggle" :class="{ disabled: form.approvalStatus !== 'APPROVED' }">
                   <span class="toggle-label-small">{{ room.isActive ? '운영 중' : '운영 중지' }}</span>
                   <div
                     class="toggle-switch small"
-                    :class="{ active: room.isActive }"
+                    :class="{ active: room.isActive, disabled: form.approvalStatus !== 'APPROVED' }"
                     @click="toggleRoomStatus(room)"
                   >
                     <div class="toggle-slider"></div>
@@ -1393,15 +1441,16 @@ onMounted(async () => {
               <!-- 운영상태 토글 -->
               <div class="form-group">
                 <label>운영 상태</label>
-                <div class="room-status-toggle">
+                <div class="room-status-toggle" :class="{ disabled: form.approvalStatus !== 'APPROVED' }">
                   <span class="toggle-label-small">{{ roomForm.isActive ? '운영 중' : '운영 중지' }}</span>
                   <div
                     class="toggle-switch small"
-                    :class="{ active: roomForm.isActive }"
+                    :class="{ active: roomForm.isActive, disabled: form.approvalStatus !== 'APPROVED' }"
                     @click="toggleRoomFormStatus"
                   >
                     <div class="toggle-slider"></div>
                   </div>
+                  <span v-if="form.approvalStatus !== 'APPROVED'" class="toggle-hint-small">승인 후 변경 가능</span>
                 </div>
               </div>
 
@@ -1716,6 +1765,58 @@ onMounted(async () => {
 
 .toggle-switch.active .toggle-slider {
   left: 22px;
+}
+
+/* 비활성화된 토글 스타일 */
+.toggle-switch.disabled {
+  background: #e0e0e0;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.toggle-wrapper.disabled {
+  opacity: 0.7;
+}
+
+.room-toggle.disabled,
+.room-status-toggle.disabled {
+  opacity: 0.7;
+}
+
+.toggle-hint {
+  font-size: 0.75rem;
+  color: #f57c00;
+  margin-left: 8px;
+}
+
+.toggle-hint-small {
+  font-size: 0.7rem;
+  color: #f57c00;
+  margin-left: 6px;
+}
+
+/* 승인 상태 배지 */
+.approval-status-badge {
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-right: 1rem;
+}
+
+.approval-status-badge.approved {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.approval-status-badge.pending {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.approval-status-badge.rejected {
+  background: #ffebee;
+  color: #c62828;
 }
 
 .action-buttons {
