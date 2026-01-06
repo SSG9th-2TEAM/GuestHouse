@@ -294,9 +294,30 @@
         LIMIT 1
     </select>
 
+    <!-- Host 숙소 목록/단건 DTO (constructor 기반 매핑: immutable DTO 지원) -->
+    <resultMap id="HostAccommodationSummaryResult"
+               type="com.ssg9th2team.geharbang.domain.accommodation.dto.HostAccommodationSummaryResponse">
+        <constructor>
+            <idArg column="accommodationsId" javaType="java.lang.Long"/>
+            <arg column="accommodationsName" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="approvalStatus" javaType="java.lang.String"/>
+            <arg column="accommodationStatus" javaType="java.lang.Integer"/>
+            <arg column="rejectionReason" javaType="java.lang.String"/>
+            <arg column="city" javaType="java.lang.String"/>
+            <arg column="district" javaType="java.lang.String"/>
+            <arg column="township" javaType="java.lang.String"/>
+            <arg column="addressDetail" javaType="java.lang.String"/>
+            <arg column="maxGuests" javaType="java.lang.Integer"/>
+            <arg column="roomCount" javaType="java.lang.Integer"/>
+            <arg column="pricePerNight" javaType="java.lang.Integer"/>
+            <arg column="imageUrl" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
     <!-- Host 숙소 목록 -->
     <select id="selectHostAccommodations"
-            resultType="com.ssg9th2team.geharbang.domain.accommodation.dto.HostAccommodationSummaryResponse">
+            resultMap="HostAccommodationSummaryResult">
         SELECT
             a.accommodations_id AS accommodationsId,
             a.accommodations_name AS accommodationsName,
@@ -347,7 +368,7 @@
     </select>
 
     <select id="selectHostAccommodationById"
-            resultType="com.ssg9th2team.geharbang.domain.accommodation.dto.HostAccommodationSummaryResponse">
+            resultMap="HostAccommodationSummaryResult">
         SELECT
             a.accommodations_id AS accommodationsId,
             a.accommodations_name AS accommodationsName,

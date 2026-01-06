@@ -31,6 +31,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.DayOfWeek;
+import java.time.temporal.TemporalAdjusters;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +68,27 @@ public class AdminDashboardService {
 
         long pendingAccommodations = accommodationRepository.count(approvalEquals(ApprovalStatus.PENDING));
         long openReports = reportRepository.count(reportStateEquals("WAIT"));
+        double pendingLeadTimeAvgDays = accommodationRepository.avgPendingLeadTimeDays();
+        long overdueOpenReports48h = reportRepository.countByStateAndCreatedAtBefore(
+                "WAIT",
+                LocalDateTime.now().minusHours(48)
+        );
+
+        LocalDate weekStart = endDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDateTime weekStartAt = weekStart.atStartOfDay();
+        LocalDateTime weekEndAt = endDate.plusDays(1).atStartOfDay();
+        long weeklyRefundRequestCount = refundRepository.countByStatusAndRequestedAtBetween(0, weekStartAt, weekEndAt);
+        long weeklyRefundCompletedCount = refundRepository.countByStatusAndRequestedAtBetween(1, weekStartAt, weekEndAt);
+        long weeklyPaymentFailureCount = paymentRepository.countByStatusAndCreatedAtBetween(2, weekStartAt, weekEndAt);
+        long weeklyPaymentSuccessCount = paymentRepository.countByStatusAndCreatedAtBetween(1, weekStartAt, weekEndAt);
+        long weeklyPaymentAttempts = weeklyPaymentFailureCount + weeklyPaymentSuccessCount;
+        double weeklyPaymentFailureRate = weeklyPaymentAttempts > 0
+                ? (double) weeklyPaymentFailureCount / weeklyPaymentAttempts * 100
+                : 0.0;
+        long weeklyPendingOver7Days = accommodationRepository.countByApprovalStatusAndCreatedAtBefore(
+                ApprovalStatus.PENDING,
+                endDate.plusDays(1).atStartOfDay().minusDays(7)
+        );
         long platformFeeAmount = buildPlatformFeeSeries(startDate, endDate).stream()
                 .mapToLong(AdminTimeseriesPoint::value)
                 .sum();
@@ -82,6 +105,12 @@ public class AdminDashboardService {
         return new AdminDashboardSummaryResponse(
                 pendingAccommodations,
                 openReports,
+                pendingLeadTimeAvgDays,
+                overdueOpenReports48h,
+                weeklyRefundRequestCount,
+                weeklyRefundCompletedCount,
+                weeklyPaymentFailureRate,
+                weeklyPendingOver7Days,
                 reservationCount,
                 paymentSuccessAmount,
                 platformFeeRate,

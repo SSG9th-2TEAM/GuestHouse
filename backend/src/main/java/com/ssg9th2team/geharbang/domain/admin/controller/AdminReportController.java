@@ -58,7 +58,8 @@ public class AdminReportController {
             @RequestBody AdminReportResolveRequest request
     ) {
         String action = request != null ? request.action() : null;
-        return reportService.resolveReport(reportId, action);
+        String memo = request != null ? request.memo() : null;
+        return reportService.resolveReport(adminId, reportId, action, memo);
     }
 
     private String normalizeFilter(String value) {

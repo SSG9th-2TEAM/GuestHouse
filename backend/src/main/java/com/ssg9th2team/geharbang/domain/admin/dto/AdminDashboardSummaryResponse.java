@@ -5,6 +5,12 @@ import java.util.List;
 public record AdminDashboardSummaryResponse(
         long pendingAccommodations,
         long openReports,
+        double pendingLeadTimeAvgDays,
+        long overdueOpenReports48h,
+        long weeklyRefundRequestCount,
+        long weeklyRefundCompletedCount,
+        double weeklyPaymentFailureRate,
+        long weeklyPendingOver7Days,
         long reservationCount,
         long paymentSuccessAmount,
         double platformFeeRate,

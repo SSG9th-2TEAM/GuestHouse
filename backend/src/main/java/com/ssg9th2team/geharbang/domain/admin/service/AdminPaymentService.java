@@ -196,7 +196,7 @@ public class AdminPaymentService {
             spec = spec.and(requestedBetween(start, end));
         }
         if ("REFUND".equals(typeMode)) {
-            spec = spec.and(refundOnly());
+            spec = spec.and(noOpRefundSpec());
         }
         if (statusCode != null && statusCode == 3) {
             spec = spec.and(refundStatusEquals(1));
@@ -241,7 +241,7 @@ public class AdminPaymentService {
         return com.ssg9th2team.geharbang.domain.payment.spec.PaymentRefundSpecifications.alwaysFalse();
     }
 
-    private Specification<PaymentRefund> refundOnly() {
+    private Specification<PaymentRefund> noOpRefundSpec() {
         return Specification.where(null);
     }
 
@@ -377,7 +377,13 @@ public class AdminPaymentService {
         entityManager.clear();
         Payment updated = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ERR_PAYMENT_NOT_FOUND));
-        adminLogService.writeLog(adminUserId, AdminLogConstants.ACTION_REFUND, AdminLogConstants.TARGET_PAYMENT, paymentId, logReason, null);
+        adminLogService.writeLog(
+                adminUserId,
+                AdminLogConstants.TARGET_PAYMENT,
+                paymentId,
+                AdminLogConstants.ACTION_REFUND,
+                logReason
+        );
         return PaymentResponseDto.from(updated);
     }
 
