@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { searchList } from '@/api/list'
 import FilterModal from '../../components/FilterModal.vue'
@@ -20,6 +20,39 @@ const activeOverlays = ref([])
 const isLoading = ref(false)
 const isMapVisible = ref(false)
 const wishlistIds = ref(new Set())
+
+const MAP_STATE_KEY = 'mapview:lastState'
+
+const loadMapState = () => {
+  if (typeof window === 'undefined' || !window.sessionStorage) return null
+  try {
+    const raw = window.sessionStorage.getItem(MAP_STATE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    const lat = Number(parsed?.lat)
+    const lng = Number(parsed?.lng)
+    const level = Number(parsed?.level)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(level)) return null
+    return { lat, lng, level }
+  } catch (error) {
+    return null
+  }
+}
+
+const saveMapState = () => {
+  if (!mapInstance.value || typeof window === 'undefined' || !window.sessionStorage) return
+  try {
+    const center = mapInstance.value.getCenter?.()
+    if (!center) return
+    const lat = center.getLat?.()
+    const lng = center.getLng?.()
+    const level = mapInstance.value.getLevel?.()
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(level)) return
+    window.sessionStorage.setItem(MAP_STATE_KEY, JSON.stringify({ lat, lng, level }))
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
 
 const MAP_PAGE_SIZE = 200
 const MAX_MAP_RESULTS = 600
@@ -449,9 +482,16 @@ onMounted(() => {
   window.kakao.maps.load(() => {
     if (!mapContainer.value) return
 
+    const savedState = loadMapState()
+    if (savedState) {
+      autoFitPending = false
+    }
+
     const options = {
-      center: new window.kakao.maps.LatLng(36.5, 127.8), // Center of South Korea approximate
-      level: 13, // Zoom level to see the whole country
+      center: savedState
+        ? new window.kakao.maps.LatLng(savedState.lat, savedState.lng)
+        : new window.kakao.maps.LatLng(36.5, 127.8), // Center of South Korea approximate
+      level: savedState ? savedState.level : 13, // Zoom level to see the whole country
       draggable: true
     }
 
@@ -471,6 +511,10 @@ onMounted(() => {
     // Initial render
     scheduleLoad()
   })
+})
+
+onBeforeUnmount(() => {
+  saveMapState()
 })
 
 watch(
@@ -680,31 +724,35 @@ watch(
 
 /* Filter Button Styles */
 .filter-btn-wrapper {
-  position: absolute;
-  top: 1rem;
-  right: 2rem;
-  z-index: 50;
+  position: fixed;
+  top: 104px;
+  right: 1rem;
+  z-index: 120;
 }
 
 .filter-floating-btn {
   background-color: white;
   color: #222;
   border: 1px solid #ddd;
-  border-radius: 24px;
-  padding: 10px 18px;
+  border-radius: 20px;
+  padding: 8px 16px;
   display: flex;
   align-items: center;
   gap: 6px;
   font-weight: 600;
-  font-size: 0.95rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s;
+  transition: background-color 0.2s;
 }
 
 .filter-floating-btn:hover {
-  background-color: #f9f9f9;
-  transform: scale(1.05);
+  background-color: #f5f5f5;
+}
+
+@media (max-width: 768px) {
+  .filter-btn-wrapper {
+    top: calc(128px + env(safe-area-inset-top));
+    right: 12px;
+  }
 }
 
 .map-card {
