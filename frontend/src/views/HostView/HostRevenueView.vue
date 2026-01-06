@@ -530,10 +530,10 @@ const scrollToAnchor = (anchorId) => {
     />
 
     <template v-else>
-    <div class="view-header">
+    <div class="host-view-header">
       <div>
-        <h2>매출 리포트</h2>
-        <p class="subtitle">{{ selectedPeriodLabel }}</p>
+        <h2 class="host-title">매출 리포트</h2>
+        <p class="host-subtitle">{{ selectedPeriodLabel }}</p>
       </div>
     </div>
 

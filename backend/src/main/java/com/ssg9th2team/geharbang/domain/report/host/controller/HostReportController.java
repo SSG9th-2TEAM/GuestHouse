@@ -1,6 +1,6 @@
 package com.ssg9th2team.geharbang.domain.report.host.controller;
 
-import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.booking.host.support.HostIdentityResolver;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostForecastResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewAiSummaryRequest;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewAiSummaryResponse;
@@ -12,9 +12,7 @@ import com.ssg9th2team.geharbang.domain.report.host.service.HostReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,7 +30,7 @@ import java.util.List;
 public class HostReportController {
 
     private final HostReportService hostReportService;
-    private final UserRepository userRepository;
+    private final HostIdentityResolver hostIdentityResolver;
 
     @GetMapping("/reviews/summary")
     public HostReviewReportSummaryResponse reviewSummary(
@@ -41,8 +39,7 @@ public class HostReportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             Authentication authentication
     ) {
-        requireHostRole(authentication);
-        Long hostId = resolveHostId(authentication);
+        Long hostId = hostIdentityResolver.resolveHostUserId(authentication);
         return hostReportService.getReviewSummary(hostId, accommodationId, from, to);
     }
 
@@ -52,8 +49,7 @@ public class HostReportController {
             @RequestParam(defaultValue = "6") int months,
             Authentication authentication
     ) {
-        requireHostRole(authentication);
-        Long hostId = resolveHostId(authentication);
+        Long hostId = hostIdentityResolver.resolveHostUserId(authentication);
         return hostReportService.getReviewTrend(hostId, accommodationId, months);
     }
 
@@ -65,8 +61,7 @@ public class HostReportController {
             @RequestParam(defaultValue = "reservations") String metric,
             Authentication authentication
     ) {
-        requireHostRole(authentication);
-        Long hostId = resolveHostId(authentication);
+        Long hostId = hostIdentityResolver.resolveHostUserId(authentication);
         return hostReportService.getThemePopularity(hostId, accommodationId, from, to, metric);
     }
 
@@ -78,8 +73,7 @@ public class HostReportController {
             @RequestParam(defaultValue = "180") int historyDays,
             Authentication authentication
     ) {
-        requireHostRole(authentication);
-        Long hostId = resolveHostId(authentication);
+        Long hostId = hostIdentityResolver.resolveHostUserId(authentication);
         return hostReportService.getDemandForecast(hostId, accommodationId, target, horizonDays, historyDays);
     }
 
@@ -88,8 +82,7 @@ public class HostReportController {
             @RequestBody HostReviewAiSummaryRequest request,
             Authentication authentication
     ) {
-        requireHostRole(authentication);
-        Long hostId = resolveHostId(authentication);
+        Long hostId = hostIdentityResolver.resolveHostUserId(authentication);
         if (request == null) {
             request = new HostReviewAiSummaryRequest();
         }
@@ -105,22 +98,4 @@ public class HostReportController {
         }
     }
 
-    private Long resolveHostId(Authentication authentication) {
-        String email = authentication.getName();
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"))
-                .getId();
-    }
-
-    private void requireHostRole(Authentication authentication) {
-        if (authentication == null || authentication.getAuthorities() == null) {
-            throw new AccessDeniedException("HOST role required");
-        }
-        boolean allowed = authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(role -> "ROLE_HOST".equals(role) || "HOST".equals(role));
-        if (!allowed) {
-            throw new AccessDeniedException("HOST role required");
-        }
-    }
 }

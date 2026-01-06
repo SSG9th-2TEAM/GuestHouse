@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getUserInfo } from '@/api/authClient';
+import { getUserInfo, getAccessToken, getCurrentUser, saveUserInfo } from '@/api/authClient';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -273,29 +273,75 @@ const router = createRouter({
     ]
 })
 
-router.beforeEach((to, from, next) => {
-    const userInfo = getUserInfo();
+router.beforeEach(async (to, from, next) => {
+    const token = getAccessToken();
+    let userInfo = getUserInfo();
     const isAdminRoute = to.path.startsWith('/admin');
     const isHostReportRoute = to.path.startsWith('/host/report');
+    const isHostRole = (info) => {
+        if (!info) return false;
+        const role = info.role;
+        return role === 'HOST' || role === 'ROLE_HOST' || info.hostApproved === true;
+    };
 
-    if (isAdminRoute && (!userInfo || userInfo.role !== 'ADMIN')) {
-        // 관리자 페이지에 접근하려 하지만, 관리자가 아닌 경우
-        alert('접근 권한이 없습니다.');
-        next('/'); // 메인 페이지로 리디렉션
-    } else if (isHostReportRoute) {
+    if (!userInfo && token) {
+        const response = await getCurrentUser();
+        if (response.ok && response.data) {
+            saveUserInfo(response.data);
+            userInfo = response.data;
+        } else if (response.status === 401) {
+            next('/login');
+            return;
+        } else if (response.status === 403) {
+            alert('접근 권한이 없습니다.');
+            next('/host');
+            return;
+        }
+    }
+
+    if (isAdminRoute) {
         if (!userInfo) {
             next('/login');
             return;
         }
-        if (userInfo.role !== 'HOST' && userInfo.role !== 'ROLE_HOST') {
+        if (userInfo.role !== 'ADMIN') {
+            alert('접근 권한이 없습니다.');
+            next('/');
+            return;
+        }
+        next();
+        return;
+    }
+
+    if (isHostReportRoute) {
+        if (!userInfo) {
+            next('/login');
+            return;
+        }
+        if (!isHostRole(userInfo) && token) {
+            const response = await getCurrentUser();
+            if (response.ok && response.data) {
+                saveUserInfo(response.data);
+                userInfo = response.data;
+            } else if (response.status === 401) {
+                next('/login');
+                return;
+            } else if (response.status === 403) {
+                alert('접근 권한이 없습니다.');
+                next('/host');
+                return;
+            }
+        }
+        if (!isHostRole(userInfo)) {
             alert('접근 권한이 없습니다.');
             next('/host');
             return;
         }
         next();
-    } else {
-        next(); // 그 외의 경우는 정상적으로 진행
+        return;
     }
+
+    next();
 });
 
 export default router
