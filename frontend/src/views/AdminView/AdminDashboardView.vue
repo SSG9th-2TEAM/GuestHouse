@@ -208,17 +208,17 @@ const summaryItems = computed(() => {
   ]
 })
 
-const issueCards = computed(() => {
-  const data = summary.value ?? {}
-  const today = toDateString(new Date())
-  const pendingToday = pendingListings.value.filter((item) => item.createdAt?.slice?.(0, 10) === today).length
-  const pendingPreview = pendingListings.value.slice(0, 2).map((item) => ({
+const pendingPreview = computed(() => {
+  return pendingListings.value.slice(0, 2).map((item) => ({
     id: `#${item.accommodationsId}`,
     name: item.name ?? '-',
     date: formatDateOnly(item.createdAt),
     status: item.approvalStatus ?? 'PENDING'
   }))
-  const reportPreview = openReportListings.value.slice(0, 2).map((item) => ({
+})
+
+const reportPreview = computed(() => {
+  return openReportListings.value.slice(0, 2).map((item) => ({
     id: `#${item.reportId}`,
     target: resolveReportTarget(item.type),
     reason: item.title ?? '-',
@@ -226,74 +226,94 @@ const issueCards = computed(() => {
     elapsed: formatElapsed(item.createdAt),
     status: item.status ?? 'WAIT'
   }))
+})
+
+const pendingTodayCount = computed(() => {
+  const today = toDateString(new Date())
+  return pendingListings.value.filter((item) => item.createdAt?.slice?.(0, 10) === today).length
+})
+
+const buildPendingCard = (data) => ({
+  id: 'pending',
+  title: '숙소 승인 대기',
+  count: data.pendingAccommodations ?? 0,
+  tone: 'warning',
+  target: '/admin/accommodations?status=PENDING',
+  columns: [
+    { key: 'id', label: 'ID', width: '0.8fr' },
+    { key: 'name', label: '숙소명', width: '1.5fr' },
+    { key: 'date', label: '신청일', width: '1fr' },
+    { key: 'status', label: '상태', align: 'right', width: '0.9fr' }
+  ],
+  rows: pendingPreview.value,
+  emptyMeta: pendingListings.value.length ? `오늘 신규 ${pendingTodayCount.value}건` : '기간 내 신규 없음'
+})
+
+const buildReportsCard = (data) => ({
+  id: 'reports',
+  title: '미처리 신고',
+  count: data.openReports ?? 0,
+  tone: 'danger',
+  target: '/admin/reports?status=WAIT',
+  columns: [
+    { key: 'id', label: '신고ID', width: '0.9fr' },
+    { key: 'target', label: '대상', width: '1fr' },
+    { key: 'reason', label: '사유', width: '1.6fr' },
+    { key: 'date', label: '등록일', width: '1fr' },
+    { key: 'elapsed', label: '경과', width: '0.9fr' },
+    { key: 'status', label: '상태', align: 'right', width: '0.9fr' }
+  ],
+  rows: reportPreview.value,
+  emptyMeta: '기간 내 신규 없음'
+})
+
+const buildPaymentsCard = (data) => {
   const failureCount = data.paymentFailureCount ?? 0
+  return {
+    id: 'payments',
+    title: '결제 실패/취소',
+    count: failureCount,
+    tone: 'neutral',
+    target: '/admin/payments?status=failed',
+    columns: [
+      { key: 'metric', label: '구분', width: '1.6fr' },
+      { key: 'value', label: '건수', align: 'right', width: '0.8fr' }
+    ],
+    rows: failureCount > 0 ? [{ metric: '주간 합계', value: `${failureCount}건` }] : [],
+    emptyMeta: '최근 24h 신규 없음'
+  }
+}
+
+const buildRefundsCard = (data) => {
   const refundRequestCount = data.refundRequestCount ?? 0
   const refundCompletedCount = data.refundCompletedCount ?? 0
+  return {
+    id: 'refunds',
+    title: '환불 요청/완료',
+    count: refundRequestCount + refundCompletedCount,
+    tone: 'accent',
+    target: '/admin/payments?type=refund',
+    columns: [
+      { key: 'metric', label: '구분', width: '1.6fr' },
+      { key: 'value', label: '건수', align: 'right', width: '0.8fr' }
+    ],
+    rows: (refundRequestCount + refundCompletedCount) > 0
+      ? [
+          { metric: '요청', value: `${refundRequestCount}건` },
+          { metric: '완료', value: `${refundCompletedCount}건` }
+        ]
+      : [],
+    emptyMeta: '이번 기간 신규 없음'
+  }
+}
 
+const issueCards = computed(() => {
+  if (!summary.value) return []
   return [
-    {
-      id: 'pending',
-      title: '숙소 승인 대기',
-      count: data.pendingAccommodations ?? 0,
-      tone: 'warning',
-      target: '/admin/accommodations?status=PENDING',
-      columns: [
-        { key: 'id', label: 'ID', width: '0.8fr' },
-        { key: 'name', label: '숙소명', width: '1.5fr' },
-        { key: 'date', label: '신청일', width: '1fr' },
-        { key: 'status', label: '상태', align: 'right', width: '0.9fr' }
-      ],
-      rows: pendingPreview,
-      emptyMeta: pendingListings.value.length ? `오늘 신규 ${pendingToday}건` : '기간 내 신규 없음'
-    },
-    {
-      id: 'reports',
-      title: '미처리 신고',
-      count: data.openReports ?? 0,
-      tone: 'danger',
-      target: '/admin/reports?status=WAIT',
-      columns: [
-        { key: 'id', label: '신고ID', width: '0.9fr' },
-        { key: 'target', label: '대상', width: '1fr' },
-        { key: 'reason', label: '사유', width: '1.6fr' },
-        { key: 'date', label: '등록일', width: '1fr' },
-        { key: 'elapsed', label: '경과', width: '0.9fr' },
-        { key: 'status', label: '상태', align: 'right', width: '0.9fr' }
-      ],
-      rows: reportPreview,
-      emptyMeta: '기간 내 신규 없음'
-    },
-    {
-      id: 'payments',
-      title: '결제 실패/취소',
-      count: failureCount,
-      tone: 'neutral',
-      target: '/admin/payments?status=failed',
-      columns: [
-        { key: 'metric', label: '구분', width: '1.6fr' },
-        { key: 'value', label: '건수', align: 'right', width: '0.8fr' }
-      ],
-      rows: failureCount > 0 ? [{ metric: '주간 합계', value: `${failureCount}건` }] : [],
-      emptyMeta: '최근 24h 신규 없음'
-    },
-    {
-      id: 'refunds',
-      title: '환불 요청/완료',
-      count: refundRequestCount + refundCompletedCount,
-      tone: 'accent',
-      target: '/admin/payments?type=refund',
-      columns: [
-        { key: 'metric', label: '구분', width: '1.6fr' },
-        { key: 'value', label: '건수', align: 'right', width: '0.8fr' }
-      ],
-      rows: (refundRequestCount + refundCompletedCount) > 0
-        ? [
-            { metric: '요청', value: `${refundRequestCount}건` },
-            { metric: '완료', value: `${refundCompletedCount}건` }
-          ]
-        : [],
-      emptyMeta: '이번 기간 신규 없음'
-    }
+    buildPendingCard(summary.value),
+    buildReportsCard(summary.value),
+    buildPaymentsCard(summary.value),
+    buildRefundsCard(summary.value)
   ]
 })
 

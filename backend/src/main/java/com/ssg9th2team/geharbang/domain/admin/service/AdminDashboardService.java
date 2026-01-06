@@ -29,6 +29,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.DayOfWeek;
@@ -53,10 +54,12 @@ public class AdminDashboardService {
     private final ReservationJpaRepository reservationRepository;
     private final PaymentJpaRepository paymentRepository;
     private final PaymentRefundJpaRepository refundRepository;
+    private final Clock clock;
 
     public AdminDashboardSummaryResponse getDashboardSummary(LocalDate from, LocalDate to) {
-        LocalDate startDate = from != null ? from : LocalDate.now();
-        LocalDate endDate = to != null ? to : LocalDate.now();
+        LocalDate nowDate = LocalDate.now(clock);
+        LocalDate startDate = from != null ? from : nowDate;
+        LocalDate endDate = to != null ? to : nowDate;
         SummaryMetrics metrics = buildSummaryMetrics(startDate, endDate);
         long reservationCount = metrics.reservationCount;
         long paymentSuccessAmount = metrics.paymentSuccessAmount;
@@ -68,10 +71,10 @@ public class AdminDashboardService {
 
         long pendingAccommodations = accommodationRepository.count(approvalEquals(ApprovalStatus.PENDING));
         long openReports = reportRepository.count(reportStateEquals("WAIT"));
-        double pendingLeadTimeAvgDays = accommodationRepository.avgPendingLeadTimeDays();
+        double pendingLeadTimeAvgDays = accommodationRepository.avgPendingLeadTimeDays(nowDate);
         long overdueOpenReports48h = reportRepository.countByStateAndCreatedAtBefore(
                 "WAIT",
-                LocalDateTime.now().minusHours(48)
+                LocalDateTime.now(clock).minusHours(48)
         );
 
         LocalDate weekStart = endDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
@@ -126,8 +129,9 @@ public class AdminDashboardService {
     }
 
     public AdminTimeseriesResponse getTimeseries(String metric, LocalDate from, LocalDate to) {
-        LocalDate startDate = from != null ? from : LocalDate.now().minusDays(6);
-        LocalDate endDate = to != null ? to : LocalDate.now();
+        LocalDate nowDate = LocalDate.now(clock);
+        LocalDate startDate = from != null ? from : nowDate.minusDays(6);
+        LocalDate endDate = to != null ? to : nowDate;
         List<PlatformDailyStats> stats = statsRepository.findByStatDateBetweenOrderByStatDateAsc(startDate, endDate);
 
         List<AdminTimeseriesPoint> points;
@@ -145,8 +149,9 @@ public class AdminDashboardService {
     }
 
     public AdminIssueCenterResponse getIssueCenter(LocalDate from, LocalDate to) {
-        LocalDate startDate = from != null ? from : LocalDate.now();
-        LocalDate endDate = to != null ? to : LocalDate.now();
+        LocalDate nowDate = LocalDate.now(clock);
+        LocalDate startDate = from != null ? from : nowDate;
+        LocalDate endDate = to != null ? to : nowDate;
         List<PlatformDailyStats> stats = statsRepository.findByStatDateBetweenOrderByStatDateAsc(startDate, endDate);
 
         long paymentFailureCount = stats.stream()
@@ -179,7 +184,8 @@ public class AdminDashboardService {
 
     public AdminWeeklyReportResponse getWeeklyReport(int days, LocalDate from, LocalDate to) {
         int rangeDays = days > 0 ? days : 7;
-        LocalDate endDate = to != null ? to : LocalDate.now();
+        LocalDate nowDate = LocalDate.now(clock);
+        LocalDate endDate = to != null ? to : nowDate;
         LocalDate startDate = from != null ? from : endDate.minusDays(rangeDays - 1);
         List<PlatformDailyStats> stats = statsRepository.findByStatDateBetweenOrderByStatDateAsc(startDate, endDate);
         boolean statsReady = !stats.isEmpty();

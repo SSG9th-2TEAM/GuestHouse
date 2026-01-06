@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -19,11 +20,11 @@ public interface AccommodationJpaRepository extends JpaRepository<Accommodation,
     long countByLatitudeIsNullOrLongitudeIsNull();
 
     @Query(value = """
-            SELECT COALESCE(AVG(DATEDIFF(CURDATE(), created_at)), 0)
+            SELECT COALESCE(AVG(DATEDIFF(:now, DATE(created_at))), 0)
             FROM accommodation
             WHERE approval_status = 'PENDING'
             """, nativeQuery = true)
-    Double avgPendingLeadTimeDays();
+    Double avgPendingLeadTimeDays(@Param("now") java.time.LocalDate now);
 
     long countByApprovalStatusAndCreatedAtBefore(com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus status,
                                                  LocalDateTime cutoff);

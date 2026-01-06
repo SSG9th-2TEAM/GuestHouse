@@ -5,6 +5,7 @@ import AdminTableCard from '../../components/admin/AdminTableCard.vue'
 import { fetchAdminLogs } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 import { formatDateTime } from '../../utils/formatters'
+import { ADMIN_ROUTES } from '../../router/adminPaths'
 
 const logs = ref([])
 const actionFilter = ref('all')
@@ -158,10 +159,10 @@ const resolveActionVariant = (value) => actionVariantMap[value] ?? 'neutral'
 const resolveTargetLink = (item) => {
   const id = item?.targetId
   if (!id) return null
-  if (item?.targetType === 'ACC') return `/admin/accommodations?highlight=${id}`
-  if (item?.targetType === 'USER') return `/admin/users?highlight=${id}`
-  if (item?.targetType === 'PAY') return `/admin/payments?highlight=${id}`
-  if (item?.targetType === 'REVIEW') return `/admin/reports?highlight=${id}`
+  if (item?.targetType === 'ACC') return `${ADMIN_ROUTES.ACCOMMODATIONS}?highlight=${id}`
+  if (item?.targetType === 'USER') return `${ADMIN_ROUTES.USERS}?highlight=${id}`
+  if (item?.targetType === 'PAY') return `${ADMIN_ROUTES.PAYMENTS}?highlight=${id}`
+  if (item?.targetType === 'REVIEW') return `${ADMIN_ROUTES.REPORTS}?highlight=${id}`
   return null
 }
 
