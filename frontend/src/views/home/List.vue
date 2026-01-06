@@ -18,6 +18,7 @@ const items = ref([])
 const wishlistIds = ref(new Set())
 const page = ref(0)
 const totalPages = ref(1)
+const totalCount = ref(0)
 const isLoading = ref(false)
 const isLoadingMore = ref(false)
 const loadMoreTrigger = ref(null)
@@ -136,6 +137,7 @@ const loadList = async ({
       if (meta) {
         page.value = meta.number ?? pageParam
         totalPages.value = meta.totalPages ?? totalPages.value
+        totalCount.value = meta.totalElements ?? 0
       }
     } else {
       console.error('Failed to load list', response.status)
@@ -264,11 +266,11 @@ watch(
 <template>
   <main class="container main-content">
     <div class="header">
-      <h1>숙소 목록</h1>
+      <h1>검색결과 {{ totalCount }}건</h1>
       <button class="filter-btn" @click="isFilterModalOpen = !isFilterModalOpen"><span class="icon">🔍</span>필터</button>
     </div>
 
-    <div class="list-container">
+    <div class="list-container" v-if="filteredItems.length > 0">
       <GuesthouseCard
         v-for="item in filteredItems"
         :key="item.id"
@@ -285,6 +287,18 @@ watch(
         @click="router.push(`/room/${item.id}`)"
         class="list-item"
       />
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" v-else-if="!isLoading && filteredItems.length === 0">
+      <div class="empty-icon-wrapper">
+        <span class="empty-icon">🧐</span>
+      </div>
+      <h2 class="empty-title">조건에 맞는 숙소를 찾을 수 없어요</h2>
+      <p class="empty-description">
+        <span>적용한 필터를 변경하거나</span>
+        <span>다른 검색어로 다시 시도해보세요.</span>
+      </p>
     </div>
 
     <div ref="loadMoreTrigger" class="list-footer list-footer--observer" v-if="hasMore">
@@ -332,7 +346,7 @@ watch(
 }
 
 .header h1 {
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--text-main);
   margin: 0;
@@ -434,5 +448,62 @@ watch(
 
 .map-floating-btn .icon {
   font-size: 1.1rem;
+}
+
+/* Empty State Styles */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6rem 1rem;
+  text-align: center;
+  min-height: 400px;
+}
+
+.empty-icon-wrapper {
+  width: 80px;
+  height: 80px;
+  background-color: #f3f4f6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.empty-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.empty-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 0.75rem 0;
+  word-break: keep-all;
+}
+
+.empty-description {
+  font-size: 0.95rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.6;
+  word-break: keep-all;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+@media (min-width: 480px) {
+  .empty-description {
+    display: block;
+  }
+  
+  .empty-description span {
+    display: inline-block;
+    margin: 0 0.2rem;
+  }
 }
 </style>
