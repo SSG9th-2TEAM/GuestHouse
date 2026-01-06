@@ -52,8 +52,7 @@ public class MainController {
     public Map<Long, MainAccommodationListResponse> listBulk(
             Authentication authentication,
             @RequestParam(name = "themeIds") List<Long> themeIds,
-            @RequestParam(name = "keyword", required = false) String keyword
-    ) {
+            @RequestParam(name = "keyword", required = false) String keyword) {
         Long userId = null;
         if (authentication != null && authentication.isAuthenticated()) {
             String userEmail = authentication.getName();
@@ -61,17 +60,13 @@ public class MainController {
                     .map(com.ssg9th2team.geharbang.domain.auth.entity.User::getId)
                     .orElse(null);
         }
-        Map<Long, MainAccommodationListResponse> result = new LinkedHashMap<>();
-        if (themeIds == null) {
-            return result;
+
+        if (themeIds == null || themeIds.isEmpty()) {
+            return new LinkedHashMap<>();
         }
-        for (Long themeId : themeIds) {
-            if (themeId == null) {
-                continue;
-            }
-            result.put(themeId, mainService.getMainAccommodationList(userId, List.of(themeId), keyword));
-        }
-        return result;
+
+        // 최적화된 벌크 조회 사용 (기존: 테마별 순차 조회 -> 신규: 한 번에 조회 후 그룹핑)
+        return mainService.getMainAccommodationListBulk(userId, themeIds, keyword);
     }
 
     @GetMapping("/detail/{accommodationsId}")
@@ -82,18 +77,16 @@ public class MainController {
     @GetMapping("/detail/{accommodationsId}/availability")
     public AvailableRoomResponse availableRooms(
             @PathVariable Long accommodationsId,
-            @RequestParam(name = "checkin", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkin,
-            @RequestParam(name = "checkout", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkout,
-            @RequestParam(name = "guestCount", required = false) Integer guestCount
-    ) {
+            @RequestParam(name = "checkin", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkin,
+            @RequestParam(name = "checkout", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkout,
+            @RequestParam(name = "guestCount", required = false) Integer guestCount) {
         if (checkin == null || checkout == null || !checkout.isAfter(checkin)) {
             return AvailableRoomResponse.of(List.of());
         }
         LocalDateTime checkinAt = checkin.atTime(15, 0);
         LocalDateTime checkoutAt = checkout.atTime(11, 0);
-        List<Long> roomIds = roomJpaRepository.findAvailableRoomIds(accommodationsId, checkinAt, checkoutAt, guestCount);
+        List<Long> roomIds = roomJpaRepository.findAvailableRoomIds(accommodationsId, checkinAt, checkoutAt,
+                guestCount);
         return AvailableRoomResponse.of(roomIds);
     }
 }

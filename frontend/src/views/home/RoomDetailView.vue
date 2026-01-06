@@ -12,6 +12,7 @@ import { isAuthenticated } from '@/api/authClient'
 import ImageGallery from './room-detail/features/ImageGallery.vue'
 import ReviewSection from './room-detail/features/ReviewSection.vue'
 import MapSection from './room-detail/features/MapSection.vue'
+import DetailSkeleton from '@/components/DetailSkeleton.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -238,6 +239,7 @@ const isCouponModalOpen = ref(false)
 const downloadedCouponIds = ref(new Set())
 const themeCatalog = ref([])
 const isThemeCatalogLoading = ref(false)
+const isDataLoading = ref(true)
 
 const canBook = computed(() => {
   return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
@@ -441,9 +443,11 @@ const loadAccommodation = async () => {
   const accommodationsId = getAccommodationId()
   if (!accommodationsId) {
     guesthouse.value = createEmptyGuesthouse()
+    isDataLoading.value = false
     return
   }
 
+  isDataLoading.value = true
   selectedRoom.value = null
   availableRoomIds.value = null
   isAvailabilityLoading.value = false
@@ -489,6 +493,8 @@ const loadAccommodation = async () => {
   } catch (error) {
     console.error('Failed to load accommodation detail', error)
     guesthouse.value = createEmptyGuesthouse(accommodationsId)
+  } finally {
+    isDataLoading.value = false
   }
 }
 
@@ -727,6 +733,11 @@ watch(filteredRooms, (rooms) => {
       <button class="back-btn" @click="goBack">← 뒤로가기</button>
     </div>
 
+    <!-- 스켈레톤 로딩 UI -->
+    <DetailSkeleton v-if="isDataLoading" />
+
+    <!-- 실제 컨텐츠 -->
+    <template v-else>
     <!-- Image Grid -->
     <ImageGallery :images="guesthouse.images" :name="guesthouse.name" />
 
@@ -1088,6 +1099,7 @@ watch(filteredRooms, (rooms) => {
         <button class="close-modal-btn" @click="isCouponModalOpen = false">닫기</button>
       </div>
     </div>
+    </template>
   </div>
 </template>
 

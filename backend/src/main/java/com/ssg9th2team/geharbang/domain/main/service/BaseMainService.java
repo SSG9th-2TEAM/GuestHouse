@@ -33,7 +33,8 @@ public class BaseMainService implements MainService {
     private static final int RECOMMENDATION_LIMIT = 5; // 최대 추천 숙소 개수
 
     @Override
-    public MainAccommodationListResponse getMainAccommodationList(Long userId, List<Long> filterThemeIds, String keyword) {
+    public MainAccommodationListResponse getMainAccommodationList(Long userId, List<Long> filterThemeIds,
+            String keyword) {
         List<ListDto> recommendedAccommodations = new ArrayList<>();
         List<ListDto> generalAccommodations = new ArrayList<>();
 
@@ -41,7 +42,8 @@ public class BaseMainService implements MainService {
         String normalizedKeyword = normalizeKeyword(keyword);
 
         if (filterThemeIds != null && !filterThemeIds.isEmpty()) {
-            List<Accommodation> filteredAccommodations = loadApprovedAccommodationsByTheme(filterThemeIds, normalizedKeyword);
+            List<Accommodation> filteredAccommodations = loadApprovedAccommodationsByTheme(filterThemeIds,
+                    normalizedKeyword);
             generalAccommodations = toListDtos(filteredAccommodations);
         } else if (!userThemeIds.isEmpty()) {
             List<Accommodation> approvedAccommodations = loadApprovedAccommodations(normalizedKeyword);
@@ -67,7 +69,6 @@ public class BaseMainService implements MainService {
                 .generalAccommodations(generalAccommodations)
                 .build();
     }
-
 
     private String normalizeKeyword(String keyword) {
         if (keyword == null) {
@@ -114,7 +115,8 @@ public class BaseMainService implements MainService {
                 .collect(Collectors.toSet());
     }
 
-    private List<ListDto> getRecommendedAccommodations(List<Accommodation> allApprovedAccommodations, Set<Long> userThemeIds) {
+    private List<ListDto> getRecommendedAccommodations(List<Accommodation> allApprovedAccommodations,
+            Set<Long> userThemeIds) {
         if (userThemeIds.isEmpty()) {
             return Collections.emptyList();
         }
@@ -126,18 +128,21 @@ public class BaseMainService implements MainService {
         List<Long> allAccommodationIds = allApprovedAccommodations.stream()
                 .map(Accommodation::getAccommodationsId)
                 .toList();
-        List<AccommodationTheme> allAccommodationThemes = accommodationThemeRepository.findByAccommodationIds(allAccommodationIds);
+        List<AccommodationTheme> allAccommodationThemes = accommodationThemeRepository
+                .findByAccommodationIds(allAccommodationIds);
 
         // 숙소별 테마 매칭 점수 계산
         Map<Long, Integer> accommodationScores = new HashMap<>();
         Map<Long, Set<Long>> accommodationToThemes = new HashMap<>();
 
         for (AccommodationTheme at : allAccommodationThemes) {
-            accommodationToThemes.computeIfAbsent(at.getAccommodation().getAccommodationsId(), k -> new HashSet<>()).add(at.getTheme().getId());
+            accommodationToThemes.computeIfAbsent(at.getAccommodation().getAccommodationsId(), k -> new HashSet<>())
+                    .add(at.getTheme().getId());
         }
 
         for (Accommodation acc : allApprovedAccommodations) {
-            Set<Long> themesOfAccommodation = accommodationToThemes.getOrDefault(acc.getAccommodationsId(), Collections.emptySet());
+            Set<Long> themesOfAccommodation = accommodationToThemes.getOrDefault(acc.getAccommodationsId(),
+                    Collections.emptySet());
             int score = 0;
             for (Long userThemeId : userThemeIds) {
                 if (themesOfAccommodation.contains(userThemeId)) {
@@ -183,10 +188,8 @@ public class BaseMainService implements MainService {
                 .collect(Collectors.toMap(
                         AccommodationGuestStats::getAccommodationsId,
                         stats -> stats.getMaxGuests() != null ? stats.getMaxGuests() : 0,
-                        (existing, ignored) -> existing
-                ));
+                        (existing, ignored) -> existing));
     }
-
 
     private Map<Long, String> loadRepresentativeImages(List<Accommodation> accommodations) {
         if (accommodations.isEmpty()) {
@@ -200,11 +203,11 @@ public class BaseMainService implements MainService {
                 .collect(Collectors.toMap(
                         AccommodationImageProjection::getAccommodationsId,
                         AccommodationImageProjection::getImageUrl,
-                        (existing, ignored) -> existing
-                ));
+                        (existing, ignored) -> existing));
     }
 
-    private ListDto toListDto(Accommodation accommodation, Map<Long, String> imageById, Map<Long, Integer> maxGuestsById) {
+    private ListDto toListDto(Accommodation accommodation, Map<Long, String> imageById,
+            Map<Long, Integer> maxGuestsById) {
         return ListDto.builder()
                 .accommodationsId(accommodation.getAccommodationsId())
                 .accommodationsName(accommodation.getAccommodationsName())
@@ -220,5 +223,78 @@ public class BaseMainService implements MainService {
                 .maxGuests(maxGuestsById.getOrDefault(accommodation.getAccommodationsId(), 0))
                 .imageUrl(imageById.get(accommodation.getAccommodationsId()))
                 .build();
+    }
+
+    /**
+     * 벌크 조회 최적화 - 모든 테마의 숙소를 한 번에 조회 후 테마별로 그룹핑
+     * 기존: 테마 8개 -> DB 쿼리 24-32회
+     * 최적화: 테마 8개 -> DB 쿼리 3-4회
+     */
+    @Override
+    public Map<Long, MainAccommodationListResponse> getMainAccommodationListBulk(Long userId, List<Long> themeIds,
+            String keyword) {
+        Map<Long, MainAccommodationListResponse> result = new LinkedHashMap<>();
+
+        if (themeIds == null || themeIds.isEmpty()) {
+            return result;
+        }
+
+        String normalizedKeyword = normalizeKeyword(keyword);
+
+        // 1. 모든 테마에 해당하는 숙소를 한 번에 조회
+        List<Accommodation> allAccommodations = loadApprovedAccommodationsByTheme(themeIds, normalizedKeyword);
+
+        if (allAccommodations.isEmpty()) {
+            for (Long themeId : themeIds) {
+                result.put(themeId, MainAccommodationListResponse.builder()
+                        .recommendedAccommodations(Collections.emptyList())
+                        .generalAccommodations(Collections.emptyList())
+                        .build());
+            }
+            return result;
+        }
+
+        // 2. 이미지와 최대 손님 수를 벌크로 조회
+        Map<Long, String> imageById = loadRepresentativeImages(allAccommodations);
+        Map<Long, Integer> maxGuestsById = loadMaxGuests(allAccommodations);
+
+        // 3. 숙소-테마 매핑 정보 조회
+        List<Long> allAccommodationIds = allAccommodations.stream()
+                .map(Accommodation::getAccommodationsId)
+                .toList();
+        List<AccommodationTheme> allAccommodationThemes = accommodationThemeRepository
+                .findByAccommodationIds(allAccommodationIds);
+
+        // 4. 테마별 숙소 매핑 생성
+        Map<Long, Set<Long>> themeToAccommodationIds = new HashMap<>();
+        for (AccommodationTheme at : allAccommodationThemes) {
+            Long themeId = at.getTheme().getId();
+            Long accId = at.getAccommodation().getAccommodationsId();
+            themeToAccommodationIds.computeIfAbsent(themeId, k -> new HashSet<>()).add(accId);
+        }
+
+        // 5. 숙소 ID -> 숙소 객체 매핑
+        Map<Long, Accommodation> accommodationById = allAccommodations.stream()
+                .collect(Collectors.toMap(Accommodation::getAccommodationsId, acc -> acc, (a, b) -> a));
+
+        // 6. 각 테마별로 결과 생성
+        for (Long themeId : themeIds) {
+            Set<Long> accIds = themeToAccommodationIds.getOrDefault(themeId, Collections.emptySet());
+            List<Accommodation> themeAccommodations = accIds.stream()
+                    .map(accommodationById::get)
+                    .filter(Objects::nonNull)
+                    .toList();
+
+            List<ListDto> generalAccommodations = themeAccommodations.stream()
+                    .map(acc -> toListDto(acc, imageById, maxGuestsById))
+                    .toList();
+
+            result.put(themeId, MainAccommodationListResponse.builder()
+                    .recommendedAccommodations(Collections.emptyList())
+                    .generalAccommodations(generalAccommodations)
+                    .build());
+        }
+
+        return result;
     }
 }
