@@ -542,24 +542,25 @@ watch(
 
     <div v-if="selectedItem" class="map-card">
       <button class="map-card-close" type="button" @click="closeCard" aria-label="닫기">×</button>
-      <button
-        class="map-card-favorite"
-        :class="{ 'map-card-favorite--active': isSelectedFavorite }"
-        type="button"
-        :aria-pressed="isSelectedFavorite"
-        aria-label="위시리스트"
-        @click.stop="toggleWishlist(selectedItem.id)"
-      >
-        <span v-if="isSelectedFavorite">&#9829;</span>
-        <span v-else>&#9825;</span>
-      </button>
       <div class="map-card-content" @click="goToDetail(selectedItem.id)">
-        <img
-          v-if="selectedItem.imageUrl"
-          :src="selectedItem.imageUrl"
-          :alt="selectedItem.title"
-          class="map-card-image"
-        />
+        <div v-if="selectedItem.imageUrl" class="map-card-image">
+          <img
+            :src="selectedItem.imageUrl"
+            :alt="selectedItem.title"
+            class="map-card-image__img"
+          />
+          <button
+            class="map-card-favorite"
+            :class="{ 'map-card-favorite--active': isSelectedFavorite }"
+            type="button"
+            :aria-pressed="isSelectedFavorite"
+            aria-label="위시리스트"
+            @click.stop="toggleWishlist(selectedItem.id)"
+          >
+            <span v-if="isSelectedFavorite">&#9829;</span>
+            <span v-else>&#9825;</span>
+          </button>
+        </div>
         <div class="map-card-body">
           <div class="map-card-title">{{ selectedItem.title }}</div>
           <div class="map-card-location">{{ selectedItem.location }}</div>
@@ -728,12 +729,20 @@ watch(
 }
 
 .map-card-image {
+  position: relative;
   width: 112px;
   height: 112px;
   border-radius: 12px;
-  object-fit: cover;
+  overflow: hidden;
   flex-shrink: 0;
   background: #f3f4f6;
+}
+
+.map-card-image__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .map-card-body {
@@ -828,8 +837,8 @@ watch(
 
 .map-card-favorite {
   position: absolute;
-  top: 8px;
-  right: 44px;
+  top: 4px;
+  right: 4px;
   width: 30px;
   height: 30px;
   border: none;
