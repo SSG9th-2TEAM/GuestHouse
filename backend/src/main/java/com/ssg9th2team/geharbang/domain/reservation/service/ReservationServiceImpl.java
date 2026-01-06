@@ -1,14 +1,19 @@
 package com.ssg9th2team.geharbang.domain.reservation.service;
 
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
+import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
+import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
+import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationRequestDto;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationResponseDto;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
-import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
+import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,13 +30,13 @@ import java.util.stream.Collectors;
 public class ReservationServiceImpl implements ReservationService {
 
         private final ReservationJpaRepository reservationRepository;
-        private final com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository accommodationRepository;
-        private final com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper accommodationMapper;
+        private final AccommodationJpaRepository accommodationRepository;
+        private final AccommodationMapper accommodationMapper;
         private final UserRepository userRepository;
         private final ReviewJpaRepository reviewJpaRepository;
         private final PaymentService paymentService;
-        private final com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository roomJpaRepository;
-        private final com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository paymentRepository;
+        private final RoomJpaRepository roomJpaRepository;
+        private final PaymentJpaRepository paymentRepository;
 
         @Override
         @Transactional
@@ -133,7 +138,7 @@ public class ReservationServiceImpl implements ReservationService {
                 Reservation reservation = reservationRepository.findById(reservationId)
                                 .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
 
-                com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation accommodation = accommodationRepository
+                Accommodation accommodation = accommodationRepository
                                 .findById(reservation.getAccommodationsId())
                                 .orElseThrow(() -> new IllegalArgumentException(
                                                 "숙소를 찾을 수 없습니다: " + reservation.getAccommodationsId()));
@@ -143,7 +148,7 @@ public class ReservationServiceImpl implements ReservationService {
 
                 // Payment에서 paymentMethod 조회
                 String paymentMethod = paymentRepository.findByReservationId(reservationId)
-                                .map(com.ssg9th2team.geharbang.domain.payment.entity.Payment::getPaymentMethod)
+                                .map(Payment::getPaymentMethod)
                                 .orElse(null);
 
                 return ReservationResponseDto.from(reservation, accommodation.getAccommodationsName(), address, null,

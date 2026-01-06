@@ -203,7 +203,15 @@ onMounted(() => {
         </div>
 
         <div v-else class="card-list">
-          <div v-for="item in upcomingReservations" :key="item.reservationId" class="res-card clickable" @click="handleUpcomingClick(item)">
+          <div 
+            v-for="item in upcomingReservations" 
+            :key="item.reservationId" 
+            class="res-card clickable" 
+            role="link"
+            tabindex="0"
+            @click="handleUpcomingClick(item)"
+            @keydown.enter="handleUpcomingClick(item)"
+          >
             <div class="card-content">
               <img
                   :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
@@ -245,7 +253,15 @@ onMounted(() => {
         </div>
 
         <div v-else class="card-list">
-          <div v-for="item in pastReservations" :key="item.reservationId" class="res-card clickable" @click="handlePastClick(item)">
+          <div 
+            v-for="item in pastReservations" 
+            :key="item.reservationId" 
+            class="res-card clickable" 
+            role="link"
+            tabindex="0"
+            @click="handlePastClick(item)"
+            @keydown.enter="handlePastClick(item)"
+          >
             <div class="card-content">
               <img
                   :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
