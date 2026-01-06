@@ -710,6 +710,14 @@ const handleUpdate = async () => {
 
         if (response.ok) {
             updateSuccess.value = true
+            try {
+                const raw = sessionStorage.getItem('hostResubmitMap')
+                const map = raw ? JSON.parse(raw) : {}
+                map[String(accommodationId)] = Date.now()
+                sessionStorage.setItem('hostResubmitMap', JSON.stringify(map))
+            } catch (e) {
+                console.warn('Failed to store resubmit timestamp', e)
+            }
             openModal('숙소 정보가 수정되었습니다.')
         } else if (response.status === 401) {
             // Token Expired
@@ -3030,4 +3038,3 @@ input[type="number"]:focus {
   border: 1px solid #e0e0e0;
 }
 </style>
-

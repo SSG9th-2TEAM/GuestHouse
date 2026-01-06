@@ -3,9 +3,9 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchHostBookings, fetchHostBookingCalendar, fetchRefundQuote } from '@/api/hostBooking'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
-import { deriveHostState } from '@/composables/useHostState'
+import { deriveHostGateInfo, buildHostGateNotice } from '@/composables/useHostState'
 import { formatCurrency, formatDate, formatDateRange, formatDateTime } from '@/utils/formatters'
-import HostPendingLock from '@/components/host/HostPendingLock.vue'
+import HostGateNotice from '@/components/host/HostGateNotice.vue'
 import ReservationCard from '@/components/host/ReservationCard.vue'
 
 const bookings = ref([])
@@ -20,9 +20,16 @@ const totalElements = ref(0)
 const cursorNext = ref(null)
 const hasNextCursor = ref(false)
 const loadMoreLoading = ref(false)
-const hostState = ref('loading')
-const hostCounts = ref({ total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 })
-const pendingOnly = computed(() => hostState.value === 'pending-only')
+const hostGateInfo = ref({
+  hostState: 'loading',
+  counts: { total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 },
+  rejectedReason: '',
+  recheckReason: ''
+})
+const hostState = computed(() => hostGateInfo.value.hostState)
+const canUseHostFeatures = computed(() => hostGateInfo.value.gateState === 'APPROVED')
+const gateVisible = computed(() => !canUseHostFeatures.value && hostState.value !== 'loading')
+const gateNotice = computed(() => buildHostGateNotice(hostGateInfo.value))
 
 const statusColor = {
   요청: 'badge-gray',
@@ -502,7 +509,7 @@ const filteredBookings = computed(() => {
 const calendarLegend = computed(() => '표시된 건수는 해당 날짜에 포함된 예약 수입니다.')
 
 const loadBookings = async () => {
-  if (pendingOnly.value) return
+  if (!canUseHostFeatures.value) return
   const params = buildBookingParams()
   if (params === null) {
     bookings.value = []
@@ -546,7 +553,7 @@ const loadBookings = async () => {
 }
 
 const loadMoreBookings = async () => {
-  if (pendingOnly.value || loadMoreLoading.value || !cursorNext.value) return
+  if (!canUseHostFeatures.value || loadMoreLoading.value || !cursorNext.value) return
   const params = buildBookingParams()
   if (params === null) return
   loadMoreLoading.value = true
@@ -580,7 +587,7 @@ const goToPage = (nextPage) => {
 }
 
 const loadCalendar = async (month) => {
-  if (pendingOnly.value) return
+  if (!canUseHostFeatures.value) return
   const response = await fetchHostBookingCalendar(month)
   if (response.ok) {
     const { items } = extractListPayload(response.data)
@@ -600,11 +607,14 @@ const loadHostState = async () => {
     const list = Array.isArray(payload)
       ? payload
       : payload?.items ?? payload?.content ?? payload?.data ?? []
-    const snapshot = deriveHostState(list)
-    hostState.value = snapshot.hostState
-    hostCounts.value = snapshot.counts
+    hostGateInfo.value = deriveHostGateInfo(list)
   } else {
-    hostState.value = 'empty'
+    hostGateInfo.value = {
+      hostState: 'empty',
+      counts: { total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 },
+      rejectedReason: '',
+      recheckReason: ''
+    }
   }
 }
 
@@ -622,7 +632,7 @@ onMounted(async () => {
     selectedSort.value = 'checkin'
   }
   await loadHostState()
-  if (!pendingOnly.value) {
+  if (canUseHostFeatures.value) {
     await loadBookings()
     await loadCalendar(toMonthParam(currentMonth.value))
   }
@@ -630,7 +640,7 @@ onMounted(async () => {
 
 watch(currentMonth, (value) => {
   selectedDate.value = null
-  if (!pendingOnly.value) {
+  if (canUseHostFeatures.value) {
     loadCalendar(toMonthParam(value))
   }
 })
@@ -757,15 +767,15 @@ const setView = (view) => {
 
 <template>
   <div class="booking-page">
-    <HostPendingLock
-      v-if="pendingOnly"
-      title="승인 후 예약 관리를 할 수 있어요"
-      description="숙소 승인 완료 후 예약 목록과 체크인/체크아웃 관리가 활성화됩니다."
-      primary-cta-text="숙소 관리"
-      primary-cta-to="/host/accommodation"
-      secondary-cta-text="추가 등록"
-      secondary-cta-to="/host/accommodation/register"
-      :badge-text="`검수중 ${hostCounts.pending}건`"
+    <HostGateNotice
+      v-if="gateVisible"
+      :title="gateNotice.title"
+      :description="gateNotice.description"
+      :reason="gateNotice.reason"
+      :primary-text="gateNotice.primaryText"
+      :primary-to="gateNotice.primaryTo"
+      :secondary-text="gateNotice.secondaryText"
+      :secondary-to="gateNotice.secondaryTo"
     />
 
     <template v-else>

@@ -61,17 +61,7 @@ public class MainController {
                     .map(com.ssg9th2team.geharbang.domain.auth.entity.User::getId)
                     .orElse(null);
         }
-        Map<Long, MainAccommodationListResponse> result = new LinkedHashMap<>();
-        if (themeIds == null) {
-            return result;
-        }
-        for (Long themeId : themeIds) {
-            if (themeId == null) {
-                continue;
-            }
-            result.put(themeId, mainService.getMainAccommodationList(userId, List.of(themeId), keyword));
-        }
-        return result;
+        return mainService.getMainAccommodationListBulk(userId, themeIds, keyword);
     }
 
     @GetMapping("/detail/{accommodationsId}")

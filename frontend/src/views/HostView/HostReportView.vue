@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
+import { deriveHostGateInfo, buildHostGateNotice } from '@/composables/useHostState'
+import HostGateNotice from '@/components/host/HostGateNotice.vue'
 import { getAccessToken, getCurrentUser, getUserInfo, saveUserInfo } from '@/api/authClient'
 import {
   fetchHostReviewReportSummary,
@@ -106,6 +108,11 @@ const forecastError = ref('')
 const forecastReport = ref(null)
 const forecastViewMode = ref('table')
 const isDesktop = ref(false)
+
+const hostGateInfo = computed(() => deriveHostGateInfo(accommodations.value))
+const canUseHostFeatures = computed(() => hostGateInfo.value.gateState === 'APPROVED')
+const gateVisible = computed(() => !canUseHostFeatures.value && hostGateInfo.value.hostState !== 'loading')
+const gateNotice = computed(() => buildHostGateNotice(hostGateInfo.value))
 
 const reviewRatingEntries = computed(() => {
   const distribution = reviewSummary.value?.ratingDistribution || {}
@@ -319,6 +326,7 @@ const loadAccommodations = async () => {
 }
 
 const loadReviewReport = async () => {
+  if (!canUseHostFeatures.value) return
   reviewLoading.value = true
   reviewError.value = ''
   const params = {
@@ -381,6 +389,7 @@ const loadAiSummary = async () => {
 }
 
 const loadThemeReport = async () => {
+  if (!canUseHostFeatures.value) return
   themeLoading.value = true
   themeError.value = ''
   const params = {
@@ -401,6 +410,7 @@ const loadThemeReport = async () => {
 }
 
 const loadForecast = async () => {
+  if (!canUseHostFeatures.value) return
   forecastLoading.value = true
   forecastError.value = ''
   const params = {
@@ -435,10 +445,6 @@ onMounted(async () => {
       saveUserInfo(response.data)
       userInfo.value = response.data
     }
-  }
-  if (!isHostUser.value) {
-    router.replace('/host')
-    return
   }
   if (typeof window !== 'undefined') {
     const media = window.matchMedia('(min-width: 768px)')
@@ -486,38 +492,49 @@ watch(forecastFilters, () => {
 </script>
 
 <template>
-  <section class="report-view" v-if="authReady && isHostUser">
-    <header class="host-view-header">
-      <div>
-        <h2 class="host-title">리포트</h2>
-        <p class="host-subtitle">리뷰/테마/수요 흐름을 한눈에 확인하세요.</p>
+  <section class="report-view" v-if="authReady">
+    <HostGateNotice
+      v-if="gateVisible"
+      :title="gateNotice.title"
+      :description="gateNotice.description"
+      :reason="gateNotice.reason"
+      :primary-text="gateNotice.primaryText"
+      :primary-to="gateNotice.primaryTo"
+      :secondary-text="gateNotice.secondaryText"
+      :secondary-to="gateNotice.secondaryTo"
+    />
+
+    <template v-else>
+      <header class="host-view-header">
+        <div>
+          <h2 class="host-title">리포트</h2>
+          <p class="host-subtitle">리뷰/테마/수요 흐름을 한눈에 확인하세요.</p>
+        </div>
+        <p v-if="accommodationLoading" class="host-subtitle">숙소 불러오는 중...</p>
+        <p v-else-if="accommodationError" class="error-text">{{ accommodationError }}</p>
+      </header>
+      <div class="context-bar">
+        <p class="context-text">{{ contextSummaryText }}</p>
+        <div class="context-chips">
+          <span v-if="topTagLabel !== '데이터 없음'" class="tag-chip">대표 태그: {{ topTagLabel }}</span>
+          <span class="tag-chip">기간: {{ reviewFilters.from }} ~ {{ reviewFilters.to }}</span>
+        </div>
       </div>
-      <p v-if="accommodationLoading" class="host-subtitle">숙소 불러오는 중...</p>
-      <p v-else-if="accommodationError" class="error-text">{{ accommodationError }}</p>
-    </header>
 
-    <div class="context-bar">
-      <p class="context-text">{{ contextSummaryText }}</p>
-      <div class="context-chips">
-        <span v-if="topTagLabel !== '데이터 없음'" class="tag-chip">대표 태그: {{ topTagLabel }}</span>
-        <span class="tag-chip">기간: {{ reviewFilters.from }} ~ {{ reviewFilters.to }}</span>
+      <div class="report-tabs" role="tablist">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          type="button"
+          class="report-tab"
+          :class="{ active: activeTab === tab.id }"
+          @click="activeTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
       </div>
-    </div>
 
-    <div class="report-tabs" role="tablist">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        type="button"
-        class="report-tab"
-        :class="{ active: activeTab === tab.id }"
-        @click="activeTab = tab.id"
-      >
-        {{ tab.label }}
-      </button>
-    </div>
-
-    <section v-if="activeTab === 'reviews'" class="report-section">
+      <section v-if="activeTab === 'reviews'" class="report-section">
       <div class="filter-card">
         <div class="filter-title">필터</div>
         <div class="filters filters-grid">
@@ -716,9 +733,9 @@ watch(forecastFilters, () => {
           </div>
         </div>
       </div>
-    </section>
+      </section>
 
-    <section v-else-if="activeTab === 'themes'" class="report-section">
+      <section v-else-if="activeTab === 'themes'" class="report-section">
       <div class="theme-section-wrap">
         <div class="theme-layout">
           <aside class="filter-card theme-filter">
@@ -880,9 +897,9 @@ watch(forecastFilters, () => {
           </div>
         </div>
       </div>
-    </section>
+      </section>
 
-    <section v-else class="report-section">
+      <section v-else class="report-section">
       <div class="filter-card">
         <div class="filter-title">필터</div>
         <div class="filters filters-grid">
@@ -1025,7 +1042,8 @@ watch(forecastFilters, () => {
           </div>
         </div>
       </div>
-    </section>
+      </section>
+    </template>
   </section>
   <section v-else class="report-view">
     <div class="loading-box">권한을 확인하는 중입니다...</div>

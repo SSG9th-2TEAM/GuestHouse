@@ -108,7 +108,7 @@ const getPaymentMethodName = (method) => {
     '토스페이': '토스페이',
     '토스결제': '토스페이'
   }
-  return methodNames[method] || method || '카드'
+  return methodNames[method] || method
 }
 
 const goHome = () => router.replace('/')

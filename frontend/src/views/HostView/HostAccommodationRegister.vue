@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { getAccessToken } from '../../api/authClient'
+import { getAccessToken, getCurrentUser, saveUserInfo } from '../../api/authClient'
 
 const router = useRouter()
 const emit = defineEmits(['cancel', 'submit'])
@@ -1006,6 +1006,11 @@ const handleSubmit = async () => {
 
       // 임시 저장 데이터 삭제
       sessionStorage.removeItem('accommodationDraft')
+
+      const meResponse = await getCurrentUser()
+      if (meResponse.ok && meResponse.data) {
+        saveUserInfo(meResponse.data)
+      }
 
       registrationSuccess.value = true
       openModal('숙소가 성공적으로 등록되었습니다.')

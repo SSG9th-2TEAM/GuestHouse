@@ -235,10 +235,30 @@ const emptyMessage = computed(() => {
 
 const normalizeAccommodation = (item) => {
   const statusSource = item.approvalStatus ?? item.status ?? item.accommodationStatus ?? item.reviewStatus
+  const readResubmitMap = () => {
+    try {
+      const raw = sessionStorage.getItem('hostResubmitMap')
+      return raw ? JSON.parse(raw) : {}
+    } catch {
+      return {}
+    }
+  }
+  const resubmitMap = typeof window !== 'undefined' ? readResubmitMap() : {}
+  const resubmitWindowMs = 24 * 60 * 60 * 1000
+  const id = item.accommodationsId ?? item.accommodationId ?? item.id
+  const isResubmittedRecently = () => {
+    const timestamp = resubmitMap[String(id)]
+    if (!timestamp) return false
+    return Date.now() - Number(timestamp) <= resubmitWindowMs
+  }
+  let normalizedStatus = normalizeApprovalStatus(statusSource)
+  if (normalizedStatus === 'rejected' && isResubmittedRecently()) {
+    normalizedStatus = 'pending'
+  }
   return {
-    id: item.accommodationsId ?? item.accommodationId ?? item.id ?? `${item.name ?? 'acc'}-${Math.random()}`,
+    id: id ?? `${item.name ?? 'acc'}-${Math.random()}`,
     name: item.accommodationsName ?? item.name ?? '',
-    approvalStatus: normalizeApprovalStatus(statusSource),
+    approvalStatus: normalizedStatus,
     rejectReason: item.rejectReason ?? item.rejectionReason ?? item.approvalReason ?? item.reason ?? ''
   }
 }
@@ -252,6 +272,10 @@ const pendingOnly = computed(() => hostStateSnapshot.value.hostState === 'pendin
 
 const rejectedItem = computed(() =>
   accommodations.value.find((item) => item.approvalStatus === 'rejected')
+)
+
+const recheckItem = computed(() =>
+  accommodations.value.find((item) => item.approvalStatus === 'pending' && item.rejectReason)
 )
 
 const rejectedReasonText = computed(() => {
@@ -270,11 +294,6 @@ const hostState = computed(() => {
 
 const goToRegister = () => router.push('/host/accommodation/register')
 const goToManage = () => router.push('/host/accommodation')
-
-const syncNavVisibility = (state) => {
-  if (typeof document === 'undefined') return
-  document.body.classList.toggle('host-nav-locked', state === 'empty' || state === 'rejected')
-}
 
 const goTo = (path) => {
   if (path) router.push(path)
@@ -443,10 +462,6 @@ onUnmounted(() => {
   }
 })
 
-watch(hostState, (value) => {
-  syncNavVisibility(value)
-}, { immediate: true })
-
 watch(selectedPeriod, () => {
   loadDashboard()
 })
@@ -454,19 +469,21 @@ watch(selectedPeriod, () => {
 
 <template>
   <div class="dashboard-home">
-    <section v-if="hostState === 'empty' || hostState === 'rejected'" class="host-state">
+    <section v-if="hostState === 'empty' || hostState === 'rejected' || hostState === 'pending-only'" class="host-state">
       <div class="state-card host-card">
         <div class="state-icon">
           <NavStay />
         </div>
         <div class="state-text">
           <h3 v-if="hostState === 'empty'">숙소를 등록하세요!</h3>
-          <h3 v-else-if="hostState === 'pending-only'">숙소 심사중이에요</h3>
+          <h3 v-else-if="hostState === 'pending-only'">
+            {{ recheckItem ? '숙소 재검토중이에요' : '숙소 심사중이에요' }}
+          </h3>
           <h3 v-else-if="hostState === 'rejected'">숙소 심사가 반려되었어요</h3>
           <h3 v-else>숙소 상태를 확인 중이에요</h3>
           <p v-if="hostState === 'empty'">숙소를 등록하면 예약/매출뿐 아니라 리뷰, 일정, 통계까지 한 곳에서 관리할 수 있어요.</p>
           <p v-else-if="hostState === 'pending-only'">
-            등록하신 숙소를 확인하고 있어요. 평균 영업일 1~2일 내에 결과를 안내합니다.
+            {{ recheckItem ? `이전 반려 사유: ${recheckItem.rejectReason}` : '등록하신 숙소를 확인하고 있어요. 평균 영업일 1~2일 내에 결과를 안내합니다.' }}
           </p>
           <p v-else-if="hostState === 'rejected'">
             {{ rejectedReasonText }}
