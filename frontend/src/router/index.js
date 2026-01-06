@@ -275,27 +275,39 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
     const userInfo = getUserInfo();
-    const isAdminRoute = to.path.startsWith('/admin');
-    const isHostReportRoute = to.path.startsWith('/host/report');
 
-    if (isAdminRoute && (!userInfo || userInfo.role !== 'ADMIN')) {
-        // 관리자 페이지에 접근하려 하지만, 관리자가 아닌 경우
-        alert('접근 권한이 없습니다.');
-        next('/'); // 메인 페이지로 리디렉션
-    } else if (isHostReportRoute) {
-        if (!userInfo) {
-            next('/login');
-            return;
+    const isAdminRoute = to.path.startsWith('/admin');
+    const isHostRoute = to.path.startsWith('/host');
+    const protectedPaths = [
+        '/profile', '/reservations', '/wishlist', '/coupons',
+        '/reviews', '/write-review', '/delete-account', '/booking', '/payment'
+    ];
+    const requiresAuth = protectedPaths.some(path => to.path.startsWith(path));
+
+    // 1. 비로그인 사용자 처리
+    if (!userInfo) {
+        if (isAdminRoute || isHostRoute || requiresAuth) {
+            // 로그인이 필요한 페이지에 접근 시, alert 대신 쿼리 파라미터와 함께 로그인 페이지로 리디렉션
+            return next({ path: '/login', query: { unauthorized: 'true' } });
         }
-        if (userInfo.role !== 'HOST' && userInfo.role !== 'ROLE_HOST') {
-            alert('접근 권한이 없습니다.');
-            next('/host');
-            return;
-        }
-        next();
-    } else {
-        next(); // 그 외의 경우는 정상적으로 진행
     }
+    // 2. 로그인 사용자 권한 처리
+    else {
+        const userRole = userInfo.role ? userInfo.role.toUpperCase() : '';
+        if (isAdminRoute && userRole !== 'ADMIN') {
+            // 관리자 페이지에 접근하려는 비관리자 사용자
+            alert('접근 권한이 없습니다.');
+            return next('/');
+        }
+        if (isHostRoute && userRole !== 'HOST' && to.path !== '/host/accommodation/register') {
+            // 호스트 페이지에 접근하려는 비호스트 사용자
+            alert('접근 권한이 없습니다.');
+            return next('/');
+        }
+    }
+
+    // 모든 검사를 통과한 경우 정상 진행
+    next();
 });
 
 export default router

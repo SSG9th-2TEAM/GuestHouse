@@ -234,6 +234,7 @@ const loadThemes = async () => {
       themes.value = response.data.map(theme => ({
         id: theme.id,
         label: theme.themeName,
+        imageUrl: theme.themeImageUrl, // Add the image URL
         selected: false
       }))
     } else {
@@ -712,19 +713,30 @@ const handleSkip = async () => {
         <div class="theme-section">
           <p class="theme-desc">관심있는 테마를 선택하시면 맞춤형 추천을 받으실 수 있습니다.<br/>(복수 선택 가능)</p>
           
-          <div v-if="themesLoading" class="theme-loading">테마 목록을 불러오는 중...</div>
+          <div v-if="themesLoading" class="theme-loading">
+            <div class="spinner"></div>
+            <p>테마 목록을 불러오는 중...</p>
+          </div>
           <div v-else-if="themesError" class="theme-error">{{ themesError }}</div>
           <div v-else class="theme-grid">
-            <button
+            <div
               v-for="theme in themes"
               :key="theme.id"
-              class="theme-btn"
+              class="theme-card"
               :class="{ selected: theme.selected }"
               @click="toggleTheme(theme)"
             >
-              <span class="theme-checkbox">{{ theme.selected ? '☑' : '☐' }}</span>
-              <span>{{ theme.label }}</span>
-            </button>
+              <img :src="theme.imageUrl" :alt="theme.label" class="theme-image" />
+              <div class="theme-overlay"></div>
+              <div class="theme-label-container">
+                <span class="theme-label">{{ theme.label }}</span>
+              </div>
+              <div class="theme-checkbox-wrapper">
+                <div class="theme-checkbox">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1121,56 +1133,153 @@ const handleSkip = async () => {
 /* Theme Selection */
 .theme-section {
   margin-bottom: 2rem;
+  text-align: center;
 }
-
+.theme-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
 .theme-desc {
-  font-size: 0.9rem;
-  color: #2563eb;
-  margin-bottom: 1.5rem;
-  line-height: 1.5;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+  line-height: 1.6;
 }
-
-.theme-loading,
+.theme-loading {
+  text-align: center;
+  padding: 3rem 0;
+  color: var(--text-secondary);
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 .theme-error {
   text-align: center;
   padding: 2rem;
   font-size: 0.95rem;
-}
-
-.theme-loading {
-  color: #6b7280;
-}
-
-.theme-error {
   color: #dc2626;
+  background-color: #fee2e2;
+  border-radius: 8px;
 }
-
 .theme-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
 }
-
-.theme-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1.5rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  background: white;
+.theme-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
   cursor: pointer;
-  transition: all 0.2s;
+  aspect-ratio: 1 / 1;
+  border: 3px solid #e5e7eb;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
-
-.theme-btn.selected {
-  border-color: var(--primary);
+.theme-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  border-color: var(--accent-color);
 }
-
+.theme-card.selected {
+  border-color: #3b82f6;
+  border-width: 4px;
+  transform: translateY(-6px) scale(1.03);
+  box-shadow: 0 12px 28px rgba(59, 130, 246, 0.35);
+}
+.theme-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+.theme-card:hover .theme-image {
+  transform: scale(1.1);
+}
+.theme-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.15);
+  transition: background-color 0.3s ease;
+}
+.theme-card:hover .theme-overlay {
+  background: rgba(0,0,0,0.35);
+}
+.theme-card.selected .theme-overlay {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.4) 0%, rgba(37, 99, 235, 0.5) 100%);
+}
+.theme-label-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.4));
+  padding: 10px 12px;
+  transition: all 0.3s ease;
+}
+.theme-card.selected .theme-label-container {
+  background: linear-gradient(to top, rgba(37, 99, 235, 0.95), rgba(59, 130, 246, 0.8));
+}
+.theme-label {
+  color: white;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-align: center;
+  display: block;
+  width: 100%;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+.theme-checkbox-wrapper {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  transform: scale(0.5);
+  opacity: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
 .theme-checkbox {
-  font-size: 1.5rem;
-  color: #ccc;
+  width: 22px;
+  height: 22px;
+  background: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563eb;
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.theme-card.selected .theme-checkbox-wrapper {
+  transform: scale(1);
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.5);
+}
+.theme-card.selected .theme-checkbox {
+  background: #3b82f6;
+  color: white;
+  border-color: white;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
 }
 
 .theme-btn.selected .theme-checkbox {
