@@ -70,6 +70,51 @@ public class BaseMainService implements MainService {
                 .build();
     }
 
+    @Override
+    public Map<Long, MainAccommodationListResponse> getMainAccommodationListBulk(Long userId, List<Long> themeIds,
+            String keyword) {
+        if (themeIds == null || themeIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        String normalizedKeyword = normalizeKeyword(keyword);
+        List<Accommodation> accommodations = loadApprovedAccommodationsByTheme(themeIds, normalizedKeyword);
+        if (accommodations.isEmpty()) {
+            return buildEmptyThemeMap(themeIds);
+        }
+
+        Map<Long, Accommodation> accommodationById = accommodations.stream()
+                .collect(Collectors.toMap(Accommodation::getAccommodationsId, acc -> acc, (a, b) -> a));
+        Map<Long, String> imageById = loadRepresentativeImages(accommodations);
+        Map<Long, Integer> maxGuestsById = loadMaxGuests(accommodations);
+
+        List<Long> accommodationIds = accommodationById.keySet().stream().toList();
+        Map<Long, List<Accommodation>> grouped = new HashMap<>();
+        Set<Long> themeIdSet = new HashSet<>(themeIds);
+        accommodationThemeRepository.findByAccommodationIds(accommodationIds).forEach(link -> {
+            Long themeId = link.getTheme() != null ? link.getTheme().getId() : null;
+            Long accId = link.getAccommodation() != null ? link.getAccommodation().getAccommodationsId() : null;
+            if (themeId == null || accId == null || !themeIdSet.contains(themeId)) {
+                return;
+            }
+            Accommodation accommodation = accommodationById.get(accId);
+            if (accommodation == null) {
+                return;
+            }
+            grouped.computeIfAbsent(themeId, key -> new ArrayList<>()).add(accommodation);
+        });
+
+        Map<Long, MainAccommodationListResponse> result = new LinkedHashMap<>();
+        for (Long themeId : themeIds) {
+            List<Accommodation> list = grouped.getOrDefault(themeId, Collections.emptyList());
+            List<ListDto> general = toListDtosWithMaps(list, imageById, maxGuestsById);
+            result.put(themeId, MainAccommodationListResponse.builder()
+                    .recommendedAccommodations(Collections.emptyList())
+                    .generalAccommodations(general)
+                    .build());
+        }
+        return result;
+    }
+
     private String normalizeKeyword(String keyword) {
         if (keyword == null) {
             return null;
@@ -98,9 +143,29 @@ public class BaseMainService implements MainService {
         }
         Map<Long, String> imageById = loadRepresentativeImages(accommodations);
         Map<Long, Integer> maxGuestsById = loadMaxGuests(accommodations);
+        return toListDtosWithMaps(accommodations, imageById, maxGuestsById);
+    }
+
+    private List<ListDto> toListDtosWithMaps(List<Accommodation> accommodations,
+            Map<Long, String> imageById,
+            Map<Long, Integer> maxGuestsById) {
+        if (accommodations == null || accommodations.isEmpty()) {
+            return Collections.emptyList();
+        }
         return accommodations.stream()
                 .map(accommodation -> toListDto(accommodation, imageById, maxGuestsById))
                 .toList();
+    }
+
+    private Map<Long, MainAccommodationListResponse> buildEmptyThemeMap(List<Long> themeIds) {
+        Map<Long, MainAccommodationListResponse> result = new LinkedHashMap<>();
+        for (Long themeId : themeIds) {
+            result.put(themeId, MainAccommodationListResponse.builder()
+                    .recommendedAccommodations(Collections.emptyList())
+                    .generalAccommodations(Collections.emptyList())
+                    .build());
+        }
+        return result;
     }
 
     private Set<Long> getUserThemeIds(Long userId) {
@@ -223,78 +288,5 @@ public class BaseMainService implements MainService {
                 .maxGuests(maxGuestsById.getOrDefault(accommodation.getAccommodationsId(), 0))
                 .imageUrl(imageById.get(accommodation.getAccommodationsId()))
                 .build();
-    }
-
-    /**
-     * 벌크 조회 최적화 - 모든 테마의 숙소를 한 번에 조회 후 테마별로 그룹핑
-     * 기존: 테마 8개 -> DB 쿼리 24-32회
-     * 최적화: 테마 8개 -> DB 쿼리 3-4회
-     */
-    @Override
-    public Map<Long, MainAccommodationListResponse> getMainAccommodationListBulk(Long userId, List<Long> themeIds,
-            String keyword) {
-        Map<Long, MainAccommodationListResponse> result = new LinkedHashMap<>();
-
-        if (themeIds == null || themeIds.isEmpty()) {
-            return result;
-        }
-
-        String normalizedKeyword = normalizeKeyword(keyword);
-
-        // 1. 모든 테마에 해당하는 숙소를 한 번에 조회
-        List<Accommodation> allAccommodations = loadApprovedAccommodationsByTheme(themeIds, normalizedKeyword);
-
-        if (allAccommodations.isEmpty()) {
-            for (Long themeId : themeIds) {
-                result.put(themeId, MainAccommodationListResponse.builder()
-                        .recommendedAccommodations(Collections.emptyList())
-                        .generalAccommodations(Collections.emptyList())
-                        .build());
-            }
-            return result;
-        }
-
-        // 2. 이미지와 최대 손님 수를 벌크로 조회
-        Map<Long, String> imageById = loadRepresentativeImages(allAccommodations);
-        Map<Long, Integer> maxGuestsById = loadMaxGuests(allAccommodations);
-
-        // 3. 숙소-테마 매핑 정보 조회
-        List<Long> allAccommodationIds = allAccommodations.stream()
-                .map(Accommodation::getAccommodationsId)
-                .toList();
-        List<AccommodationTheme> allAccommodationThemes = accommodationThemeRepository
-                .findByAccommodationIds(allAccommodationIds);
-
-        // 4. 테마별 숙소 매핑 생성
-        Map<Long, Set<Long>> themeToAccommodationIds = new HashMap<>();
-        for (AccommodationTheme at : allAccommodationThemes) {
-            Long themeId = at.getTheme().getId();
-            Long accId = at.getAccommodation().getAccommodationsId();
-            themeToAccommodationIds.computeIfAbsent(themeId, k -> new HashSet<>()).add(accId);
-        }
-
-        // 5. 숙소 ID -> 숙소 객체 매핑
-        Map<Long, Accommodation> accommodationById = allAccommodations.stream()
-                .collect(Collectors.toMap(Accommodation::getAccommodationsId, acc -> acc, (a, b) -> a));
-
-        // 6. 각 테마별로 결과 생성
-        for (Long themeId : themeIds) {
-            Set<Long> accIds = themeToAccommodationIds.getOrDefault(themeId, Collections.emptySet());
-            List<Accommodation> themeAccommodations = accIds.stream()
-                    .map(accommodationById::get)
-                    .filter(Objects::nonNull)
-                    .toList();
-
-            List<ListDto> generalAccommodations = themeAccommodations.stream()
-                    .map(acc -> toListDto(acc, imageById, maxGuestsById))
-                    .toList();
-
-            result.put(themeId, MainAccommodationListResponse.builder()
-                    .recommendedAccommodations(Collections.emptyList())
-                    .generalAccommodations(generalAccommodations)
-                    .build());
-        }
-
-        return result;
     }
 }

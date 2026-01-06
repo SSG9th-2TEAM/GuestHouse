@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onBeforeUnmount } from 'vue'
+import { computed, ref, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import NavHome from '@/components/nav-icons/NavHome.vue'
 import NavStay from '@/components/nav-icons/NavStay.vue'
@@ -52,8 +52,6 @@ const setTab = (path) => {
     moreOpen.value = !moreOpen.value
     return
   }
-  const locked = typeof document !== 'undefined' && document.body.classList.contains('host-nav-locked')
-  if (locked && path !== '/host/accommodation' && path !== '/host') return
   moreOpen.value = false
   router.push(path)
 }
@@ -77,6 +75,13 @@ if (typeof window !== 'undefined') {
   window.addEventListener('keydown', handleKeydown)
   onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 }
+
+watch(
+  () => route.path,
+  () => {
+    moreOpen.value = false
+  }
+)
 </script>
 
 <template>
@@ -330,32 +335,6 @@ if (typeof window !== 'undefined') {
   outline-offset: 2px;
 }
 
-:global(.host-nav-locked) .top-menu__item,
-:global(.host-nav-locked) .nav-item {
-  opacity: 0.45;
-  pointer-events: none;
-  background: transparent !important;
-  color: var(--text-default);
-}
-
-:global(.host-nav-locked) .top-menu__item.nav-allowed,
-:global(.host-nav-locked) .nav-item.nav-allowed {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-:global(.host-nav-locked) .top-menu__item.active,
-:global(.host-nav-locked) .nav-item.active {
-  background: var(--brand-primary);
-  color: var(--brand-accent);
-  opacity: 0.8;
-}
-
-:global(.host-nav-locked) .top-menu__item:hover,
-:global(.host-nav-locked) .nav-item:hover {
-  background: transparent;
-  color: var(--text-default);
-}
 
 /* ===================
    Mobile tuning

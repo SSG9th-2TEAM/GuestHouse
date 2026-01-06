@@ -22,6 +22,9 @@ import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -37,6 +40,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Root;
 
 @Service
 @RequiredArgsConstructor
@@ -72,22 +78,16 @@ public class AdminPaymentService {
             int size,
             String sort
     ) {
+        // 체크: status/type/keyword 필터가 DB 페이징 결과와 totalElements에 반영되는지 확인.
+        int safePage = Math.max(0, page);
+        int safeSize = size > 0 ? Math.min(size, 50) : 20;
         Sort sorting = "oldest".equalsIgnoreCase(sort)
                 ? Sort.by(Sort.Direction.ASC, "createdAt")
                 : Sort.by(Sort.Direction.DESC, "createdAt");
-        List<Payment> sortedPayments = paymentRepository.findAll(sorting);
-        Map<Long, PaymentRefund> refundMap = buildRefundMap(sortedPayments);
-        List<Payment> filtered = sortedPayments.stream()
-                .filter(payment -> matchesStatus(payment, status, refundMap))
-                .filter(payment -> matchesType(payment, type, refundMap))
-                .filter(payment -> matchesKeyword(payment, keyword))
-                .toList();
 
-        int totalElements = filtered.size();
-        int totalPages = size > 0 ? (int) Math.ceil(totalElements / (double) size) : 1;
-        int fromIndex = Math.min(page * size, totalElements);
-        int toIndex = Math.min(fromIndex + size, totalElements);
-        List<Payment> pageItems = filtered.subList(fromIndex, toIndex);
+        Specification<Payment> spec = buildPaymentSpec(status, type, keyword, null, null);
+        Page<Payment> pageResult = paymentRepository.findAll(spec, PageRequest.of(safePage, safeSize, sorting));
+        List<Payment> pageItems = pageResult.getContent();
         Map<Long, Reservation> reservationMap = reservationRepository.findAllById(
                         pageItems.stream()
                                 .map(Payment::getReservationId)
@@ -98,7 +98,13 @@ public class AdminPaymentService {
         List<AdminPaymentSummary> items = pageItems.stream()
                 .map(payment -> toSummary(payment, reservationMap.get(payment.getReservationId())))
                 .toList();
-        return AdminPageResponse.of(items, page, size, totalElements, totalPages);
+        return AdminPageResponse.of(
+                items,
+                safePage,
+                safeSize,
+                (int) pageResult.getTotalElements(),
+                pageResult.getTotalPages()
+        );
     }
 
     /*
@@ -122,43 +128,18 @@ public class AdminPaymentService {
         LocalDateTime start = startDate.atStartOfDay();
         LocalDateTime end = endDate.plusDays(1).atStartOfDay();
 
-        List<Payment> payments = paymentRepository.findByCreatedAtBetween(start, end);
-        Map<Long, PaymentRefund> refundMap = buildRefundMap(payments);
-        List<Payment> filteredPayments = payments.stream()
-                .filter(payment -> matchesStatus(payment, status, refundMap))
-                .filter(payment -> matchesType(payment, type, refundMap))
-                .filter(payment -> matchesKeyword(payment, keyword))
-                .toList();
+        Integer statusCode = parseStatus(status);
+        String typeMode = parseType(type);
+        Specification<Payment> basePaymentSpec = buildPaymentSpec(status, type, keyword, start, end);
 
-        long grossAmount = filteredPayments.stream()
-                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 1)
-                .mapToLong(payment -> payment.getApprovedAmount() != null ? payment.getApprovedAmount() : 0L)
-                .sum();
-        long successCount = filteredPayments.stream()
-                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 1)
-                .count();
-        long failureCount = filteredPayments.stream()
-                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 2)
-                .count();
+        long grossAmount = sumPayments(basePaymentSpec.and(statusEquals(1)));
+        long successCount = countPayments(basePaymentSpec.and(statusEquals(1)));
+        long failureCount = countPayments(basePaymentSpec.and(statusEquals(2)));
 
-        List<PaymentRefund> refunds = paymentRefundRepository.findByRequestedAtBetween(start, end);
-        Map<Long, Payment> paymentMap = loadPaymentMap(refunds);
-        List<PaymentRefund> filteredRefunds = refunds.stream()
-                .filter(refund -> matchesRefundType(refund, type))
-                .filter(refund -> matchesRefundStatus(refund, status))
-                .filter(refund -> matchesRefundKeyword(refund, keyword, paymentMap))
-                .toList();
-
-        long refundRequestCount = filteredRefunds.stream()
-                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 0)
-                .count();
-        long refundCompletedCount = filteredRefunds.stream()
-                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
-                .count();
-        long refundCompletedAmount = filteredRefunds.stream()
-                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
-                .mapToLong(refund -> refund.getRefundAmount() != null ? refund.getRefundAmount() : 0L)
-                .sum();
+        Specification<PaymentRefund> baseRefundSpec = buildRefundSpec(statusCode, typeMode, keyword, start, end);
+        long refundRequestCount = countRefunds(baseRefundSpec.and(refundStatusEquals(0)));
+        long refundCompletedCount = countRefunds(baseRefundSpec.and(refundStatusEquals(1)));
+        long refundCompletedAmount = sumRefunds(baseRefundSpec.and(refundStatusEquals(1)));
         long netAmount = grossAmount - refundCompletedAmount;
         long platformFeeAmount = Math.round(netAmount * platformFeeRate);
 
@@ -175,6 +156,137 @@ public class AdminPaymentService {
                 platformFeeRate,
                 platformFeeAmount
         );
+    }
+
+    private Specification<Payment> buildPaymentSpec(String status, String type, String keyword,
+                                                    LocalDateTime start, LocalDateTime end) {
+        Integer statusCode = parseStatus(status);
+        String typeMode = parseType(type);
+        Specification<Payment> spec = Specification.where(keywordContains(keyword));
+        if (start != null && end != null) {
+            spec = spec.and(createdBetween(start, end));
+        }
+        if (statusCode != null) {
+            if (statusCode == 3) {
+                spec = spec.and(refundedStatus());
+            } else {
+                spec = spec.and(statusEquals(statusCode));
+            }
+        }
+        if (typeMode != null) {
+            if ("REFUND".equals(typeMode)) {
+                spec = spec.and(refundExists());
+            } else if ("RESERVATION".equals(typeMode)) {
+                spec = spec.and(Specification.not(refundExists()));
+            }
+        }
+        return spec;
+    }
+
+    private Specification<PaymentRefund> buildRefundSpec(Integer statusCode, String typeMode, String keyword,
+                                                         LocalDateTime start, LocalDateTime end) {
+        if ("RESERVATION".equals(typeMode)) {
+            return alwaysFalseRefund();
+        }
+        if (statusCode != null && statusCode != 3) {
+            return alwaysFalseRefund();
+        }
+        Specification<PaymentRefund> spec = Specification.where(refundKeywordContains(keyword));
+        if (start != null && end != null) {
+            spec = spec.and(requestedBetween(start, end));
+        }
+        if ("REFUND".equals(typeMode)) {
+            spec = spec.and(refundOnly());
+        }
+        if (statusCode != null && statusCode == 3) {
+            spec = spec.and(refundStatusEquals(1));
+        }
+        return spec;
+    }
+
+    private Specification<Payment> statusEquals(Integer status) {
+        return com.ssg9th2team.geharbang.domain.payment.spec.PaymentSpecifications.statusEquals(status);
+    }
+
+    private Specification<Payment> refundedStatus() {
+        return com.ssg9th2team.geharbang.domain.payment.spec.PaymentSpecifications.statusEquals(3)
+                .or(com.ssg9th2team.geharbang.domain.payment.spec.PaymentSpecifications.refundedExists(1));
+    }
+
+    private Specification<Payment> refundExists() {
+        return com.ssg9th2team.geharbang.domain.payment.spec.PaymentSpecifications.refundedExists(1);
+    }
+
+    private Specification<Payment> keywordContains(String keyword) {
+        return com.ssg9th2team.geharbang.domain.payment.spec.PaymentSpecifications.keywordContains(keyword);
+    }
+
+    private Specification<Payment> createdBetween(LocalDateTime start, LocalDateTime end) {
+        return com.ssg9th2team.geharbang.domain.payment.spec.PaymentSpecifications.createdBetween(start, end);
+    }
+
+    private Specification<PaymentRefund> refundStatusEquals(Integer status) {
+        return com.ssg9th2team.geharbang.domain.payment.spec.PaymentRefundSpecifications.statusEquals(status);
+    }
+
+    private Specification<PaymentRefund> requestedBetween(LocalDateTime start, LocalDateTime end) {
+        return com.ssg9th2team.geharbang.domain.payment.spec.PaymentRefundSpecifications.requestedBetween(start, end);
+    }
+
+    private Specification<PaymentRefund> refundKeywordContains(String keyword) {
+        return com.ssg9th2team.geharbang.domain.payment.spec.PaymentRefundSpecifications.keywordContains(keyword);
+    }
+
+    private Specification<PaymentRefund> alwaysFalseRefund() {
+        return com.ssg9th2team.geharbang.domain.payment.spec.PaymentRefundSpecifications.alwaysFalse();
+    }
+
+    private Specification<PaymentRefund> refundOnly() {
+        return Specification.where(null);
+    }
+
+    private long sumPayments(Specification<Payment> spec) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Long> query = cb.createQuery(Long.class);
+        Root<Payment> root = query.from(Payment.class);
+        query.select(cb.coalesce(cb.sum(root.get("approvedAmount")).as(Long.class), 0L));
+        if (spec != null) {
+            query.where(spec.toPredicate(root, query, cb));
+        }
+        return Optional.ofNullable(entityManager.createQuery(query).getSingleResult()).orElse(0L);
+    }
+
+    private long countPayments(Specification<Payment> spec) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Long> query = cb.createQuery(Long.class);
+        Root<Payment> root = query.from(Payment.class);
+        query.select(cb.count(root));
+        if (spec != null) {
+            query.where(spec.toPredicate(root, query, cb));
+        }
+        return Optional.ofNullable(entityManager.createQuery(query).getSingleResult()).orElse(0L);
+    }
+
+    private long sumRefunds(Specification<PaymentRefund> spec) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Long> query = cb.createQuery(Long.class);
+        Root<PaymentRefund> root = query.from(PaymentRefund.class);
+        query.select(cb.coalesce(cb.sum(root.get("refundAmount")).as(Long.class), 0L));
+        if (spec != null) {
+            query.where(spec.toPredicate(root, query, cb));
+        }
+        return Optional.ofNullable(entityManager.createQuery(query).getSingleResult()).orElse(0L);
+    }
+
+    private long countRefunds(Specification<PaymentRefund> spec) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Long> query = cb.createQuery(Long.class);
+        Root<PaymentRefund> root = query.from(PaymentRefund.class);
+        query.select(cb.count(root));
+        if (spec != null) {
+            query.where(spec.toPredicate(root, query, cb));
+        }
+        return Optional.ofNullable(entityManager.createQuery(query).getSingleResult()).orElse(0L);
     }
 
     public AdminPaymentDetail getPaymentDetail(Long paymentId) {

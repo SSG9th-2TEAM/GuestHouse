@@ -1,3 +1,18 @@
+/* 경기천년제목 폰트 */
+@font-face {
+    font-family: 'GyeonggiMillenniumTitle';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2410-3@1.0/Title_Light.woff') format('woff');
+    font-weight: 300;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'GyeonggiMillenniumTitle';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2410-3@1.0/Title_Bold.woff') format('woff');
+    font-weight: 700;
+    font-display: swap;
+}
+
 :root {
     --primary: #BFE7DF;
     --primary-hover: #A0D1C8;
@@ -27,7 +42,7 @@
     --radius-md: 12px;
     --radius-lg: 16px;
 
-    --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-main: 'GyeonggiMillenniumTitle', -apple-system, BlinkMacSystemFont, sans-serif;
 
     --card-width: 280px;
 
@@ -36,21 +51,26 @@
 }
 
 /* ✅ 전역 reset은 최소만 (다른 화면 안 깨지게) */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
     height: 100%;
 }
 
 body {
-    margin: 0; /* ✅ body 기본 여백만 제거 */
+    margin: 0;
+    /* ✅ body 기본 여백만 제거 */
     font-family: var(--font-main);
     background-color: var(--bg-body);
     color: var(--text-main);
     -webkit-font-smoothing: antialiased;
     line-height: 1.5;
+    font-weight: 300;
 }
 
 button {
@@ -88,7 +108,7 @@ button {
 
 .host-title {
     font-size: 1.7rem;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--host-title);
     margin: 0;
     letter-spacing: -0.02em;
@@ -131,7 +151,7 @@ button {
     color: #004d40;
     border-radius: 12px;
     padding: 0.8rem 1rem;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .btn-primary:hover {
@@ -193,7 +213,7 @@ button {
     background: var(--brand-primary);
     color: var(--brand-accent);
     border: 1px solid var(--brand-primary-strong);
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .host-btn--primary:hover {
@@ -238,7 +258,7 @@ button {
     border: 1px solid #d1d5db;
     border-radius: 10px;
     padding: 0 12px;
-    font-weight: 600;
+    font-weight: 700;
     background: #ffffff;
     color: #1f2937;
 }
@@ -260,7 +280,7 @@ button {
 .admin-btn {
     padding: 8px 12px;
     border-radius: 10px;
-    font-weight: 800;
+    font-weight: 700;
     border: 1px solid transparent;
     background: #ffffff;
 }
@@ -403,6 +423,7 @@ button {
 .admin-shell.is-dark .admin-card__eyebrow {
     color: #b9c7cf;
 }
+
 .admin-inline-actions {
     display: flex;
     flex-wrap: wrap;
@@ -462,5 +483,5 @@ button {
     color: var(--host-accent);
     border-radius: 10px;
     padding: 0.55rem 0.8rem;
-    font-weight: 800;
+    font-weight: 700;
 }
