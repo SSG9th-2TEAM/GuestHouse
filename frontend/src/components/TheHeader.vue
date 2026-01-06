@@ -315,10 +315,13 @@ const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value
 }
 
-const toggleSearch = () => {
-  if (isMobile()) {
-    isSearchExpanded.value = !isSearchExpanded.value
+const toggleSearch = (event) => {
+  if (!isMobile()) return
+  if (event?.target?.closest?.('.search-btn-mini')) {
+    handleSearch()
+    return
   }
+  isSearchExpanded.value = !isSearchExpanded.value
 }
 
 const handleClickOutside = (e) => {
@@ -389,7 +392,7 @@ onUnmounted(() => {
 
               <div class="host-toggle-card" @click="toggleHostMode">
                 <div class="toggle-info">
-                  <div class="toggle-title">호스트 모드 전환</div>
+                  <div class="toggle-title">{{ isHostRoute ? '게스트 모드로 전환' : '호스트 모드로 전환' }}</div>
                   <div class="toggle-status">현재: {{ !isLoggedIn ? '비회원' : (isHostRoute ? '호스트 모드' : '게스트 모드') }}</div>
                 </div>
                 <div class="toggle-icon">›</div>
@@ -436,7 +439,7 @@ onUnmounted(() => {
             <span class="collapsed-text">{{ searchStore.dateDisplayText }}</span>
             <span class="collapsed-divider">|</span>
             <span class="collapsed-text">{{ searchStore.guestDisplayText }}</span>
-            <button class="search-btn-mini" aria-label="검색" @click.stop="handleSearch">
+            <button class="search-btn-mini" type="button" aria-label="검색">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
               </svg>

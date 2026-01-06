@@ -48,7 +48,7 @@ public class BaseMainService implements MainService {
             // 사용자 테마 기반 추천 로직 (필터 테마 ID가 없을 때만 적용)
             recommendedAccommodations = getRecommendedAccommodations(approvedAccommodations, userThemeIds);
             Set<Long> recommendedAccommodationIds = recommendedAccommodations.stream()
-                    .map(ListDto::getAccomodationsId)
+                    .map(ListDto::getAccommodationsId)
                     .collect(Collectors.toSet());
 
             // 추천 숙소를 제외한 나머지 숙소를 일반 목록에 추가
@@ -270,8 +270,8 @@ public class BaseMainService implements MainService {
 
     private ListDto toListDto(Accommodation accommodation, Map<Long, String> imageById, Map<Long, Integer> maxGuestsById) {
         return ListDto.builder()
-                .accomodationsId(accommodation.getAccommodationsId())
-                .accomodationsName(accommodation.getAccommodationsName())
+                .accommodationsId(accommodation.getAccommodationsId())
+                .accommodationsName(accommodation.getAccommodationsName())
                 .shortDescription(accommodation.getShortDescription())
                 .city(accommodation.getCity())
                 .district(accommodation.getDistrict())

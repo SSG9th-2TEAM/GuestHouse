@@ -51,7 +51,7 @@ class SearchServiceTest {
                 "https://example.com/image.jpg"
         );
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 24), 1);
-        when(searchRepository.searchPublicList(eq("부산"), isNull(), isNull(), isNull(), any(PageRequest.class)))
+        when(searchRepository.searchPublicListNoDates(eq("부산"), isNull(), any(PageRequest.class)))
                 .thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(
@@ -69,7 +69,7 @@ class SearchServiceTest {
         );
 
         assertThat(response.items()).hasSize(1);
-        assertThat(response.items().get(0).getAccomodationsName()).isEqualTo("오션뷰 숙소");
+        assertThat(response.items().get(0).getAccommodationsName()).isEqualTo("오션뷰 숙소");
         assertThat(response.page().totalElements()).isEqualTo(1);
         assertThat(response.page().hasNext()).isFalse();
     }
@@ -93,7 +93,7 @@ class SearchServiceTest {
                 "https://example.com/theme.jpg"
         );
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(1, 10), 11);
-        when(searchRepository.searchPublicListByTheme(eq(List.of(2L)), eq("오션뷰"), isNull(), isNull(), isNull(), any(PageRequest.class)))
+        when(searchRepository.searchPublicListByThemeNoDates(eq(List.of(2L)), eq("오션뷰"), isNull(), any(PageRequest.class)))
                 .thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(
@@ -111,7 +111,7 @@ class SearchServiceTest {
         );
 
         assertThat(response.items()).hasSize(1);
-        verify(searchRepository).searchPublicListByTheme(eq(List.of(2L)), eq("오션뷰"), isNull(), isNull(), isNull(), any(PageRequest.class));
+        verify(searchRepository).searchPublicListByThemeNoDates(eq(List.of(2L)), eq("오션뷰"), isNull(), any(PageRequest.class));
     }
 
     @Test
@@ -133,14 +133,12 @@ class SearchServiceTest {
                 "https://example.com/map.jpg"
         );
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 50), 1);
-        when(searchRepository.searchPublicListByBounds(
+        when(searchRepository.searchPublicListByBoundsNoDates(
                 eq("부산"),
                 eq(35.0),
                 eq(36.0),
                 eq(126.0),
                 eq(128.0),
-                isNull(),
-                isNull(),
                 isNull(),
                 any(PageRequest.class)
         )).thenReturn(page);
@@ -160,14 +158,12 @@ class SearchServiceTest {
         );
 
         assertThat(response.items()).hasSize(1);
-        verify(searchRepository).searchPublicListByBounds(
+        verify(searchRepository).searchPublicListByBoundsNoDates(
                 eq("부산"),
                 eq(35.0),
                 eq(36.0),
                 eq(126.0),
                 eq(128.0),
-                isNull(),
-                isNull(),
                 isNull(),
                 any(PageRequest.class)
         );
@@ -216,8 +212,8 @@ class SearchServiceTest {
     }
 
     private static final class ListProjectionStub implements ListDtoProjection {
-        private final Long accomodationsId;
-        private final String accomodationsName;
+        private final Long accommodationsId;
+        private final String accommodationsName;
         private final String shortDescription;
         private final String city;
         private final String district;
@@ -230,11 +226,11 @@ class SearchServiceTest {
         private final Integer maxGuests;
         private final String imageUrl;
 
-        private ListProjectionStub(Long accomodationsId, String accomodationsName, String shortDescription, String city,
+        private ListProjectionStub(Long accommodationsId, String accommodationsName, String shortDescription, String city,
                                    String district, String township, Double latitude, Double longitude, Long minPrice,
                                    Double rating, Integer reviewCount, Integer maxGuests, String imageUrl) {
-            this.accomodationsId = accomodationsId;
-            this.accomodationsName = accomodationsName;
+            this.accommodationsId = accommodationsId;
+            this.accommodationsName = accommodationsName;
             this.shortDescription = shortDescription;
             this.city = city;
             this.district = district;
@@ -249,13 +245,13 @@ class SearchServiceTest {
         }
 
         @Override
-        public Long getAccomodationsId() {
-            return accomodationsId;
+        public Long getAccommodationsId() {
+            return accommodationsId;
         }
 
         @Override
-        public String getAccomodationsName() {
-            return accomodationsName;
+        public String getAccommodationsName() {
+            return accommodationsName;
         }
 
         @Override

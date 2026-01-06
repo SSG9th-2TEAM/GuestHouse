@@ -114,10 +114,10 @@ public class MainServiceTest {
     void testRecommendationForUserWithThemes() {
         MainAccommodationListResponse response = mainService.getMainAccommodationList(1L, null, null);
         assertThat(response.getRecommendedAccommodations()).hasSize(2);
-        assertThat(response.getRecommendedAccommodations().get(0).getAccomodationsName()).isEqualTo("오션뷰 파티하우스");
-        assertThat(response.getRecommendedAccommodations().get(1).getAccomodationsName()).isEqualTo("조용한 오션뷰 숙소");
+        assertThat(response.getRecommendedAccommodations().get(0).getAccommodationsName()).isEqualTo("오션뷰 파티하우스");
+        assertThat(response.getRecommendedAccommodations().get(1).getAccommodationsName()).isEqualTo("조용한 오션뷰 숙소");
         assertThat(response.getGeneralAccommodations()).hasSize(1);
-        assertThat(response.getGeneralAccommodations().get(0).getAccomodationsName()).isEqualTo("숲속의 조용한 집");
+        assertThat(response.getGeneralAccommodations().get(0).getAccommodationsName()).isEqualTo("숲속의 조용한 집");
     }
 
     @Test
@@ -145,7 +145,7 @@ public class MainServiceTest {
 
         assertThat(response.getRecommendedAccommodations()).isEmpty();
         assertThat(response.getGeneralAccommodations()).hasSize(2);
-        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccomodationsName).collect(Collectors.toList());
+        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccommodationsName).collect(Collectors.toList());
         assertThat(names).containsExactlyInAnyOrder("조용한 오션뷰 숙소", "숲속의 조용한 집");
     }
 
@@ -155,7 +155,7 @@ public class MainServiceTest {
         MainAccommodationListResponse response = mainService.getMainAccommodationList(2L, null, "오션뷰");
 
         assertThat(response.getRecommendedAccommodations()).isEmpty();
-        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccomodationsName).collect(Collectors.toList());
+        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccommodationsName).collect(Collectors.toList());
         assertThat(names).containsExactlyInAnyOrder("오션뷰 파티하우스", "조용한 오션뷰 숙소");
     }
 
@@ -165,7 +165,7 @@ public class MainServiceTest {
         MainAccommodationListResponse response = mainService.getMainAccommodationList(2L, null, "부산");
 
         assertThat(response.getRecommendedAccommodations()).isEmpty();
-        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccomodationsName).collect(Collectors.toList());
+        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccommodationsName).collect(Collectors.toList());
         assertThat(names).containsExactlyInAnyOrder("오션뷰 파티하우스", "숲속의 조용한 집");
     }
 
@@ -178,7 +178,7 @@ public class MainServiceTest {
 
         assertThat(response.getRecommendedAccommodations()).isEmpty();
         assertThat(response.getGeneralAccommodations()).hasSize(1);
-        assertThat(response.getGeneralAccommodations().get(0).getAccomodationsName()).isEqualTo("조용한 오션뷰 숙소");
+        assertThat(response.getGeneralAccommodations().get(0).getAccommodationsName()).isEqualTo("조용한 오션뷰 숙소");
     }
 
     @Test
@@ -187,7 +187,7 @@ public class MainServiceTest {
         MainAccommodationListResponse response = mainService.getMainAccommodationList(1L, null, "파티");
 
         assertThat(response.getRecommendedAccommodations()).hasSize(1);
-        assertThat(response.getRecommendedAccommodations().get(0).getAccomodationsName()).isEqualTo("오션뷰 파티하우스");
+        assertThat(response.getRecommendedAccommodations().get(0).getAccommodationsName()).isEqualTo("오션뷰 파티하우스");
         assertThat(response.getGeneralAccommodations()).isEmpty();
     }
 }

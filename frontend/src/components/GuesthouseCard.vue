@@ -7,6 +7,7 @@ const props = defineProps({
   description: String,
   location: String,
   rating: [Number, String],
+  reviewCount: [Number, String],
   price: Number,
   imageUrl: String,
   isFavorite: Boolean,
@@ -44,6 +45,17 @@ const formatRating = (value) => {
   return numeric.toFixed(2)
 }
 
+const hasReviewCount = computed(() => {
+  const numeric = Number(props.reviewCount)
+  return Number.isFinite(numeric) && numeric > 0
+})
+
+const formatReviewCount = (value) => {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return ''
+  return numeric.toLocaleString()
+}
+
 const emit = defineEmits(['toggle-favorite'])
 </script>
 
@@ -64,13 +76,16 @@ const emit = defineEmits(['toggle-favorite'])
     <div class="card-content">
       <div class="header-row">
         <h3 class="title">{{ title }}</h3>
-        <span class="rating">&#9733; {{ formatRating(rating) }}</span>
       </div>
       <p v-if="description" class="description">{{ description }}</p>
       <p class="location">{{ location }}</p>
       <div class="footer-row">
         <span class="price">
           <strong>&#8361;{{ price.toLocaleString() }}</strong> / 박
+        </span>
+        <span class="rating">
+          <span class="rating-value">&#9733; {{ formatRating(rating) }}</span>
+          <span v-if="hasReviewCount" class="rating-count">({{ formatReviewCount(reviewCount) }})</span>
         </span>
       </div>
     </div>
@@ -189,7 +204,15 @@ const emit = defineEmits(['toggle-favorite'])
 }
 
 .rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+.rating-count {
+  font-size: 0.85em;
+  color: var(--text-sub);
 }
 
 .description {
