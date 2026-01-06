@@ -12,7 +12,7 @@ const props = defineProps({
   },
   currentGuestCount: {
     type: Number,
-    default: 0
+    default: 1
   }
 })
 
@@ -28,7 +28,7 @@ const minPrice = ref(props.currentMin ?? MIN_LIMIT)
 const maxPrice = ref(props.currentMax ?? MAX_LIMIT)
 const themes = ref([])
 const selectedThemeIds = ref([...props.currentThemes])
-const guestCount = ref(props.currentGuestCount ?? 0)
+const guestCount = ref(props.currentGuestCount ?? 1)
 const isLoadingThemes = ref(false)
 const activeThumb = ref('max')
 
@@ -38,7 +38,7 @@ watch(() => props.isOpen, (newVal) => {
     minPrice.value = props.currentMin ?? MIN_LIMIT
     maxPrice.value = props.currentMax ?? MAX_LIMIT
     selectedThemeIds.value = [...props.currentThemes]
-    guestCount.value = props.currentGuestCount ?? 0
+    guestCount.value = props.currentGuestCount ?? 1
 
     if (!themes.value.length) {
       loadThemes()
@@ -74,7 +74,7 @@ const increaseGuest = () => {
 }
 
 const decreaseGuest = () => {
-  guestCount.value = Math.max(0, guestCount.value - 1)
+  guestCount.value = Math.max(1, guestCount.value - 1)
 }
 
 onMounted(() => {
@@ -131,7 +131,7 @@ const resetFilter = () => {
   minPrice.value = MIN_LIMIT
   maxPrice.value = MAX_LIMIT
   selectedThemeIds.value = []
-  guestCount.value = 0
+  guestCount.value = 1
   activeThumb.value = 'max'
 }
 </script>
@@ -188,7 +188,7 @@ const resetFilter = () => {
         </div>
         <div class="guest-row">
           <div class="guest-controls">
-            <button class="guest-btn" type="button" @click="decreaseGuest" :disabled="guestCount === 0">-</button>
+            <button class="guest-btn" type="button" @click="decreaseGuest" :disabled="guestCount <= 1">-</button>
             <span class="guest-count">{{ guestCount }}</span>
             <button class="guest-btn" type="button" @click="increaseGuest">+</button>
           </div>

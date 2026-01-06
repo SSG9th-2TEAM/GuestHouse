@@ -1,9 +1,10 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { login, saveUserInfo } from '@/api/authClient'
 
 const router = useRouter()
+const route = useRoute()
 
 const email = ref('')
 const password = ref('')
@@ -64,8 +65,12 @@ const handleLogin = async () => {
       // 로그인 성공
       const userRole = response.data.role
 
+      const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+      sessionStorage.removeItem('postLoginRedirect')
       if (userRole === 'ADMIN') {
         router.push('/admin')
+      } else if (redirect.startsWith('/')) {
+        router.push(redirect)
       } else {
         router.push('/')
       }
@@ -84,6 +89,12 @@ const handleLogin = async () => {
 const socialLogin = (provider) => {
   // 백엔드 OAuth2 URL로 리다이렉트
   const baseUrl = 'http://localhost:8080'
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+  if (redirect.startsWith('/')) {
+    sessionStorage.setItem('postLoginRedirect', redirect)
+  } else {
+    sessionStorage.removeItem('postLoginRedirect')
+  }
   const urls = {
     Google: `${baseUrl}/oauth2/authorization/google`, // Google OAuth2 (구현 필요)
     Kakao: `${baseUrl}/oauth2/authorization/kakao`, // Kakao OAuth2 (구현 필요)

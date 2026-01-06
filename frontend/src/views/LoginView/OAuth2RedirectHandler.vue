@@ -31,6 +31,8 @@ onMounted(async () => {
     const urlParams = new URLSearchParams(window.location.search)
     const accessToken = urlParams.get('accessToken')
     const refreshToken = urlParams.get('refreshToken')
+    const redirectParam = urlParams.get('redirect')
+    const storedRedirect = sessionStorage.getItem('postLoginRedirect')
 
     if (!accessToken || !refreshToken) {
       throw new Error('토큰을 받지 못했습니다.')
@@ -51,8 +53,13 @@ onMounted(async () => {
     }
 
     // 로그인 성공 - 홈으로 리다이렉트
+    const redirectTarget =
+      (redirectParam && redirectParam.startsWith('/') ? redirectParam : '') ||
+      (storedRedirect && storedRedirect.startsWith('/') ? storedRedirect : '') ||
+      '/'
+    sessionStorage.removeItem('postLoginRedirect')
     setTimeout(() => {
-      router.push('/')
+      router.push(redirectTarget)
     }, 1000)
   } catch (err) {
     console.error('OAuth2 로그인 처리 중 오류:', err)
@@ -60,6 +67,7 @@ onMounted(async () => {
 
     // 3초 후 로그인 페이지로 리다이렉트
     setTimeout(() => {
+      sessionStorage.removeItem('postLoginRedirect')
       router.push('/login')
     }, 3000)
   } finally {
