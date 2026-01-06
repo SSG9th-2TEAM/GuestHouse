@@ -58,7 +58,7 @@ const loadKakaoMap = () => {
       return
     }
 
-    const appKey = import.meta.env.VITE_KAKAO_MAP_KEY
+    const appKey = 'edff5897f4250925f0de3f4ca22d615f'
     if (!appKey) {
       reject(new Error('Kakao map key is missing'))
       return

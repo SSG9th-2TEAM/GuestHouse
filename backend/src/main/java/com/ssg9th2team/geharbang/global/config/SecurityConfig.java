@@ -48,6 +48,12 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+                                // 폼 로그인 비활성화 (SPA에서 처리)
+                                .formLogin(form -> form.disable())
+
+                                // 기본 HTTP Basic 인증 비활성화
+                                .httpBasic(basic -> basic.disable())
+
                                 // 요청 권한 설정
                                 .authorizeHttpRequests(auth -> auth
                                                 // 인증 없이 접근 가능한 경로
@@ -58,12 +64,34 @@ public class SecurityConfig {
                                                                 "/api/list/**",
                                                                 "/api/recommendations/**",
                                                                 "/api/ocr/**",
+                                                                "/api/payments/**",
                                                                 "/uploads/**",
                                                                 "/error",
                                                                 "/oauth2/**",
                                                                 "/login/oauth2/**",
                                                                 "/swagger-ui/**",
-                                                                "/v3/api-docs/**")
+                                                                "/v3/api-docs/**",
+                                                                // Static resources
+                                                                "/",
+                                                                "/index.html",
+                                                                "/assets/**",
+                                                                "/favicon.ico",
+                                                                "/logo.png",
+                                                                "/icon.png",
+                                                                // SPA Routes (handled by ForwardController)
+                                                                "/payment/**",
+                                                                "/booking/**",
+                                                                "/login",
+                                                                "/signup",
+                                                                "/oauth2/redirect",
+                                                                "/social-signup",
+                                                                "/room/**",
+                                                                "/map",
+                                                                "/search",
+                                                                "/mypage/**",
+                                                                "/host/**",
+                                                                "/admin/**",
+                                                                "/policy/**")
                                                 .permitAll()
                                                 // 그 외 모든 요청은 인증 필요
                                                 .anyRequest().authenticated())
