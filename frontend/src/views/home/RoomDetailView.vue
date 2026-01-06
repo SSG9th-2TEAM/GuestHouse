@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { useListingFilters } from '@/composables/useListingFilters'
+import { fetchThemes } from '@/api/theme'
 import { fetchAccommodationDetail, fetchAccommodationAvailability } from '@/api/accommodation'
 import { getReviewsByAccommodation } from '@/api/reviewApi'
 import { getDownloadableCoupons, issueCoupon, getMyCoupons } from '@/api/couponApi'
@@ -235,6 +236,8 @@ let availabilityRequestId = 0
 const availableCoupons = ref([])
 const isCouponModalOpen = ref(false)
 const downloadedCouponIds = ref(new Set())
+const themeCatalog = ref([])
+const isThemeCatalogLoading = ref(false)
 
 const canBook = computed(() => {
   return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
@@ -419,6 +422,21 @@ const loadAvailability = async () => {
   }
 }
 
+const loadThemeCatalog = async () => {
+  if (isThemeCatalogLoading.value) return
+  isThemeCatalogLoading.value = true
+  try {
+    const response = await fetchThemes()
+    if (response.ok && Array.isArray(response.data)) {
+      themeCatalog.value = response.data
+    }
+  } catch (error) {
+    console.error('Failed to load theme catalog', error)
+  } finally {
+    isThemeCatalogLoading.value = false
+  }
+}
+
 const loadAccommodation = async () => {
   const accommodationsId = getAccommodationId()
   if (!accommodationsId) {
@@ -545,6 +563,28 @@ const buildSnsLinks = (sns) => {
 
 const snsLinks = computed(() => buildSnsLinks(guesthouse.value.sns))
 
+const themeIconMap = computed(() => {
+  const map = new Map()
+  themeCatalog.value.forEach((theme) => {
+    const name = theme?.themeName ? String(theme.themeName).trim() : ''
+    if (!name) return
+    map.set(name, theme.themeImageUrl || '')
+  })
+  return map
+})
+
+const themeTags = computed(() => {
+  const themes = Array.isArray(guesthouse.value.themes) ? guesthouse.value.themes : []
+  const map = themeIconMap.value
+  return themes
+    .map((theme) => {
+      const name = theme == null ? '' : String(theme).trim()
+      if (!name) return null
+      return { name, imageUrl: map.get(name) || '' }
+    })
+    .filter(Boolean)
+})
+
 const increaseGuest = () => {
   searchStore.increaseGuest()
 }
@@ -645,6 +685,7 @@ const formatDate = (dateStr) => {
 }
 
 onMounted(() => {
+  loadThemeCatalog()
   loadAccommodation()
   if (hasFilterQuery(route.query)) {
     applyRouteFilters(route.query)
@@ -747,9 +788,13 @@ watch(filteredRooms, (rooms) => {
         <span v-if="!guesthouse.amenities.length" class="tag empty">등록된 정보 없음</span>
       </div>
       <h2>테마</h2>
-      <div class="tag-list">
-        <span v-for="theme in guesthouse.themes" :key="theme" class="tag">{{ theme }}</span>
-        <span v-if="!guesthouse.themes.length" class="tag empty">등록된 정보 없음</span>
+      <div class="tag-list theme-tag-list">
+        <span v-for="theme in themeTags" :key="theme.name" class="tag theme-tag">
+          <img v-if="theme.imageUrl" :src="theme.imageUrl" :alt="theme.name" class="theme-tag__icon" />
+          <span v-else class="theme-tag__icon theme-tag__icon--empty"></span>
+          <span class="theme-tag__label">{{ theme.name }}</span>
+        </span>
+        <span v-if="!themeTags.length" class="tag empty">등록된 정보 없음</span>
       </div>
     </section>
 
@@ -1210,6 +1255,24 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 .tag.empty {
   color: var(--text-sub);
+}
+.theme-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.theme-tag__icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.theme-tag__icon--empty {
+  background: #e5e7eb;
+}
+.theme-tag__label {
+  line-height: 1;
 }
 .amenity-tag {
   display: inline-flex;

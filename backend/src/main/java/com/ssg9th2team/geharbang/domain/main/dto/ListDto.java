@@ -7,8 +7,8 @@ import lombok.Getter;
 @Getter
 @Builder
 public class ListDto {
-    private Long accomodationsId;
-    private String accomodationsName;
+    private Long accommodationsId;
+    private String accommodationsName;
     private String shortDescription;
     private String city;
     private String district;

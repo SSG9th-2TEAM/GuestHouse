@@ -22,17 +22,18 @@ const MAX_ITEMS_PER_ROW = MAX_ROW_CARDS - 1
 const MAX_THEME_SECTIONS = 8
 
 const normalizeItem = (item) => {
-  const id = item.accomodationsId ?? item.accommodationsId ?? item.accommodationId ?? item.id
-  const title = item.accomodationsName ?? item.accommodationsName ?? item.accommodationName ?? item.title ?? ''
+  const id = item.accommodationsId ?? item.accommodationId ?? item.id
+  const title = item.accommodationsName ?? item.accommodationName ?? item.title ?? ''
   const description = item.shortDescription ?? item.description ?? ''
   const rating = item.rating ?? null
+  const reviewCount = item.reviewCount ?? item.review_count ?? null
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
   const price = Number(item.minPrice ?? item.price ?? 0)
   const imageUrl = item.imageUrl || 'https://placehold.co/400x300'
   const score = item.score ?? null
   const matchedThemes = item.matchedThemes ?? []
   const matchedTags = item.matchedTags ?? []
-  return { id, title, description, rating, location, price, imageUrl, score, matchedThemes, matchedTags }
+  return { id, title, description, rating, reviewCount, location, price, imageUrl, score, matchedThemes, matchedTags }
 }
 
 const visibleItems = (items) => items.slice(0, MAX_ITEMS_PER_ROW)
@@ -235,6 +236,7 @@ onMounted(() => {
           :title="item.title"
           :description="item.description"
           :rating="item.rating"
+          :review-count="item.reviewCount"
           :location="item.location"
           :price="item.price"
           :image-url="item.imageUrl"
@@ -270,6 +272,7 @@ onMounted(() => {
           :title="item.title"
           :description="item.description"
           :rating="item.rating"
+          :review-count="item.reviewCount"
           :location="item.location"
           :price="item.price"
           :image-url="item.imageUrl"
