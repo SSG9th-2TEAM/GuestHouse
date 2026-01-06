@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getCurrentUser, updateUserProfile } from '@/api/userClient'
+import DefaultAvatar from '@/assets/default-avatar.svg'; // Import the default avatar SVG
 
 const router = useRouter()
 const user = ref({
@@ -196,7 +197,7 @@ onMounted(() => {
       <div class="avatar-section">
         <div class="avatar-container">
           <div class="avatar-circle">
-            <span class="avatar-emoji">👤</span>
+            <img :src="DefaultAvatar" alt="Default Avatar" class="profile-avatar-img" />
           </div>
           <div class="avatar-badge" :class="{ 'edit-mode': isEditMode }">
             {{ isEditMode ? '수정 중' : '활성' }}
@@ -487,18 +488,24 @@ onMounted(() => {
 .avatar-circle {
   width: 120px;
   height: 120px;
-  background: #BFE7DF;
+  /* background: #BFE7DF; Removed, as SVG provides background */
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border: 3px solid #ffffff;
+  overflow: hidden; /* Ensure SVG is clipped to circle */
 }
 
-.avatar-emoji {
-  font-size: 3.5rem;
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Cover the circle area */
+  border-radius: 50%; /* Apply border-radius to the image itself for consistency */
 }
+
+/* .avatar-emoji is no longer used for the image, remove its font-size if it was specific to the emoji */
 
 .avatar-badge {
   position: absolute;
@@ -750,8 +757,9 @@ onMounted(() => {
     height: 100px;
   }
 
-  .avatar-emoji {
-    font-size: 3rem;
+  .profile-avatar-img {
+    width: 100%;
+    height: 100%;
   }
 
   .user-name-display h2 {

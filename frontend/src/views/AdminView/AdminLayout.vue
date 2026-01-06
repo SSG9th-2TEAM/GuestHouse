@@ -18,11 +18,11 @@ const isActive = (to, exact = false) =>
 
 const roleSwitches = []
 
-const isDarkMode = ref(localStorage.getItem('adminDarkMode') === 'true')
+const isDarkMode = ref(sessionStorage.getItem('adminDarkMode') === 'true')
 
 const toggleDarkMode = () => {
   isDarkMode.value = !isDarkMode.value
-  localStorage.setItem('adminDarkMode', String(isDarkMode.value))
+  sessionStorage.setItem('adminDarkMode', String(isDarkMode.value))
 }
 </script>
 

@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { useHolidayStore } from '@/stores/holiday'
 import { useCalendarStore } from '@/stores/calendar'
-import { isAuthenticated, logout, validateToken } from '@/api/authClient'
+import { isAuthenticated, logout, validateToken, getUserInfo } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
@@ -29,29 +29,34 @@ watch(
 
 const isMenuOpen = ref(false)
 const isSearchExpanded = ref(false)
-const isHostMode = ref(localStorage.getItem('isHostMode') === 'true')
 const isCalendarOpen = computed(() => calendarStore.activeCalendar === 'header')
 const isGuestOpen = ref(false)
 const isLoggedIn = ref(isAuthenticated())
 const isHostRoute = computed(() => route.path.startsWith('/host'))
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
+const userInfo = computed(() => getUserInfo())
+const isUserHost = computed(() => userInfo.value?.role === 'HOST' || userInfo.value?.role === 'ROLE_HOST')
 
-
-// Toggle host mode and persist to localStorage
+// 호스트 모드 전환
 const toggleHostMode = () => {
-  if (!isAuthenticated()) {
-    router.push('/login')
-    isMenuOpen.value = false
-    return
+  if (!isLoggedIn.value) {
+    router.push('/login');
+    isMenuOpen.value = false;
+    return;
   }
-  isHostMode.value = !isHostMode.value
-  localStorage.setItem('isHostMode', isHostMode.value.toString())
-  if (isHostMode.value) {
-    router.push('/host')
+
+  if (isUserHost.value) {
+    // 실제 호스트인 경우, 호스트/게스트 뷰 토글
+    if (isHostRoute.value) {
+      router.push('/');
+    } else {
+      router.push('/host');
+    }
   } else {
-    router.push('/')
+    // 게스트인 경우, 호스트 등록 페이지로 이동
+    router.push('/host/accommodation/register');
   }
-  isMenuOpen.value = false
+  isMenuOpen.value = false;
 }
 
 // 로그인 페이지로 이동
@@ -64,8 +69,6 @@ const handleLogin = () => {
 const handleLogout = () => {
   logout()
   isLoggedIn.value = false
-  isHostMode.value = false
-  localStorage.setItem('isHostMode', 'false')
   router.push('/')
   isMenuOpen.value = false
 }
@@ -360,7 +363,7 @@ onUnmounted(() => {
               <div class="host-toggle-card" @click="toggleHostMode">
                 <div class="toggle-info">
                   <div class="toggle-title">호스트 모드 전환</div>
-                  <div class="toggle-status">현재: {{ isHostMode ? '호스트 모드' : '게스트 모드' }}</div>
+                  <div class="toggle-status">현재: {{ !isLoggedIn ? '비회원' : (isHostRoute ? '호스트 모드' : '게스트 모드') }}</div>
                 </div>
                 <div class="toggle-icon">›</div>
               </div>

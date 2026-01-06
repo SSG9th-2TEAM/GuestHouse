@@ -160,7 +160,7 @@ const initFilters = () => {
     if (normalizedMonth) month = normalizedMonth
     includeZeroValue = normalizeBool(queryIncludeZero)
   } else if (typeof window !== 'undefined') {
-    const saved = window.localStorage.getItem(STORAGE_KEY)
+    const saved = window.sessionStorage.getItem(STORAGE_KEY)
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
@@ -169,7 +169,7 @@ const initFilters = () => {
         if (normalizedMonth) month = normalizedMonth
         includeZeroValue = normalizeBool(parsed?.includeZero)
       } catch (error) {
-        window.localStorage.removeItem(STORAGE_KEY)
+        window.sessionStorage.removeItem(STORAGE_KEY)
       }
     }
   }
@@ -283,7 +283,7 @@ watch([selectedYear, selectedMonth, includeZero], () => {
     month: selectedMonth.value,
     includeZero: includeZero.value
   }
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
 })
 
 const netRevenue = computed(() => {

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getUserInfo, getAccessToken, getCurrentUser, saveUserInfo } from '@/api/authClient';
+import { getUserInfo } from '@/api/authClient';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -273,74 +273,40 @@ const router = createRouter({
     ]
 })
 
-router.beforeEach(async (to, from, next) => {
-    const token = getAccessToken();
-    let userInfo = getUserInfo();
+router.beforeEach((to, from, next) => {
+    const userInfo = getUserInfo();
+
     const isAdminRoute = to.path.startsWith('/admin');
-    const isHostReportRoute = to.path.startsWith('/host/report');
-    const isHostRole = (info) => {
-        if (!info) return false;
-        const role = info.role;
-        return role === 'HOST' || role === 'ROLE_HOST' || info.hostApproved === true;
-    };
+    const isHostRoute = to.path.startsWith('/host');
+    const protectedPaths = [
+        '/profile', '/reservations', '/wishlist', '/coupons',
+        '/reviews', '/write-review', '/delete-account', '/booking', '/payment'
+    ];
+    const requiresAuth = protectedPaths.some(path => to.path.startsWith(path));
 
-    if (!userInfo && token) {
-        const response = await getCurrentUser();
-        if (response.ok && response.data) {
-            saveUserInfo(response.data);
-            userInfo = response.data;
-        } else if (response.status === 401) {
-            next('/login');
-            return;
-        } else if (response.status === 403) {
+    // 1. 비로그인 사용자 처리
+    if (!userInfo) {
+        if (isAdminRoute || isHostRoute || requiresAuth) {
+            // 로그인이 필요한 페이지에 접근 시, alert 대신 쿼리 파라미터와 함께 로그인 페이지로 리디렉션
+            return next({ path: '/login', query: { unauthorized: 'true' } });
+        }
+    }
+    // 2. 로그인 사용자 권한 처리
+    else {
+        const userRole = userInfo.role ? userInfo.role.toUpperCase() : '';
+        if (isAdminRoute && userRole !== 'ADMIN') {
+            // 관리자 페이지에 접근하려는 비관리자 사용자
             alert('접근 권한이 없습니다.');
-            next('/host');
-            return;
+            return next('/');
+        }
+        if (isHostRoute && userRole !== 'HOST' && userRole !== 'ROLE_HOST' && to.path !== '/host/accommodation/register') {
+            // 호스트 페이지에 접근하려는 비호스트 사용자
+            alert('접근 권한이 없습니다.');
+            return next('/');
         }
     }
 
-    if (isAdminRoute) {
-        if (!userInfo) {
-            next('/login');
-            return;
-        }
-        if (userInfo.role !== 'ADMIN') {
-            alert('접근 권한이 없습니다.');
-            next('/');
-            return;
-        }
-        next();
-        return;
-    }
-
-    if (isHostReportRoute) {
-        if (!userInfo) {
-            next('/login');
-            return;
-        }
-        if (!isHostRole(userInfo) && token) {
-            const response = await getCurrentUser();
-            if (response.ok && response.data) {
-                saveUserInfo(response.data);
-                userInfo = response.data;
-            } else if (response.status === 401) {
-                next('/login');
-                return;
-            } else if (response.status === 403) {
-                alert('접근 권한이 없습니다.');
-                next('/host');
-                return;
-            }
-        }
-        if (!isHostRole(userInfo)) {
-            alert('접근 권한이 없습니다.');
-            next('/host');
-            return;
-        }
-        next();
-        return;
-    }
-
+    // 모든 검사를 통과한 경우 정상 진행
     next();
 });
 
