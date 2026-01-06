@@ -6,9 +6,11 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -24,9 +26,9 @@ public class AdminUserService {
             int size,
             String sort
     ) {
-        Sort sorting = "oldest".equalsIgnoreCase(sort)
-                ? Sort.by(Sort.Direction.ASC, "createdAt")
-                : Sort.by(Sort.Direction.DESC, "createdAt");
+        int safePage = Math.max(0, page);
+        int safeSize = size > 0 ? Math.min(size, 50) : 20;
+        Sort sorting = resolveUserSort(sort);
 
         List<User> filtered = userRepository.findAll(sorting).stream()
                 .filter(user -> matchesRole(user, role))
@@ -34,14 +36,30 @@ public class AdminUserService {
                 .toList();
 
         int totalElements = filtered.size();
-        int totalPages = size > 0 ? (int) Math.ceil(totalElements / (double) size) : 1;
-        int fromIndex = Math.min(page * size, totalElements);
-        int toIndex = Math.min(fromIndex + size, totalElements);
+        int totalPages = safeSize > 0 ? (int) Math.ceil(totalElements / (double) safeSize) : 1;
+        int fromIndex = Math.min(safePage * safeSize, totalElements);
+        int toIndex = Math.min(fromIndex + safeSize, totalElements);
         List<AdminUserSummary> items = filtered.subList(fromIndex, toIndex).stream()
                 .map(this::toSummary)
                 .toList();
 
-        return AdminPageResponse.of(items, page, size, totalElements, totalPages);
+        return AdminPageResponse.of(items, safePage, safeSize, totalElements, totalPages);
+    }
+
+    private Sort resolveUserSort(String sort) {
+        if (!StringUtils.hasText(sort) || "latest".equalsIgnoreCase(sort)) {
+            return Sort.by(Sort.Direction.DESC, "createdAt");
+        }
+        if ("oldest".equalsIgnoreCase(sort)) {
+            return Sort.by(Sort.Direction.ASC, "createdAt");
+        }
+        if ("idAsc".equalsIgnoreCase(sort)) {
+            return Sort.by(Sort.Direction.ASC, "id");
+        }
+        if ("idDesc".equalsIgnoreCase(sort)) {
+            return Sort.by(Sort.Direction.DESC, "id");
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid sort value");
     }
 
     private UserRole parseRole(String role) {

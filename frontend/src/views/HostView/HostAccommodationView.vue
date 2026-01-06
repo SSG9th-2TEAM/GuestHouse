@@ -109,10 +109,10 @@ onMounted(loadAccommodations)
     />
 
     <div v-else class="list-view-wrapper">
-      <div class="view-header">
+      <div class="host-view-header">
         <div>
-          <h2>숙소 관리</h2>
-          <p class="subtitle">총 {{ accommodationCount }}개의 숙소</p>
+          <h2 class="host-title">숙소 관리</h2>
+          <p class="host-subtitle">총 {{ accommodationCount }}개의 숙소</p>
         </div>
       </div>
 

@@ -11,6 +11,9 @@ public record AdminDashboardSummaryResponse(
         long platformFeeAmount,
         long paymentFailureCount,
         long refundRequestCount,
+        long refundCompletedCount,
+        long refundCompletedAmount,
+        long netRevenue,
         List<AdminAccommodationSummary> pendingAccommodationsList,
         List<AdminReportSummary> openReportsList
 ) {

@@ -497,10 +497,10 @@ watch(selectedPeriod, () => {
     </section>
 
     <template v-else>
-      <header class="view-header">
+      <header class="host-view-header">
         <div>
-          <h2>대시보드</h2>
-          <p class="subtitle">{{ periodLabel }} 기준 운영 현황을 빠르게 확인하세요.</p>
+          <h2 class="host-title">대시보드</h2>
+          <p class="host-subtitle">{{ periodLabel }} 기준 운영 현황을 빠르게 확인하세요.</p>
         </div>
       </header>
 
@@ -707,7 +707,7 @@ watch(selectedPeriod, () => {
   flex-direction: column;
   gap: 1rem;
   min-height: 100vh;
-  padding: 1rem 1rem calc(1.5rem + var(--bn-h, 0px) + (var(--bn-pad, 0px) * 2) + env(safe-area-inset-bottom));
+  padding: 0 0 calc(1.5rem + var(--bn-h, 0px) + (var(--bn-pad, 0px) * 2) + env(safe-area-inset-bottom));
 }
 
 .view-header h2 {

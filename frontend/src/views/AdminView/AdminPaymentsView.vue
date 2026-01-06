@@ -5,7 +5,7 @@ import AdminStatCard from '../../components/admin/AdminStatCard.vue'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
-import { fetchAdminPayments, fetchAdminPaymentDetail, fetchAdminPaymentMetrics, refundPayment } from '../../api/adminApi'
+import { fetchAdminPayments, fetchAdminPaymentDetail, fetchAdminPaymentMetrics, fetchAdminPaymentSummary, refundPayment } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 import { getPaymentStatusLabel, getPaymentStatusVariant } from '../../constants/adminPaymentStatus'
 import { canRefundReservation, refundBlockReason } from '../../constants/adminReservationPolicy'
@@ -26,6 +26,9 @@ const totalPages = ref(0)
 const totalElements = ref(0)
 const isLoading = ref(false)
 const loadError = ref('')
+const summaryLoading = ref(false)
+const summaryError = ref('')
+const paymentSummary = ref(null)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const detailError = ref('')
@@ -55,6 +58,7 @@ const loadPayments = async () => {
   loadError.value = ''
   const response = await fetchAdminPayments({
     status: statusFilter.value,
+    type: typeFilter.value,
     keyword: searchQuery.value || undefined,
     page: page.value,
     size: size.value,
@@ -68,16 +72,51 @@ const loadPayments = async () => {
     size.value = meta.size
     totalPages.value = meta.totalPages
     totalElements.value = meta.totalElements
-    const totalAmount = paymentList.value.reduce((sum, item) => sum + (item.approvedAmount ?? 0), 0)
-    stats.value = [
-      { label: '총 거래액', value: `${totalAmount.toLocaleString()}원`, sub: '현재 페이지 기준', tone: 'primary' },
-      { label: '거래 건수', value: `${paymentList.value.length}건`, sub: '현재 페이지 기준', tone: 'success' },
-      { label: '결제 이슈', value: `${paymentList.value.filter((p) => p.paymentStatus !== 1).length}건`, sub: '실패/환불', tone: 'accent' }
-    ]
+    applySummaryStats()
   } else {
     loadError.value = '결제 목록을 불러오지 못했습니다.'
   }
   isLoading.value = false
+}
+
+const resolveSummaryRange = () => {
+  const now = new Date()
+  if (transactionMode.value === 'monthly') {
+    const year = transactionYear.value || now.getFullYear()
+    return { from: `${year}-01-01`, to: `${year}-12-31` }
+  }
+  const endYear = now.getFullYear()
+  const startYear = endYear - 4
+  return { from: `${startYear}-01-01`, to: `${endYear}-12-31` }
+}
+
+const loadPaymentSummary = async () => {
+  summaryLoading.value = true
+  summaryError.value = ''
+  const range = resolveSummaryRange()
+  const response = await fetchAdminPaymentSummary({
+    status: statusFilter.value === 'ALL' ? undefined : statusFilter.value,
+    type: typeFilter.value === 'ALL' ? undefined : typeFilter.value,
+    keyword: searchQuery.value || undefined,
+    ...range
+  })
+  if (response.ok && response.data) {
+    paymentSummary.value = response.data
+    applySummaryStats()
+  } else {
+    summaryError.value = '요약 지표를 불러오지 못했습니다.'
+    paymentSummary.value = null
+  }
+  summaryLoading.value = false
+}
+
+const applySummaryStats = () => {
+  if (!paymentSummary.value) return
+  stats.value = [
+    { label: '총 거래액', value: `${Number(paymentSummary.value.grossAmount ?? 0).toLocaleString()}원`, sub: '기간 기준', tone: 'primary' },
+    { label: '순매출', value: `${Number(paymentSummary.value.netAmount ?? 0).toLocaleString()}원`, sub: '환불 반영', tone: 'success' },
+    { label: '환불 완료', value: `${Number(paymentSummary.value.refundCompletedCount ?? 0).toLocaleString()}건`, sub: '기간 기준', tone: 'accent' }
+  ]
 }
 
 const loadPaymentMetrics = async () => {
@@ -152,6 +191,7 @@ onMounted(() => {
   page.value = Number(route.query.page ?? 0)
   loadPayments()
   loadPaymentMetrics()
+  loadPaymentSummary()
 })
 
 const mapStatusFilter = (filter) => {
@@ -165,6 +205,7 @@ const setTransactionMode = (mode) => {
   transactionMode.value = mode
   transactionSeries.value = []
   loadPaymentMetrics()
+  loadPaymentSummary()
 }
 
 const transactionMax = computed(() => {
@@ -294,15 +335,19 @@ watch([searchQuery, statusFilter], () => {
   page.value = 0
   syncQuery({
     status: statusFilter.value === 'ALL' ? undefined : statusFilter.value,
+    type: typeFilter.value === 'ALL' ? undefined : typeFilter.value,
     keyword: searchQuery.value || undefined,
     page: page.value
   })
   loadPayments()
   loadPaymentMetrics()
+  loadPaymentSummary()
 })
 
 watch([typeFilter, transactionYear], () => {
+  loadPayments()
   loadPaymentMetrics()
+  loadPaymentSummary()
 })
 
 const downloadReport = (format) => {

@@ -218,15 +218,15 @@ watch([selectedAccommodationId, selectedSort], () => {
     />
 
     <template v-else>
-    <div class="view-header">
+    <div class="host-view-header">
       <div>
-        <h2>리뷰 관리</h2>
-        <p class="subtitle">
+        <h2 class="host-title">리뷰 관리</h2>
+        <p class="host-subtitle">
           평균 평점 {{ averageRating }} · 총 {{ reviewCount }}개의 리뷰
         </p>
         <p v-if="summaryError" class="muted">요약 정보를 불러오지 못했습니다.</p>
       </div>
-      <div class="filters">
+      <div class="filters host-view-header__actions">
         <select v-model="selectedAccommodationId" class="filter-select" aria-label="숙소 선택">
           <option value="all">전체 숙소</option>
           <option v-for="acc in accommodations" :key="acc.accommodationsId ?? acc.id" :value="acc.accommodationsId ?? acc.id">

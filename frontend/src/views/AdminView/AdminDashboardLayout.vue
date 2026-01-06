@@ -28,7 +28,11 @@ const isActive = (to, exact = false) =>
       </RouterLink>
     </nav>
     <div class="admin-dashboard-content">
-      <RouterView />
+      <RouterView v-slot="{ Component }">
+        <KeepAlive>
+          <component :is="Component" />
+        </KeepAlive>
+      </RouterView>
     </div>
   </section>
 </template>
