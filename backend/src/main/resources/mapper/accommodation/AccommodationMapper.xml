@@ -303,6 +303,9 @@
                 WHEN a.approval_status = 'APPROVED' THEN 'inactive'
                 ELSE 'inactive'
             END AS status,
+            a.approval_status AS approvalStatus,
+            a.accommodation_status AS accommodationStatus,
+            a.rejection_reason AS rejectionReason,
             a.city,
             a.district,
             a.township,
@@ -346,6 +349,9 @@
                 WHEN a.approval_status = 'APPROVED' THEN 'inactive'
                 ELSE 'inactive'
             END AS status,
+            a.approval_status AS approvalStatus,
+            a.accommodation_status AS accommodationStatus,
+            a.rejection_reason AS rejectionReason,
             a.city,
             a.district,
             a.township,
