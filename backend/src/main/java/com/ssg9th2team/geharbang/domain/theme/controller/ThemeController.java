@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.theme.controller;
 
+import com.ssg9th2team.geharbang.domain.theme.dto.CategoryResponseDto;
 import com.ssg9th2team.geharbang.domain.theme.dto.ThemeResponseDto;
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import com.ssg9th2team.geharbang.domain.theme.service.ThemeService;
@@ -31,6 +32,11 @@ public class ThemeController {
                 .stream()
                 .map(theme -> ThemeResponseDto.from(theme, counts.get(theme.getId())))
                 .collect(Collectors.toList());
+    }
+
+    @GetMapping("/categories")
+    public List<CategoryResponseDto> getAllCategories() {
+        return themeService.getAllCategories();
     }
 
     @GetMapping("/me")
