@@ -76,32 +76,55 @@ const amenityOptions = [
   { id: 4, label: 'TV' }
 ]
 
-// 테마 옵션
-const themeOptions = {
-  activity: {
-    label: '액티비티',
-    items: ['불멍', '포틀럭', '러닝', '서핑']
-  },
-  location: {
-    label: '위치 특성',
-    items: ['바닷가', '공항 주변', '노을 맛집(노을 명소)']
-  },
-  experience: {
-    label: '특별한 경험',
-    items: ['여성 전용', '1인실', '독서', '스냅 촬영']
-  },
-  meal: {
-    label: '식사',
-    items: ['조식', '오마카세']
+// 테마 옵션 (API에서 동적으로 로드)
+const themeOptions = ref({})
+const themeList = ref([]) // 전체 테마 리스트 (id, themeName 매핑용)
+
+// 카테고리 라벨 매핑
+const categoryLabels = {
+  'MEETING': '만남/소셜',
+  'PERSONA': '페르소나/성향',
+  'FACILITY': '시설/편의',
+  'FOOD': '식사',
+  'PLAY': '놀거리'
+}
+
+// 테마 목록 로드
+const loadThemes = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/themes`)
+    if (!response.ok) throw new Error('테마 로드 실패')
+    const data = await response.json()
+    themeList.value = data
+
+    // 카테고리별로 그룹화
+    const grouped = {}
+    data.forEach(theme => {
+      const category = theme.themeCategory || 'ETC'
+      if (!grouped[category]) {
+        grouped[category] = {
+          label: categoryLabels[category] || category,
+          items: []
+        }
+      }
+      grouped[category].items.push(theme.themeName)
+    })
+    themeOptions.value = grouped
+  } catch (error) {
+    console.error('테마 로드 실패:', error)
   }
 }
 
-// 테마 ID 매핑
-const themeIdMap = {
-  '불멍': 1, '포틀럭': 2, '러닝': 3, '서핑': 4,
-  '바닷가': 5, '공항 주변': 6, '노을 맛집(노을 명소)': 7,
-  '여성 전용': 8, '1인실': 9, '독서': 10, '스냅 촬영': 11,
-  '조식': 12, '오마카세': 13
+// 테마 ID 매핑 (themeName -> themeId) - API에서 동적으로 생성
+const getThemeId = (themeName) => {
+  const theme = themeList.value.find(t => t.themeName === themeName)
+  return theme ? theme.id : undefined
+}
+
+// 테마 ID에서 이름 가져오기
+const getThemeNameById = (id) => {
+  const theme = themeList.value.find(t => t.id === id)
+  return theme ? theme.themeName : undefined
 }
 
 // 은행 목록
@@ -300,10 +323,7 @@ const loadAccommodation = async () => {
       isActive: data.accommodationStatus === 1,
       
       amenities: data.amenityIds || [], // IDs
-      themes: data.themeIds ? data.themeIds.map(id => {
-         // Map ID to Name for UI matching Register page string logic
-         return Object.keys(themeIdMap).find(key => themeIdMap[key] === id)
-      }).filter(Boolean) : [],
+      themes: data.themeIds ? data.themeIds.map(id => getThemeNameById(id)).filter(Boolean) : [],
       
       bankName: data.bankName,
       accountNumber: data.accountNumber,
@@ -667,7 +687,7 @@ const handleUpdate = async () => {
             rooms: roomsData,
             images: imageList,
             amenityIds: form.value.amenities,
-            themeIds: form.value.themes.map(name => themeIdMap[name]).filter(id => id !== undefined)
+            themeIds: form.value.themes.map(name => getThemeId(name)).filter(id => id !== undefined)
         }
 
         console.log('Update Request:', requestData) // Debug Log
@@ -1013,7 +1033,8 @@ const removeDetailImage = (idx) => {
 
 
 
-onMounted(() => {
+onMounted(async () => {
+  await loadThemes() // 테마 목록 먼저 로드
   loadAccommodation()
 })
 </script>
@@ -1040,11 +1061,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="action-buttons">
-          <button class="btn-danger" @click="deleteAccommodation">숙소 삭제</button>
-          <button class="btn-outline" @click="$router.push('/host/accommodation')">취소</button>
-          <button class="btn-primary" @click="handleUpdate">수정 완료</button>
-        </div>
       </div>
     </div>
 
