@@ -97,7 +97,7 @@ const handleLogin = async () => {
 
 const socialLogin = (provider) => {
   // 백엔드 OAuth2 URL로 리다이렉트
-  const baseUrl = 'http://localhost:8080'
+  const baseUrl = window.location.origin
   const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
   if (redirect.startsWith('/')) {
     sessionStorage.setItem('postLoginRedirect', redirect)

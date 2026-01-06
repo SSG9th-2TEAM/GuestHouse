@@ -235,6 +235,7 @@ const downloadedCouponIds = ref(new Set())
 const themeCatalog = ref([])
 const isThemeCatalogLoading = ref(false)
 const isDataLoading = ref(true)
+const isUnavailableModalOpen = ref(false)
 
 const canBook = computed(() => {
   return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
@@ -1002,10 +1003,10 @@ watch(filteredRooms, (rooms) => {
               <div class="price">₩{{ formatPrice(room.price) }}</div>
               <button
                 class="select-btn"
-                :class="{ active: selectedRoom?.id === room.id }"
-                :disabled="!room.available"
+                :class="{ active: selectedRoom?.id === room.id, unavailable: !room.available }"
+                @click.stop="!room.available ? isUnavailableModalOpen = true : selectRoom(room)"
               >
-                {{ !room.available ? '사용 중지' : (selectedRoom?.id === room.id ? '선택됨' : '객실') }}
+                {{ !room.available ? '마감' : (selectedRoom?.id === room.id ? '선택됨' : '객실') }}
               </button>
             </div>
           </div>
@@ -1092,6 +1093,16 @@ watch(filteredRooms, (rooms) => {
           <p v-else class="no-coupon">다운로드 가능한 쿠폰이 없습니다.</p>
         </div>
         <button class="close-modal-btn" @click="isCouponModalOpen = false">닫기</button>
+      </div>
+    </div>
+
+    <!-- Unavailable Modal -->
+    <div v-if="isUnavailableModalOpen" class="modal-overlay" @click.self="isUnavailableModalOpen = false">
+      <div class="modal-content unavailable-modal">
+        <div class="modal-icon">🚫</div>
+        <h3>예약 불가능</h3>
+        <p class="modal-desc">선택하신 날짜에는 이미 예약이 완료된 객실입니다.<br>다른 날짜나 객실을 선택해주세요.</p>
+        <button class="close-modal-btn" @click="isUnavailableModalOpen = false">확인</button>
       </div>
     </div>
     </template>
@@ -1536,11 +1547,6 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   background: var(--primary);
   color: #000;
 }
-.select-btn:disabled {
-  background: #e5e7eb;
-  color: #9ca3af;
-  cursor: not-allowed;
-}
 
 /* Room unavailable state */
 .room-card.unavailable {
@@ -1549,6 +1555,11 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 .room-card.unavailable:hover {
   border-color: #ddd;
+}
+.select-btn.unavailable {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: pointer;
 }
 .room-media {
   position: relative;

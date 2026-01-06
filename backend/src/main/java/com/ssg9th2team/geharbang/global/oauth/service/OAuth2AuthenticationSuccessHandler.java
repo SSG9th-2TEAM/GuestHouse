@@ -22,15 +22,15 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
     private final JwtTokenProvider jwtTokenProvider;
 
-    @Value("${oauth2.redirect-uri:http://localhost:3000/oauth2/redirect}")
-    private String redirectUri;
+    // 상대 경로 사용 (프론트/백엔드 같은 도메인)
+    private String redirectUri = "/oauth2/redirect";
 
-    @Value("${oauth2.signup-redirect-uri:http://localhost:3000/social-signup}")
-    private String signupRedirectUri;
+    // 상대 경로 사용
+    private String signupRedirectUri = "/social-signup";
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
-                                        Authentication authentication) throws IOException, ServletException {
+            Authentication authentication) throws IOException, ServletException {
         String targetUrl = determineTargetUrl(request, response, authentication);
 
         if (response.isCommitted()) {
@@ -43,7 +43,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     }
 
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response,
-                                        Authentication authentication) {
+            Authentication authentication) {
         // JWT 토큰 생성
         String accessToken = jwtTokenProvider.generateAccessToken(authentication);
         String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
