@@ -40,9 +40,6 @@ public class AdminInitializer implements CommandLineRunner {
 
             // 로그 생성
             log.info("기본 관리자 계정({})이 생성되었습니다.", adminEmail);
-        } else {
-            // 이미 계정이 있는 경우
-            log.info("기본 관리자 계정이 이미 존재합니다.");
         }
     }
 }

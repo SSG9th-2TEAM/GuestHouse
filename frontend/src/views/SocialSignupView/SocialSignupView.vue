@@ -383,9 +383,7 @@ const handleSkip = async () => {
       <!-- Progress Steps -->
       <div class="progress-steps">
         <div class="step" :class="{ active: currentStep >= 1, done: currentStep > 1 }">
-          <svg v-if="currentStep > 1" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-          <span v-if="currentStep > 1">1</span>
-          <span v-else>1</span>
+          <span>1</span>
         </div>
         <div class="step-line" :class="{ active: currentStep >= 2 }"></div>
         <div class="step" :class="{ active: currentStep >= 2 }">
@@ -476,11 +474,7 @@ const handleSkip = async () => {
         <button class="modal-close-btn" @click="closeModal">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
-        <div class="modal-icon" :class="modalType">
-          <span v-if="modalType === 'success'">✓</span>
-          <span v-else-if="modalType === 'error'">!</span>
-          <span v-else>i</span>
-        </div>
+
         <p class="modal-message">{{ modalMessage }}</p>
         <button class="modal-btn" @click="closeModal">확인</button>
       </div>
@@ -600,7 +594,6 @@ const handleSkip = async () => {
 }
 .step.done {
   background: var(--success-color);
-  color: white;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
   display: flex;
   align-items: center;
@@ -608,10 +601,10 @@ const handleSkip = async () => {
   gap: 4px;
 }
 .step.done span {
-  color: white;
+  color: var(--text-primary);
 }
 .step.done svg {
-  color: white;
+  color: var(--text-primary);
 }
 .step-line {
   width: 60px;
@@ -993,6 +986,9 @@ const handleSkip = async () => {
 .modal-icon.info {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   color: white;
+}
+.modal-icon.success svg {
+  color: var(--text-primary);
 }
 .modal-message {
   font-size: 1.05rem;

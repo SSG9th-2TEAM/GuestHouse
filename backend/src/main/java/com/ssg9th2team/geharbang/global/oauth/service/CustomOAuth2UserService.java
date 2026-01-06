@@ -7,6 +7,7 @@ import com.ssg9th2team.geharbang.domain.auth.entity.UserSocial;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserSocialRepository;
 import com.ssg9th2team.geharbang.domain.user.entity.Gender;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -58,67 +59,70 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         SocialProvider socialProvider = SocialProvider.valueOf(provider.toUpperCase());
 
-        // 1. user_social 테이블에서 기존 소셜 로그인 정보 조회
         Optional<UserSocial> userSocialOptional = userSocialRepository.findByProviderAndProviderUid(
                 socialProvider,
                 providerId
         );
 
         User user;
-        if (userSocialOptional.isEmpty()) {
-            // 신규 소셜 로그인 사용자
-            log.info("신규 소셜 로그인 사용자 생성: {}", email);
-
-            // 이메일 중복 체크 (일반 회원가입으로 이미 가입된 경우)
-            Optional<User> existingUser = userRepository.findByEmail(email);
-            
-            if (existingUser.isPresent()) {
-                // 이메일은 이미 있지만 소셜 로그인은 처음인 경우
-                // 기존 User에 소셜 계정 연결
-                user = existingUser.get();
-                log.info("기존 사용자에 소셜 계정 연결: {}", email);
-            } else {
-                // 완전히 새로운 사용자 생성
-                Gender gender = convertGender(genderStr);
-
-                user = User.builder()
-                        .name(name)
-                        .nickname(generateUniqueNickname(name))
-                        .gender(gender)
-                        .email(email)
-                        .password(null) // 소셜 로그인은 비밀번호 없음
-                        .phone(mobile)
-                        .role(UserRole.USER)
-                        .marketingAgreed(false)
-                        .hostApproved(null)
-                        .socialSignupCompleted(false) // 소셜 회원가입 미완료 상태
-                        .socialProvider(null) // User 테이블의 socialProvider는 사용하지 않음
-                        .socialId(null) // User 테이블의 socialId는 사용하지 않음
-                        .build();
-
-                user = userRepository.save(user);
-                log.info("신규 사용자 생성 완료: {}", user.getEmail());
-            }
-
-            // user_social 테이블에 소셜 로그인 정보 저장
-            UserSocial userSocial = UserSocial.builder()
-                    .user(user)
-                    .provider(socialProvider)
-                    .providerUid(providerId)
-                    .email(email)
-                    .profileImage(null) // 네이버 API에서 프로필 이미지를 받아올 수 있다면 여기에 설정
-                    .build();
-
-            userSocialRepository.save(userSocial);
-            log.info("소셜 로그인 정보 저장 완료: provider={}, uid={}", socialProvider, providerId);
-        } else {
-            // 기존 소셜 로그인 사용자
+        if (userSocialOptional.isPresent()) {
             UserSocial userSocial = userSocialOptional.get();
-            user = userSocial.getUser();
-            log.info("기존 소셜 로그인 사용자 로그인: {}", user.getEmail());
+            try {
+                user = userSocial.getUser();
+                // Eager loading이 아니므로, user의 속성에 접근하는 순간 예외가 발생할 수 있음
+                log.info("기존 소셜 로그인 사용자 로그인: {}", user.getEmail());
+            } catch (EntityNotFoundException e) {
+                log.warn("소셜 로그인 정보는 있으나 연결된 사용자를 찾을 수 없습니다. (provider={}, providerUid={})", userSocial.getProvider(), userSocial.getProviderUid());
+                log.warn("오래된 소셜 로그인 정보를 삭제하고 신규 가입 절차를 진행합니다.");
+                
+                userSocialRepository.delete(userSocial);
+                user = processNewSocialUser(email, name, genderStr, mobile, socialProvider, providerId);
+            }
+        } else {
+            // 신규 소셜 로그인 사용자
+            user = processNewSocialUser(email, name, genderStr, mobile, socialProvider, providerId);
         }
 
         return new CustomOAuth2User(user, oAuth2User.getAttributes());
+    }
+
+    private User processNewSocialUser(String email, String name, String genderStr, String mobile, SocialProvider socialProvider, String providerId) {
+        log.info("신규 소셜 로그인 처리: {}", email);
+
+        Optional<User> existingUser = userRepository.findByEmail(email);
+        
+        User user;
+        if (existingUser.isPresent()) {
+            user = existingUser.get();
+            log.info("기존 사용자에 소셜 계정 연결: {}", email);
+        } else {
+            Gender gender = convertGender(genderStr);
+            user = User.builder()
+                    .name(name)
+                    .nickname(generateUniqueNickname(name))
+                    .gender(gender)
+                    .email(email)
+                    .password(null)
+                    .phone(mobile)
+                    .role(UserRole.USER)
+                    .marketingAgreed(false)
+                    .hostApproved(null)
+                    .socialSignupCompleted(false)
+                    .build();
+            user = userRepository.save(user);
+log.info("신규 사용자 생성 완료: {}", user.getEmail());
+        }
+
+        UserSocial newUserSocial = UserSocial.builder()
+                .user(user)
+                .provider(socialProvider)
+                .providerUid(providerId)
+                .email(email)
+                .build();
+        userSocialRepository.save(newUserSocial);
+        log.info("소셜 로그인 정보 저장 완료: provider={}, uid={}", socialProvider, providerId);
+
+        return user;
     }
 
     private String generateUniqueNickname(String baseName) {
@@ -131,20 +135,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return nickname;
     }
 
-    /**
-     * 네이버 성별 정보를 Gender enum으로 변환
-     * @param genderStr 네이버 성별 ("M", "F", "U" 또는 null)
-     * @return Gender enum (MALE, FEMALE, 또는 null)
-     */
     private Gender convertGender(String genderStr) {
         if (genderStr == null) {
             return null;
         }
         
-        return switch (genderStr) {
-            case "M" -> Gender.MALE;
-            case "F" -> Gender.FEMALE;
-            default -> null; // "U" (미확인) 또는 기타 값은 null
+        return switch (genderStr.toUpperCase()) {
+            case "M", "MALE" -> Gender.MALE;
+            case "F", "FEMALE" -> Gender.FEMALE;
+            default -> null;
         };
     }
 }
+
