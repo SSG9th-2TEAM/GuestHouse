@@ -109,4 +109,6 @@ public interface ReservationJpaRepository
         long countByUserIdAndReservationStatus(Long userId, Integer reservationStatus);
 
         List<Reservation> findAllByUserId(Long userId);
+
+        long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 }

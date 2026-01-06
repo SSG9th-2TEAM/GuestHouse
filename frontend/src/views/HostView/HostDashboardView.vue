@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import NavHome from '@/components/nav-icons/NavHome.vue'
 import NavStay from '@/components/nav-icons/NavStay.vue'
@@ -10,13 +10,21 @@ import NavReview from '@/components/nav-icons/NavReview.vue'
 const router = useRouter()
 const route = useRoute()
 
-const tabs = [
+const topTabs = [
+  { id: 'dashboard', label: '대시보드', path: '/host' },
+  { id: 'property', label: '숙소', path: '/host/accommodation' },
+  { id: 'booking', label: '예약', path: '/host/booking' },
+  { id: 'revenue', label: '매출', path: '/host/revenue' },
+  { id: 'review', label: '리뷰', path: '/host/review' },
+  { id: 'report', label: '리포트', path: '/host/report' }
+]
+
+const bottomTabs = [
   { id: 'dashboard', label: '대시보드', icon: NavHome, path: '/host' },
   { id: 'property', label: '숙소', icon: NavStay, path: '/host/accommodation' },
   { id: 'booking', label: '예약', icon: NavReservation, path: '/host/booking' },
   { id: 'revenue', label: '매출', icon: NavSales, path: '/host/revenue' },
-  { id: 'review', label: '리뷰', icon: NavReview, path: '/host/review' },
-  { id: 'report', label: '리포트', icon: NavSales, path: '/host/report' }
+  { id: 'more', label: '더보기', icon: NavReview, path: null }
 ]
 
 const activeTab = computed(() => {
@@ -37,10 +45,37 @@ const activeTab = computed(() => {
   return 'dashboard'
 })
 
+const moreOpen = ref(false)
+
 const setTab = (path) => {
+  if (!path) {
+    moreOpen.value = !moreOpen.value
+    return
+  }
   const locked = typeof document !== 'undefined' && document.body.classList.contains('host-nav-locked')
   if (locked && path !== '/host/accommodation' && path !== '/host') return
+  moreOpen.value = false
   router.push(path)
+}
+
+const goToMore = (path) => {
+  moreOpen.value = false
+  router.push(path)
+}
+
+const closeMore = () => {
+  moreOpen.value = false
+}
+
+const handleKeydown = (event) => {
+  if (event.key === 'Escape') {
+    moreOpen.value = false
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', handleKeydown)
+  onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 }
 </script>
 
@@ -52,7 +87,7 @@ const setTab = (path) => {
         <router-link class="brand" to="/host">Host Center</router-link>
         <nav class="top-menu">
           <button
-              v-for="tab in tabs"
+              v-for="tab in topTabs"
               :key="tab.id"
               class="top-menu__item"
               :class="[{ active: activeTab === tab.id }, { 'nav-allowed': tab.id === 'property' || tab.id === 'dashboard' }]"
@@ -72,16 +107,28 @@ const setTab = (path) => {
     <!-- Mobile bottom navigation -->
     <nav class="bottom-nav">
       <button
-          v-for="tab in tabs"
+          v-for="tab in bottomTabs"
           :key="tab.id"
           class="nav-item"
-          :class="[{ active: activeTab === tab.id }, { 'nav-allowed': tab.id === 'property' || tab.id === 'dashboard' }]"
+          :class="[{ active: activeTab === tab.id || (tab.id === 'more' && moreOpen) }, { 'nav-allowed': tab.id === 'property' || tab.id === 'dashboard' }]"
+          type="button"
+          aria-haspopup="menu"
+          :aria-expanded="tab.id === 'more' ? String(moreOpen) : null"
           @click="setTab(tab.path)"
       >
         <component :is="tab.icon" class="nav-icon" />
         <span class="nav-label">{{ tab.label }}</span>
       </button>
     </nav>
+
+    <teleport to="body">
+      <div v-if="moreOpen" class="more-overlay" role="presentation" @click="closeMore">
+        <div class="more-sheet" role="menu" @click.stop>
+          <button class="more-item" type="button" role="menuitem" @click="goToMore('/host/review')">리뷰</button>
+          <button class="more-item" type="button" role="menuitem" @click="goToMore('/host/report')">리포트</button>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -98,6 +145,7 @@ const setTab = (path) => {
   --bn-label: 11px;
   --bn-gap: 2px;
   --bn-stroke: 1.9;
+  --host-bottom-nav-h: calc(var(--bn-h) + (var(--bn-pad) * 2));
 
   /* ✅ 하단 네비가 있는 동안 컨텐츠가 가려지지 않도록 */
   padding-bottom: calc(var(--bn-h) + (var(--bn-pad) * 2) + env(safe-area-inset-bottom));
@@ -240,6 +288,48 @@ const setTab = (path) => {
   font-weight: 800;
 }
 
+.more-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  bottom: calc(var(--host-bottom-nav-h, 68px) + env(safe-area-inset-bottom));
+}
+
+.more-sheet {
+  width: min(420px, 100%);
+  background: var(--bg-white);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  padding: 12px 16px 16px;
+  box-shadow: 0 -12px 30px rgba(15, 23, 42, 0.18);
+  display: grid;
+  gap: 10px;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--host-bottom-nav-h, 68px) + env(safe-area-inset-bottom));
+  margin: 0 auto;
+}
+
+.more-item {
+  border: 1px solid var(--brand-border);
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 700;
+  color: #0b3b32;
+  text-align: left;
+}
+
+.more-item:focus-visible {
+  outline: 2px solid rgba(15, 118, 110, 0.35);
+  outline-offset: 2px;
+}
+
 :global(.host-nav-locked) .top-menu__item,
 :global(.host-nav-locked) .nav-item {
   opacity: 0.45;
@@ -304,6 +394,10 @@ const setTab = (path) => {
 
   .top-nav {
     display: block;
+  }
+
+  .more-overlay {
+    display: none;
   }
 
   /* 하단 네비가 없으니 padding-bottom 제거 */

@@ -22,10 +22,24 @@ public class GenderConverter implements AttributeConverter<Gender, String> {
         if (dbData == null) {
             return null;
         }
-
-        return Stream.of(Gender.values())
-                .filter(g -> g.getDescription().equals(dbData))
-                .findFirst()
-                .orElseThrow(IllegalArgumentException::new);
+        String normalized = dbData.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        switch (normalized) {
+            case "남":
+            case "MALE":
+            case "M":
+                return Gender.MALE;
+            case "여":
+            case "FEMALE":
+            case "F":
+                return Gender.FEMALE;
+            default:
+                return Stream.of(Gender.values())
+                        .filter(g -> g.name().equalsIgnoreCase(normalized))
+                        .findFirst()
+                        .orElse(null);
+        }
     }
 }

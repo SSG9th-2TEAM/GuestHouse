@@ -4,10 +4,9 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminBookingDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminBookingSummary;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminBookingService;
-import com.ssg9th2team.geharbang.domain.admin.support.AdminIdentityResolver;
+import com.ssg9th2team.geharbang.domain.admin.support.AdminId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,27 +21,24 @@ import java.time.LocalDate;
 public class AdminBookingController {
 
     private final AdminBookingService bookingService;
-    private final AdminIdentityResolver adminIdentityResolver;
 
     @GetMapping
     public AdminPageResponse<AdminBookingSummary> getBookings(
-            Authentication authentication,
+            @AdminId Long adminId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "latest") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        adminIdentityResolver.resolveAdminUserId(authentication);
         return bookingService.getBookings(status, from, to, sort, page, size);
     }
 
     @GetMapping("/{reservationId}")
     public AdminBookingDetail getBookingDetail(
-            Authentication authentication,
+            @AdminId Long adminId,
             @PathVariable Long reservationId
     ) {
-        adminIdentityResolver.resolveAdminUserId(authentication);
         return bookingService.getBookingDetail(reservationId);
     }
 }

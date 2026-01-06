@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
-import { getUserInfo } from '@/api/authClient'
+import { getAccessToken, getCurrentUser, getUserInfo, saveUserInfo } from '@/api/authClient'
 import {
   fetchHostReviewReportSummary,
   fetchHostReviewReportTrend,
@@ -24,7 +24,11 @@ const userInfo = ref(getUserInfo())
 const authReady = ref(false)
 const isHostUser = computed(() => {
   if (!userInfo.value) return false
-  return userInfo.value.role === 'HOST' || userInfo.value.role === 'ROLE_HOST'
+  return (
+    userInfo.value.role === 'HOST' ||
+    userInfo.value.role === 'ROLE_HOST' ||
+    userInfo.value.hostApproved === true
+  )
 })
 const accommodations = ref([])
 const accommodationLoading = ref(false)
@@ -418,8 +422,19 @@ const loadForecast = async () => {
 
 onMounted(async () => {
   if (!userInfo.value) {
-    router.replace('/login')
-    return
+    const response = await getCurrentUser()
+    if (!response.ok || !response.data) {
+      router.replace('/login')
+      return
+    }
+    saveUserInfo(response.data)
+    userInfo.value = response.data
+  } else if (!isHostUser.value && getAccessToken()) {
+    const response = await getCurrentUser()
+    if (response.ok && response.data) {
+      saveUserInfo(response.data)
+      userInfo.value = response.data
+    }
   }
   if (!isHostUser.value) {
     router.replace('/host')
@@ -472,12 +487,12 @@ watch(forecastFilters, () => {
 
 <template>
   <section class="report-view" v-if="authReady && isHostUser">
-    <header class="view-header">
+    <header class="host-view-header">
       <div>
-        <h2>리포트</h2>
-        <p class="subtitle">리뷰/테마/수요 흐름을 한눈에 확인하세요.</p>
+        <h2 class="host-title">리포트</h2>
+        <p class="host-subtitle">리뷰/테마/수요 흐름을 한눈에 확인하세요.</p>
       </div>
-      <p v-if="accommodationLoading" class="subtitle">숙소 불러오는 중...</p>
+      <p v-if="accommodationLoading" class="host-subtitle">숙소 불러오는 중...</p>
       <p v-else-if="accommodationError" class="error-text">{{ accommodationError }}</p>
     </header>
 

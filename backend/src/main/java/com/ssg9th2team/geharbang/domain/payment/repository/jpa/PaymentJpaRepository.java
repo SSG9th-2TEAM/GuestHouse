@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,4 +22,6 @@ public interface PaymentJpaRepository extends JpaRepository<Payment, Long> {
     void deleteByReservationIdIn(List<Long> reservationIds);
 
     void deleteByReservationId(Long reservationId);
+
+    List<Payment> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 }

@@ -316,12 +316,12 @@ onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('resize', handleResize)
 
-  // 페이지 로드 시 토큰 유효성 검증
-  if (isAuthenticated()) {
+  // 페이지 로드 시 토큰 유효성 검증 (admin 라우트는 제외)
+  if (isAuthenticated() && !isAdminRoute.value) {
     const isValid = await validateToken()
     isLoggedIn.value = isValid
   } else {
-    isLoggedIn.value = false
+    isLoggedIn.value = !isAdminRoute.value && isAuthenticated()
   }
 
   // 페이지 이동 후 로그인 상태 업데이트

@@ -712,11 +712,7 @@ watch(includePast, (value) => {
   if (!value && selectedSort.value === 'latest') {
     selectedSort.value = 'checkin'
   }
-  if (selectedRange.value === 'upcoming') {
-    loadBookings()
-  } else {
-    loadBookings()
-  }
+  loadBookings()
 })
 
 watch(selectedRange, () => {
@@ -747,14 +743,9 @@ watch(
   }
 )
 
-watch(isDesktop, (value) => {
-  if (value) {
-    resetPaging()
-    loadBookings()
-  } else {
-    resetPaging()
-    loadBookings()
-  }
+watch(isDesktop, () => {
+  resetPaging()
+  loadBookings()
 })
 
 
@@ -778,13 +769,13 @@ const setView = (view) => {
     />
 
     <template v-else>
-    <header class="view-header">
+    <header class="host-view-header">
       <div>
-        <h2>예약 관리</h2>
-        <p class="subtitle">총 {{ bookingTotalCount }}건 · {{ sortOptions.find(item => item.value === selectedSort)?.label }}</p>
+        <h2 class="host-title">예약 관리</h2>
+        <p class="host-subtitle">총 {{ bookingTotalCount }}건 · {{ sortOptions.find(item => item.value === selectedSort)?.label }}</p>
       </div>
 
-      <div class="tab-switch" role="tablist" aria-label="예약 보기 전환">
+      <div class="tab-switch host-view-header__actions" role="tablist" aria-label="예약 보기 전환">
         <button
           class="tab-btn host-chip"
           :class="{ 'host-chip--active': activeTab === 'list' }"

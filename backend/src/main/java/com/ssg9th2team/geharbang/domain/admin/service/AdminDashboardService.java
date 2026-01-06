@@ -15,8 +15,13 @@ import com.ssg9th2team.geharbang.domain.admin.repository.mybatis.AdminDashboardM
 import com.ssg9th2team.geharbang.domain.admin.repository.PlatformDailyStatsRepository;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
+import com.ssg9th2team.geharbang.domain.payment.entity.PaymentRefund;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository;
 import com.ssg9th2team.geharbang.domain.report.entity.ReviewReport;
 import com.ssg9th2team.geharbang.domain.report.repository.jpa.ReviewReportJpaRepository;
+import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -29,6 +34,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -42,28 +48,27 @@ public class AdminDashboardService {
     private final PlatformDailyStatsRepository statsRepository;
     private final AdminDashboardMapper dashboardMapper;
     private final UserRepository userRepository;
+    private final ReservationJpaRepository reservationRepository;
+    private final PaymentJpaRepository paymentRepository;
+    private final PaymentRefundJpaRepository refundRepository;
 
     public AdminDashboardSummaryResponse getDashboardSummary(LocalDate from, LocalDate to) {
         LocalDate startDate = from != null ? from : LocalDate.now();
         LocalDate endDate = to != null ? to : LocalDate.now();
-        List<PlatformDailyStats> stats = statsRepository.findByStatDateBetweenOrderByStatDateAsc(startDate, endDate);
-
-        long reservationCount = stats.stream()
-                .mapToLong(PlatformDailyStats::getTotalReservations)
-                .sum();
-        long paymentSuccessAmount = stats.stream()
-                .mapToLong(PlatformDailyStats::getTotalRevenue)
-                .sum();
-        long paymentFailureCount = stats.stream()
-                .mapToLong(PlatformDailyStats::getReservationsFailed)
-                .sum();
-        long refundRequestCount = stats.stream()
-                .mapToLong(PlatformDailyStats::getRefundCount)
-                .sum();
+        SummaryMetrics metrics = buildSummaryMetrics(startDate, endDate);
+        long reservationCount = metrics.reservationCount;
+        long paymentSuccessAmount = metrics.paymentSuccessAmount;
+        long paymentFailureCount = metrics.paymentFailureCount;
+        long refundRequestCount = metrics.refundRequestCount;
+        long refundCompletedCount = metrics.refundCompletedCount;
+        long refundCompletedAmount = metrics.refundCompletedAmount;
+        long netRevenue = metrics.netRevenue;
 
         long pendingAccommodations = accommodationRepository.count(approvalEquals(ApprovalStatus.PENDING));
         long openReports = reportRepository.count(reportStateEquals("WAIT"));
-        long platformFeeAmount = Math.round(paymentSuccessAmount * platformFeeRate);
+        long platformFeeAmount = buildPlatformFeeSeries(startDate, endDate).stream()
+                .mapToLong(AdminTimeseriesPoint::value)
+                .sum();
 
         List<AdminAccommodationSummary> pendingList = dashboardMapper.selectPendingAccommodations(5);
 
@@ -83,6 +88,9 @@ public class AdminDashboardService {
                 platformFeeAmount,
                 paymentFailureCount,
                 refundRequestCount,
+                refundCompletedCount,
+                refundCompletedAmount,
+                netRevenue,
                 pendingList,
                 openReportList
         );
@@ -93,9 +101,16 @@ public class AdminDashboardService {
         LocalDate endDate = to != null ? to : LocalDate.now();
         List<PlatformDailyStats> stats = statsRepository.findByStatDateBetweenOrderByStatDateAsc(startDate, endDate);
 
-        List<AdminTimeseriesPoint> points = stats.stream()
-                .map(stat -> new AdminTimeseriesPoint(stat.getStatDate(), resolveMetricValue(metric, stat)))
-                .toList();
+        List<AdminTimeseriesPoint> points;
+        if ("platform_fee".equalsIgnoreCase(metric)) {
+            points = buildPlatformFeeSeries(startDate, endDate);
+        } else if ("revenue".equalsIgnoreCase(metric)) {
+            points = buildNetRevenueSeries(startDate, endDate);
+        } else {
+            points = stats.stream()
+                    .map(stat -> new AdminTimeseriesPoint(stat.getStatDate(), resolveMetricValue(metric, stat)))
+                    .toList();
+        }
 
         return new AdminTimeseriesResponse(metric, points);
     }
@@ -216,6 +231,114 @@ public class AdminDashboardService {
         );
     }
 
+    /*
+     * KPI definitions (Admin dashboard / payments management)
+     * - Gross: Payment.paymentStatus=1 AND createdAt in [from, to) SUM(approvedAmount)
+     * - Refund completed: PaymentRefund.refundStatus=1 AND requestedAt in [from, to) COUNT/SUM(refundAmount)
+     * - Net: Gross - Refund completed amount
+     * - Platform fee: floor(Net * platformFeeRate)
+     * - Payment failure: Payment.paymentStatus=2 COUNT
+     * - Refund request: PaymentRefund.refundStatus=0 COUNT
+     */
+    private SummaryMetrics buildSummaryMetrics(LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        long reservationCount = reservationRepository.countByCreatedAtBetween(start, end);
+
+        List<Payment> payments = paymentRepository.findByCreatedAtBetween(start, end);
+        long paymentSuccessAmount = payments.stream()
+                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 1)
+                .mapToLong(payment -> payment.getApprovedAmount() != null ? payment.getApprovedAmount() : 0L)
+                .sum();
+        long paymentFailureCount = payments.stream()
+                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 2)
+                .count();
+
+        List<PaymentRefund> refunds = refundRepository.findByRequestedAtBetween(start, end);
+        long refundRequestCount = refunds.stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 0)
+                .count();
+        long refundCompletedCount = refunds.stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
+                .count();
+        long refundCompletedAmount = refunds.stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
+                .mapToLong(refund -> refund.getRefundAmount() != null ? refund.getRefundAmount() : 0L)
+                .sum();
+        long netRevenue = paymentSuccessAmount - refundCompletedAmount;
+
+        return new SummaryMetrics(
+                reservationCount,
+                paymentSuccessAmount,
+                paymentFailureCount,
+                refundRequestCount,
+                refundCompletedCount,
+                refundCompletedAmount,
+                netRevenue
+        );
+    }
+
+    private List<AdminTimeseriesPoint> buildNetRevenueSeries(LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        Map<LocalDate, Long> grossByDate = paymentRepository.findByCreatedAtBetween(start, end).stream()
+                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 1)
+                .collect(Collectors.groupingBy(
+                        payment -> payment.getCreatedAt().toLocalDate(),
+                        Collectors.summingLong(payment -> payment.getApprovedAmount() != null ? payment.getApprovedAmount() : 0L)
+                ));
+
+        Map<LocalDate, Long> refundByDate = refundRepository.findByRequestedAtBetween(start, end).stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
+                .collect(Collectors.groupingBy(
+                        refund -> refund.getRequestedAt().toLocalDate(),
+                        Collectors.summingLong(refund -> refund.getRefundAmount() != null ? refund.getRefundAmount() : 0L)
+                ));
+
+        return startDate.datesUntil(endDate.plusDays(1))
+                .map(date -> {
+                    long gross = grossByDate.getOrDefault(date, 0L);
+                    long refund = refundByDate.getOrDefault(date, 0L);
+                    return new AdminTimeseriesPoint(date, gross - refund);
+                })
+                .toList();
+    }
+
+    private List<AdminTimeseriesPoint> buildPlatformFeeSeries(LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        Map<LocalDate, Long> grossByDate = paymentRepository.findByCreatedAtBetween(start, end).stream()
+                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 1)
+                .collect(Collectors.groupingBy(
+                        payment -> payment.getCreatedAt().toLocalDate(),
+                        Collectors.summingLong(payment -> payment.getApprovedAmount() != null ? payment.getApprovedAmount() : 0L)
+                ));
+
+        Map<LocalDate, Long> refundByDate = refundRepository.findByRequestedAtBetween(start, end).stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
+                .collect(Collectors.groupingBy(
+                        refund -> refund.getRequestedAt().toLocalDate(),
+                        Collectors.summingLong(refund -> refund.getRefundAmount() != null ? refund.getRefundAmount() : 0L)
+                ));
+
+        return startDate.datesUntil(endDate.plusDays(1))
+                .map(date -> {
+                    long gross = grossByDate.getOrDefault(date, 0L);
+                    long refund = refundByDate.getOrDefault(date, 0L);
+                    long net = gross - refund;
+                    return new AdminTimeseriesPoint(date, calcPlatformFee(net));
+                })
+                .toList();
+    }
+
+    private long calcPlatformFee(long netRevenue) {
+        long fee = (long) Math.floor(netRevenue * platformFeeRate);
+        return Math.max(0, fee);
+    }
+
     private Long resolveMetricValue(String metric, PlatformDailyStats stat) {
         if (metric == null) {
             return stat.getTotalRevenue();
@@ -234,5 +357,14 @@ public class AdminDashboardService {
 
     private Specification<User> createdBetween(LocalDateTime from, LocalDateTime to) {
         return (root, query, cb) -> cb.between(root.get("createdAt"), from, to);
+    }
+
+    private record SummaryMetrics(long reservationCount,
+                                  long paymentSuccessAmount,
+                                  long paymentFailureCount,
+                                  long refundRequestCount,
+                                  long refundCompletedCount,
+                                  long refundCompletedAmount,
+                                  long netRevenue) {
     }
 }
