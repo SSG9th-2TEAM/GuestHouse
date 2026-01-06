@@ -335,7 +335,8 @@ public class AdminDashboardService {
     }
 
     private long calcPlatformFee(long netRevenue) {
-        return (long) Math.floor(netRevenue * platformFeeRate);
+        long fee = (long) Math.floor(netRevenue * platformFeeRate);
+        return Math.max(0, fee);
     }
 
     private Long resolveMetricValue(String metric, PlatformDailyStats stat) {

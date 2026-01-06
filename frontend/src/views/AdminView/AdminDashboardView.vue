@@ -122,11 +122,16 @@ const pendingStatusVariant = (status) => {
   return 'neutral'
 }
 
-const alertVariant = (tone) => {
-  if (tone === 'warning') return 'warning'
-  if (tone === 'success') return 'success'
-  if (tone === 'accent') return 'accent'
-  return 'neutral'
+const formatDateOnly = (value) => (value ? value.slice(0, 10) : '-')
+
+const latestDateOf = (items) => {
+  if (!items?.length) return '-'
+  const latest = items
+    .map((item) => item.createdAt)
+    .filter(Boolean)
+    .sort()
+    .pop()
+  return formatDateOnly(latest)
 }
 
 const summaryItems = computed(() => {
@@ -137,6 +142,82 @@ const summaryItems = computed(() => {
     { label: '결제 실패', sub: '실패/취소', value: `${summary.value.paymentFailureCount ?? 0}건` },
     { label: '환불 요청', sub: '접수 건수', value: `${summary.value.refundRequestCount ?? 0}건` },
     { label: '환불 완료', sub: '완료 건수', value: `${summary.value.refundCompletedCount ?? 0}건` }
+  ]
+})
+
+const issueCards = computed(() => {
+  if (!summary.value) return []
+  const today = toDateString(new Date())
+  const pendingToday = pendingListings.value.filter((item) => item.createdAt?.slice?.(0, 10) === today).length
+  const latestPending = latestDateOf(pendingListings.value)
+  const overdueReports = openReportListings.value.filter((item) => {
+    const createdAt = item.createdAt ? new Date(item.createdAt).getTime() : 0
+    return createdAt && createdAt <= Date.now() - 48 * 60 * 60 * 1000
+  }).length
+  const latestReport = latestDateOf(openReportListings.value)
+  const range = resolveRange(activePeriod.value)
+
+  return [
+    {
+      id: 'pending',
+      title: '숙소 승인 대기',
+      count: summary.value.pendingAccommodations ?? 0,
+      tone: 'warning',
+      badge: '주의',
+      target: '/admin/accommodations?status=PENDING',
+      meta: [
+        { label: '오늘 신규', value: pendingListings.value.length ? `${pendingToday}건` : '-' },
+        { label: '최신 신청일', value: latestPending }
+      ]
+    },
+    {
+      id: 'reports',
+      title: '미처리 신고',
+      count: summary.value.openReports ?? 0,
+      tone: 'danger',
+      badge: '긴급',
+      target: '/admin/reports?status=WAIT',
+      meta: [
+        { label: '48시간 초과', value: openReportListings.value.length ? `${overdueReports}건` : '-' },
+        { label: '최근 신고일', value: latestReport }
+      ]
+    },
+    {
+      id: 'payments',
+      title: '결제 실패/취소',
+      count: summary.value.paymentFailureCount ?? 0,
+      tone: 'neutral',
+      badge: '일반',
+      target: '/admin/payments?status=failed',
+      meta: [
+        { label: '최근 24h', value: '-' },
+        { label: '선택 기간', value: `${range.from} ~ ${range.to}` }
+      ]
+    },
+    {
+      id: 'refund-request',
+      title: '환불 요청',
+      count: summary.value.refundRequestCount ?? 0,
+      tone: 'accent',
+      badge: '요청',
+      target: '/admin/payments?type=refund',
+      meta: [
+        { label: '요청/완료', value: `${summary.value.refundRequestCount ?? 0}/${summary.value.refundCompletedCount ?? 0}` },
+        { label: '최근 24h', value: '-' }
+      ]
+    },
+    {
+      id: 'refund-completed',
+      title: '환불 완료',
+      count: summary.value.refundCompletedCount ?? 0,
+      tone: 'success',
+      badge: '완료',
+      target: '/admin/payments?type=refund',
+      meta: [
+        { label: '완료/요청', value: `${summary.value.refundCompletedCount ?? 0}/${summary.value.refundRequestCount ?? 0}` },
+        { label: '선택 기간', value: `${range.from} ~ ${range.to}` }
+      ]
+    }
   ]
 })
 
@@ -170,24 +251,16 @@ const revenueDomain = computed(() => {
   if (!values.length) {
     return { minRaw: 0, maxRaw: 0, rangeRaw: 1, ticksRaw: [0] }
   }
-  const minU = Math.min(0, ...values) / divisor
   const maxU = Math.max(0, ...values) / divisor
-  if (minU === maxU) {
-    const only = minU
-    const ticksU = [only + 2, only + 1, only, only - 1, only - 2]
-    const ticksRaw = ticksU.map((tick) => tick * divisor)
-    return { minRaw: (only - 2) * divisor, maxRaw: (only + 2) * divisor, rangeRaw: 4 * divisor, ticksRaw }
+  if (maxU === 0) {
+    return { minRaw: 0, maxRaw: divisor * 4, rangeRaw: divisor * 4, ticksRaw: [0, divisor, divisor * 2, divisor * 3, divisor * 4] }
   }
   const targetTicks = 5
-  const stepU = niceStep((maxU - minU) / (targetTicks - 1))
-  const niceMinU = Math.floor(minU / stepU) * stepU
-  const niceMaxU = Math.ceil(maxU / stepU) * stepU
-  const ticksU = []
-  for (let value = niceMaxU; value >= niceMinU - stepU / 2; value -= stepU) {
-    ticksU.push(value)
-  }
+  const stepU = niceStep(maxU / (targetTicks - 1))
+  const niceMaxU = stepU * (targetTicks - 1)
+  const ticksU = Array.from({ length: targetTicks }, (_, idx) => niceMaxU - stepU * idx)
   const ticksRaw = ticksU.map((tick) => tick * divisor)
-  const minRaw = niceMinU * divisor
+  const minRaw = 0
   const maxRaw = niceMaxU * divisor
   const rangeRaw = Math.max(maxRaw - minRaw, 1)
   return { minRaw, maxRaw, rangeRaw, ticksRaw }
@@ -234,10 +307,32 @@ const revenueNegativeStyle = (value) => {
 }
 
 const revenueAxisLabels = computed(() => {
-  const labels = revenueSeriesFull.value.map((point) => point.label)
+  const period = Number(activePeriod.value) || 30
+  const points = revenueSeriesFull.value
+  const labels = points.map((point) => point.label)
   if (!labels.length) return []
+  if (period <= 7) return labels
   const last = labels.length - 1
-  return labels.map((label, idx) => (idx === 0 || idx === last || idx % 7 === 0 ? label : ''))
+  const weekTicks = []
+  for (let idx = 1; idx < last; idx += 1) {
+    const date = points[idx]?.date
+    if (!date) continue
+    const day = new Date(`${date}T00:00:00`).getDay()
+    if (day === 1) weekTicks.push(idx)
+  }
+  const filteredWeekTicks = weekTicks.filter((idx) => last - idx > 2)
+  const baseIndices = [0, ...filteredWeekTicks, last]
+  let selectedIndices = baseIndices
+  const maxTicks = 8
+  if (baseIndices.length > maxTicks) {
+    const keep = maxTicks - 2
+    const mids = baseIndices.slice(1, -1)
+    const step = Math.ceil(mids.length / Math.max(keep, 1))
+    const sampled = mids.filter((_, idx) => idx % step === 0).slice(0, keep)
+    selectedIndices = [0, ...sampled, last]
+  }
+  const labelIndices = new Set(selectedIndices)
+  return labels.map((label, idx) => (labelIndices.has(idx) ? label : ''))
 })
 
 const handleRevenueEnter = (idx) => {
@@ -422,28 +517,40 @@ watch(activePeriod, loadDashboard)
       <div class="admin-card admin-alerts-card">
         <div class="admin-card__head">
           <div>
-            <p class="admin-card__eyebrow">운영 알림</p>
-            <h3 class="admin-card__title">오늘 확인할 이슈</h3>
+            <p class="admin-card__eyebrow">운영 이슈 센터</p>
+            <h3 class="admin-card__title">바로 조치할 항목</h3>
           </div>
-          <button class="admin-btn admin-btn--ghost" type="button" @click="goTo('/admin/dashboard/issues')">전체 보기</button>
         </div>
-        <div class="admin-alert-list">
-          <button
-            v-for="alert in alerts"
-            :key="alert.id"
-            class="admin-alert-item"
-            type="button"
-            @click="goTo(alert.target)"
+        <div class="admin-issue-grid">
+          <div
+            v-for="card in issueCards"
+            :key="card.id"
+            class="admin-issue-card"
+            :class="`admin-issue-card--${card.tone}`"
           >
-            <div>
-              <div class="admin-alert-title">{{ alert.title }}</div>
-              <div class="admin-alert-meta">{{ alert.meta }}</div>
+            <div class="admin-issue-card__head">
+              <div>
+                <p class="admin-issue-card__title">{{ card.title }}</p>
+                <p class="admin-issue-card__count">{{ card.count }}건</p>
+              </div>
+              <AdminBadge :text="card.badge" :variant="card.tone" />
             </div>
-            <div class="admin-alert-right">
-              <AdminBadge :text="alert.time" :variant="alertVariant(alert.tone)" />
+            <div class="admin-issue-card__meta">
+              <div v-for="item in card.meta" :key="item.label" class="admin-issue-card__meta-row">
+                <span class="admin-issue-card__meta-label">{{ item.label }}</span>
+                <span class="admin-issue-card__meta-value">{{ item.value }}</span>
+              </div>
             </div>
-          </button>
-          <div v-if="!alerts.length" class="admin-status">현재 확인할 알림이 없습니다.</div>
+            <div class="admin-issue-card__footer">
+              <button class="admin-btn admin-btn--ghost" type="button" @click="goTo(card.target)">
+                바로가기
+              </button>
+            </div>
+          </div>
+          <div v-if="!issueCards.length" class="admin-status">이슈 데이터를 불러오는 중입니다.</div>
+        </div>
+        <div class="admin-card__footer">
+          <button class="admin-btn admin-btn--ghost" type="button" @click="goTo('/admin/dashboard/issues')">전체 보기</button>
         </div>
       </div>
 
@@ -485,9 +592,7 @@ watch(activePeriod, loadDashboard)
         <template v-else>
           <div class="admin-chart-y">
             <span class="admin-chart-y__unit">(단위: {{ revenueScale.unitText }})</span>
-            <div class="admin-chart-y__ticks">
-              <span v-for="tick in revenueTicks" :key="tick">{{ formatRevenueTick(tick) }}</span>
-            </div>
+            <span v-for="tick in revenueTicks" :key="tick">{{ formatRevenueTick(tick) }}</span>
           </div>
           <div class="admin-chart-bars" :style="{ '--zero-pos': `${revenueBaselineFromTopPct}%` }">
             <div class="admin-chart-zero-line" :style="{ top: `${revenueBaselineFromTopPct}%` }" />
@@ -603,6 +708,12 @@ watch(activePeriod, loadDashboard)
   margin-bottom: 12px;
 }
 
+.admin-card__footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
 .admin-card__eyebrow {
   margin: 0;
   color: #0f766e;
@@ -631,24 +742,21 @@ watch(activePeriod, loadDashboard)
 
 .admin-chart-y {
   height: 200px;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  justify-content: space-between;
+  padding-top: 14px;
   color: #6b7280;
   font-weight: 700;
 }
 
 .admin-chart-y__unit {
+  position: absolute;
+  top: -2px;
+  left: 0;
   font-size: 0.75rem;
   opacity: 0.8;
-  margin-bottom: 2px;
-}
-
-.admin-chart-y__ticks {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
 }
 
 .admin-chart-bars {
@@ -743,6 +851,16 @@ watch(activePeriod, loadDashboard)
   font-size: 0.75rem;
 }
 
+.admin-chart-x__tick:first-child {
+  justify-self: start;
+  transform-origin: left;
+}
+
+.admin-chart-x__tick:last-child {
+  justify-self: end;
+  transform-origin: right;
+}
+
 .admin-chart-x__tick.is-empty {
   visibility: hidden;
 }
@@ -805,6 +923,10 @@ watch(activePeriod, loadDashboard)
   .admin-inline-actions--nowrap {
     flex-wrap: wrap;
   }
+
+  .admin-issue-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .admin-alerts-card {
@@ -813,35 +935,112 @@ watch(activePeriod, loadDashboard)
   gap: 12px;
 }
 
-.admin-alert-list {
+.admin-issue-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-issue-card {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  padding: 12px 14px 10px 18px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  text-align: left;
 }
 
-.admin-alert-item {
+.admin-issue-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 12px;
+  background: #94a3b8;
+}
+
+.admin-issue-card--warning::before {
+  background: #f59e0b;
+}
+
+.admin-issue-card--danger::before {
+  background: #ef4444;
+}
+
+.admin-issue-card--neutral::before {
+  background: #94a3b8;
+}
+
+.admin-issue-card--accent::before {
+  background: #3b82f6;
+}
+
+.admin-issue-card--success::before {
+  background: #10b981;
+}
+
+.admin-issue-card__head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid #eef1f4;
-  background: #f8fafc;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.admin-alert-title {
+.admin-issue-card__title {
+  margin: 0;
+  font-size: 0.95rem;
   font-weight: 800;
   color: #0b3b32;
 }
 
-.admin-alert-meta {
+.admin-issue-card__count {
+  margin: 4px 0 0;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #111827;
+}
+
+.admin-issue-card__meta {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-issue-card__meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 0.85rem;
   color: #6b7280;
 }
 
-.admin-alert-right {
+.admin-issue-card__meta-label {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.admin-issue-card__meta-value {
+  color: #111827;
+  font-weight: 700;
+}
+
+.admin-issue-card__footer {
+  margin-top: 2px;
   display: flex;
+  justify-content: flex-end;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.admin-issue-card__link {
+  display: inline-flex;
   align-items: center;
+  gap: 4px;
 }
 
 .admin-highlight {
