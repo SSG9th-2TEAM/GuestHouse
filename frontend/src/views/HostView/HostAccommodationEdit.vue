@@ -758,48 +758,60 @@ const filterNumberInput = (event) => {
 const validateRoomForm = () => {
     roomErrors.value = {}
     let isValid = true
+    const errorFields = []
 
     if (!roomForm.value.name?.trim()) {
         roomErrors.value.name = '객실명을 입력해주세요.'
+        errorFields.push('객실명')
         isValid = false
     }
 
     // 숫자 유효성 검사 (Regex for non-digits)
     const isNumeric = (val) => /^\d+$/.test(val)
 
-    if (!roomForm.value.weekdayPrice || !isNumeric(roomForm.value.weekdayPrice) || parseInt(roomForm.value.weekdayPrice) <= 0) {
-        roomErrors.value.weekdayPrice = '올바른 숫자를 입력해주세요.'
+    if (!roomForm.value.weekdayPrice || !isNumeric(String(roomForm.value.weekdayPrice)) || parseInt(roomForm.value.weekdayPrice) <= 0) {
+        roomErrors.value.weekdayPrice = '주중 요금을 입력해주세요.'
+        errorFields.push('주중 요금')
         isValid = false
     }
-    if (!roomForm.value.weekendPrice || !isNumeric(roomForm.value.weekendPrice) || parseInt(roomForm.value.weekendPrice) <= 0) {
-        roomErrors.value.weekendPrice = '올바른 숫자를 입력해주세요.'
+    if (!roomForm.value.weekendPrice || !isNumeric(String(roomForm.value.weekendPrice)) || parseInt(roomForm.value.weekendPrice) <= 0) {
+        roomErrors.value.weekendPrice = '주말 요금을 입력해주세요.'
+        errorFields.push('주말 요금')
         isValid = false
     }
-    if (!roomForm.value.minGuests || !isNumeric(roomForm.value.minGuests) || parseInt(roomForm.value.minGuests) < 1) {
-        roomErrors.value.minGuests = '1명 이상 입력해주세요.'
+    if (!roomForm.value.minGuests || !isNumeric(String(roomForm.value.minGuests)) || parseInt(roomForm.value.minGuests) < 1) {
+        roomErrors.value.minGuests = '최소 인원을 입력해주세요.'
+        errorFields.push('최소 인원')
         isValid = false
     }
-    if (!roomForm.value.maxGuests || !isNumeric(roomForm.value.maxGuests) || parseInt(roomForm.value.maxGuests) < 1) {
-        roomErrors.value.maxGuests = '1명 이상 입력해주세요.'
+    if (!roomForm.value.maxGuests || !isNumeric(String(roomForm.value.maxGuests)) || parseInt(roomForm.value.maxGuests) < 1) {
+        roomErrors.value.maxGuests = '최대 인원을 입력해주세요.'
+        errorFields.push('최대 인원')
         isValid = false
     }
     if (parseInt(roomForm.value.minGuests) > parseInt(roomForm.value.maxGuests)) {
         roomErrors.value.maxGuests = '최대 인원은 최소 인원보다 커야 합니다.'
         isValid = false
     }
-    if (roomForm.value.bedCount && !isNumeric(roomForm.value.bedCount)) {
-        roomErrors.value.bedCount = '숫자만 입력해주세요.'
+    if (roomForm.value.bedCount && !isNumeric(String(roomForm.value.bedCount))) {
+        roomErrors.value.bedCount = '침대 수는 숫자만 입력해주세요.'
+        errorFields.push('침대 수')
         isValid = false
     }
-     if (roomForm.value.bathroomCount && !isNumeric(roomForm.value.bathroomCount)) {
-        roomErrors.value.bathroomCount = '숫자만 입력해주세요.'
+    if (roomForm.value.bathroomCount && !isNumeric(String(roomForm.value.bathroomCount))) {
+        roomErrors.value.bathroomCount = '욕실 수는 숫자만 입력해주세요.'
+        errorFields.push('욕실 수')
         isValid = false
     }
 
     if (!roomForm.value.representativeImage && !roomForm.value.representativeImagePreview) {
-        roomErrors.value.representativeImage = '이미지를 등록해주세요.'
+        roomErrors.value.representativeImage = '대표 이미지를 등록해주세요.'
+        errorFields.push('대표 이미지')
         isValid = false
     }
+
+    // 에러 필드 목록 저장 (모달 메시지용)
+    roomErrors.value._errorFields = errorFields
 
     return isValid
 }
@@ -819,8 +831,12 @@ const removeRoomImage = () => {
 // 객실 추가/수정
 const saveRoom = () => {
     if (!validateRoomForm()) {
-        const errors = Object.values(roomErrors.value).join('\n')
-        openModal(`객실 정보를 확인해주세요.\n${errors}`)
+        const errorFields = roomErrors.value._errorFields || []
+        if (errorFields.length > 0) {
+            openModal(`다음 항목을 확인해주세요: ${errorFields.join(', ')}`)
+        } else {
+            openModal('객실 정보를 확인해주세요.')
+        }
         return
     }
 
