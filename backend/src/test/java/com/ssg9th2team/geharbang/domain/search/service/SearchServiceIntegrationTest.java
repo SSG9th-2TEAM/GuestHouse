@@ -286,6 +286,42 @@ class SearchServiceIntegrationTest {
                 assertThat(response.page().totalElements()).isEqualTo(1);
         }
 
+        @Test
+        @DisplayName("Search with dates and price filters returns correct count")
+        void searchWithDatesAndPriceFiltersReturnsCorrectCount() {
+                LocalDateTime checkin = LocalDateTime.of(2026, 4, 1, 15, 0);
+                LocalDateTime checkout = LocalDateTime.of(2026, 4, 3, 11, 0);
+
+                Accommodation cheap = persistAccommodation("Cheap-Dates", "Seogwipo",
+                                BigDecimal.valueOf(33.25), BigDecimal.valueOf(126.55), 5000);
+                persistRoom(cheap.getAccommodationsId(), 4, 5000);
+
+                Accommodation expensive = persistAccommodation("Expensive-Dates", "Seogwipo",
+                                BigDecimal.valueOf(33.26), BigDecimal.valueOf(126.56), 20000);
+                persistRoom(expensive.getAccommodationsId(), 4, 20000);
+
+                entityManager.clear();
+
+                PublicListResponse response = searchService.searchPublicList(
+                                Collections.emptyList(),
+                                null,
+                                0,
+                                10,
+                                null,
+                                null,
+                                null,
+                                null,
+                                checkin,
+                                checkout,
+                                null,
+                                15000,
+                                25000);
+
+                assertThat(response.items()).extracting("accommodationsName")
+                                .containsExactly("Expensive-Dates");
+                assertThat(response.page().totalElements()).isEqualTo(1);
+        }
+
         private Accommodation persistAccommodation(String name, String district) {
                 return persistAccommodation(name, district, BigDecimal.valueOf(33.25), BigDecimal.valueOf(126.55));
         }

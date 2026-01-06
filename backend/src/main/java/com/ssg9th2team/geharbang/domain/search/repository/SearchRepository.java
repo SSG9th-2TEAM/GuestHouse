@@ -223,6 +223,20 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       FROM available_rooms ar
                       WHERE ar.accommodations_id = a.accommodations_id
                    ))
+              AND (:minPrice IS NULL OR
+                   (CASE
+                       WHEN (:checkin IS NULL OR :checkout IS NULL)
+                            AND (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(mp.min_price, a.min_price)
+                    END) >= :minPrice)
+              AND (:maxPrice IS NULL OR
+                   (CASE
+                       WHEN (:checkin IS NULL OR :checkout IS NULL)
+                            AND (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(mp.min_price, a.min_price)
+                    END) <= :maxPrice)
             ORDER BY a.accommodations_id DESC
             """, countQuery = """
             WITH RECURSIVE stay_dates (stay_date) AS (
@@ -272,9 +286,16 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                             GROUP BY d.stay_date
                             HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > rc.max_guests
                         ))
+            ),
+            min_prices (accommodations_id, min_price) AS (
+                SELECT accommodations_id,
+                       MIN(price) AS min_price
+                FROM available_rooms
+                GROUP BY accommodations_id
             )
             SELECT COUNT(*)
             FROM accommodation a
+            LEFT JOIN min_prices mp ON mp.accommodations_id = a.accommodations_id
             WHERE a.accommodation_status = 1
               AND a.approval_status = 'APPROVED'
               AND (:keyword IS NULL OR :keyword = ''
