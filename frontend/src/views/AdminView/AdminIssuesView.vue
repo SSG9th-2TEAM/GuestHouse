@@ -54,6 +54,29 @@ const reportVariant = (status) => {
   return 'neutral'
 }
 
+const resolveReportTarget = (item) => {
+  const type = String(item?.type ?? '').toUpperCase()
+  if (type.includes('REVIEW')) return '리뷰'
+  if (type.includes('ACCOM')) return '숙소'
+  if (type.includes('USER')) return '회원'
+  if (type.includes('RESERV')) return '예약'
+  return '기타'
+}
+
+const resolveReportReason = (item) => item?.title ?? '-'
+
+const resolveReportDetail = (item) => item?.content ?? item?.description ?? item?.detail ?? item?.message ?? ''
+
+const formatElapsed = (value) => {
+  if (!value) return '-'
+  const created = new Date(value)
+  if (Number.isNaN(created.getTime())) return '-'
+  const diffMs = Date.now() - created.getTime()
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  if (diffHours < 24) return `${diffHours}h`
+  return `${Math.floor(diffHours / 24)}일`
+}
+
 const goTo = (target) => {
   if (target) router.push(target)
 }
@@ -125,27 +148,57 @@ onMounted(loadIssues)
             바로가기
           </button>
         </template>
-        <table class="admin-table--nowrap admin-table--tight">
+        <table class="admin-table--tight admin-issue-table admin-issue-table--reports admin-issue-table--center">
+          <colgroup>
+            <col style="width: 90px" />
+            <col style="width: 140px" />
+            <col class="admin-issue-col--reason" />
+            <col style="width: 110px" />
+            <col style="width: 70px" />
+            <col style="width: 90px" />
+          </colgroup>
           <thead>
             <tr>
               <th>신고ID</th>
-              <th>사유</th>
+              <th>대상</th>
+              <th>사유/내용</th>
               <th>등록일</th>
+              <th>경과</th>
               <th>상태</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in issues.openReportsList" :key="item.reportId">
-              <td class="admin-strong">#{{ item.reportId }}</td>
-              <td class="admin-strong">{{ item.title ?? '-' }}</td>
-              <td>{{ item.createdAt?.slice?.(0, 10) ?? '-' }}</td>
-              <td>
+            <tr v-for="item in issues.openReportsList?.slice(0, 2)" :key="item.reportId">
+              <td class="admin-strong">{{ item.reportId ? `#${item.reportId}` : '-' }}</td>
+              <td class="admin-issue-cell--center" :title="resolveReportTarget(item)">{{ resolveReportTarget(item) }}</td>
+              <td class="admin-issue-cell--center">
+                <div class="admin-issue-reason">
+                  <span class="admin-issue-reason__text admin-issue-reason__title" :title="resolveReportReason(item)">
+                    {{ resolveReportReason(item) }}
+                  </span>
+                  <span
+                    v-if="resolveReportDetail(item)"
+                    class="admin-issue-reason__text admin-issue-reason__detail"
+                    :title="resolveReportDetail(item)"
+                  >
+                    {{ resolveReportDetail(item) }}
+                  </span>
+                </div>
+              </td>
+              <td class="admin-issue-cell--center" :title="item.createdAt?.slice?.(0, 10) ?? '-'">
+                {{ item.createdAt?.slice?.(0, 10) ?? '-' }}
+              </td>
+              <td class="admin-issue-cell--center">{{ formatElapsed(item.createdAt) }}</td>
+              <td class="admin-issue-cell--center">
                 <AdminBadge :text="item.status" :variant="reportVariant(item.status)" />
               </td>
             </tr>
           </tbody>
         </table>
-        <div v-if="!issues.openReportsList?.length" class="admin-status">미처리 신고가 없습니다.</div>
+        <div v-if="!issues.openReportsList?.length" class="admin-issue-empty">
+          <AdminBadge text="정상" variant="success" />
+          <span>기간 내 신규 없음</span>
+        </div>
       </AdminTableCard>
     </div>
 
@@ -160,7 +213,12 @@ onMounted(loadIssues)
             바로가기
           </button>
         </div>
-        <p class="admin-card__desc">최근 결제 실패/취소 건을 빠르게 확인하세요.</p>
+        <div class="admin-card__meta">
+          <AdminBadge v-if="(issues.paymentFailureCount ?? 0) === 0" text="정상" variant="success" />
+          <p class="admin-card__desc">
+            {{ (issues.paymentFailureCount ?? 0) === 0 ? '기간 내 신규 없음' : '최근 결제 실패/취소 건을 빠르게 확인하세요.' }}
+          </p>
+        </div>
       </div>
 
       <div class="admin-card">
@@ -173,7 +231,12 @@ onMounted(loadIssues)
             바로가기
           </button>
         </div>
-        <p class="admin-card__desc">환불 진행 내역을 확인할 수 있습니다.</p>
+        <div class="admin-card__meta">
+          <AdminBadge v-if="(issues.refundCount ?? 0) === 0" text="정상" variant="success" />
+          <p class="admin-card__desc">
+            {{ (issues.refundCount ?? 0) === 0 ? '기간 내 신규 없음' : '환불 진행 내역을 확인할 수 있습니다.' }}
+          </p>
+        </div>
       </div>
     </div>
   </section>
@@ -216,6 +279,85 @@ onMounted(loadIssues)
   align-items: start;
 }
 
+.admin-issue-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+}
+
+.admin-issue-table th,
+.admin-issue-table td {
+  padding: 8px 10px;
+  line-height: 1.4;
+}
+
+.admin-issue-table--center th,
+.admin-issue-table--center td {
+  text-align: center;
+}
+
+.admin-issue-table th {
+  overflow: visible;
+  text-overflow: initial;
+  white-space: nowrap;
+}
+
+.admin-issue-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-issue-table--reports td {
+  white-space: nowrap;
+}
+
+.admin-issue-table--reports td:nth-child(3) {
+  white-space: normal;
+}
+
+.admin-issue-col--reason {
+  min-width: 240px;
+}
+
+.admin-issue-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  align-items: center;
+}
+
+.admin-issue-reason__text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-issue-reason__title {
+  font-weight: 700;
+  color: #111827;
+}
+
+.admin-issue-reason__detail {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.admin-issue-cell--center {
+  text-align: center;
+}
+
+.admin-issue-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--text-sub, #6b7280);
+  font-weight: 700;
+}
+
 .admin-status {
   display: flex;
   gap: 12px;
@@ -241,7 +383,7 @@ onMounted(loadIssues)
 
 .admin-card__eyebrow {
   margin: 0;
-  color: #0f766e;
+  color: #111827;
   font-weight: 800;
   font-size: 0.9rem;
 }
@@ -249,7 +391,7 @@ onMounted(loadIssues)
 .admin-card__title {
   margin: 4px 0 0;
   font-size: 1.2rem;
-  color: #0b3b32;
+  color: #111827;
   font-weight: 900;
 }
 
@@ -257,5 +399,15 @@ onMounted(loadIssues)
   margin: 0;
   color: var(--text-sub, #6b7280);
   font-weight: 600;
+}
+
+.admin-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+:deep(.admin-table-card__title) {
+  color: #111827;
 }
 </style>

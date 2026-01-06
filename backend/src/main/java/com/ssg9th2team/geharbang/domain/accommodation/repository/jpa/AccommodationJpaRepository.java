@@ -5,8 +5,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -16,5 +18,15 @@ public interface AccommodationJpaRepository extends JpaRepository<Accommodation,
     List<Accommodation> findMissingCoordinates(Pageable pageable);
 
     long countByLatitudeIsNullOrLongitudeIsNull();
+
+    @Query(value = """
+            SELECT COALESCE(AVG(DATEDIFF(:now, DATE(created_at))), 0)
+            FROM accommodation
+            WHERE approval_status = 'PENDING'
+            """, nativeQuery = true)
+    Double avgPendingLeadTimeDays(@Param("now") java.time.LocalDate now);
+
+    long countByApprovalStatusAndCreatedAtBefore(com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus status,
+                                                 LocalDateTime cutoff);
 
 }

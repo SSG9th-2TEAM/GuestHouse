@@ -3,7 +3,7 @@ import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
 import {fetchHostDashboardSummary, fetchHostTodaySchedule} from '@/api/hostDashboard'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
-import { deriveHostState, normalizeApprovalStatus } from '@/composables/useHostState'
+import { deriveHostGateInfo, normalizeApprovalStatus } from '@/composables/useHostState'
 import NavStay from '@/components/nav-icons/NavStay.vue'
 import { formatCurrency, formatDate, formatNumber, formatShortTime } from '@/utils/formatters'
 
@@ -235,26 +235,8 @@ const emptyMessage = computed(() => {
 
 const normalizeAccommodation = (item) => {
   const statusSource = item.approvalStatus ?? item.status ?? item.accommodationStatus ?? item.reviewStatus
-  const readResubmitMap = () => {
-    try {
-      const raw = sessionStorage.getItem('hostResubmitMap')
-      return raw ? JSON.parse(raw) : {}
-    } catch {
-      return {}
-    }
-  }
-  const resubmitMap = typeof window !== 'undefined' ? readResubmitMap() : {}
-  const resubmitWindowMs = 24 * 60 * 60 * 1000
   const id = item.accommodationsId ?? item.accommodationId ?? item.id
-  const isResubmittedRecently = () => {
-    const timestamp = resubmitMap[String(id)]
-    if (!timestamp) return false
-    return Date.now() - Number(timestamp) <= resubmitWindowMs
-  }
-  let normalizedStatus = normalizeApprovalStatus(statusSource)
-  if (normalizedStatus === 'rejected' && isResubmittedRecently()) {
-    normalizedStatus = 'pending'
-  }
+  const normalizedStatus = normalizeApprovalStatus(statusSource)
   return {
     id: id ?? `${item.name ?? 'acc'}-${Math.random()}`,
     name: item.accommodationsName ?? item.name ?? '',
@@ -263,33 +245,27 @@ const normalizeAccommodation = (item) => {
   }
 }
 
-const hostStateSnapshot = computed(() => deriveHostState(accommodations.value))
-const counts = computed(() => hostStateSnapshot.value.counts)
+const hostGateInfo = computed(() => deriveHostGateInfo(accommodations.value))
+const counts = computed(() => hostGateInfo.value.counts)
 const approvedCount = computed(() => counts.value.approved)
 const pendingCount = computed(() => counts.value.pending)
 const totalCount = computed(() => counts.value.total)
-const pendingOnly = computed(() => hostStateSnapshot.value.hostState === 'pending-only')
-
-const rejectedItem = computed(() =>
-  accommodations.value.find((item) => item.approvalStatus === 'rejected')
-)
-
-const recheckItem = computed(() =>
-  accommodations.value.find((item) => item.approvalStatus === 'pending' && item.rejectReason)
-)
+const hostState = computed(() => hostGateInfo.value.hostState)
+const isRecheck = computed(() => hostGateInfo.value.hostState === 'recheck')
+const pendingOnly = computed(() => ['pending-only', 'recheck'].includes(hostState.value))
 
 const rejectedReasonText = computed(() => {
-  const reason = rejectedItem.value?.rejectReason
+  const reason = hostGateInfo.value.rejectedReason
   return reason ? `반려 사유: ${reason}` : '등록 정보를 확인 후 수정해 주세요.'
 })
 
-const hostState = computed(() => {
+const hostStateComputed = computed(() => {
   if (accommodationsLoading.value) return 'loading'
   if (hostAccessDenied.value) return 'empty'
-  if (rejectedItem.value && totalCount.value > 0 && approvedCount.value === 0 && pendingCount.value === 0) {
+  if (hostGateInfo.value.hostState === 'rejected' && totalCount.value > 0 && approvedCount.value === 0 && pendingCount.value === 0) {
     return 'rejected'
   }
-  return hostStateSnapshot.value.hostState
+  return hostGateInfo.value.hostState
 })
 
 const goToRegister = () => router.push('/host/accommodation/register')
@@ -469,30 +445,30 @@ watch(selectedPeriod, () => {
 
 <template>
   <div class="dashboard-home">
-    <section v-if="hostState === 'empty' || hostState === 'rejected' || hostState === 'pending-only'" class="host-state">
+    <section v-if="hostStateComputed === 'empty' || hostStateComputed === 'rejected' || hostStateComputed === 'pending-only' || hostStateComputed === 'recheck'" class="host-state">
       <div class="state-card host-card">
         <div class="state-icon">
           <NavStay />
         </div>
         <div class="state-text">
-          <h3 v-if="hostState === 'empty'">숙소를 등록하세요!</h3>
-          <h3 v-else-if="hostState === 'pending-only'">
-            {{ recheckItem ? '숙소 재검토중이에요' : '숙소 심사중이에요' }}
+          <h3 v-if="hostStateComputed === 'empty'">숙소를 등록하세요!</h3>
+          <h3 v-else-if="hostStateComputed === 'pending-only' || hostStateComputed === 'recheck'">
+            {{ isRecheck ? '숙소 재검토중이에요' : '숙소 심사중이에요' }}
           </h3>
-          <h3 v-else-if="hostState === 'rejected'">숙소 심사가 반려되었어요</h3>
+          <h3 v-else-if="hostStateComputed === 'rejected'">숙소 심사가 반려되었어요</h3>
           <h3 v-else>숙소 상태를 확인 중이에요</h3>
-          <p v-if="hostState === 'empty'">숙소를 등록하면 예약/매출뿐 아니라 리뷰, 일정, 통계까지 한 곳에서 관리할 수 있어요.</p>
-          <p v-else-if="hostState === 'pending-only'">
-            {{ recheckItem ? `이전 반려 사유: ${recheckItem.rejectReason}` : '등록하신 숙소를 확인하고 있어요. 평균 영업일 1~2일 내에 결과를 안내합니다.' }}
+          <p v-if="hostStateComputed === 'empty'">숙소를 등록하면 예약/매출뿐 아니라 리뷰, 일정, 통계까지 한 곳에서 관리할 수 있어요.</p>
+          <p v-else-if="hostStateComputed === 'pending-only' || hostStateComputed === 'recheck'">
+            {{ isRecheck ? `이전 반려 사유: ${hostGateInfo.recheckReason}` : '등록하신 숙소를 확인하고 있어요. 평균 영업일 1~2일 내에 결과를 안내합니다.' }}
           </p>
-          <p v-else-if="hostState === 'rejected'">
+          <p v-else-if="hostStateComputed === 'rejected'">
             {{ rejectedReasonText }}
           </p>
           <p v-else-if="accommodationsError">{{ accommodationsError }}</p>
         </div>
         <div class="state-actions">
           <button
-            v-if="hostState === 'empty'"
+            v-if="hostStateComputed === 'empty'"
             class="state-btn primary"
             type="button"
             @click="goToRegister"
@@ -506,7 +482,7 @@ watch(selectedPeriod, () => {
               type="button"
               @click="goToManage"
             >
-              {{ hostState === 'rejected' ? '수정 후 재제출' : '등록 정보 확인/수정' }}
+              {{ hostStateComputed === 'rejected' ? '수정 후 재제출' : '등록 정보 확인/수정' }}
             </button>
           </template>
         </div>

@@ -1,13 +1,17 @@
 <script setup>
+import AdminBadge from './AdminBadge.vue'
+
 const props = defineProps({
   label: { type: String, required: true },
   value: { type: String, required: true },
   sub: { type: String, default: '' },
+  badge: { type: String, default: '' },
   tone: { type: String, default: 'primary' },
   clickable: { type: Boolean, default: false }
 })
 
 const toneClass = `admin-stat-card--${props.tone}`
+const badgeVariant = props.tone === 'primary' ? 'accent' : props.tone
 </script>
 
 <template>
@@ -17,7 +21,10 @@ const toneClass = `admin-stat-card--${props.tone}`
     :class="[toneClass, { 'is-clickable': clickable }]"
     :type="clickable ? 'button' : undefined"
   >
-    <div class="admin-stat-card__label">{{ label }}</div>
+    <div class="admin-stat-card__label">
+      <span>{{ label }}</span>
+      <AdminBadge v-if="badge" :text="badge" :variant="badgeVariant" />
+    </div>
     <div class="admin-stat-card__value">{{ value }}</div>
     <div v-if="sub" class="admin-stat-card__sub">{{ sub }}</div>
     <div v-if="$slots.icon" class="admin-stat-card__icon">
@@ -42,10 +49,24 @@ const toneClass = `admin-stat-card--${props.tone}`
   width: 100%;
 }
 
+.admin-stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--tone-color, #e5e7eb);
+}
+
 .admin-stat-card__label {
   font-size: 0.95rem;
   color: var(--text-sub);
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .admin-stat-card__value {
@@ -79,25 +100,27 @@ const toneClass = `admin-stat-card--${props.tone}`
 }
 
 .admin-stat-card--primary {
-  border-color: #d9efe9;
+  border-color: #e5e7eb;
+  --tone-color: #14b8a6;
 }
 
 .admin-stat-card--success {
-  border-color: #d8f5dd;
-  background: #f2fbf4;
+  border-color: #e5e7eb;
+  --tone-color: #22c55e;
 }
 
 .admin-stat-card--neutral {
   border-color: #e5e7eb;
+  --tone-color: #94a3b8;
 }
 
 .admin-stat-card--accent {
-  border-color: #cce6ff;
-  background: #f3f8ff;
+  border-color: #e5e7eb;
+  --tone-color: #3b82f6;
 }
 
 .admin-stat-card--warning {
-  border-color: #ffe2a8;
-  background: #fff8e6;
+  border-color: #e5e7eb;
+  --tone-color: #f59e0b;
 }
 </style>

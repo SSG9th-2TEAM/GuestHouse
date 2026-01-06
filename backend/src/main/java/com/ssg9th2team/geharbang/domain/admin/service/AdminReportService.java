@@ -3,11 +3,13 @@ package com.ssg9th2team.geharbang.domain.admin.service;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportSummary;
+import com.ssg9th2team.geharbang.domain.admin.log.AdminLogConstants;
 import com.ssg9th2team.geharbang.domain.report.entity.ReviewReport;
 import com.ssg9th2team.geharbang.domain.report.repository.jpa.ReviewReportJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
@@ -19,6 +21,7 @@ import java.util.List;
 public class AdminReportService {
 
     private final ReviewReportJpaRepository reportRepository;
+    private final AdminLogService adminLogService;
 
     public AdminPageResponse<AdminReportSummary> getReports(String status, String type, String query, int page, int size, String sort) {
         Sort sorting = "oldest".equalsIgnoreCase(sort)
@@ -47,13 +50,23 @@ public class AdminReportService {
         return toDetail(report);
     }
 
-    public AdminReportDetail resolveReport(Long reportId, String action) {
+    @Transactional
+    public AdminReportDetail resolveReport(Long adminUserId, Long reportId, String action, String memo) {
         ReviewReport report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found"));
         if (StringUtils.hasText(action)) {
             report.updateState(action.trim().toUpperCase());
         }
-        return toDetail(reportRepository.save(report));
+        ReviewReport saved = reportRepository.save(report);
+        Long targetId = saved.getReviewId() != null ? saved.getReviewId() : saved.getReportId();
+        adminLogService.writeLog(
+                adminUserId,
+                AdminLogConstants.TARGET_REVIEW,
+                targetId,
+                AdminLogConstants.ACTION_RESOLVE,
+                memo
+        );
+        return toDetail(saved);
     }
 
     private boolean matchesStatus(ReviewReport report, String status) {

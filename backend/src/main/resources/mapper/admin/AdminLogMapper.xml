@@ -11,16 +11,14 @@
             target_id,
             action_type,
             reason,
-            metadata_json,
-            created_at
+            metadata_json
         ) VALUES (
             #{adminId},
             #{targetType},
             #{targetId},
             #{actionType},
             #{reason},
-            #{metadataJson},
-            NOW()
+            #{metadataJson}
         )
     </insert>
 
@@ -32,7 +30,7 @@
             target_id AS targetId,
             action_type AS actionType,
             reason AS reason,
-            metadata_json AS metadataJson,
+            NULL AS metadataJson,
             created_at AS createdAt
         FROM admin_log
         WHERE 1=1
@@ -52,7 +50,6 @@
             AND (
                 reason LIKE CONCAT('%', #{keyword}, '%')
                 OR target_type LIKE CONCAT('%', #{keyword}, '%')
-                OR metadata_json LIKE CONCAT('%', #{keyword}, '%')
             )
         </if>
         ORDER BY created_at DESC
@@ -79,7 +76,6 @@
             AND (
                 reason LIKE CONCAT('%', #{keyword}, '%')
                 OR target_type LIKE CONCAT('%', #{keyword}, '%')
-                OR metadata_json LIKE CONCAT('%', #{keyword}, '%')
             )
         </if>
     </select>

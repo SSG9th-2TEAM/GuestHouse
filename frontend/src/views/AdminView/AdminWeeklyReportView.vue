@@ -1,15 +1,20 @@
 <script setup>
 import { onMounted, ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { exportCSV } from '../../utils/reportExport'
 import AdminStatCard from '../../components/admin/AdminStatCard.vue'
+import AdminBarChart from '../../components/admin/AdminBarChart.vue'
 import { fetchAdminWeeklyReport } from '../../api/adminApi'
+import { buildDateRange, fillSeriesByDate, formatKRW, toISODate } from '../../utils/admin/chartSeries'
 
 const activeDays = ref(7)
 const report = ref(null)
 const isLoading = ref(false)
 const loadError = ref('')
+const router = useRouter()
 
-const formatCurrency = (value) => `₩${Number(value ?? 0).toLocaleString()}`
+const formatCurrency = (value) => formatKRW(value)
+const formatDateOnly = (value) => (value ? String(value).slice(0, 10) : '')
 
 const loadReport = async () => {
   isLoading.value = true
@@ -25,30 +30,97 @@ const loadReport = async () => {
 
 const stats = computed(() => {
   if (!report.value) return []
+  const { from, to } = resolveRange()
+  const rangeQuery = from && to ? { from, to } : {}
   return [
-    { label: '예약 수', value: `${report.value.reservationCount ?? 0}건`, sub: '선택 기간', tone: 'primary' },
-    { label: '결제 성공', value: `${report.value.paymentSuccessCount ?? 0}건`, sub: '완료 기준', tone: 'success' },
-    { label: '취소', value: `${report.value.cancelCount ?? 0}건`, sub: '예약 취소', tone: 'neutral' },
-    { label: '환불', value: `${report.value.refundCount ?? 0}건`, sub: formatCurrency(report.value.refundAmount), tone: 'warning' },
-    { label: '신규 가입자', value: `${report.value.newUsers ?? 0}명`, sub: '전체 계정', tone: 'accent' },
-    { label: '신규 숙소', value: `${report.value.newAccommodations ?? 0}개`, sub: '등록 완료', tone: 'primary' },
-    { label: '승인 대기 숙소', value: `${report.value.pendingAccommodations ?? 0}개`, sub: '심사 대기', tone: 'warning' },
-    { label: '신규 호스트', value: `${report.value.newHosts ?? 0}명`, sub: '전환 기준', tone: 'success' }
+    {
+      label: '예약 수',
+      value: `${report.value.reservationCount ?? 0}건`,
+      sub: '선택 기간',
+      tone: 'primary',
+      to: { path: '/admin/bookings', query: rangeQuery }
+    },
+    {
+      label: '결제 성공',
+      value: `${report.value.paymentSuccessCount ?? 0}건`,
+      sub: '완료 기준',
+      tone: 'success',
+      to: { path: '/admin/payments', query: { status: 'SUCCESS', ...rangeQuery } }
+    },
+    {
+      label: '취소',
+      value: `${report.value.cancelCount ?? 0}건`,
+      sub: '예약 취소',
+      tone: 'neutral',
+      to: { path: '/admin/bookings', query: { status: 'canceled', ...rangeQuery } }
+    },
+    {
+      label: '환불',
+      value: `${report.value.refundCount ?? 0}건`,
+      sub: formatCurrency(report.value.refundAmount),
+      tone: 'warning',
+      to: { path: '/admin/payments', query: { status: 'REFUNDED', type: 'REFUND', ...rangeQuery } }
+    },
+    {
+      label: '신규 가입자',
+      value: `${report.value.newUsers ?? 0}명`,
+      sub: '전체 계정',
+      tone: 'accent',
+      to: { path: '/admin/users', query: rangeQuery }
+    },
+    {
+      label: '신규 숙소',
+      value: `${report.value.newAccommodations ?? 0}개`,
+      sub: '등록 완료',
+      tone: 'primary',
+      to: { path: '/admin/accommodations', query: rangeQuery }
+    },
+    {
+      label: '승인 대기 숙소',
+      value: `${report.value.pendingAccommodations ?? 0}개`,
+      sub: '심사 대기',
+      tone: 'warning',
+      to: { path: '/admin/accommodations', query: { status: 'PENDING', ...rangeQuery } }
+    },
+    {
+      label: '신규 호스트',
+      value: `${report.value.newHosts ?? 0}명`,
+      sub: '전환 기준',
+      tone: 'success',
+      to: { path: '/admin/users', query: { role: 'HOST', ...rangeQuery } }
+    }
   ]
 })
 
-const series = computed(() => report.value?.revenueSeries ?? [])
+const resolveRange = () => {
+  if (report.value?.from && report.value?.to) {
+    return { from: report.value.from, to: report.value.to }
+  }
+  const end = new Date()
+  const start = new Date()
+  start.setDate(end.getDate() - (Number(activeDays.value ?? 7) - 1))
+  return { from: toISODate(start), to: toISODate(end) }
+}
 
-const maxValue = computed(() => {
-  const values = series.value.map((item) => Number(item.value ?? 0))
-  return values.length ? Math.max(...values, 1) : 1
+const series = computed(() => {
+  if (!report.value) return []
+  const rawSeries = report.value.revenueSeries ?? []
+  const { from, to } = resolveRange()
+  const dates = buildDateRange(from, to)
+  const values = fillSeriesByDate(dates, rawSeries, (item) => formatDateOnly(item.date), (item) => item.value)
+  return dates.map((date, idx) => ({
+    date,
+    value: values[idx]
+  }))
 })
-
-const heightFor = (value) => `${(Number(value ?? 0) / maxValue.value) * 100}%`
 
 const hasSeriesData = computed(() => {
   return series.value.some((item) => Number(item.value ?? 0) > 0)
 })
+
+const chartLabels = computed(() => series.value.map((item) => item.date))
+const chartValues = computed(() => series.value.map((item) => Number(item.value ?? 0)))
+const chartMaxXTicks = computed(() => (Number(activeDays.value) > 10 ? 8 : 7))
 
 const exportDailyCsv = () => {
   if (!report.value) return
@@ -74,6 +146,12 @@ const exportDailyCsv = () => {
 onMounted(loadReport)
 
 watch(activeDays, loadReport)
+
+const handleStatClick = (card) => {
+  if (!card?.to) return
+  router.push(card.to)
+}
+
 </script>
 
 <template>
@@ -100,6 +178,8 @@ watch(activeDays, loadReport)
         :value="card.value"
         :sub="card.sub"
         :tone="card.tone"
+        :clickable="Boolean(card.to)"
+        @click="handleStatClick(card)"
       />
       <div v-if="isLoading" class="admin-status">불러오는 중...</div>
       <div v-else-if="loadError" class="admin-status">
@@ -120,19 +200,13 @@ watch(activeDays, loadReport)
       </div>
       <div class="admin-chart-area">
         <div v-if="!hasSeriesData" class="admin-status">표시할 데이터가 없습니다.</div>
-        <div v-else class="admin-chart-bars">
-          <div
-            v-for="point in series"
-            :key="point.date"
-            class="admin-chart-bar"
-            :style="{ height: heightFor(point.value) }"
-          >
-            <span class="admin-chart-bar__label">{{ formatCurrency(point.value) }}</span>
-          </div>
-        </div>
-      </div>
-      <div class="admin-chart-x">
-        <span v-for="point in series" :key="point.date">{{ point.date?.slice?.(5) ?? point.date }}</span>
+        <AdminBarChart
+          v-else
+          :labels="chartLabels"
+          :values="chartValues"
+          :height="260"
+          :max-x-ticks="chartMaxXTicks"
+        />
       </div>
     </div>
   </section>
@@ -211,44 +285,7 @@ watch(activeDays, loadReport)
   display: flex;
   align-items: flex-end;
   gap: 12px;
-  min-height: 200px;
-}
-
-.admin-chart-bars {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
-  gap: 10px;
-  align-items: end;
-  height: 200px;
-  width: 100%;
-}
-
-.admin-chart-bar {
-  position: relative;
-  background: #e5f3ef;
-  border-radius: 10px 10px 4px 4px;
-  min-height: 0;
-}
-
-.admin-chart-bar__label {
-  position: absolute;
-  top: -28px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.7rem;
-  color: #0f766e;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.admin-chart-x {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
-  gap: 10px;
-  margin-top: 8px;
-  color: #6b7280;
-  font-weight: 700;
-  font-size: 0.8rem;
+  min-height: 260px;
 }
 
 .admin-chip {
