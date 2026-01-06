@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserSocial;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserSocialRepository;
+import com.ssg9th2team.geharbang.domain.coupon.repository.jpa.UserCouponJpaRepository;
 import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
 import com.ssg9th2team.geharbang.domain.payment.entity.PaymentRefund;
 import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
@@ -36,6 +37,7 @@ public class UserServiceImpl implements UserService {
     private final ReviewReportJpaRepository reviewReportJpaRepository;
     private final ReviewJpaRepository reviewJpaRepository;
     private final WishlistJpaRepository wishlistJpaRepository;
+    private final UserCouponJpaRepository userCouponJpaRepository;
 
     @Override
     @Transactional
@@ -103,7 +105,11 @@ public class UserServiceImpl implements UserService {
             wishlistJpaRepository.deleteAllByUserId(userId);
             log.info("사용자 {}의 위시리스트 삭제 완료", email);
 
-            // 10. 소셜 로그인 정보 삭제
+            // 10. 사용자 쿠폰 삭제
+            userCouponJpaRepository.deleteAllByUserId(userId);
+            log.info("사용자 {}의 쿠폰 삭제 완료", email);
+
+            // 11. 소셜 로그인 정보 삭제
             List<UserSocial> userSocials = userSocialRepository.findByUser(user);
             if (!userSocials.isEmpty()) {
                 userSocialRepository.deleteAll(userSocials);

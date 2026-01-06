@@ -1,7 +1,7 @@
 <script setup>
-import { ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { login, saveUserInfo } from '@/api/authClient'
+import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { login } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
@@ -12,6 +12,14 @@ const showPassword = ref(false)
 const isLoading = ref(false)
 const passwordError = ref('')
 const loginError = ref('')
+const authRequiredMessage = ref('') // Message for unauthorized access
+
+// Check for unauthorized access message on component mount
+onMounted(() => {
+  if (route.query.unauthorized) {
+    authRequiredMessage.value = '서비스 이용을 위해 로그인이 필요합니다.';
+  }
+});
 
 // Modal State
 const showModal = ref(false)
@@ -42,6 +50,7 @@ const handleLogin = async () => {
   // 에러 초기화
   passwordError.value = ''
   loginError.value = ''
+  authRequiredMessage.value = '' // Clear auth message on new login attempt
 
   // 입력 검증
   if (!password.value) {
@@ -124,6 +133,9 @@ const goToSignup = () => {
       </div>
 
       <div class="login-form">
+        <div v-if="authRequiredMessage" class="info-message">
+          {{ authRequiredMessage }}
+        </div>
         <div v-if="loginError" class="error-message">
           {{ loginError }}
         </div>
@@ -280,6 +292,16 @@ const goToSignup = () => {
 
 .input-wrapper:focus-within {
   border-color: #00796b;
+}
+
+.info-message {
+  background-color: #e0f2fe;
+  color: #0284c7;
+  border-radius: 8px;
+  padding: 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
 }
 
 .error-message {
