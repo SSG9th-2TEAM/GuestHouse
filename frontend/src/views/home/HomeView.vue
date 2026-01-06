@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref, computed } from 'vue'
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
+import SkeletonCard from '../../components/SkeletonCard.vue'
 import { useRouter } from 'vue-router'
 import { fetchThemes, fetchUserThemes } from '@/api/theme'
 import { fetchList, fetchListBulk } from '@/api/list'
@@ -248,7 +249,24 @@ onMounted(() => {
       </div>
     </section>
 
-    <div v-if="isLoading" class="empty-state">로딩 중입니다.</div>
+    <!-- 스켈레톤 로딩 UI -->
+    <section v-if="isLoading" class="theme-section skeleton-section">
+      <div class="section-header">
+        <div class="skeleton-section-title shimmer"></div>
+      </div>
+      <div class="row-scroll">
+        <SkeletonCard v-for="n in 4" :key="n" />
+      </div>
+    </section>
+    <section v-if="isLoading" class="theme-section skeleton-section">
+      <div class="section-header">
+        <div class="skeleton-section-title shimmer"></div>
+      </div>
+      <div class="row-scroll">
+        <SkeletonCard v-for="n in 4" :key="n" />
+      </div>
+    </section>
+
     <div v-else-if="loadError" class="empty-state">{{ loadError }}</div>
     <section v-else v-for="section in sections" :key="section.id" class="theme-section">
       <div class="section-header">
@@ -496,5 +514,48 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* 스켈레톤 로딩 UI 스타일 */
+.skeleton-section {
+  margin-bottom: 2.5rem;
+}
+
+.skeleton-section-title {
+  height: 1.4rem;
+  width: 200px;
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+/* 쉬머 애니메이션 효과 */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 </style>

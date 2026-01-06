@@ -17,9 +17,27 @@ const props = defineProps({
   }
 })
 
-// 이미지 URL (원본 사용)
+// 썸네일 URL 생성 (원본 URL에서 폴더명에 _thumb 추가)
+const DEFAULT_IMAGE = 'https://placehold.co/400x300?text=No+Image'
+
 const thumbnailUrl = computed(() => {
-  if (!props.imageUrl) return ''
+  if (!props.imageUrl) return DEFAULT_IMAGE
+  
+  // Object Storage URL인 경우 썸네일 폴더로 변경
+  if (props.imageUrl.includes('ncloudstorage.com')) {
+    // accommodation_image -> accommodation_image_thumb
+    // room -> room_thumb
+    let thumbUrl = props.imageUrl
+      .replace('/accommodation_image/', '/accommodation_image_thumb/')
+      .replace('/room/', '/room_thumb/')
+    
+    // 확장자를 .jpg로 변경 (썸네일은 모두 jpg)
+    thumbUrl = thumbUrl.replace(/\.(png|gif|webp)$/i, '.jpg')
+    
+    return thumbUrl
+  }
+  
+  // 다른 URL은 원본 그대로 사용
   return props.imageUrl
 })
 
