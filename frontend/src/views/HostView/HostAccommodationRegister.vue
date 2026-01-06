@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { getAccessToken } from '../../api/authClient'
 
 const router = useRouter()
 const emit = defineEmits(['cancel', 'submit'])
@@ -65,7 +66,7 @@ const verifyBusinessNumber = async () => {
     })
 
     // 백엔드 OCR API 호출 (Google Cloud Vision)
-    const token = localStorage.getItem('accessToken')
+    const token = getAccessToken()
     const response = await fetch(`${API_BASE_URL}/ocr/business-license`, {
       method: 'POST',
       headers: {
@@ -823,7 +824,7 @@ const handleTempSave = () => {
     businessRegistrationNumber: businessRegistrationNumber.value,
     savedAt: new Date().toISOString()
   }
-  localStorage.setItem('accommodationDraft', JSON.stringify(tempData))
+  sessionStorage.setItem('accommodationDraft', JSON.stringify(tempData))
   openModal('임시 저장되었습니다.')
 }
 
@@ -962,7 +963,7 @@ const handleSubmit = async () => {
     console.log('Submitting to API:', requestData)
 
     // API 호출
-    const token = localStorage.getItem('accessToken')
+    const token = getAccessToken()
     const response = await fetch(`${API_BASE_URL}/accommodations`, {
       method: 'POST',
       headers: {
@@ -977,7 +978,7 @@ const handleSubmit = async () => {
       console.log('숙소 등록 완료, ID:', accommodationId)
 
       // 임시 저장 데이터 삭제
-      localStorage.removeItem('accommodationDraft')
+      sessionStorage.removeItem('accommodationDraft')
 
       registrationSuccess.value = true
       openModal('숙소가 성공적으로 등록되었습니다.')
