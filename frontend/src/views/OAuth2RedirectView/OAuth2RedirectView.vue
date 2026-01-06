@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { saveTokens } from '@/api/authClient'
+import { saveTokens, saveUserInfo, getCurrentUser } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
@@ -19,6 +19,20 @@ onMounted(async () => {
 
   // 토큰 저장
   saveTokens(accessToken, refreshToken)
+
+  // 사용자 정보 조회 및 저장 (추천 기능에 필요)
+  try {
+    const userResponse = await getCurrentUser()
+    if (userResponse.ok && userResponse.data) {
+      saveUserInfo({
+        email: userResponse.data.email,
+        role: userResponse.data.role,
+        userId: userResponse.data.userId
+      })
+    }
+  } catch (error) {
+    console.error('사용자 정보 조회 실패:', error)
+  }
 
   // 현재 경로 확인하여 리다이렉트
   // /oauth2/redirect는 기존 사용자, /social-signup는 신규 사용자
