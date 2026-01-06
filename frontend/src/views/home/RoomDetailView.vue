@@ -115,13 +115,8 @@ const normalizeRooms = (rooms, fallbackPrice) => {
       const available = roomStatus == null ? true : roomStatus === 1
       const imageUrl = room?.mainImageUrl || DEFAULT_IMAGE
       
-      // 썸네일 URL 생성
-      let thumbnailUrl = imageUrl
-      if (imageUrl.includes('ncloudstorage.com')) {
-        thumbnailUrl = imageUrl
-          .replace('/room/', '/room_thumb/')
-          .replace(/\.(png|gif|webp)$/i, '.jpg')
-      }
+      // 썸네일 URL (원본 그대로 사용)
+      const thumbnailUrl = imageUrl
 
       return {
         id: room?.roomId ?? room?.id,

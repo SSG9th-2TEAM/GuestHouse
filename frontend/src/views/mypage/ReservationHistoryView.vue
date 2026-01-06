@@ -54,15 +54,9 @@ const formatTime = (dateString) => {
   })
 }
 
-// 썸네일 URL 생성
+// 이미지 URL (원본 사용)
 const getThumbnailUrl = (url) => {
   if (!url) return ''
-  if (url.includes('ncloudstorage.com')) {
-    return url
-      .replace('/accommodation_image/', '/accommodation_image_thumb/')
-      .replace('/room/', '/room_thumb/')
-      .replace(/\.(png|gif|webp)$/i, '.jpg')
-  }
   return url
 }
 

@@ -123,10 +123,13 @@ const loadAccommodations = async () => {
   const response = await fetchHostAccommodations()
   if (response.ok) {
     const payload = response.data
+    console.log('API Response:', payload)
     const list = Array.isArray(payload)
       ? payload
       : payload?.items ?? payload?.content ?? payload?.data ?? []
+    console.log('Raw list:', list)
     accommodations.value = list.map(normalizeAccommodation)
+    console.log('Normalized:', accommodations.value)
   } else {
     loadError.value = '숙소 목록을 불러오지 못했습니다.'
   }
