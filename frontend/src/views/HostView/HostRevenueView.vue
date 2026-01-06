@@ -4,9 +4,9 @@ import { useRoute } from 'vue-router'
 import {exportCSV, exportXLSX} from '../../utils/reportExport'
 import {fetchHostRevenueDetails, fetchHostRevenueSummary, fetchHostRevenueTrend} from '@/api/hostRevenue'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
-import { deriveHostState } from '@/composables/useHostState'
+import { deriveHostGateInfo, buildHostGateNotice } from '@/composables/useHostState'
 import {formatCurrency, formatDate} from '@/utils/formatters'
-import HostPendingLock from '@/components/host/HostPendingLock.vue'
+import HostGateNotice from '@/components/host/HostGateNotice.vue'
 
 const now = new Date()
 const currentYear = now.getFullYear()
@@ -34,9 +34,16 @@ const loadError = ref('')
 const prefersReducedMotion = ref(false)
 const animateCharts = ref(false)
 const includeZero = ref(false)
-const hostState = ref('loading')
-const hostCounts = ref({ total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 })
-const pendingOnly = computed(() => hostState.value === 'pending-only')
+const hostGateInfo = ref({
+  hostState: 'loading',
+  counts: { total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 },
+  rejectedReason: '',
+  recheckReason: ''
+})
+const hostState = computed(() => hostGateInfo.value.hostState)
+const canUseHostFeatures = computed(() => hostGateInfo.value.gateState === 'APPROVED')
+const gateVisible = computed(() => !canUseHostFeatures.value && hostState.value !== 'loading')
+const gateNotice = computed(() => buildHostGateNotice(hostGateInfo.value))
 const filtersReady = ref(false)
 
 const currentYearSummary = computed(() => revenueSummary.value)
@@ -180,7 +187,7 @@ const initFilters = () => {
 }
 
 const loadRevenue = async (year, month) => {
-  if (pendingOnly.value) return
+  if (!canUseHostFeatures.value) return
   isLoading.value = true
   loadError.value = ''
   const monthValue = month === 'all' ? null : Number(month)
@@ -254,11 +261,14 @@ const loadHostState = async () => {
     const list = Array.isArray(payload)
       ? payload
       : payload?.items ?? payload?.content ?? payload?.data ?? []
-    const snapshot = deriveHostState(list)
-    hostState.value = snapshot.hostState
-    hostCounts.value = snapshot.counts
+    hostGateInfo.value = deriveHostGateInfo(list)
   } else {
-    hostState.value = 'empty'
+    hostGateInfo.value = {
+      hostState: 'empty',
+      counts: { total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 },
+      rejectedReason: '',
+      recheckReason: ''
+    }
   }
 }
 
@@ -266,13 +276,13 @@ onMounted(async () => {
   initFilters()
   filtersReady.value = true
   await loadHostState()
-  if (!pendingOnly.value) {
+  if (canUseHostFeatures.value) {
     loadRevenue(selectedYear.value, selectedMonth.value)
   }
 })
 
 watch([selectedYear, selectedMonth], ([year, month]) => {
-  if (pendingOnly.value || !filtersReady.value) return
+  if (!canUseHostFeatures.value || !filtersReady.value) return
   loadRevenue(year, month)
 })
 
@@ -518,15 +528,15 @@ const scrollToAnchor = (anchorId) => {
 
 <template>
   <div class="revenue-view">
-    <HostPendingLock
-      v-if="pendingOnly"
-      title="승인 후 매출 리포트를 볼 수 있어요"
-      description="숙소 승인 완료 후 확정 매출/정산 데이터가 집계됩니다."
-      primary-cta-text="숙소 관리"
-      primary-cta-to="/host/accommodation"
-      secondary-cta-text="추가 등록"
-      secondary-cta-to="/host/accommodation/register"
-      :badge-text="`검수중 ${hostCounts.pending}건`"
+    <HostGateNotice
+      v-if="gateVisible"
+      :title="gateNotice.title"
+      :description="gateNotice.description"
+      :reason="gateNotice.reason"
+      :primary-text="gateNotice.primaryText"
+      :primary-to="gateNotice.primaryTo"
+      :secondary-text="gateNotice.secondaryText"
+      :secondary-to="gateNotice.secondaryTo"
     />
 
     <template v-else>

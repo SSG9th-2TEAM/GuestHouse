@@ -5,14 +5,15 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminUserSummary;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.auth.spec.UserSpecifications;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -26,24 +27,25 @@ public class AdminUserService {
             int size,
             String sort
     ) {
+        // 체크: role/query 필터 + page/size가 DB 페이징으로 정상 동작하는지 확인.
         int safePage = Math.max(0, page);
         int safeSize = size > 0 ? Math.min(size, 50) : 20;
         Sort sorting = resolveUserSort(sort);
 
-        List<User> filtered = userRepository.findAll(sorting).stream()
-                .filter(user -> matchesRole(user, role))
-                .filter(user -> matchesQuery(user, query))
-                .toList();
+        UserRole targetRole = parseRole(role);
+        Page<User> pageResult = userRepository.findAll(
+                UserSpecifications.hasRole(targetRole)
+                        .and(UserSpecifications.keywordContains(query)),
+                PageRequest.of(safePage, safeSize, sorting)
+        );
 
-        int totalElements = filtered.size();
-        int totalPages = safeSize > 0 ? (int) Math.ceil(totalElements / (double) safeSize) : 1;
-        int fromIndex = Math.min(safePage * safeSize, totalElements);
-        int toIndex = Math.min(fromIndex + safeSize, totalElements);
-        List<AdminUserSummary> items = filtered.subList(fromIndex, toIndex).stream()
-                .map(this::toSummary)
-                .toList();
-
-        return AdminPageResponse.of(items, safePage, safeSize, totalElements, totalPages);
+        return AdminPageResponse.of(
+                pageResult.getContent().stream().map(this::toSummary).toList(),
+                safePage,
+                safeSize,
+                (int) pageResult.getTotalElements(),
+                pageResult.getTotalPages()
+        );
     }
 
     private Sort resolveUserSort(String sort) {
@@ -72,21 +74,6 @@ public class AdminUserService {
             case "USER", "ROLE_USER", "GUEST" -> UserRole.USER;
             default -> null;
         };
-    }
-
-    private boolean matchesRole(User user, String role) {
-        UserRole userRole = parseRole(role);
-        return userRole == null || userRole == user.getRole();
-    }
-
-    private boolean matchesQuery(User user, String query) {
-        if (!StringUtils.hasText(query)) {
-            return true;
-        }
-        String normalized = query.toLowerCase();
-        String email = user.getEmail() != null ? user.getEmail().toLowerCase() : "";
-        String phone = user.getPhone() != null ? user.getPhone().toLowerCase() : "";
-        return email.contains(normalized) || phone.contains(normalized);
     }
 
     private AdminUserSummary toSummary(User user) {
