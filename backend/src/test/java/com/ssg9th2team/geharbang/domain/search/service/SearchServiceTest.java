@@ -64,6 +64,8 @@ class SearchServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null);
 
         assertThat(response.items()).hasSize(1);
@@ -99,6 +101,8 @@ class SearchServiceTest {
                 "오션뷰",
                 1,
                 10,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -152,6 +156,8 @@ class SearchServiceTest {
                 128.0,
                 null,
                 null,
+                null,
+                null,
                 null);
 
         assertThat(response.items()).hasSize(1);
@@ -202,7 +208,9 @@ class SearchServiceTest {
                 null,
                 checkin,
                 checkout,
-                4);
+                4,
+                null,
+                null);
 
         assertThat(response.items()).hasSize(1);
         verify(searchRepository).searchPublicList(isNull(), eq(checkin), eq(checkout), eq(4), isNull(), isNull(),

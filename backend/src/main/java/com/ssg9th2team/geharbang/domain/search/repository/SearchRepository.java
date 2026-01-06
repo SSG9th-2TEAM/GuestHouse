@@ -673,9 +673,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
+                SELECT CAST(stay_date AS DATE) + INTERVAL 1 DAY
                 FROM stay_dates
-                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL 1 DAY
             ),
             room_candidates (room_id, accommodations_id, price, max_guests) AS (
                 SELECT r.room_id,
@@ -794,9 +794,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
+                SELECT CAST(stay_date AS DATE) + INTERVAL 1 DAY
                 FROM stay_dates
-                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL 1 DAY
             ),
             room_candidates (room_id, accommodations_id, price, max_guests) AS (
                 SELECT r.room_id,
@@ -1004,9 +1004,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
+                SELECT CAST(stay_date AS DATE) + INTERVAL 1 DAY
                 FROM stay_dates
-                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL 1 DAY
             ),
             room_candidates (room_id, accommodations_id, price, max_guests) AS (
                 SELECT r.room_id,
@@ -1127,9 +1127,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
-                SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
+                SELECT CAST(stay_date AS DATE) + INTERVAL 1 DAY
                 FROM stay_dates
-                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
+                WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL 1 DAY
             ),
             room_candidates (room_id, accommodations_id, price, max_guests) AS (
                 SELECT r.room_id,
