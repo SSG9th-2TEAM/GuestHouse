@@ -39,6 +39,7 @@ public class SearchServiceImpl implements SearchService {
         Page<ListDtoProjection> resultPage;
 
         boolean hasBounds = minLat != null && maxLat != null && minLng != null && maxLng != null;
+        boolean hasStayDates = checkin != null && checkout != null;
         Double south = null;
         Double north = null;
         Double west = null;
@@ -52,43 +53,91 @@ public class SearchServiceImpl implements SearchService {
 
         if (themeIds == null || themeIds.isEmpty()) {
             if (hasBounds) {
-                resultPage = searchRepository.searchPublicListByBounds(
-                        normalizedKeyword,
-                        south,
-                        north,
-                        west,
-                        east,
-                        checkin,
-                        checkout,
-                        guestCount,
-                        pageable
-                );
+                if (hasStayDates) {
+                    resultPage = searchRepository.searchPublicListByBounds(
+                            normalizedKeyword,
+                            south,
+                            north,
+                            west,
+                            east,
+                            checkin,
+                            checkout,
+                            guestCount,
+                            pageable
+                    );
+                } else {
+                    resultPage = searchRepository.searchPublicListByBoundsNoDates(
+                            normalizedKeyword,
+                            south,
+                            north,
+                            west,
+                            east,
+                            guestCount,
+                            pageable
+                    );
+                }
             } else {
-                resultPage = searchRepository.searchPublicList(normalizedKeyword, checkin, checkout, guestCount, pageable);
+                if (hasStayDates) {
+                    resultPage = searchRepository.searchPublicList(
+                            normalizedKeyword,
+                            checkin,
+                            checkout,
+                            guestCount,
+                            pageable
+                    );
+                } else {
+                    resultPage = searchRepository.searchPublicListNoDates(
+                            normalizedKeyword,
+                            guestCount,
+                            pageable
+                    );
+                }
             }
         } else {
             if (hasBounds) {
-                resultPage = searchRepository.searchPublicListByThemeAndBounds(
-                        themeIds,
-                        normalizedKeyword,
-                        south,
-                        north,
-                        west,
-                        east,
-                        checkin,
-                        checkout,
-                        guestCount,
-                        pageable
-                );
+                if (hasStayDates) {
+                    resultPage = searchRepository.searchPublicListByThemeAndBounds(
+                            themeIds,
+                            normalizedKeyword,
+                            south,
+                            north,
+                            west,
+                            east,
+                            checkin,
+                            checkout,
+                            guestCount,
+                            pageable
+                    );
+                } else {
+                    resultPage = searchRepository.searchPublicListByThemeAndBoundsNoDates(
+                            themeIds,
+                            normalizedKeyword,
+                            south,
+                            north,
+                            west,
+                            east,
+                            guestCount,
+                            pageable
+                    );
+                }
             } else {
-                resultPage = searchRepository.searchPublicListByTheme(
-                        themeIds,
-                        normalizedKeyword,
-                        checkin,
-                        checkout,
-                        guestCount,
-                        pageable
-                );
+                if (hasStayDates) {
+                    resultPage = searchRepository.searchPublicListByTheme(
+                            themeIds,
+                            normalizedKeyword,
+                            checkin,
+                            checkout,
+                            guestCount,
+                            pageable
+                    );
+                } else {
+                    resultPage = searchRepository.searchPublicListByThemeNoDates(
+                            themeIds,
+                            normalizedKeyword,
+                            guestCount,
+                            pageable
+                    );
+                }
             }
         }
 
