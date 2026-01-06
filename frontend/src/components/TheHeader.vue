@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { useHolidayStore } from '@/stores/holiday'
 import { useCalendarStore } from '@/stores/calendar'
-import { isAuthenticated, logout, validateToken, getUserInfo } from '@/api/authClient'
+import { isAuthenticated, logout, validateToken, getUserInfo, getAccessToken, getCurrentUser, saveUserInfo } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
@@ -35,17 +35,34 @@ const isLoggedIn = ref(isAuthenticated())
 const isHostRoute = computed(() => route.path.startsWith('/host'))
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
 const userInfo = computed(() => getUserInfo())
-const isUserHost = computed(() => userInfo.value?.role === 'HOST' || userInfo.value?.role === 'ROLE_HOST')
+const isUserHost = computed(() => {
+  return (
+    userInfo.value?.role === 'HOST' ||
+    userInfo.value?.role === 'ROLE_HOST' ||
+    userInfo.value?.hostApproved === true
+  )
+})
 
 // 호스트 모드 전환
-const toggleHostMode = () => {
+const toggleHostMode = async () => {
   if (!isLoggedIn.value) {
-    router.push('/login');
+    router.push({ path: '/login', query: { redirect: route.fullPath || '/host' } });
     isMenuOpen.value = false;
     return;
   }
 
-  if (isUserHost.value) {
+  let hostAllowed = isUserHost.value
+  if (!hostAllowed && getAccessToken()) {
+    const response = await getCurrentUser()
+    if (response.ok && response.data) {
+      saveUserInfo(response.data)
+      hostAllowed = response.data.role === 'HOST' ||
+        response.data.role === 'ROLE_HOST' ||
+        response.data.hostApproved === true
+    }
+  }
+
+  if (hostAllowed) {
     // 실제 호스트인 경우, 호스트/게스트 뷰 토글
     if (isHostRoute.value) {
       router.push('/');
@@ -53,8 +70,7 @@ const toggleHostMode = () => {
       router.push('/host');
     }
   } else {
-    // 게스트인 경우, 호스트 등록 페이지로 이동
-    router.push('/host/accommodation/register');
+    router.push('/host')
   }
   isMenuOpen.value = false;
 }
@@ -384,6 +400,7 @@ onUnmounted(() => {
                 <button v-else class="login-btn" @click="handleLogin">로그인</button>
               </div>
             </div>
+
           </div>
         </div>
 
@@ -948,6 +965,7 @@ onUnmounted(() => {
   transform: translateX(4px);
   color: #00796b;
 }
+
 
 /* Menu List */
 .menu-list {

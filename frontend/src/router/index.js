@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getUserInfo } from '@/api/authClient';
+import { getAccessToken, getCurrentUser, getUserInfo, saveUserInfo } from '@/api/authClient';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -273,8 +273,9 @@ const router = createRouter({
     ]
 })
 
-router.beforeEach((to, from, next) => {
-    const userInfo = getUserInfo();
+router.beforeEach(async (to, from, next) => {
+    let userInfo = getUserInfo();
+    const accessToken = getAccessToken();
 
     const isAdminRoute = to.path.startsWith('/admin');
     const isHostRoute = to.path.startsWith('/host');
@@ -284,29 +285,32 @@ router.beforeEach((to, from, next) => {
     ];
     const requiresAuth = protectedPaths.some(path => to.path.startsWith(path));
 
-    // 1. 비로그인 사용자 처리
-    if (!userInfo) {
-        if (isAdminRoute || isHostRoute || requiresAuth) {
-            // 로그인이 필요한 페이지에 접근 시, alert 대신 쿼리 파라미터와 함께 로그인 페이지로 리디렉션
-            return next({ path: '/login', query: { unauthorized: 'true' } });
-        }
-    }
-    // 2. 로그인 사용자 권한 처리
-    else {
-        const userRole = userInfo.role ? userInfo.role.toUpperCase() : '';
-        if (isAdminRoute && userRole !== 'ADMIN') {
-            // 관리자 페이지에 접근하려는 비관리자 사용자
-            alert('접근 권한이 없습니다.');
-            return next('/');
-        }
-        if (isHostRoute && userRole !== 'HOST' && userRole !== 'ROLE_HOST' && to.path !== '/host/accommodation/register') {
-            // 호스트 페이지에 접근하려는 비호스트 사용자
-            alert('접근 권한이 없습니다.');
-            return next('/');
+    if (!userInfo && accessToken) {
+        const response = await getCurrentUser();
+        if (response.ok && response.data) {
+            saveUserInfo(response.data);
+            userInfo = response.data;
         }
     }
 
-    // 모든 검사를 통과한 경우 정상 진행
+    if (!userInfo) {
+        if (isAdminRoute || isHostRoute || requiresAuth) {
+            return next({ path: '/login', query: { unauthorized: 'true', redirect: to.fullPath } });
+        }
+        return next();
+    }
+
+    const userRole = userInfo.role ? userInfo.role.toUpperCase() : '';
+    const isAdminUser = userRole === 'ADMIN' || userRole === 'ROLE_ADMIN';
+    const isHostUser = userRole === 'HOST' || userRole === 'ROLE_HOST' || userInfo.hostApproved === true;
+
+    if (isAdminRoute && !isAdminUser) {
+        return next('/');
+    }
+    if (isHostRoute && !isHostUser) {
+        return next();
+    }
+
     next();
 });
 

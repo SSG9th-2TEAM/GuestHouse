@@ -140,7 +140,11 @@
             check_in_time = #{Accommodation.checkInTime},
             check_out_time = #{Accommodation.checkOutTime},
             latitude = #{Accommodation.latitude},
-            longitude = #{Accommodation.longitude}
+            longitude = #{Accommodation.longitude},
+            approval_status = CASE
+                WHEN approval_status = 'REJECTED' THEN 'PENDING'
+                ELSE approval_status
+            END
         WHERE accommodations_id = #{accommodationsId}
     </update>
 
@@ -297,12 +301,20 @@
             a.accommodations_id AS accommodationsId,
             a.accommodations_name AS accommodationsName,
             CASE
+                WHEN a.approval_status = 'PENDING' AND a.rejection_reason IS NOT NULL THEN 'reinspection'
                 WHEN a.approval_status = 'PENDING' THEN 'inspection'
                 WHEN a.approval_status = 'REJECTED' THEN 'rejected'
                 WHEN a.accommodation_status = 1 AND a.approval_status = 'APPROVED' THEN 'active'
                 WHEN a.approval_status = 'APPROVED' THEN 'inactive'
                 ELSE 'inactive'
             END AS status,
+            a.approval_status AS approvalStatus,
+            a.accommodation_status AS accommodationStatus,
+            a.rejection_reason AS rejectionReason,
+            CASE
+                WHEN a.approval_status = 'PENDING' AND a.rejection_reason IS NOT NULL THEN 1
+                ELSE 0
+            END AS isResubmitted,
             a.city,
             a.district,
             a.township,
@@ -340,12 +352,20 @@
             a.accommodations_id AS accommodationsId,
             a.accommodations_name AS accommodationsName,
             CASE
+                WHEN a.approval_status = 'PENDING' AND a.rejection_reason IS NOT NULL THEN 'reinspection'
                 WHEN a.approval_status = 'PENDING' THEN 'inspection'
                 WHEN a.approval_status = 'REJECTED' THEN 'rejected'
                 WHEN a.accommodation_status = 1 AND a.approval_status = 'APPROVED' THEN 'active'
                 WHEN a.approval_status = 'APPROVED' THEN 'inactive'
                 ELSE 'inactive'
             END AS status,
+            a.approval_status AS approvalStatus,
+            a.accommodation_status AS accommodationStatus,
+            a.rejection_reason AS rejectionReason,
+            CASE
+                WHEN a.approval_status = 'PENDING' AND a.rejection_reason IS NOT NULL THEN 1
+                ELSE 0
+            END AS isResubmitted,
             a.city,
             a.district,
             a.township,
