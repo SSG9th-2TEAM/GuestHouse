@@ -13,6 +13,7 @@ public class ThemeResponseDto {
     private String themeCategory;
     private String themeName;
     private Long accommodationCount;
+    private String themeImageUrl;
 
     public static ThemeResponseDto from(Theme theme) {
         return from(theme, 0L);
@@ -24,6 +25,7 @@ public class ThemeResponseDto {
                 .themeCategory(theme.getThemeCategory())
                 .themeName(theme.getThemeName())
                 .accommodationCount(accommodationCount == null ? 0L : accommodationCount)
+                .themeImageUrl(theme.getThemeImageUrl())
                 .build();
     }
 }

@@ -11,8 +11,9 @@ import lombok.NoArgsConstructor;
 public class ThemeDto {
     private Long id;
     private String name;
+    private String imageUrl;
 
     public static ThemeDto of(Theme theme) {
-        return new ThemeDto(theme.getId(), theme.getThemeName());
+        return new ThemeDto(theme.getId(), theme.getThemeName(), theme.getThemeImageUrl());
     }
 }

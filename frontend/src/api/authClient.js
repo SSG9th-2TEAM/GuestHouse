@@ -7,15 +7,15 @@ const REFRESH_TOKEN_KEY = 'refreshToken'
 const USER_INFO_KEY = 'userInfo'
 
 export function getAccessToken() {
-  return localStorage.getItem(ACCESS_TOKEN_KEY)
+  return sessionStorage.getItem(ACCESS_TOKEN_KEY)
 }
 
 export function getRefreshToken() {
-  return localStorage.getItem(REFRESH_TOKEN_KEY)
+  return sessionStorage.getItem(REFRESH_TOKEN_KEY)
 }
 
 export function getUserInfo() {
-  const userInfo = localStorage.getItem(USER_INFO_KEY)
+  const userInfo = sessionStorage.getItem(USER_INFO_KEY)
   return userInfo ? JSON.parse(userInfo) : null
 }
 
@@ -26,20 +26,20 @@ export function getUserId() {
 
 
 export function saveTokens(accessToken, refreshToken) {
-  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+  sessionStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
+  sessionStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
 }
 
 
 export function saveUserInfo(userInfo) {
-  localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo))
+  sessionStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo))
 }
 
 
 export function clearAuth() {
-  localStorage.removeItem(ACCESS_TOKEN_KEY)
-  localStorage.removeItem(REFRESH_TOKEN_KEY)
-  localStorage.removeItem(USER_INFO_KEY)
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY)
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY)
+  sessionStorage.removeItem(USER_INFO_KEY)
 }
 
 

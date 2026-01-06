@@ -39,8 +39,8 @@ onMounted(async () => {
     }
 
     // 토큰 저장
-    localStorage.setItem('accessToken', accessToken)
-    localStorage.setItem('refreshToken', refreshToken)
+    sessionStorage.setItem('accessToken', accessToken)
+    sessionStorage.setItem('refreshToken', refreshToken)
 
     // JWT 토큰에서 사용자 정보 추출
     const decoded = decodeJWT(accessToken)

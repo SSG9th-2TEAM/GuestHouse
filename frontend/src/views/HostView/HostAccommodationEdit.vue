@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getAccessToken } from '../../api/authClient'
 
 const route = useRoute()
 const router = useRouter()
@@ -244,7 +245,7 @@ const isThemeChecked = (themeName) => {
 // 예약 정보 확인 (숙소 전체)
 const checkHasReservations = async () => {
   try {
-    const token = localStorage.getItem('accessToken')
+    const token = getAccessToken()
     const response = await fetch(`${API_BASE_URL}/reservations/accommodation/${accommodationId}`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -267,7 +268,7 @@ const checkHasReservations = async () => {
 // 특정 객실의 예약 정보 확인
 const checkRoomHasReservations = async (roomId) => {
   try {
-    const token = localStorage.getItem('accessToken')
+    const token = getAccessToken()
     const response = await fetch(`${API_BASE_URL}/reservations/room/${roomId}`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -292,7 +293,7 @@ const loadAccommodation = async () => {
   loadError.value = ''
 
   try {
-    const token = localStorage.getItem('accessToken')
+    const token = getAccessToken()
     const response = await fetch(`${API_BASE_URL}/accommodations/${accommodationId}`, {
          headers: {
             'Authorization': `Bearer ${token}`
@@ -697,7 +698,7 @@ const handleUpdate = async () => {
 
         console.log('Update Request:', requestData) // Debug Log
 
-        const token = localStorage.getItem('accessToken')
+        const token = getAccessToken()
         const response = await fetch(`${API_BASE_URL}/accommodations/${accommodationId}`, {
             method: 'PUT',
             headers: { 
@@ -892,7 +893,7 @@ const deleteRoom = async (id) => {
     }
 
     try {
-        const token = localStorage.getItem('accessToken')
+        const token = getAccessToken()
         const response = await fetch(`${API_BASE_URL}/rooms/${accommodationId}/${id}`, {
             method: 'DELETE',
             headers: {
@@ -969,7 +970,7 @@ const deleteAccommodation = async () => {
 
     if(confirm('정말 숙소를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
         try {
-            const token = localStorage.getItem('accessToken')
+            const token = getAccessToken()
             const response = await fetch(`${API_BASE_URL}/accommodations/${accommodationId}`, {
                 method: 'DELETE',
                 headers: {
