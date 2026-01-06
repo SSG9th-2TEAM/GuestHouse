@@ -1,4 +1,4 @@
-﻿package com.ssg9th2team.geharbang.domain.room.repository.jpa;
+package com.ssg9th2team.geharbang.domain.room.repository.jpa;
 
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import org.springframework.data.jpa.repository.JpaRepository;
