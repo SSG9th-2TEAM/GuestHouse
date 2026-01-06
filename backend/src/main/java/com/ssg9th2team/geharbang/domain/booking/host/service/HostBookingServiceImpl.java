@@ -39,6 +39,57 @@ public class HostBookingServiceImpl implements HostBookingService {
             Integer size,
             String cursor
     ) {
+        PagingAndRangeParams params = resolvePagingAndRangeParams(viewClass, page, size, rangeMode);
+        DateRange range = resolveDateRange(month, startDate, endDate, upcomingOnly);
+        LocalDateTime start = range.startInclusive != null ? range.startInclusive.atStartOfDay() : null;
+        LocalDateTime end = range.endExclusive != null ? range.endExclusive.atStartOfDay() : null;
+        String appliedSort = resolveSort(sort, upcomingOnly || range.startInclusive != null);
+        HostBookingListMeta meta = buildMeta(appliedSort, params.appliedRangeMode, range.startInclusive, range.endExclusive);
+
+        if (params.isCalendarView) {
+            return handleCalendarView(hostUserId, start, end, upcomingOnly, params.appliedRangeMode, appliedSort, meta);
+        }
+
+        boolean useCursor = cursor != null || page == null;
+        if (useCursor) {
+            return handleCursorListView(
+                    hostUserId,
+                    start,
+                    end,
+                    upcomingOnly,
+                    params.appliedRangeMode,
+                    appliedSort,
+                    params.safeSize,
+                    cursor,
+                    meta
+            );
+        }
+
+        return handlePagedListView(
+                hostUserId,
+                start,
+                end,
+                upcomingOnly,
+                params.appliedRangeMode,
+                appliedSort,
+                params.safeSize,
+                params.safePage,
+                meta
+        );
+    }
+
+    @Override
+    public HostBookingResponse getBooking(Long hostUserId, Long reservationId) {
+        return hostBookingMapper.selectHostBookingById(hostUserId, reservationId);
+    }
+
+    private String resolveSort(String sort, boolean hasRange) {
+        if ("CREATED_DESC".equalsIgnoreCase(sort)) return "CREATED_DESC";
+        if ("CHECKIN_ASC".equalsIgnoreCase(sort)) return "CHECKIN_ASC";
+        return hasRange ? "CHECKIN_ASC" : "CREATED_DESC";
+    }
+
+    private PagingAndRangeParams resolvePagingAndRangeParams(String viewClass, Integer page, Integer size, String rangeMode) {
         int safeSize = size != null && size > 0 ? size : 20;
         int maxSize = 50;
         boolean isCalendarView = viewClass != null && viewClass.equalsIgnoreCase("calendar");
@@ -47,70 +98,102 @@ public class HostBookingServiceImpl implements HostBookingService {
         }
         int safePage = page != null && page >= 0 ? page : 0;
         String appliedRangeMode = "START".equalsIgnoreCase(rangeMode) ? "START" : "OVERLAP";
+        return new PagingAndRangeParams(safeSize, safePage, maxSize, isCalendarView, appliedRangeMode);
+    }
 
-        LocalDate resolvedStart = null;
-        LocalDate resolvedEnd = null;
+    private DateRange resolveDateRange(YearMonth month, LocalDate startDate, LocalDate endDate, boolean upcomingOnly) {
+        LocalDate startInclusive = null;
+        LocalDate endExclusive = null;
         if (month != null) {
-            resolvedStart = month.atDay(1);
-            resolvedEnd = month.plusMonths(1).atDay(1);
+            startInclusive = month.atDay(1);
+            endExclusive = month.plusMonths(1).atDay(1);
         } else if (startDate != null || endDate != null) {
-            resolvedStart = startDate != null ? startDate : LocalDate.now();
-            resolvedEnd = endDate != null ? endDate.plusDays(1) : resolvedStart.plusDays(1);
+            startInclusive = startDate != null ? startDate : LocalDate.now();
+            endExclusive = endDate != null ? endDate.plusDays(1) : startInclusive.plusDays(1);
         } else if (upcomingOnly) {
-            resolvedStart = startDate != null ? startDate : LocalDate.now();
+            startInclusive = startDate != null ? startDate : LocalDate.now();
         }
+        return new DateRange(startInclusive, endExclusive);
+    }
 
-        LocalDateTime start = resolvedStart != null ? resolvedStart.atStartOfDay() : null;
-        LocalDateTime end = resolvedEnd != null ? resolvedEnd.atStartOfDay() : null;
-
-        String appliedSort = resolveSort(sort, upcomingOnly || resolvedStart != null);
-
-        HostBookingListResponse response = new HostBookingListResponse();
+    private HostBookingListMeta buildMeta(String appliedSort, String appliedRangeMode, LocalDate startInclusive, LocalDate endExclusive) {
         HostBookingListMeta meta = new HostBookingListMeta();
         meta.setAppliedSort(appliedSort);
         meta.setRangeMode(appliedRangeMode);
-        meta.setRangeFrom(resolvedStart);
-        meta.setRangeTo(resolvedEnd != null ? resolvedEnd.minusDays(1) : null);
+        meta.setRangeFrom(startInclusive);
+        meta.setRangeTo(endExclusive != null ? endExclusive.minusDays(1) : null);
+        return meta;
+    }
 
-        if (isCalendarView) {
-            List<HostBookingResponse> items = hostBookingMapper.selectHostBookingsAll(
-                    hostUserId,
-                    start,
-                    end,
-                    upcomingOnly,
-                    appliedRangeMode,
-                    appliedSort
-            );
-            response.setItems(items);
-            response.setMeta(meta);
-            return response;
-        }
+    private HostBookingListResponse handleCalendarView(
+            Long hostUserId,
+            LocalDateTime start,
+            LocalDateTime end,
+            boolean upcomingOnly,
+            String appliedRangeMode,
+            String appliedSort,
+            HostBookingListMeta meta
+    ) {
+        List<HostBookingResponse> items = hostBookingMapper.selectHostBookingsAll(
+                hostUserId,
+                start,
+                end,
+                upcomingOnly,
+                appliedRangeMode,
+                appliedSort
+        );
+        HostBookingListResponse response = new HostBookingListResponse();
+        response.setItems(items);
+        response.setMeta(meta);
+        return response;
+    }
 
-        boolean useCursor = cursor != null || page == null;
-        if (useCursor) {
-            CursorValue cursorValue = (cursor != null && !cursor.isBlank()) ? parseCursor(cursor) : new CursorValue(null, null);
-            List<HostBookingResponse> raw = hostBookingMapper.selectHostBookingsCursor(
-                    hostUserId,
-                    start,
-                    end,
-                    upcomingOnly,
-                    appliedRangeMode,
-                    appliedSort,
-                    cursorValue.value,
-                    cursorValue.id,
-                    safeSize + 1
-            );
-            boolean hasNext = raw.size() > safeSize;
-            List<HostBookingResponse> items = hasNext ? raw.subList(0, safeSize) : raw;
-            HostBookingCursorInfo cursorInfo = new HostBookingCursorInfo();
-            cursorInfo.setHasNext(hasNext);
-            cursorInfo.setNextCursor(hasNext ? buildCursor(items.get(items.size() - 1), appliedSort) : null);
-            meta.setCursorInfo(cursorInfo);
-            response.setItems(items);
-            response.setMeta(meta);
-            return response;
-        }
+    private HostBookingListResponse handleCursorListView(
+            Long hostUserId,
+            LocalDateTime start,
+            LocalDateTime end,
+            boolean upcomingOnly,
+            String appliedRangeMode,
+            String appliedSort,
+            int safeSize,
+            String cursor,
+            HostBookingListMeta meta
+    ) {
+        CursorValue cursorValue = (cursor != null && !cursor.isBlank()) ? parseCursor(cursor) : new CursorValue(null, null);
+        List<HostBookingResponse> raw = hostBookingMapper.selectHostBookingsCursor(
+                hostUserId,
+                start,
+                end,
+                upcomingOnly,
+                appliedRangeMode,
+                appliedSort,
+                cursorValue.value,
+                cursorValue.id,
+                safeSize + 1
+        );
+        boolean hasNext = raw.size() > safeSize;
+        List<HostBookingResponse> items = hasNext ? raw.subList(0, safeSize) : raw;
+        HostBookingCursorInfo cursorInfo = new HostBookingCursorInfo();
+        cursorInfo.setHasNext(hasNext);
+        cursorInfo.setNextCursor(hasNext ? buildCursor(items.get(items.size() - 1), appliedSort) : null);
+        meta.setCursorInfo(cursorInfo);
+        HostBookingListResponse response = new HostBookingListResponse();
+        response.setItems(items);
+        response.setMeta(meta);
+        return response;
+    }
 
+    private HostBookingListResponse handlePagedListView(
+            Long hostUserId,
+            LocalDateTime start,
+            LocalDateTime end,
+            boolean upcomingOnly,
+            String appliedRangeMode,
+            String appliedSort,
+            int safeSize,
+            int safePage,
+            HostBookingListMeta meta
+    ) {
         int offset = safePage * safeSize;
         List<HostBookingResponse> items = hostBookingMapper.selectHostBookingsPaged(
                 hostUserId,
@@ -130,20 +213,10 @@ public class HostBookingServiceImpl implements HostBookingService {
         pageInfo.setTotalPages(total == 0 ? 0 : (int) Math.ceil((double) total / safeSize));
         meta.setPageInfo(pageInfo);
 
+        HostBookingListResponse response = new HostBookingListResponse();
         response.setItems(items);
         response.setMeta(meta);
         return response;
-    }
-
-    @Override
-    public HostBookingResponse getBooking(Long hostUserId, Long reservationId) {
-        return hostBookingMapper.selectHostBookingById(hostUserId, reservationId);
-    }
-
-    private String resolveSort(String sort, boolean hasRange) {
-        if ("CREATED_DESC".equalsIgnoreCase(sort)) return "CREATED_DESC";
-        if ("CHECKIN_ASC".equalsIgnoreCase(sort)) return "CHECKIN_ASC";
-        return hasRange ? "CHECKIN_ASC" : "CREATED_DESC";
     }
 
     private CursorValue parseCursor(String cursor) {
@@ -164,6 +237,12 @@ public class HostBookingServiceImpl implements HostBookingService {
         if (value == null || item.getReservationId() == null) return null;
         String raw = value.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + "|" + item.getReservationId();
         return Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private record PagingAndRangeParams(int safeSize, int safePage, int maxSize, boolean isCalendarView, String appliedRangeMode) {
+    }
+
+    private record DateRange(LocalDate startInclusive, LocalDate endExclusive) {
     }
 
     private record CursorValue(LocalDateTime value, Long id) {

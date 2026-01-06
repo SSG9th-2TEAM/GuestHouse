@@ -7,9 +7,8 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminRejectRequest;
 import com.ssg9th2team.geharbang.domain.admin.dto.GeoBackfillResponse;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminAccommodationService;
-import com.ssg9th2team.geharbang.domain.admin.support.AdminIdentityResolver;
+import com.ssg9th2team.geharbang.domain.admin.support.AdminId;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,18 +25,16 @@ public class AdminAccommodationController {
 
     private final AdminAccommodationService accommodationService;
     private final AccommodationGeoService accommodationGeoService;
-    private final AdminIdentityResolver adminIdentityResolver;
 
     @GetMapping
     public AdminPageResponse<AdminAccommodationSummary> getAccommodations(
-            Authentication authentication,
+            @AdminId Long adminId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "latest") String sort
     ) {
-        adminIdentityResolver.resolveAdminUserId(authentication);
         return accommodationService.getAccommodations(
                 normalizeFilter(status),
                 normalizeFilter(keyword),
@@ -49,31 +46,28 @@ public class AdminAccommodationController {
 
     @GetMapping("/{accommodationId}")
     public AdminAccommodationDetail getAccommodationDetail(
-            Authentication authentication,
+            @AdminId Long adminId,
             @PathVariable Long accommodationId
     ) {
-        adminIdentityResolver.resolveAdminUserId(authentication);
         return accommodationService.getAccommodationDetail(accommodationId);
     }
 
     @PostMapping("/{accommodationId}/approve")
     public AdminAccommodationDetail approveAccommodation(
-            Authentication authentication,
+            @AdminId Long adminId,
             @PathVariable Long accommodationId
     ) {
-        Long adminUserId = adminIdentityResolver.resolveAdminUserId(authentication);
-        return accommodationService.approveAccommodation(adminUserId, accommodationId);
+        return accommodationService.approveAccommodation(adminId, accommodationId);
     }
 
     @PostMapping("/{accommodationId}/reject")
     public AdminAccommodationDetail rejectAccommodation(
-            Authentication authentication,
+            @AdminId Long adminId,
             @PathVariable Long accommodationId,
             @RequestBody AdminRejectRequest request
     ) {
-        Long adminUserId = adminIdentityResolver.resolveAdminUserId(authentication);
         return accommodationService.rejectAccommodation(
-                adminUserId,
+                adminId,
                 accommodationId,
                 request != null ? request.reason() : null
         );
@@ -81,10 +75,9 @@ public class AdminAccommodationController {
 
     @PostMapping("/geo/backfill")
     public GeoBackfillResponse backfillMissingCoordinates(
-            Authentication authentication,
+            @AdminId Long adminId,
             @RequestParam(defaultValue = "100") int limit
     ) {
-        adminIdentityResolver.resolveAdminUserId(authentication);
         return accommodationGeoService.backfillMissingCoordinates(limit);
     }
 

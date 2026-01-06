@@ -712,11 +712,7 @@ watch(includePast, (value) => {
   if (!value && selectedSort.value === 'latest') {
     selectedSort.value = 'checkin'
   }
-  if (selectedRange.value === 'upcoming') {
-    loadBookings()
-  } else {
-    loadBookings()
-  }
+  loadBookings()
 })
 
 watch(selectedRange, () => {
@@ -747,14 +743,9 @@ watch(
   }
 )
 
-watch(isDesktop, (value) => {
-  if (value) {
-    resetPaging()
-    loadBookings()
-  } else {
-    resetPaging()
-    loadBookings()
-  }
+watch(isDesktop, () => {
+  resetPaging()
+  loadBookings()
 })
 
 

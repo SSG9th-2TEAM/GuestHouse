@@ -12,7 +12,7 @@ const stats = ref([])
 const summary = ref(null)
 const pendingListings = ref([])
 const openReportListings = ref([])
-const revenueTrend = ref({ months: [], values: [] })
+const revenueTrend = ref({ dates: [], labels: [], values: [] })
 const trendLoading = ref(false)
 const trendError = ref('')
 const alerts = ref([])
@@ -58,21 +58,16 @@ const formatCurrencySafe = (value) => `₩${Number(value ?? 0).toLocaleString()}
 const formatRoomCount = (value) => Number(value ?? 0).toLocaleString()
 const formatPhone = (value) => value || '미등록'
 
-const formatAxisValue = (value) => {
-  const amount = Number(value ?? 0)
-  if (amount >= 100000000) return `${(amount / 100000000).toFixed(1)}억`
-  if (amount >= 10000) return `${(amount / 10000).toFixed(1)}만`
-  return amount.toLocaleString()
-}
-
 const loadDashboard = async () => {
   isLoading.value = true
   loadError.value = ''
   trendLoading.value = true
   trendError.value = ''
   const range = resolveRange(activePeriod.value)
-  const summaryResponse = await fetchAdminDashboardSummary(range)
-  const trendResponse = await fetchAdminDashboardTimeseries({ metric: 'revenue', ...range })
+  const [summaryResponse, trendResponse] = await Promise.all([
+    fetchAdminDashboardSummary(range),
+    fetchAdminDashboardTimeseries({ metric: 'platform_fee', ...range })
+  ])
   if (summaryResponse.ok && summaryResponse.data) {
     const data = summaryResponse.data
     summary.value = data
@@ -84,7 +79,8 @@ const loadDashboard = async () => {
       { label: '결제 성공', value: formatCurrency(data.paymentSuccessAmount), sub: '선택 기간 기준', tone: 'accent', target: '/admin/payments?status=success' },
       { label: '플랫폼 수익(수수료)', value: formatCurrency(data.platformFeeAmount), sub: `수수료율 ${formatRate(platformFeeRate)}`, tone: 'primary', target: '/admin/payments?status=success' },
       { label: '결제 실패', value: `${data.paymentFailureCount ?? 0}건`, sub: '실패/취소', tone: 'neutral', target: '/admin/payments?status=failed' },
-      { label: '환불 요청', value: `${data.refundRequestCount ?? 0}건`, sub: '요청 건수', tone: 'neutral', target: '/admin/payments?status=REFUNDED' }
+      { label: '환불 요청', value: `${data.refundRequestCount ?? 0}건`, sub: '요청 건수', tone: 'neutral', target: '/admin/payments?type=refund' },
+      { label: '환불 완료', value: `${data.refundCompletedCount ?? 0}건`, sub: '완료 건수', tone: 'neutral', target: '/admin/payments?type=refund' }
     ]
     pendingListings.value = data.pendingAccommodationsList ?? []
     openReportListings.value = data.openReportsList ?? []
@@ -92,12 +88,13 @@ const loadDashboard = async () => {
     if (trendResponse.ok && trendResponse.data) {
       const points = trendResponse.data.points ?? []
       revenueTrend.value = {
-        months: points.map((point) => point.date?.slice?.(5) ?? point.date),
-        values: points.map((point) => point.value ?? 0)
+        dates: points.map((point) => point.date),
+        labels: points.map((point) => point.date?.slice?.(5) ?? point.date),
+        values: points.map((point) => Number(point.value ?? 0))
       }
     } else {
       trendError.value = '수익 추이를 불러오지 못했습니다.'
-      revenueTrend.value = { months: [], values: [] }
+      revenueTrend.value = { dates: [], labels: [], values: [] }
     }
   } else {
     loadError.value = '대시보드 데이터를 불러오지 못했습니다.'
@@ -138,26 +135,121 @@ const summaryItems = computed(() => {
     { label: '승인 대기 숙소', sub: '심사 필요', value: `${summary.value.pendingAccommodations ?? 0}건` },
     { label: '미처리 신고', sub: '처리 필요', value: `${summary.value.openReports ?? 0}건` },
     { label: '결제 실패', sub: '실패/취소', value: `${summary.value.paymentFailureCount ?? 0}건` },
-    { label: '환불 요청', sub: '접수 건수', value: `${summary.value.refundRequestCount ?? 0}건` }
+    { label: '환불 요청', sub: '접수 건수', value: `${summary.value.refundRequestCount ?? 0}건` },
+    { label: '환불 완료', sub: '완료 건수', value: `${summary.value.refundCompletedCount ?? 0}건` }
   ]
 })
 
-const revenueMax = computed(() => {
-  const values = revenueTrend.value.values ?? []
-  return values.length ? Math.max(...values, 1) : 1
-})
-const revenueHeight = (value) => `${(value / revenueMax.value) * 100}%`
+const activeRevenueIndex = ref(null)
 
-const revenueTicks = computed(() => {
-  const max = revenueMax.value
-  if (!max || max <= 0) return []
-  const steps = 4
-  const stepValue = Math.ceil(max / steps)
-  return Array.from({ length: steps }, (_, idx) => stepValue * (steps - idx))
+const revenueSeriesFull = computed(() => {
+  const dates = revenueTrend.value.dates ?? []
+  const labels = revenueTrend.value.labels ?? []
+  const values = revenueTrend.value.values ?? []
+  return dates.map((date, idx) => ({
+    date,
+    label: labels[idx] ?? '',
+    value: Number(values[idx] ?? 0)
+  }))
 })
+
+const niceStep = (rawStep) => {
+  const step = Math.abs(rawStep)
+  if (!Number.isFinite(step) || step === 0) return 1
+  const pow10 = Math.pow(10, Math.floor(Math.log10(step)))
+  const err = step / pow10
+  const nice = err <= 1 ? 1 : err <= 2 ? 2 : err <= 5 ? 5 : 10
+  return nice * pow10
+}
+
+const revenueScale = computed(() => ({ divisor: 10000, unitText: '만원', decimals: 0 }))
+
+const revenueDomain = computed(() => {
+  const values = revenueSeriesFull.value.map((point) => point.value)
+  const { divisor } = revenueScale.value
+  if (!values.length) {
+    return { minRaw: 0, maxRaw: 0, rangeRaw: 1, ticksRaw: [0] }
+  }
+  const minU = Math.min(0, ...values) / divisor
+  const maxU = Math.max(0, ...values) / divisor
+  if (minU === maxU) {
+    const only = minU
+    const ticksU = [only + 2, only + 1, only, only - 1, only - 2]
+    const ticksRaw = ticksU.map((tick) => tick * divisor)
+    return { minRaw: (only - 2) * divisor, maxRaw: (only + 2) * divisor, rangeRaw: 4 * divisor, ticksRaw }
+  }
+  const targetTicks = 5
+  const stepU = niceStep((maxU - minU) / (targetTicks - 1))
+  const niceMinU = Math.floor(minU / stepU) * stepU
+  const niceMaxU = Math.ceil(maxU / stepU) * stepU
+  const ticksU = []
+  for (let value = niceMaxU; value >= niceMinU - stepU / 2; value -= stepU) {
+    ticksU.push(value)
+  }
+  const ticksRaw = ticksU.map((tick) => tick * divisor)
+  const minRaw = niceMinU * divisor
+  const maxRaw = niceMaxU * divisor
+  const rangeRaw = Math.max(maxRaw - minRaw, 1)
+  return { minRaw, maxRaw, rangeRaw, ticksRaw }
+})
+
+const revenueBaselineFromTopPct = computed(() => {
+  const { minRaw, maxRaw } = revenueDomain.value
+  const top = Math.max(0, maxRaw)
+  const bottom = Math.min(0, minRaw)
+  const range = Math.max(top - bottom, 1)
+  return (top / range) * 100
+})
+
+const revenueBaselineFromBottomPct = computed(() => {
+  return 100 - revenueBaselineFromTopPct.value
+})
+
+const revenueTicks = computed(() => revenueDomain.value.ticksRaw)
+
+const formatRevenueTick = (raw) => {
+  const { divisor, decimals } = revenueScale.value
+  const value = raw / divisor
+  return decimals > 0 ? value.toFixed(decimals) : Math.round(value).toLocaleString()
+}
+
+const revenuePositiveStyle = (value) => {
+  const { minRaw, maxRaw } = revenueDomain.value
+  const top = Math.max(0, maxRaw)
+  const bottom = Math.min(0, minRaw)
+  const range = Math.max(top - bottom, 1)
+  const height = (Math.max(0, value) / range) * 100
+  if (height <= 0) return null
+  return { height: `${height}%` }
+}
+
+const revenueNegativeStyle = (value) => {
+  const { minRaw, maxRaw } = revenueDomain.value
+  const top = Math.max(0, maxRaw)
+  const bottom = Math.min(0, minRaw)
+  const range = Math.max(top - bottom, 1)
+  const height = (Math.max(0, -value) / range) * 100
+  if (height <= 0) return null
+  return { height: `${height}%` }
+}
+
+const revenueAxisLabels = computed(() => {
+  const labels = revenueSeriesFull.value.map((point) => point.label)
+  if (!labels.length) return []
+  const last = labels.length - 1
+  return labels.map((label, idx) => (idx === 0 || idx === last || idx % 7 === 0 ? label : ''))
+})
+
+const handleRevenueEnter = (idx) => {
+  activeRevenueIndex.value = idx
+}
+
+const handleRevenueLeave = () => {
+  activeRevenueIndex.value = null
+}
 
 const hasRevenueData = computed(() => {
-  return revenueTrend.value.values?.some((value) => Number(value ?? 0) > 0)
+  return revenueTrend.value.values?.some((value) => Number(value ?? 0) !== 0)
 })
 
 const goTo = (target) => {
@@ -380,7 +472,7 @@ watch(activePeriod, loadDashboard)
       <div class="admin-card__head">
         <div>
           <p class="admin-card__eyebrow">수익 추이</p>
-          <h3 class="admin-card__title">플랫폼 수익 추이</h3>
+          <h3 class="admin-card__title">플랫폼 수익(수수료) 추이</h3>
         </div>
       </div>
       <div class="admin-chart-area">
@@ -392,22 +484,51 @@ watch(activePeriod, loadDashboard)
         <div v-else-if="!hasRevenueData" class="admin-status">표시할 데이터가 없습니다.</div>
         <template v-else>
           <div class="admin-chart-y">
-            <span v-for="tick in revenueTicks" :key="tick">{{ formatAxisValue(tick) }}</span>
+            <span class="admin-chart-y__unit">(단위: {{ revenueScale.unitText }})</span>
+            <div class="admin-chart-y__ticks">
+              <span v-for="tick in revenueTicks" :key="tick">{{ formatRevenueTick(tick) }}</span>
+            </div>
           </div>
-          <div class="admin-chart-bars">
+          <div class="admin-chart-bars" :style="{ '--zero-pos': `${revenueBaselineFromTopPct}%` }">
+            <div class="admin-chart-zero-line" :style="{ top: `${revenueBaselineFromTopPct}%` }" />
             <div
-              v-for="(value, idx) in revenueTrend.values"
+              v-for="(item, idx) in revenueSeriesFull"
               :key="idx"
               class="admin-chart-bar"
-              :style="{ height: revenueHeight(value) }"
+              tabindex="0"
+              @mouseenter="handleRevenueEnter(idx)"
+              @mouseleave="handleRevenueLeave"
+              @focus="handleRevenueEnter(idx)"
+              @blur="handleRevenueLeave"
             >
-              <span class="admin-chart-bar__label">{{ formatCurrency(value) }}</span>
+              <div
+                v-if="item.value > 0"
+                class="admin-chart-bar__fill admin-chart-bar__fill--positive"
+                :style="revenuePositiveStyle(item.value)"
+              />
+              <div
+                v-else-if="item.value < 0"
+                class="admin-chart-bar__fill admin-chart-bar__fill--negative"
+                :style="revenueNegativeStyle(item.value)"
+              />
+              <div v-if="activeRevenueIndex === idx" class="admin-chart-tooltip">
+                <p class="admin-chart-tooltip__date">{{ item.date }}</p>
+                <p class="admin-chart-tooltip__value">{{ formatCurrency(item.value) }}</p>
+              </div>
             </div>
           </div>
         </template>
       </div>
       <div class="admin-chart-x">
-        <span v-for="month in revenueTrend.months" :key="month">{{ month }}</span>
+        <span
+          v-for="(label, idx) in revenueAxisLabels"
+          :key="idx"
+          class="admin-chart-x__tick"
+          :class="{ 'is-empty': !label }"
+          aria-hidden="true"
+        >
+          {{ label || '•' }}
+        </span>
       </div>
     </div>
   </section>
@@ -509,46 +630,121 @@ watch(activePeriod, loadDashboard)
 }
 
 .admin-chart-y {
-  display: grid;
-  grid-template-rows: repeat(4, 1fr);
-  gap: 12px;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   color: #6b7280;
   font-weight: 700;
 }
 
+.admin-chart-y__unit {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  margin-bottom: 2px;
+}
+
+.admin-chart-y__ticks {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
 .admin-chart-bars {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(8px, 1fr);
   gap: 10px;
-  align-items: end;
+  align-items: stretch;
   height: 200px;
+  background:
+    linear-gradient(to bottom, rgba(15, 118, 110, 0.08) 1px, transparent 1px) 0 0 / 100% 25%,
+    linear-gradient(to bottom, rgba(15, 118, 110, 0.08) 1px, transparent 1px) 0 0 / 100% 50%,
+    linear-gradient(to bottom, rgba(15, 118, 110, 0.08) 1px, transparent 1px) 0 0 / 100% 75%;
+}
+
+.admin-chart-zero-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(15, 118, 110, 0.25);
+  pointer-events: none;
 }
 
 .admin-chart-bar {
   position: relative;
-  background: #e5f3ef;
-  border-radius: 10px 10px 4px 4px;
+  background: transparent;
+  border-radius: 10px;
   min-height: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 8px;
+  outline: none;
 }
 
-.admin-chart-bar__label {
-  font-size: 0.85rem;
+.admin-chart-tooltip {
+  position: absolute;
+  bottom: 100%;
+  transform: translateY(-8px);
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  z-index: 2;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.25);
+}
+
+.admin-chart-tooltip__date {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.admin-chart-tooltip__value {
+  margin: 2px 0 0;
   font-weight: 800;
-  color: #0f766e;
+}
+
+.admin-chart-bar__fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  border-radius: 8px 8px 6px 6px;
+  background: linear-gradient(180deg, #0f766e 0%, #14b8a6 100%);
+}
+
+.admin-chart-bar__fill--positive {
+  bottom: calc(100% - var(--zero-pos));
+}
+
+.admin-chart-bar__fill--negative {
+  background: linear-gradient(180deg, #fca5a5 0%, #ef4444 100%);
+  border-radius: 6px 6px 8px 8px;
+  top: var(--zero-pos);
 }
 
 .admin-chart-x {
   margin-top: 10px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(8px, 1fr);
   gap: 10px;
   text-align: center;
   color: #6b7280;
   font-weight: 700;
+}
+
+.admin-chart-x__tick {
+  white-space: nowrap;
+  transform: rotate(-30deg);
+  display: inline-block;
+  font-size: 0.75rem;
+}
+
+.admin-chart-x__tick.is-empty {
+  visibility: hidden;
 }
 
 .admin-hint {

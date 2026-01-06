@@ -3,6 +3,7 @@ package com.ssg9th2team.geharbang.domain.admin.service;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPaymentDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPaymentSummary;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminPaymentSummaryResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPaymentMetricsPoint;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPaymentMetricsRow;
 import com.ssg9th2team.geharbang.domain.admin.log.AdminLogConstants;
@@ -19,6 +20,7 @@ import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJp
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -28,8 +30,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -37,6 +41,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AdminPaymentService {
+
+    @Value("${host.platform.fee-rate:0.04}")
+    private double platformFeeRate;
 
     private static final String ERR_PAYMENT_NOT_FOUND = "결제 정보를 찾을 수 없습니다.";
     private static final String ERR_PAYMENT_ALREADY_REFUNDED = "이미 환불 완료된 결제입니다.";
@@ -59,6 +66,7 @@ public class AdminPaymentService {
 
     public AdminPageResponse<AdminPaymentSummary> getPayments(
             String status,
+            String type,
             String keyword,
             int page,
             int size,
@@ -67,8 +75,11 @@ public class AdminPaymentService {
         Sort sorting = "oldest".equalsIgnoreCase(sort)
                 ? Sort.by(Sort.Direction.ASC, "createdAt")
                 : Sort.by(Sort.Direction.DESC, "createdAt");
-        List<Payment> filtered = paymentRepository.findAll(sorting).stream()
-                .filter(payment -> matchesStatus(payment, status))
+        List<Payment> sortedPayments = paymentRepository.findAll(sorting);
+        Map<Long, PaymentRefund> refundMap = buildRefundMap(sortedPayments);
+        List<Payment> filtered = sortedPayments.stream()
+                .filter(payment -> matchesStatus(payment, status, refundMap))
+                .filter(payment -> matchesType(payment, type, refundMap))
                 .filter(payment -> matchesKeyword(payment, keyword))
                 .toList();
 
@@ -88,6 +99,82 @@ public class AdminPaymentService {
                 .map(payment -> toSummary(payment, reservationMap.get(payment.getReservationId())))
                 .toList();
         return AdminPageResponse.of(items, page, size, totalElements, totalPages);
+    }
+
+    /*
+     * KPI definitions (Admin payments)
+     * - Gross: Payment.paymentStatus=1 AND createdAt in [from, to) SUM(approvedAmount)
+     * - Refund completed: PaymentRefund.refundStatus=1 AND requestedAt in [from, to) COUNT/SUM(refundAmount)
+     * - Net: Gross - Refund completed amount
+     * - Platform fee: Net * platformFeeRate
+     * - Payment failure: Payment.paymentStatus=2 COUNT
+     * - Refund request: PaymentRefund.refundStatus=0 COUNT
+     */
+    public AdminPaymentSummaryResponse getPaymentSummary(
+            String status,
+            String type,
+            String keyword,
+            String from,
+            String to
+    ) {
+        LocalDate startDate = parseDateOrDefault(from, LocalDate.now().minusDays(29));
+        LocalDate endDate = parseDateOrDefault(to, LocalDate.now());
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        List<Payment> payments = paymentRepository.findByCreatedAtBetween(start, end);
+        Map<Long, PaymentRefund> refundMap = buildRefundMap(payments);
+        List<Payment> filteredPayments = payments.stream()
+                .filter(payment -> matchesStatus(payment, status, refundMap))
+                .filter(payment -> matchesType(payment, type, refundMap))
+                .filter(payment -> matchesKeyword(payment, keyword))
+                .toList();
+
+        long grossAmount = filteredPayments.stream()
+                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 1)
+                .mapToLong(payment -> payment.getApprovedAmount() != null ? payment.getApprovedAmount() : 0L)
+                .sum();
+        long successCount = filteredPayments.stream()
+                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 1)
+                .count();
+        long failureCount = filteredPayments.stream()
+                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 2)
+                .count();
+
+        List<PaymentRefund> refunds = paymentRefundRepository.findByRequestedAtBetween(start, end);
+        Map<Long, Payment> paymentMap = loadPaymentMap(refunds);
+        List<PaymentRefund> filteredRefunds = refunds.stream()
+                .filter(refund -> matchesRefundType(refund, type))
+                .filter(refund -> matchesRefundStatus(refund, status))
+                .filter(refund -> matchesRefundKeyword(refund, keyword, paymentMap))
+                .toList();
+
+        long refundRequestCount = filteredRefunds.stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 0)
+                .count();
+        long refundCompletedCount = filteredRefunds.stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
+                .count();
+        long refundCompletedAmount = filteredRefunds.stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
+                .mapToLong(refund -> refund.getRefundAmount() != null ? refund.getRefundAmount() : 0L)
+                .sum();
+        long netAmount = grossAmount - refundCompletedAmount;
+        long platformFeeAmount = Math.round(netAmount * platformFeeRate);
+
+        return new AdminPaymentSummaryResponse(
+                startDate,
+                endDate,
+                grossAmount,
+                refundCompletedAmount,
+                netAmount,
+                successCount,
+                failureCount,
+                refundRequestCount,
+                refundCompletedCount,
+                platformFeeRate,
+                platformFeeAmount
+        );
     }
 
     public AdminPaymentDetail getPaymentDetail(Long paymentId) {
@@ -193,6 +280,10 @@ public class AdminPaymentService {
         String typeMode = parseType(type);
         String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
 
+        if ("REFUND".equals(typeMode) || (statusCode != null && statusCode == 3)) {
+            return buildRefundMetrics(mode, year, normalizedKeyword);
+        }
+
         if ("monthly".equalsIgnoreCase(mode)) {
             int targetYear = year != null ? year : LocalDate.now().getYear();
             LocalDateTime from = LocalDate.of(targetYear, 1, 1).atStartOfDay();
@@ -242,9 +333,29 @@ public class AdminPaymentService {
         return null;
     }
 
-    private boolean matchesStatus(Payment payment, String status) {
+    private boolean matchesStatus(Payment payment, String status, Map<Long, PaymentRefund> refundMap) {
         Integer statusCode = parseStatus(status);
-        return statusCode == null || statusCode.equals(payment.getPaymentStatus());
+        if (statusCode == null) {
+            return true;
+        }
+        if (statusCode == 3) {
+            return statusCode.equals(payment.getPaymentStatus()) || refundMap.containsKey(payment.getId());
+        }
+        return statusCode.equals(payment.getPaymentStatus());
+    }
+
+    private boolean matchesType(Payment payment, String type, Map<Long, PaymentRefund> refundMap) {
+        String typeMode = parseType(type);
+        if (typeMode == null) {
+            return true;
+        }
+        if ("REFUND".equals(typeMode)) {
+            return refundMap.containsKey(payment.getId());
+        }
+        if ("RESERVATION".equals(typeMode)) {
+            return !refundMap.containsKey(payment.getId());
+        }
+        return true;
     }
 
     private boolean matchesKeyword(Payment payment, String keyword) {
@@ -255,6 +366,36 @@ public class AdminPaymentService {
         String orderId = payment.getOrderId() != null ? payment.getOrderId().toLowerCase() : "";
         String pgPaymentKey = payment.getPgPaymentKey() != null ? payment.getPgPaymentKey().toLowerCase() : "";
         return orderId.contains(normalized) || pgPaymentKey.contains(normalized);
+    }
+
+    private boolean matchesRefundStatus(PaymentRefund refund, String status) {
+        Integer statusCode = parseStatus(status);
+        if (statusCode == null) {
+            return true;
+        }
+        if (statusCode == 3) {
+            return refund.getRefundStatus() != null && refund.getRefundStatus() == 1;
+        }
+        return false;
+    }
+
+    private boolean matchesRefundType(PaymentRefund refund, String type) {
+        String typeMode = parseType(type);
+        if (typeMode == null) {
+            return true;
+        }
+        return "REFUND".equals(typeMode);
+    }
+
+    private boolean matchesRefundKeyword(PaymentRefund refund, String keyword, Map<Long, Payment> paymentMap) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        Payment payment = refund != null ? paymentMap.get(refund.getPaymentId()) : null;
+        if (payment == null) {
+            return false;
+        }
+        return matchesKeyword(payment, keyword);
     }
 
     private AdminPaymentSummary toSummary(Payment payment, Reservation reservation) {
@@ -345,5 +486,106 @@ public class AdminPaymentService {
                     return new AdminPaymentMetricsPoint(String.valueOf(year), totalAmount, totalCount);
                 })
                 .toList();
+    }
+
+    private Map<Long, PaymentRefund> buildRefundMap(List<Payment> payments) {
+        List<Long> paymentIds = payments.stream()
+                .map(Payment::getId)
+                .filter(id -> id != null)
+                .toList();
+        if (paymentIds.isEmpty()) {
+            return Map.of();
+        }
+        return paymentRefundRepository.findByPaymentIdIn(paymentIds).stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
+                .collect(Collectors.toMap(PaymentRefund::getPaymentId, refund -> refund, (a, b) -> a));
+    }
+
+    private List<AdminPaymentMetricsPoint> buildRefundMetrics(String mode, Integer year, String keyword) {
+        if ("monthly".equalsIgnoreCase(mode)) {
+            int targetYear = year != null ? year : LocalDate.now().getYear();
+            LocalDateTime from = LocalDate.of(targetYear, 1, 1).atStartOfDay();
+            LocalDateTime to = LocalDate.of(targetYear, 12, 31).atTime(23, 59, 59);
+            return buildRefundMonthlyPoints(targetYear, from, to, keyword);
+        }
+        int currentYear = LocalDate.now().getYear();
+        int startYear = currentYear - 4;
+        LocalDateTime from = LocalDate.of(startYear, 1, 1).atStartOfDay();
+        LocalDateTime to = LocalDate.of(currentYear, 12, 31).atTime(23, 59, 59);
+        return buildRefundYearlyPoints(startYear, currentYear, from, to, keyword);
+    }
+
+    private List<AdminPaymentMetricsPoint> buildRefundMonthlyPoints(int year, LocalDateTime from, LocalDateTime to, String keyword) {
+        Map<Integer, AdminPaymentMetricsRow> byMonth = new HashMap<>();
+        List<PaymentRefund> refunds = paymentRefundRepository.findByRequestedAtBetween(from, to);
+        Map<Long, Payment> paymentMap = loadPaymentMap(refunds);
+        refunds.stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
+                .filter(refund -> matchesRefundKeyword(refund, keyword, paymentMap))
+                .forEach(refund -> {
+                    int month = refund.getRequestedAt() != null ? refund.getRequestedAt().getMonthValue() : 0;
+                    if (month == 0) return;
+                    AdminPaymentMetricsRow current = byMonth.get(month);
+                    long amount = refund.getRefundAmount() != null ? refund.getRefundAmount() : 0L;
+                    if (current == null) {
+                        byMonth.put(month, new AdminPaymentMetricsRow(month, amount, 1L));
+                    } else {
+                        byMonth.put(month, new AdminPaymentMetricsRow(
+                                month,
+                                current.totalAmount() + amount,
+                                current.totalCount() + 1
+                        ));
+                    }
+                });
+        return buildMonthlyPoints(year, byMonth);
+    }
+
+    private List<AdminPaymentMetricsPoint> buildRefundYearlyPoints(int startYear, int endYear, LocalDateTime from, LocalDateTime to, String keyword) {
+        Map<Integer, AdminPaymentMetricsRow> byYear = new HashMap<>();
+        List<PaymentRefund> refunds = paymentRefundRepository.findByRequestedAtBetween(from, to);
+        Map<Long, Payment> paymentMap = loadPaymentMap(refunds);
+        refunds.stream()
+                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
+                .filter(refund -> matchesRefundKeyword(refund, keyword, paymentMap))
+                .forEach(refund -> {
+                    int year = refund.getRequestedAt() != null ? refund.getRequestedAt().getYear() : 0;
+                    if (year == 0) return;
+                    AdminPaymentMetricsRow current = byYear.get(year);
+                    long amount = refund.getRefundAmount() != null ? refund.getRefundAmount() : 0L;
+                    if (current == null) {
+                        byYear.put(year, new AdminPaymentMetricsRow(year, amount, 1L));
+                    } else {
+                        byYear.put(year, new AdminPaymentMetricsRow(
+                                year,
+                                current.totalAmount() + amount,
+                                current.totalCount() + 1
+                        ));
+                    }
+                });
+        return buildYearlyPoints(startYear, endYear, byYear);
+    }
+
+    private Map<Long, Payment> loadPaymentMap(List<PaymentRefund> refunds) {
+        List<Long> paymentIds = refunds.stream()
+                .map(PaymentRefund::getPaymentId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        if (paymentIds.isEmpty()) {
+            return Map.of();
+        }
+        return paymentRepository.findAllById(paymentIds).stream()
+                .collect(Collectors.toMap(Payment::getId, payment -> payment, (a, b) -> a));
+    }
+
+    private LocalDate parseDateOrDefault(String value, LocalDate fallback) {
+        if (!StringUtils.hasText(value)) {
+            return fallback;
+        }
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException ex) {
+            return fallback;
+        }
     }
 }

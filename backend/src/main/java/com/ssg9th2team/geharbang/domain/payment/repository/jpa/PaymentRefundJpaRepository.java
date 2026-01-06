@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,4 +20,8 @@ public interface PaymentRefundJpaRepository extends JpaRepository<PaymentRefund,
     void deleteByPaymentIdIn(List<Long> paymentIds);
 
     void deleteByPaymentId(Long paymentId);
+
+    List<PaymentRefund> findByRequestedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    List<PaymentRefund> findByPaymentIdIn(List<Long> paymentIds);
 }

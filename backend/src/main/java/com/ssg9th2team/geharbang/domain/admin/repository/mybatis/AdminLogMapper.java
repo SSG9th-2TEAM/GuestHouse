@@ -21,6 +21,7 @@ public interface AdminLogMapper {
             @Param("end") java.time.LocalDateTime end,
             @Param("actionType") String actionType,
             @Param("keyword") String keyword,
+            @Param("keywordTargetId") Long keywordTargetId,
             @Param("size") int size,
             @Param("offset") int offset
     );
@@ -29,6 +30,7 @@ public interface AdminLogMapper {
             @Param("start") java.time.LocalDateTime start,
             @Param("end") java.time.LocalDateTime end,
             @Param("actionType") String actionType,
-            @Param("keyword") String keyword
+            @Param("keyword") String keyword,
+            @Param("keywordTargetId") Long keywordTargetId
     );
 }

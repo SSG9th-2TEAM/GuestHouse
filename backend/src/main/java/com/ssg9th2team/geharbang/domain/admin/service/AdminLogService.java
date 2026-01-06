@@ -46,10 +46,33 @@ public class AdminLogService {
         int safeSize = size > 0 ? Math.min(size, maxSize) : maxSize;
         LocalDateTime start = startDate != null ? startDate.atStartOfDay() : null;
         LocalDateTime end = endDate != null ? endDate.plusDays(1).atStartOfDay() : null;
+        String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
+        Long keywordTargetId = resolveKeywordTargetId(normalizedKeyword);
+        if (keywordTargetId != null) {
+            normalizedKeyword = null;
+        }
         int offset = safePage * safeSize;
-        List<AdminLogRow> items = adminLogMapper.selectAdminLogs(start, end, actionType, keyword, safeSize, offset);
-        long total = adminLogMapper.countAdminLogs(start, end, actionType, keyword);
+        List<AdminLogRow> items = adminLogMapper.selectAdminLogs(
+                start, end, actionType, normalizedKeyword, keywordTargetId, safeSize, offset);
+        long total = adminLogMapper.countAdminLogs(start, end, actionType, normalizedKeyword, keywordTargetId);
         int totalPages = total == 0 ? 0 : (int) Math.ceil((double) total / safeSize);
         return AdminPageResponse.of(items, safePage, safeSize, total, totalPages);
+    }
+
+    private Long resolveKeywordTargetId(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return null;
+        }
+        String normalized = keyword.trim();
+        for (int i = 0; i < normalized.length(); i++) {
+            if (!Character.isDigit(normalized.charAt(i))) {
+                return null;
+            }
+        }
+        try {
+            return Long.parseLong(normalized);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 }
