@@ -322,6 +322,52 @@ class SearchServiceIntegrationTest {
                 assertThat(response.page().totalElements()).isEqualTo(1);
         }
 
+        @Test
+        @DisplayName("Search with themes, bounds, and price filters (no dates) returns correct results")
+        void searchPublicListByThemeAndBoundsNoDates_returnsCorrectResults() {
+                Theme healing = persistTheme("Mood", "Healing");
+                Theme party = persistTheme("Concept", "Party");
+
+                // Acc1: Valid (In Bounds, Has Theme, Valid Price)
+                Accommodation validAcc = persistAccommodation("Valid-Acc", "Seogwipo",
+                                BigDecimal.valueOf(33.25), BigDecimal.valueOf(126.55), 10000);
+                linkTheme(validAcc, healing);
+                persistRoom(validAcc.getAccommodationsId(), 4, 10000);
+
+                // Acc2: Out of Bounds
+                Accommodation outOfBoundsAcc = persistAccommodation("OutOfBounds-Acc", "Jeju",
+                                BigDecimal.valueOf(33.50), BigDecimal.valueOf(126.55), 10000);
+                linkTheme(outOfBoundsAcc, healing);
+                persistRoom(outOfBoundsAcc.getAccommodationsId(), 4, 10000);
+
+                // Acc3: Wrong Theme
+                Accommodation wrongThemeAcc = persistAccommodation("WrongTheme-Acc", "Seogwipo",
+                                BigDecimal.valueOf(33.25), BigDecimal.valueOf(126.55), 10000);
+                linkTheme(wrongThemeAcc, party);
+                persistRoom(wrongThemeAcc.getAccommodationsId(), 4, 10000);
+
+                // Acc4: Price Too High
+                Accommodation expensiveAcc = persistAccommodation("Expensive-Acc", "Seogwipo",
+                                BigDecimal.valueOf(33.25), BigDecimal.valueOf(126.55), 30000);
+                linkTheme(expensiveAcc, healing);
+                persistRoom(expensiveAcc.getAccommodationsId(), 4, 30000);
+
+                entityManager.clear();
+
+                PublicListResponse response = searchService.searchPublicList(
+                                List.of(healing.getId()),
+                                null,
+                                0, 10,
+                                33.20, 33.30, 126.50, 126.60,
+                                null, null,
+                                null,
+                                5000, 20000);
+
+                assertThat(response.items()).hasSize(1);
+                assertThat(response.items().get(0).getAccommodationsName()).isEqualTo("Valid-Acc");
+                assertThat(response.page().totalElements()).isEqualTo(1);
+        }
+
         private Accommodation persistAccommodation(String name, String district) {
                 return persistAccommodation(name, district, BigDecimal.valueOf(33.25), BigDecimal.valueOf(126.55));
         }
