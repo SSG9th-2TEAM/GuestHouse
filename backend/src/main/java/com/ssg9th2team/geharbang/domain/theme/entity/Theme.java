@@ -23,9 +23,13 @@ public class Theme {
     @Column(name = "theme_name", nullable = false, unique = true, length = 50)
     private String themeName;
 
+    @Column(name = "theme_image_url", length = 500)
+    private String themeImageUrl;
+
     @Builder
-    public Theme(String themeCategory, String themeName) {
+    public Theme(String themeCategory, String themeName, String themeImageUrl) {
         this.themeCategory = themeCategory;
         this.themeName = themeName;
+        this.themeImageUrl = themeImageUrl;
     }
 }

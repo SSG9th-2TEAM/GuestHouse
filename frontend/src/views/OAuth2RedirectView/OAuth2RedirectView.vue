@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { saveTokens, saveUserInfo, getCurrentUser } from '@/api/authClient'
+import { saveTokens, getCurrentUser, saveUserInfo } from '@/api/authClient'
 
 const router = useRouter()
 const route = useRoute()
@@ -20,26 +20,22 @@ onMounted(async () => {
   // 토큰 저장
   saveTokens(accessToken, refreshToken)
 
-  // 사용자 정보 조회 및 저장 (추천 기능에 필요)
   try {
-    const userResponse = await getCurrentUser()
-    if (userResponse.ok && userResponse.data) {
-      saveUserInfo({
-        email: userResponse.data.email,
-        role: userResponse.data.role,
-        userId: userResponse.data.userId
-      })
+    // 사용자 정보 가져오기
+    const response = await getCurrentUser()
+    if (response.ok) {
+      saveUserInfo(response.data)
+      // 메인 페이지로 이동
+      router.push('/')
+    } else {
+      // 사용자 정보를 가져오는데 실패하면 로그인 페이지로 리디렉션
+      console.error('사용자 정보를 가져오는데 실패했습니다.')
+      router.push('/login')
     }
   } catch (error) {
-    console.error('사용자 정보 조회 실패:', error)
+    console.error('사용자 정보 처리 중 오류 발생:', error)
+    router.push('/login')
   }
-
-  // 현재 경로 확인하여 리다이렉트
-  // /oauth2/redirect는 기존 사용자, /social-signup는 신규 사용자
-  // OAuth2AuthenticationSuccessHandler에서 이미 분기 처리되어 리다이렉트됨
-
-  // 메인 페이지로 이동 (기존 소셜 사용자)
-  router.push('/')
 })
 </script>
 
