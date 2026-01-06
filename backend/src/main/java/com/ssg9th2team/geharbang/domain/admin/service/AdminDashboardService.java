@@ -244,30 +244,23 @@ public class AdminDashboardService {
         LocalDateTime start = startDate.atStartOfDay();
         LocalDateTime end = endDate.plusDays(1).atStartOfDay();
 
+        // Perf: ensure indexes on payment.createdAt and payment_refund.requestedAt for range scans.
         long reservationCount = reservationRepository.countByCreatedAtBetween(start, end);
 
-        List<Payment> payments = paymentRepository.findByCreatedAtBetween(start, end);
-        long paymentSuccessAmount = payments.stream()
-                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 1)
-                .mapToLong(payment -> payment.getApprovedAmount() != null ? payment.getApprovedAmount() : 0L)
-                .sum();
-        long paymentFailureCount = payments.stream()
-                .filter(payment -> payment.getPaymentStatus() != null && payment.getPaymentStatus() == 2)
-                .count();
+        long paymentSuccessAmount = paymentRepository
+                .sumApprovedAmountByStatusAndCreatedAtBetween(1, start, end);
+        long paymentFailureCount = paymentRepository
+                .countByStatusAndCreatedAtBetween(2, start, end);
 
-        List<PaymentRefund> refunds = refundRepository.findByRequestedAtBetween(start, end);
-        long refundRequestCount = refunds.stream()
-                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 0)
-                .count();
-        long refundCompletedCount = refunds.stream()
-                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
-                .count();
-        long refundCompletedAmount = refunds.stream()
-                .filter(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() == 1)
-                .mapToLong(refund -> refund.getRefundAmount() != null ? refund.getRefundAmount() : 0L)
-                .sum();
+        long refundRequestCount = refundRepository
+                .countByStatusAndRequestedAtBetween(0, start, end);
+        long refundCompletedCount = refundRepository
+                .countByStatusAndRequestedAtBetween(1, start, end);
+        long refundCompletedAmount = refundRepository
+                .sumRefundAmountByStatusAndRequestedAtBetween(1, start, end);
         long netRevenue = paymentSuccessAmount - refundCompletedAmount;
 
+        // Validation check: compare with raw SQL SUM/COUNT for the same date window if needed.
         return new SummaryMetrics(
                 reservationCount,
                 paymentSuccessAmount,
