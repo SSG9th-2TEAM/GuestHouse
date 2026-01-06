@@ -43,8 +43,6 @@ const isUserHost = computed(() => {
   )
 })
 
-const showHostGate = ref(false)
-
 // 호스트 모드 전환
 const toggleHostMode = async () => {
   if (!isLoggedIn.value) {
@@ -75,15 +73,6 @@ const toggleHostMode = async () => {
     router.push('/host')
   }
   isMenuOpen.value = false;
-}
-
-const closeHostGate = () => {
-  showHostGate.value = false
-}
-
-const goToHostRegister = () => {
-  showHostGate.value = false
-  router.push('/host/accommodation/register')
 }
 
 // 로그인 페이지로 이동
@@ -412,18 +401,6 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div v-if="showHostGate" class="host-gate-overlay" role="presentation" @click="closeHostGate">
-              <div class="host-gate-modal" role="dialog" aria-modal="true" @click.stop>
-                <div class="host-gate-title">호스트 기능은 승인 후 이용 가능해요</div>
-                <p class="host-gate-desc">
-                  숙소 등록 및 심사를 완료하면 예약/매출/리뷰/리포트 기능을 사용할 수 있습니다.
-                </p>
-                <div class="host-gate-actions">
-                  <button class="host-gate-btn primary" type="button" @click="goToHostRegister">숙소 등록하러 가기</button>
-                  <button class="host-gate-btn" type="button" @click="closeHostGate">닫기</button>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -989,61 +966,6 @@ onUnmounted(() => {
   color: #00796b;
 }
 
-.host-gate-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.35);
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-}
-
-.host-gate-modal {
-  width: min(420px, 100%);
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 1.25rem 1.4rem;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-  text-align: left;
-}
-
-.host-gate-title {
-  font-size: 1.05rem;
-  font-weight: 900;
-  color: #0b3b32;
-  margin-bottom: 0.5rem;
-}
-
-.host-gate-desc {
-  margin: 0;
-  color: #6b7280;
-  font-weight: 600;
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-.host-gate-actions {
-  display: grid;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.host-gate-btn {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #0b3b32;
-  font-weight: 800;
-  padding: 0.7rem 1rem;
-  border-radius: 12px;
-  cursor: pointer;
-}
-
-.host-gate-btn.primary {
-  background: var(--brand-primary);
-  border-color: var(--brand-primary);
-}
 
 /* Menu List */
 .menu-list {

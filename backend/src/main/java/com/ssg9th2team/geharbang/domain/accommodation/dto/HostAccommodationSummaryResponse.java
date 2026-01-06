@@ -10,12 +10,14 @@ import lombok.Setter;
 @NoArgsConstructor
 @Setter
 public class HostAccommodationSummaryResponse {
+    // MyBatis resultType mapping needs mutable setters for field injection.
     private Long accommodationsId;
     private String accommodationsName;
     private String status;
     private String approvalStatus;
     private Integer accommodationStatus;
     private String rejectionReason;
+    private Integer isResubmitted;
     private String city;
     private String district;
     private String township;

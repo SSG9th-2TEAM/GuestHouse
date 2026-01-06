@@ -21,10 +21,14 @@ const accommodationCount = computed(() => accommodations.value.length)
 const hasAccommodations = computed(() => accommodations.value.length > 0)
 
 const formatPrice = (price) => new Intl.NumberFormat('ko-KR').format(price)
-const getStatusLabel = (status, rejectionReason) => {
+const getStatusLabel = (status, rejectionReason, approvalStatus, isResubmitted) => {
+  const normalizedApproval = approvalStatus ? String(approvalStatus).toLowerCase() : ''
+  if (status === 'rejected' || normalizedApproval === 'rejected') return '반려'
+  if (status === 'reinspection' || isResubmitted) return '재검토중'
+  if (status === 'pending' || normalizedApproval === 'pending') {
+    return rejectionReason ? '재검토중' : '검수중'
+  }
   if (status === 'active') return '운영중'
-  if (status === 'pending') return rejectionReason ? '재검토중' : '검수중'
-  if (status === 'rejected') return '반려'
   if (status === 'inactive') return '운영중지'
   return '상태 확인'
 }
@@ -55,6 +59,7 @@ const normalizeStatus = (status) => {
   if (!status) return 'inactive'
   const value = String(status).toLowerCase()
   if (value === 'approved' || value === 'active' || value === 'operating') return 'active'
+  if (value === 'reinspection') return 'reinspection'
   if (value === 'pending' || value === 'inspection' || value === 'review' || value === 'reviewing') return 'pending'
   if (value === 'rejected' || value === 'reject' || value === 'denied') return 'rejected'
   if (value === 'inactive' || value === 'stopped' || value === 'stop') return 'inactive'
@@ -82,7 +87,9 @@ const isResubmittedRecently = (id) => {
 const normalizeAccommodation = (item) => {
   const id = item.accommodationsId ?? item.accommodationId ?? item.id
   const name = item.accommodationsName ?? item.name ?? ''
-  const statusSource = item.approvalStatus ?? item.status ?? item.accommodationStatus
+  const approvalStatus = item.approvalStatus ?? item.reviewStatus ?? null
+  const isResubmitted = item.isResubmitted === 1 || item.isResubmitted === true
+  const statusSource = approvalStatus ?? item.status ?? item.accommodationStatus
   let status = normalizeStatus(statusSource)
   const rejectionReason = item.rejectionReason ?? item.rejectReason ?? item.approvalReason ?? item.reason ?? ''
   if (status === 'rejected' && isResubmittedRecently(id)) {
@@ -104,7 +111,9 @@ const normalizeAccommodation = (item) => {
     roomCount,
     price,
     images: Array.isArray(images) ? images : [images].filter(Boolean),
-    rejectionReason
+    rejectionReason,
+    approvalStatus,
+    isResubmitted
   }
 }
 
@@ -166,15 +175,19 @@ onMounted(loadAccommodations)
                   :class="{
                     active: accommodation.status === 'active',
                     pending: accommodation.status === 'pending',
-                    rejected: accommodation.status === 'rejected',
+                    reinspection: accommodation.status === 'reinspection' || accommodation.isResubmitted,
+                    rejected: accommodation.status === 'rejected' || String(accommodation.approvalStatus ?? '').toLowerCase() === 'rejected',
                     inactive: accommodation.status === 'inactive'
                   }"
               >
-                {{ getStatusLabel(accommodation.status, accommodation.rejectionReason) }}
+                {{ getStatusLabel(accommodation.status, accommodation.rejectionReason, accommodation.approvalStatus, accommodation.isResubmitted) }}
               </span>
             </div>
 
-            <p v-if="accommodation.status === 'rejected'" class="status-reason">
+            <p
+              v-if="accommodation.status === 'rejected' || String(accommodation.approvalStatus ?? '').toLowerCase() === 'rejected'"
+              class="status-reason"
+            >
               {{ accommodation.rejectionReason ? `반려 사유: ${accommodation.rejectionReason}` : '반려 사유를 확인할 수 없습니다.' }}
             </p>
 
@@ -340,6 +353,12 @@ onMounted(loadAccommodations)
   background: #fef3c7;
   color: #92400e;
   border-color: #fcd34d;
+}
+
+.status-badge.reinspection {
+  background: #fde68a;
+  color: #92400e;
+  border-color: #fbbf24;
 }
 
 .status-badge.rejected {

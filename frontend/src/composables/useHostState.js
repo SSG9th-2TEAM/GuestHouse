@@ -89,7 +89,11 @@ export const deriveHostGateInfo = (accommodations = []) => {
   const normalized = list.map((item) => {
     const statusSource = item?.approvalStatus ?? item?.status ?? item?.accommodationStatus ?? item?.reviewStatus
     let normalizedStatus = normalizeApprovalStatus(statusSource)
+    const isResubmitted = item?.isResubmitted === 1 || item?.isResubmitted === true
     const id = item?.accommodationsId ?? item?.accommodationId ?? item?.id
+    if (isResubmitted) {
+      normalizedStatus = 'pending'
+    }
     return {
       approvalStatus: normalizedStatus === 'rejected' && isResubmittedRecently(id) ? 'pending' : normalizedStatus,
       rejectReason: item?.rejectionReason ?? item?.rejectReason ?? item?.approvalReason ?? item?.reason ?? ''
