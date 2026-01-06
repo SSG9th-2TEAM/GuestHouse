@@ -34,12 +34,13 @@ const normalizeItem = (item) => {
   const title = item.accommodationsName ?? item.accommodationName ?? item.title ?? ''
   const description = item.shortDescription ?? item.description ?? ''
   const rating = item.rating ?? null
+  const reviewCount = item.reviewCount ?? item.review_count ?? null
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
   const price = Number(item.minPrice ?? item.price ?? 0)
   const imageUrl = item.imageUrl || 'https://placehold.co/400x300'
   const maxGuestsValue = Number(item.maxGuests ?? item.capacity ?? item.maxGuest ?? 0)
   const maxGuests = Number.isFinite(maxGuestsValue) ? maxGuestsValue : 0
-  return { id, title, description, rating, location, price, imageUrl, maxGuests }
+  return { id, title, description, rating, reviewCount, location, price, imageUrl, maxGuests }
 }
 
 const getKeywordFromRoute = () => {
@@ -275,6 +276,7 @@ watch(
         :title="item.title"
         :description="item.description"
         :rating="item.rating"
+        :review-count="item.reviewCount"
         :location="item.location"
         :price="item.price"
         :image-url="item.imageUrl"
@@ -338,7 +340,7 @@ watch(
 
 .filter-btn {
   position: fixed;
-  top: 96px;
+  top: 104px;
   right: 1rem;
   z-index: 120;
   padding: 8px 16px;
@@ -359,7 +361,7 @@ watch(
 
 @media (max-width: 768px) {
   .filter-btn {
-    top: calc(120px + env(safe-area-inset-top));
+    top: calc(128px + env(safe-area-inset-top));
     right: 12px;
   }
 }

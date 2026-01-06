@@ -20,8 +20,8 @@ const emit = defineEmits(['close', 'apply'])
 
 // Constants for slider
 const MIN_LIMIT = 0
-const MAX_LIMIT = 400000
-const STEP = 10000
+const MAX_LIMIT = 300000
+const STEP = 5000
 
 // Local state
 const minPrice = ref(props.currentMin ?? MIN_LIMIT)
@@ -114,6 +114,70 @@ const minThumbOnTop = computed(() => {
   return activeThumb.value === 'min'
 })
 
+const CATEGORY_LABELS = {
+  NATURE: '자연',
+  CULTURE: '문화',
+  ACTIVITY: '액티비티',
+  VIBE: '분위기',
+  PARTY: '파티/주류',
+  MEETING: '만남/로맨스',
+  PERSONA: '성향/동반',
+  FACILITY: '시설/편의',
+  FOOD: '음식',
+  PLAY: '놀거리',
+  AROUND_THEME: '주변테마',
+  ACTIVITY_COMMUNITY: '액티비티/커뮤니티',
+  LOCATION: '위치',
+  LIFESTYLE: '라이프스타일',
+  OTHER: '기타'
+}
+
+const normalizeCategoryKey = (value) => {
+  const raw = value === undefined || value === null ? '' : String(value).trim()
+  return raw || 'OTHER'
+}
+
+const normalizeThemeName = (value) => {
+  return value === undefined || value === null ? '' : String(value).trim()
+}
+
+const moveCultureHeritageToEnd = (items) => {
+  const head = []
+  const tail = []
+  items.forEach((item) => {
+    if (normalizeThemeName(item?.themeName) === '문화유적') {
+      tail.push(item)
+    } else {
+      head.push(item)
+    }
+  })
+  return head.concat(tail)
+}
+
+const themesByCategory = computed(() => {
+  const groups = new Map()
+  themes.value.forEach((theme) => {
+    const categoryKey = normalizeCategoryKey(theme?.themeCategory)
+    if (!groups.has(categoryKey)) {
+      groups.set(categoryKey, [])
+    }
+    groups.get(categoryKey).push(theme)
+  })
+  const result = Array.from(groups, ([key, items]) => ({
+    key,
+    label: CATEGORY_LABELS[key] ?? key,
+    items: moveCultureHeritageToEnd(items)
+  }))
+  const cultureIndex = result.findIndex((group) =>
+    group.items.some((item) => normalizeThemeName(item?.themeName) === '문화유적')
+  )
+  if (cultureIndex !== -1 && cultureIndex !== result.length - 1) {
+    const [cultureGroup] = result.splice(cultureIndex, 1)
+    result.push(cultureGroup)
+  }
+  return result
+})
+
 // Calculate percentages for slider track background
 const minPercent = computed(() => ((minPrice.value - MIN_LIMIT) / (MAX_LIMIT - MIN_LIMIT)) * 100)
 const maxPercent = computed(() => ((maxPrice.value - MIN_LIMIT) / (MAX_LIMIT - MIN_LIMIT)) * 100)
@@ -198,19 +262,33 @@ const resetFilter = () => {
           <span class="section-title">테마</span>
           <span class="section-hint">복수 선택 가능</span>
         </div>
-        <div class="theme-grid">
-          <button
-            v-for="theme in themes"
-            :key="theme.id"
-            type="button"
-            class="theme-chip"
-            :class="{ active: selectedThemeIds.includes(theme.id) }"
-            @click="toggleTheme(theme.id)"
-          >
-            {{ theme.themeName }}
-          </button>
-          <div v-if="!themes.length && isLoadingThemes" class="theme-empty">테마를 불러오는 중...</div>
-          <div v-else-if="!themes.length" class="theme-empty">테마 정보를 불러올 수 없습니다.</div>
+        <div class="theme-groups">
+          <div v-if="themesByCategory.length">
+            <div v-for="group in themesByCategory" :key="group.key" class="theme-section">
+              <div class="theme-section-title">{{ group.label }}</div>
+              <div class="theme-grid">
+                <button
+                  v-for="theme in group.items"
+                  :key="theme.id"
+                  type="button"
+                  class="theme-chip"
+                  :class="{ active: selectedThemeIds.includes(theme.id) }"
+                  @click="toggleTheme(theme.id)"
+                >
+                  <img
+                    v-if="theme.themeImageUrl"
+                    :src="theme.themeImageUrl"
+                    :alt="theme.themeName"
+                    class="theme-chip__icon"
+                  />
+                  <span v-else class="theme-chip__icon theme-chip__icon--empty"></span>
+                  <span class="theme-chip__label">{{ theme.themeName }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="isLoadingThemes" class="theme-empty">테마를 불러오는 중...</div>
+          <div v-else class="theme-empty">테마 정보를 불러올 수 없습니다.</div>
         </div>
       </div>
 
@@ -225,8 +303,9 @@ const resetFilter = () => {
 <style scoped>
 .modal-wrapper {
   position: fixed;
-  top: 140px; /* Adjusted to clear header */
-  left: 20px;
+  --modal-offset-top: 104px;
+  top: var(--modal-offset-top);
+  left: 1rem;
   z-index: 150;
   /* Ensure it doesn't block interaction with the rest of the page outside the modal */
   pointer-events: none; 
@@ -241,6 +320,9 @@ const resetFilter = () => {
   border: 1px solid #eee;
   pointer-events: auto; /* Re-enable pointer events for the modal itself */
   animation: fadeIn 0.2s ease-out;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - var(--modal-offset-top) - 16px - env(safe-area-inset-bottom));
 }
 
 @keyframes fadeIn {
@@ -273,6 +355,10 @@ const resetFilter = () => {
 .modal-body {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .price-display {
@@ -293,8 +379,9 @@ const resetFilter = () => {
 .slider-track {
   position: absolute;
   top: 50%;
+  left: 6px;
+  right: 6px;
   transform: translateY(-50%);
-  width: 100%;
   height: 4px;
   border-radius: 2px;
   background: #ddd;
@@ -303,8 +390,10 @@ const resetFilter = () => {
 .range-input {
   position: absolute;
   top: 50%;
+  left: 6px;
+  right: 6px;
   transform: translateY(-50%);
-  width: 100%;
+  width: auto;
   height: 0;
   -webkit-appearance: none;
   pointer-events: none; /* Allow clicking through to track/other slider */
@@ -384,6 +473,10 @@ const resetFilter = () => {
   margin-top: 0;
 }
 
+.section-header.space-top {
+  margin-bottom: 0;
+}
+
 .section-title {
   font-weight: 700;
   color: #222;
@@ -449,6 +542,26 @@ const resetFilter = () => {
   color: #222;
 }
 
+.theme-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.theme-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.theme-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #4b5563;
+  margin: 14px 0 2px;
+}
+
 .theme-grid {
   display: flex;
   flex-wrap: wrap;
@@ -457,6 +570,9 @@ const resetFilter = () => {
 }
 
 .theme-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 1px solid #ddd;
   border-radius: 18px;
   background: #fff;
@@ -476,8 +592,32 @@ const resetFilter = () => {
   border-color: #222;
 }
 
+.theme-chip__icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.theme-chip__icon--empty {
+  background: #f3f4f6;
+}
+
+.theme-chip__label {
+  line-height: 1;
+}
+
 .theme-empty {
   color: #999;
   font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .modal-wrapper {
+    --modal-offset-top: calc(128px + env(safe-area-inset-top));
+    top: var(--modal-offset-top);
+    left: 12px;
+  }
 }
 </style>
