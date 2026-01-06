@@ -19,6 +19,7 @@ const isLoading = ref(false)
 const loadError = ref('')
 const route = useRoute()
 const router = useRouter()
+const isSyncingDefaults = ref(false)
 
 const toDateInput = (date) => {
   if (!date) return ''
@@ -72,27 +73,144 @@ const loadLogs = async () => {
   isLoading.value = false
 }
 
-onMounted(() => {
-  initDefaultRange()
-  actionFilter.value = route.query.actionType ?? 'all'
-  keyword.value = route.query.keyword ?? ''
-  page.value = Number(route.query.page ?? 0)
-  if (route.query.startDate) startDate.value = route.query.startDate
-  if (route.query.endDate) endDate.value = route.query.endDate
-  loadLogs()
-})
+const applyPreset = (days) => {
+  const today = new Date()
+  const start = new Date()
+  start.setDate(today.getDate() - (days - 1))
+  startDate.value = toDateInput(start)
+  endDate.value = toDateInput(today)
+  page.value = 0
+  syncQuery({
+    startDate: startDate.value,
+    endDate: endDate.value,
+    page: page.value
+  })
+}
 
-watch([actionFilter, keyword, startDate, endDate], () => {
+const applyActionFilter = () => {
   page.value = 0
   syncQuery({
     actionType: actionFilter.value === 'all' ? undefined : actionFilter.value,
+    page: page.value
+  })
+}
+
+const applyKeywordSearch = () => {
+  page.value = 0
+  syncQuery({
     keyword: keyword.value || undefined,
+    page: page.value
+  })
+}
+
+const applyDateFilter = () => {
+  page.value = 0
+  syncQuery({
     startDate: startDate.value || undefined,
     endDate: endDate.value || undefined,
     page: page.value
   })
-  loadLogs()
+}
+
+const goToPage = (nextPage) => {
+  page.value = nextPage
+  syncQuery({
+    page: page.value
+  })
+}
+
+const formatReason = (value) => {
+  if (!value || value === '-') return '없음'
+  return value
+}
+
+const actionLabelMap = {
+  APPROVE: '승인',
+  REJECT: '반려',
+  REFUND: '환불',
+  BAN: '정지',
+  UNBAN: '해제',
+  RESOLVE: '처리'
+}
+
+const actionVariantMap = {
+  APPROVE: 'success',
+  REJECT: 'danger',
+  REFUND: 'accent',
+  BAN: 'warning',
+  UNBAN: 'neutral',
+  RESOLVE: 'primary'
+}
+
+const targetLabelMap = {
+  ACC: '숙소',
+  USER: '회원',
+  PAY: '결제',
+  REVIEW: '리뷰'
+}
+
+const resolveTargetLabel = (value) => targetLabelMap[value] ?? value ?? '-'
+
+const resolveActionLabel = (value) => actionLabelMap[value] ?? value ?? '-'
+
+const resolveActionVariant = (value) => actionVariantMap[value] ?? 'neutral'
+
+const resolveTargetLink = (item) => {
+  const id = item?.targetId
+  if (!id) return null
+  if (item?.targetType === 'ACC') return `/admin/accommodations?highlight=${id}`
+  if (item?.targetType === 'USER') return `/admin/users?highlight=${id}`
+  if (item?.targetType === 'PAY') return `/admin/payments?highlight=${id}`
+  if (item?.targetType === 'REVIEW') return `/admin/reports?highlight=${id}`
+  return null
+}
+
+const goToTarget = (item) => {
+  const target = resolveTargetLink(item)
+  if (target) router.push(target)
+}
+
+const syncStateFromQuery = (query) => {
+  actionFilter.value = query.actionType ?? 'all'
+  keyword.value = query.keyword ?? ''
+  page.value = Number(query.page ?? 0)
+  size.value = Number(query.size ?? 20)
+  if (query.startDate) {
+    startDate.value = query.startDate
+  } else {
+    initDefaultRange()
+  }
+  if (query.endDate) {
+    endDate.value = query.endDate
+  } else {
+    endDate.value = endDate.value || toDateInput(new Date())
+  }
+}
+
+onMounted(() => {
+  initDefaultRange()
+  if (!route.query.startDate || !route.query.endDate) {
+    isSyncingDefaults.value = true
+    syncQuery({
+      startDate: startDate.value,
+      endDate: endDate.value,
+      page: page.value
+    })
+  }
 })
+
+watch(
+  () => route.query,
+  (query) => {
+    if (isSyncingDefaults.value && (!query.startDate || !query.endDate)) {
+      return
+    }
+    isSyncingDefaults.value = false
+    syncStateFromQuery(query)
+    loadLogs()
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -110,13 +228,18 @@ watch([actionFilter, keyword, startDate, endDate], () => {
     <div class="admin-filter-bar">
       <div class="admin-filter-group">
         <span class="admin-chip">기간</span>
-        <input v-model="startDate" class="admin-input" type="date" />
+        <input v-model="startDate" class="admin-input" type="date" @change="applyDateFilter" />
         <span class="admin-divider">~</span>
-        <input v-model="endDate" class="admin-input" type="date" />
+        <input v-model="endDate" class="admin-input" type="date" @change="applyDateFilter" />
+        <div class="admin-preset-group">
+          <button class="admin-btn admin-btn--ghost" type="button" @click="applyPreset(7)">최근 7일(오늘 포함)</button>
+          <button class="admin-btn admin-btn--ghost" type="button" @click="applyPreset(30)">최근 30일(오늘 포함)</button>
+          <button class="admin-btn admin-btn--ghost" type="button" @click="applyPreset(90)">최근 90일(오늘 포함)</button>
+        </div>
       </div>
       <div class="admin-filter-group">
-        <span class="admin-chip">액션</span>
-        <select v-model="actionFilter" class="admin-select">
+        <span class="admin-chip">액션 필터</span>
+        <select v-model="actionFilter" class="admin-select" @change="applyActionFilter">
           <option value="all">전체</option>
           <option value="APPROVE">승인</option>
           <option value="REJECT">반려</option>
@@ -132,30 +255,66 @@ watch([actionFilter, keyword, startDate, endDate], () => {
           class="admin-input"
           type="search"
           placeholder="대상ID, 사유, 대상 타입"
+          @keydown.enter.prevent="applyKeywordSearch"
         />
+        <button class="admin-btn admin-btn--ghost" type="button" @click="applyKeywordSearch">검색</button>
       </div>
     </div>
 
-    <AdminTableCard title="감사 로그">
-      <table class="admin-table--nowrap admin-table--tight">
+    <AdminTableCard title="감사 로그" class="admin-audit-card">
+      <table class="admin-audit-table admin-table--nowrap">
+        <colgroup>
+          <col style="width: 180px" />
+          <col style="width: 110px" />
+          <col style="width: 90px" />
+          <col style="width: 120px" />
+          <col />
+          <col style="width: 90px" />
+        </colgroup>
         <thead>
           <tr>
             <th>시간</th>
-            <th>액션</th>
-            <th>대상</th>
-            <th>대상ID</th>
-            <th>사유</th>
-            <th>관리자ID</th>
+            <th class="is-center">액션</th>
+            <th class="is-center">대상</th>
+            <th class="is-center">대상ID</th>
+            <th class="col-reason">사유</th>
+            <th class="is-center">관리자ID</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in logs" :key="item.logId">
             <td>{{ formatDateTime(item.createdAt, true) }}</td>
-            <td>{{ item.actionType }}</td>
-            <td>{{ item.targetType }}</td>
-            <td>{{ item.targetId }}</td>
-            <td class="admin-table__reason">{{ item.reason || '-' }}</td>
-            <td>{{ item.adminId }}</td>
+            <td class="is-center">
+              <span class="admin-action-badge" :class="`admin-action-badge--${resolveActionVariant(item.actionType)}`">
+                {{ resolveActionLabel(item.actionType) }}
+              </span>
+            </td>
+            <td class="is-center">{{ resolveTargetLabel(item.targetType) }}</td>
+            <td class="is-center">
+              <button
+                class="admin-link-button"
+                type="button"
+                :disabled="!resolveTargetLink(item)"
+                @click="goToTarget(item)"
+              >
+                {{ item.targetId }}
+              </button>
+            </td>
+            <td class="admin-audit-reason col-reason">
+              <span
+                class="reason-text"
+                :class="{ 'reason-text--empty': formatReason(item.reason) === '없음' }"
+                :title="formatReason(item.reason)"
+              >
+                <span class="reason-text__content clamp-2">
+                  {{ formatReason(item.reason) }}
+                </span>
+              </span>
+            </td>
+            <td class="is-center">{{ item.adminId }}</td>
+          </tr>
+          <tr v-if="!logs.length && !isLoading && !loadError">
+            <td class="admin-audit-empty" colspan="6">조건에 맞는 로그가 없습니다.</td>
           </tr>
         </tbody>
       </table>
@@ -164,13 +323,12 @@ watch([actionFilter, keyword, startDate, endDate], () => {
         <span>{{ loadError }}</span>
         <button class="admin-btn admin-btn--ghost" type="button" @click="loadLogs">다시 시도</button>
       </div>
-      <div v-else-if="!logs.length" class="admin-status">조건에 맞는 로그가 없습니다.</div>
-      <div class="admin-pagination">
-        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page <= 0" @click="page = page - 1; loadLogs()">
+      <div class="admin-pagination" v-if="totalElements > 0">
+        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page <= 0" @click="goToPage(page - 1)">
           이전
         </button>
         <span>{{ page + 1 }} / {{ Math.max(totalPages, 1) }}</span>
-        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page + 1 >= totalPages" @click="page = page + 1; loadLogs()">
+        <button class="admin-btn admin-btn--ghost" type="button" :disabled="page + 1 >= totalPages" @click="goToPage(page + 1)">
           다음
         </button>
       </div>
@@ -194,10 +352,140 @@ watch([actionFilter, keyword, startDate, endDate], () => {
   font-size: 0.85rem;
 }
 
-.admin-table__reason {
-  max-width: 360px;
+.admin-preset-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-audit-card :deep(.admin-table-wrap) {
+  width: 100%;
+}
+
+.admin-audit-table {
+  width: 100%;
+  min-width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.admin-audit-table th,
+.admin-audit-table td {
+  padding: 12px 12px;
+}
+
+.admin-audit-table th.is-center,
+.admin-audit-table td.is-center {
+  text-align: center;
+}
+
+.admin-audit-table th.col-reason,
+.admin-audit-table td.col-reason {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.admin-audit-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.admin-audit-table tbody tr:hover {
+  background: #eef8f6;
+}
+
+.admin-audit-reason {
   white-space: normal;
-  line-height: 1.4;
+  line-height: 1.45;
+}
+
+.reason-text {
+  display: inline-block;
+  max-width: 90%;
+  text-align: left;
+}
+
+.reason-text--empty {
+  text-align: center;
+}
+
+.reason-text__content {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.clamp-2 {
+  display: block;
+}
+
+.admin-action-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border: 1px solid transparent;
+  min-width: 64px;
+}
+
+.admin-action-badge--success {
+  background: #ecfdf3;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.admin-action-badge--danger {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.admin-action-badge--accent {
+  background: #eef2ff;
+  color: #1d4ed8;
+  border-color: #c7d2fe;
+}
+
+.admin-action-badge--warning {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.admin-action-badge--neutral {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.admin-action-badge--primary {
+  background: #f0fdfa;
+  color: #0f766e;
+  border-color: rgba(15, 118, 110, 0.2);
+}
+
+.admin-link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #0f766e;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-link-button:disabled {
+  color: #9ca3af;
+  cursor: default;
+}
+
+.admin-audit-empty {
+  text-align: center;
+  padding: 28px 12px;
+  color: #64748b;
+  font-weight: 700;
 }
 
 @media (max-width: 900px) {
