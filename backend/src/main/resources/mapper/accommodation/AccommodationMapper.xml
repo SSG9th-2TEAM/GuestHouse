@@ -310,14 +310,13 @@
             COALESCE(MAX(r.max_guests), 0) AS maxGuests,
             COALESCE(COUNT(DISTINCT r.room_id), 0) AS roomCount,
             COALESCE(a.min_price, MIN(r.price), 0) AS pricePerNight,
-            MAX(ai.image_url) AS imageUrl
+            (SELECT ai.image_url FROM accommodation_image ai
+             WHERE ai.accommodations_id = a.accommodations_id
+             ORDER BY ai.sort_order ASC LIMIT 1) AS imageUrl
         FROM accommodation a
         LEFT JOIN room r
             ON r.accommodations_id = a.accommodations_id
             AND r.room_status = 1
-        LEFT JOIN accommodation_image ai
-            ON ai.accommodations_id = a.accommodations_id
-            AND ai.image_type = 'banner'
         WHERE a.user_id = #{hostId}
         GROUP BY
             a.accommodations_id,
@@ -353,14 +352,13 @@
             COALESCE(MAX(r.max_guests), 0) AS maxGuests,
             COALESCE(COUNT(DISTINCT r.room_id), 0) AS roomCount,
             COALESCE(a.min_price, MIN(r.price), 0) AS pricePerNight,
-            MAX(ai.image_url) AS imageUrl
+            (SELECT ai.image_url FROM accommodation_image ai
+             WHERE ai.accommodations_id = a.accommodations_id
+             ORDER BY ai.sort_order ASC LIMIT 1) AS imageUrl
         FROM accommodation a
         LEFT JOIN room r
             ON r.accommodations_id = a.accommodations_id
             AND r.room_status = 1
-        LEFT JOIN accommodation_image ai
-            ON ai.accommodations_id = a.accommodations_id
-            AND ai.image_type = 'banner'
         WHERE a.user_id = #{hostId}
           AND a.accommodations_id = #{accommodationsId}
         GROUP BY

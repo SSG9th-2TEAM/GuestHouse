@@ -219,10 +219,12 @@ const isValidEmail = (email) => {
   return emailRegex.test(email)
 }
 
-// 전화번호 형식 검증 (정확히 11자리)
+// 전화번호 형식 검증 (다양한 형식 허용)
+// 010-XXXX-XXXX (11자리), 02-XXX-XXXX (9~10자리), 0507-XXXX-XXXX (12자리) 등
 const isValidPhone = (phone) => {
   const digitsOnly = phone.replace(/[^0-9]/g, '')
-  return digitsOnly.length === 11
+  // 9자리(02 지역번호) ~ 12자리(0507 인터넷전화) 허용
+  return digitsOnly.length >= 9 && digitsOnly.length <= 12
 }
 
 // 예금주 형식 검증 (한글 완성형 또는 영어만 허용, 자음/모음만 불가)
@@ -277,7 +279,7 @@ const validateField = (fieldName, value) => {
       if (!value || !value.trim()) {
         errors.value.phone = '연락처를 입력해주세요.'
       } else if (!isValidPhone(value)) {
-        errors.value.phone = '전화번호는 11자리여야 합니다. (예: 010-1234-5678)'
+        errors.value.phone = '올바른 전화번호 형식이 아닙니다. (예: 010-1234-5678, 02-123-4567)'
       } else {
         delete errors.value.phone
       }
@@ -367,8 +369,8 @@ const validateForm = () => {
     errorMessages.push('연락처')
     isValid = false
   } else if (!isValidPhone(form.value.phone)) {
-    errors.value.phone = '전화번호는 11자리여야 합니다. (예: 010-1234-5678)'
-    errorMessages.push('전화번호 11자리')
+    errors.value.phone = '올바른 전화번호 형식이 아닙니다. (예: 010-1234-5678, 02-123-4567)'
+    errorMessages.push('전화번호 형식')
     isValid = false
   }
   if (!form.value.email?.trim()) {

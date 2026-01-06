@@ -21,6 +21,7 @@ import com.ssg9th2team.geharbang.domain.theme.repository.ThemeRepository;
 import com.ssg9th2team.geharbang.domain.wishlist.repository.mybatis.WishlistMapper;
 import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccommodationServiceImpl implements AccommodationService {
@@ -69,15 +71,23 @@ public class AccommodationServiceImpl implements AccommodationService {
                 }
             }
 
+
             // 3. 객실 대표 이미지
             if (createRequestDto.getRooms() != null) {
+                log.info("객실 수: {}", createRequestDto.getRooms().size());
                 for (RoomCreateDto room : createRequestDto.getRooms()) {
-                    if (room.getMainImageUrl() != null) {
+                    log.info("객실 이름: {}, mainImageUrl 존재: {}, 길이: {}",
+                        room.getRoomName(),
+                        room.getMainImageUrl() != null,
+                        room.getMainImageUrl() != null ? room.getMainImageUrl().length() : 0);
+                    if (room.getMainImageUrl() != null && !room.getMainImageUrl().isEmpty()) {
                         String savedUrl = objectStorageService.uploadBase64Image(
                                 room.getMainImageUrl(), "rooms");
                         room.setMainImageUrl(savedUrl);
                     }
                 }
+            } else {
+                log.info("객실 데이터 없음 (rooms is null)");
             }
         } catch (Exception e) {
             e.printStackTrace();
