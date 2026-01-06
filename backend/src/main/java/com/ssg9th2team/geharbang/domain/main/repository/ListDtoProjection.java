@@ -1,9 +1,9 @@
 package com.ssg9th2team.geharbang.domain.main.repository;
 
 public interface ListDtoProjection {
-    Long getAccomodationsId();
+    Long getAccommodationsId();
 
-    String getAccomodationsName();
+    String getAccommodationsName();
 
     String getShortDescription();
 

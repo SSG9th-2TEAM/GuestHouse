@@ -3,9 +3,11 @@ package com.ssg9th2team.geharbang.domain.search.service;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.AccommodationsCategory;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
+import com.ssg9th2team.geharbang.domain.accommodation_theme.entity.AccommodationTheme;
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
+import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -78,7 +80,7 @@ class SearchServiceIntegrationTest {
         );
 
         assertThat(response.items()).hasSize(1);
-        assertThat(response.items().get(0).getAccomodationsName())
+        assertThat(response.items().get(0).getAccommodationsName())
                 .isEqualTo("\uC11C\uADC0\uD3EC \uD14C\uC2A4\uD2B8 \uC219\uC18C");
     }
 
@@ -107,7 +109,7 @@ class SearchServiceIntegrationTest {
         );
 
         List<String> names = response.items().stream()
-                .map(item -> item.getAccomodationsName())
+                .map(item -> item.getAccommodationsName())
                 .toList();
         assertThat(names).containsExactly("\uC11C\uADC0\uD3EC \uB300\uD615 \uC219\uC18C");
     }
@@ -141,7 +143,7 @@ class SearchServiceIntegrationTest {
         );
 
         List<String> names = response.items().stream()
-                .map(item -> item.getAccomodationsName())
+                .map(item -> item.getAccommodationsName())
                 .toList();
         assertThat(names).containsExactly("\uC11C\uADC0\uD3EC \uC608\uC57D\uAC00\uB2A5");
     }
@@ -176,7 +178,74 @@ class SearchServiceIntegrationTest {
         assertThat(response.items().get(0).getMinPrice()).isEqualTo(5000L);
     }
 
+    @Test
+    @DisplayName("Bounds filter excludes accommodations outside of coordinates when no dates")
+    void searchByBoundsFiltersWithoutDates() {
+        Accommodation inside = persistAccommodation("Bounds-In", "Seogwipo",
+                BigDecimal.valueOf(33.25), BigDecimal.valueOf(126.55));
+        persistRoom(inside.getAccommodationsId(), 4);
+
+        Accommodation outside = persistAccommodation("Bounds-Out", "Seogwipo",
+                BigDecimal.valueOf(37.55), BigDecimal.valueOf(126.98));
+        persistRoom(outside.getAccommodationsId(), 4);
+        entityManager.clear();
+
+        PublicListResponse response = searchService.searchPublicList(
+                Collections.emptyList(),
+                null,
+                0,
+                10,
+                33.0,
+                33.6,
+                126.0,
+                126.8,
+                null,
+                null,
+                null
+        );
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).getAccommodationsName()).isEqualTo("Bounds-In");
+    }
+
+    @Test
+    @DisplayName("Theme filter returns only accommodations mapped to theme when no dates")
+    void searchByThemeFiltersWithoutDates() {
+        Theme themeA = persistTheme("stay", "theme-a");
+        Theme themeB = persistTheme("stay", "theme-b");
+
+        Accommodation themed = persistAccommodation("Theme-In", "Seogwipo");
+        persistRoom(themed.getAccommodationsId(), 4);
+        linkTheme(themed, themeA);
+
+        Accommodation other = persistAccommodation("Theme-Out", "Seogwipo");
+        persistRoom(other.getAccommodationsId(), 4);
+        linkTheme(other, themeB);
+        entityManager.clear();
+
+        PublicListResponse response = searchService.searchPublicList(
+                List.of(themeA.getId()),
+                null,
+                0,
+                10,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).getAccommodationsName()).isEqualTo("Theme-In");
+    }
+
     private Accommodation persistAccommodation(String name, String district) {
+        return persistAccommodation(name, district, BigDecimal.valueOf(33.25), BigDecimal.valueOf(126.55));
+    }
+
+    private Accommodation persistAccommodation(String name, String district, BigDecimal latitude, BigDecimal longitude) {
         Accommodation accommodation = Accommodation.builder()
                 .accountNumberId(1L)
                 .userId(1L)
@@ -188,8 +257,8 @@ class SearchServiceIntegrationTest {
                 .district(district)
                 .township("test-township")
                 .addressDetail("test-address")
-                .latitude(BigDecimal.valueOf(33.25))
-                .longitude(BigDecimal.valueOf(126.55))
+                .latitude(latitude)
+                .longitude(longitude)
                 .transportInfo("test transport")
                 .phone("010-0000-0000")
                 .businessRegistrationNumber("1234567890")
@@ -204,6 +273,21 @@ class SearchServiceIntegrationTest {
         accommodation.updateApprovalStatus(ApprovalStatus.APPROVED, null);
         entityManager.flush();
         return accommodation;
+    }
+
+    private Theme persistTheme(String category, String name) {
+        Theme theme = Theme.builder()
+                .themeCategory(category)
+                .themeName(name)
+                .build();
+        entityManager.persist(theme);
+        entityManager.flush();
+        return theme;
+    }
+
+    private void linkTheme(Accommodation accommodation, Theme theme) {
+        entityManager.persist(new AccommodationTheme(accommodation, theme));
+        entityManager.flush();
     }
 
     private Room persistRoom(Long accommodationsId, int maxGuests) {

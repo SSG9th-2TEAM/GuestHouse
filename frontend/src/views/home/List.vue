@@ -30,8 +30,8 @@ let observer = null
 const isFilterModalOpen = ref(false)
 
 const normalizeItem = (item) => {
-  const id = item.accomodationsId ?? item.accommodationsId ?? item.id
-  const title = item.accomodationsName ?? item.accommodationsName ?? item.title ?? ''
+  const id = item.accommodationsId ?? item.accommodationId ?? item.id
+  const title = item.accommodationsName ?? item.accommodationName ?? item.title ?? ''
   const description = item.shortDescription ?? item.description ?? ''
   const rating = item.rating ?? null
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
