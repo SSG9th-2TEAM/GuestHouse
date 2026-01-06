@@ -266,7 +266,8 @@ watch(
 <template>
   <main class="container main-content">
     <div class="header">
-      <h1>검색결과 {{ totalCount }}건</h1>
+      <h1 v-if="filteredItems.length > 0">검색결과 {{ totalCount }}건</h1>
+      <h1 v-else>숙소 목록</h1>
       <button class="filter-btn" @click="isFilterModalOpen = !isFilterModalOpen"><span class="icon">🔍</span>필터</button>
     </div>
 
@@ -464,7 +465,7 @@ watch(
 .empty-icon-wrapper {
   width: 80px;
   height: 80px;
-  background-color: #f3f4f6;
+  background-color: var(--bg-gray, #f3f4f6);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -480,14 +481,14 @@ watch(
 .empty-title {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-main, #1f2937);
   margin: 0 0 0.75rem 0;
   word-break: keep-all;
 }
 
 .empty-description {
   font-size: 0.95rem;
-  color: #6b7280;
+  color: var(--text-sub, #6b7280);
   margin: 0;
   line-height: 1.6;
   word-break: keep-all;
