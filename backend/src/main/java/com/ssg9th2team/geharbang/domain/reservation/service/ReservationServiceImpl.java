@@ -31,6 +31,7 @@ public class ReservationServiceImpl implements ReservationService {
         private final ReviewJpaRepository reviewJpaRepository;
         private final PaymentService paymentService;
         private final com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository roomJpaRepository;
+        private final com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository paymentRepository;
 
         @Override
         @Transactional
@@ -140,7 +141,13 @@ public class ReservationServiceImpl implements ReservationService {
                 String address = accommodation.getCity() + " " + accommodation.getDistrict() + " "
                                 + accommodation.getAddressDetail();
 
-                return ReservationResponseDto.from(reservation, accommodation.getAccommodationsName(), address);
+                // Payment에서 paymentMethod 조회
+                String paymentMethod = paymentRepository.findByReservationId(reservationId)
+                                .map(com.ssg9th2team.geharbang.domain.payment.entity.Payment::getPaymentMethod)
+                                .orElse(null);
+
+                return ReservationResponseDto.from(reservation, accommodation.getAccommodationsName(), address, null,
+                                false, paymentMethod);
         }
 
         @Override
