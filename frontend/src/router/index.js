@@ -299,7 +299,7 @@ router.beforeEach((to, from, next) => {
             alert('접근 권한이 없습니다.');
             return next('/');
         }
-        if (isHostRoute && userRole !== 'HOST' && to.path !== '/host/accommodation/register') {
+        if (isHostRoute && userRole !== 'HOST' && userRole !== 'ROLE_HOST' && to.path !== '/host/accommodation/register') {
             // 호스트 페이지에 접근하려는 비호스트 사용자
             alert('접근 권한이 없습니다.');
             return next('/');
