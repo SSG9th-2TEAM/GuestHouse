@@ -3,7 +3,7 @@ import { onMounted, ref, computed } from 'vue'
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
 import { useRouter } from 'vue-router'
 import { fetchThemes, fetchUserThemes } from '@/api/theme'
-import { fetchList } from '@/api/list'
+import { fetchList, fetchListBulk } from '@/api/list'
 import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
 import { isAuthenticated, getUserId } from '@/api/authClient'
 import { fetchRecommendations } from '@/api/recommendation'
@@ -43,6 +43,19 @@ const getMoreLabel = (name) => {
 }
 const goToThemeList = (themeId) => {
   router.push({ path: '/list', query: { themeIds: String(themeId) } })
+}
+
+const extractListItems = (payload) => {
+  if (Array.isArray(payload)) {
+    return payload
+  }
+  if (payload?.recommendedAccommodations || payload?.generalAccommodations) {
+    return [
+      ...(payload.recommendedAccommodations || []),
+      ...(payload.generalAccommodations || [])
+    ]
+  }
+  return payload?.items ?? payload?.content ?? payload?.data ?? []
 }
 
 const loadWishlist = async () => {
@@ -125,24 +138,22 @@ const loadSections = async () => {
       })
     const orderedThemes = [...preferredThemes, ...remainingThemes].slice(0, MAX_THEME_SECTIONS)
 
+    const themeIds = orderedThemes.map((theme) => theme.id).filter(Boolean)
+    let bulkMap = {}
+    if (themeIds.length) {
+      const bulkResponse = await fetchListBulk(themeIds)
+      if (bulkResponse.ok && bulkResponse.data) {
+        bulkMap = bulkResponse.data
+      }
+    }
+
     const results = await Promise.all(
       orderedThemes.map(async (theme) => {
-        const response = await fetchList([theme.id])
-        const payload = response.ok ? response.data : {}
-        // Handle new backend response structure: { recommendedAccommodations: [], generalAccommodations: [] }
-        let list = []
-        if (Array.isArray(payload)) {
-          // Legacy format: direct array
-          list = payload
-        } else if (payload?.recommendedAccommodations || payload?.generalAccommodations) {
-          // New format: combine recommended and general accommodations
-          list = [
-            ...(payload.recommendedAccommodations || []),
-            ...(payload.generalAccommodations || [])
-          ]
-        } else {
-          // Fallback for other formats
-          list = payload?.items ?? payload?.content ?? payload?.data ?? []
+        const payload = bulkMap?.[theme.id] ?? bulkMap?.[String(theme.id)]
+        let list = payload ? extractListItems(payload) : []
+        if (!payload) {
+          const response = await fetchList([theme.id])
+          list = response.ok ? extractListItems(response.data) : []
         }
         return {
           id: theme.id,

@@ -29,6 +29,7 @@ export const fetchRefundQuote = (reservationId) => hostGet('/refunds/quote', { r
 
 export const fetchAdminPayments = (params = {}) => adminGet('/payments', params)
 export const fetchAdminPaymentMetrics = (params = {}) => adminGet('/payments/metrics', params)
+export const fetchAdminPaymentSummary = (params = {}) => adminGet('/payments/summary', params)
 
 export const fetchAdminPaymentDetail = (paymentId) => adminGet(`/payments/${paymentId}`)
 

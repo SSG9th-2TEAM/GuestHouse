@@ -16,11 +16,15 @@ import com.ssg9th2team.geharbang.domain.room.dto.RoomCreateDto;
 import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.mybatis.RoomMapper;
+import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
+import com.ssg9th2team.geharbang.domain.theme.repository.ThemeRepository;
 import com.ssg9th2team.geharbang.domain.wishlist.repository.mybatis.WishlistMapper;
 import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -37,6 +41,7 @@ public class AccommodationServiceImpl implements AccommodationService {
     private final PaymentJpaRepository paymentJpaRepository;
     private final PaymentRefundJpaRepository paymentRefundJpaRepository;
     private final WishlistMapper wishlistMapper;
+    private final ThemeRepository themeRepository;
 
 
     // 숙소 등록
@@ -143,6 +148,7 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         // 테마
         if (createRequestDto.getThemeIds() != null && !createRequestDto.getThemeIds().isEmpty()) {
+            validateThemeIds(createRequestDto.getThemeIds());
             accommodationMapper.insertAccommodationThemes(accommodationsId, createRequestDto.getThemeIds());
         }
 
@@ -207,6 +213,7 @@ public class AccommodationServiceImpl implements AccommodationService {
         if (updateRequestDto.getThemeIds() != null) {
             accommodationMapper.deleteAccommodationThemes(accommodationsId);
             if (!updateRequestDto.getThemeIds().isEmpty()) {
+                validateThemeIds(updateRequestDto.getThemeIds());
                 accommodationMapper.insertAccommodationThemes(accommodationsId, updateRequestDto.getThemeIds());
             }
         }
@@ -395,5 +402,16 @@ public class AccommodationServiceImpl implements AccommodationService {
 
         accommodationMapper.deleteAccommodation(accommodationsId);
 
+    }
+
+    private void validateThemeIds(List<Long> themeIds) {
+        if (themeIds == null || themeIds.isEmpty()) return;
+        List<Long> distinctIds = themeIds.stream().distinct().toList();
+        List<Long> existingIds = themeRepository.findAllById(distinctIds).stream()
+                .map(Theme::getId)
+                .toList();
+        if (existingIds.size() != distinctIds.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "존재하지 않는 테마 ID가 포함되어 있습니다.");
+        }
     }
 }

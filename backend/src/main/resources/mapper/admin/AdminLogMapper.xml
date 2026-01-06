@@ -45,11 +45,13 @@
         <if test="actionType != null and actionType != ''">
             AND action_type = #{actionType}
         </if>
-        <if test="keyword != null and keyword != ''">
+        <if test="keywordTargetId != null">
+            AND target_id = #{keywordTargetId}
+        </if>
+        <if test="keywordTargetId == null and keyword != null and keyword != ''">
             AND (
                 reason LIKE CONCAT('%', #{keyword}, '%')
                 OR target_type LIKE CONCAT('%', #{keyword}, '%')
-                OR CAST(target_id AS CHAR) LIKE CONCAT('%', #{keyword}, '%')
                 OR metadata_json LIKE CONCAT('%', #{keyword}, '%')
             )
         </if>
@@ -70,11 +72,13 @@
         <if test="actionType != null and actionType != ''">
             AND action_type = #{actionType}
         </if>
-        <if test="keyword != null and keyword != ''">
+        <if test="keywordTargetId != null">
+            AND target_id = #{keywordTargetId}
+        </if>
+        <if test="keywordTargetId == null and keyword != null and keyword != ''">
             AND (
                 reason LIKE CONCAT('%', #{keyword}, '%')
                 OR target_type LIKE CONCAT('%', #{keyword}, '%')
-                OR CAST(target_id AS CHAR) LIKE CONCAT('%', #{keyword}, '%')
                 OR metadata_json LIKE CONCAT('%', #{keyword}, '%')
             )
         </if>

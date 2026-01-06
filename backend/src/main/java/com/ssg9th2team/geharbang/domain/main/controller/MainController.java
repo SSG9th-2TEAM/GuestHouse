@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/public")
@@ -44,6 +46,32 @@ public class MainController {
                     .orElse(null); // If user not found, userId remains null
         }
         return mainService.getMainAccommodationList(userId, themeIds, keyword);
+    }
+
+    @GetMapping("/list/bulk")
+    public Map<Long, MainAccommodationListResponse> listBulk(
+            Authentication authentication,
+            @RequestParam(name = "themeIds") List<Long> themeIds,
+            @RequestParam(name = "keyword", required = false) String keyword
+    ) {
+        Long userId = null;
+        if (authentication != null && authentication.isAuthenticated()) {
+            String userEmail = authentication.getName();
+            userId = userRepository.findByEmail(userEmail)
+                    .map(com.ssg9th2team.geharbang.domain.auth.entity.User::getId)
+                    .orElse(null);
+        }
+        Map<Long, MainAccommodationListResponse> result = new LinkedHashMap<>();
+        if (themeIds == null) {
+            return result;
+        }
+        for (Long themeId : themeIds) {
+            if (themeId == null) {
+                continue;
+            }
+            result.put(themeId, mainService.getMainAccommodationList(userId, List.of(themeId), keyword));
+        }
+        return result;
     }
 
     @GetMapping("/detail/{accommodationsId}")

@@ -5,9 +5,8 @@ import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportResolveRequest;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportSummary;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminReportService;
-import com.ssg9th2team.geharbang.domain.admin.support.AdminIdentityResolver;
+import com.ssg9th2team.geharbang.domain.admin.support.AdminId;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,11 +22,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminReportController {
 
     private final AdminReportService reportService;
-    private final AdminIdentityResolver adminIdentityResolver;
 
     @GetMapping
     public AdminPageResponse<AdminReportSummary> getReports(
-            Authentication authentication,
+            @AdminId Long adminId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String keyword,
@@ -35,7 +33,6 @@ public class AdminReportController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "latest") String sort
     ) {
-        adminIdentityResolver.resolveAdminUserId(authentication);
         return reportService.getReports(
                 normalizeFilter(status),
                 normalizeFilter(type),
@@ -48,20 +45,18 @@ public class AdminReportController {
 
     @GetMapping("/{reportId}")
     public AdminReportDetail getReportDetail(
-            Authentication authentication,
+            @AdminId Long adminId,
             @PathVariable Long reportId
     ) {
-        adminIdentityResolver.resolveAdminUserId(authentication);
         return reportService.getReportDetail(reportId);
     }
 
     @PostMapping("/{reportId}/resolve")
     public AdminReportDetail resolveReport(
-            Authentication authentication,
+            @AdminId Long adminId,
             @PathVariable Long reportId,
             @RequestBody AdminReportResolveRequest request
     ) {
-        adminIdentityResolver.resolveAdminUserId(authentication);
         String action = request != null ? request.action() : null;
         return reportService.resolveReport(reportId, action);
     }
