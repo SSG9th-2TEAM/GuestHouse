@@ -168,6 +168,7 @@ const coupons = ref([])
 const selectedCoupon = ref(null)
 const isLoading = ref(false)
 const errorMessage = ref('')
+const isErrorModalOpen = ref(false)
 
 // 쿠폰 할인 금액 계산
 const calculateDiscount = (coupon, price) => {
@@ -238,9 +239,11 @@ const handlePayment = async () => {
   } catch (error) {
     console.error('예약 생성 실패:', error)
     if (error.message.includes('409') || error.message.includes('Conflict')) {
-      errorMessage.value = '선택하신 날짜에 이미 예약이 존재합니다. 다른 날짜를 선택해주세요.'
+      errorMessage.value = '선택하신 날짜에 이미 예약이 존재합니다.<br>다른 날짜를 선택해주세요.'
+      isErrorModalOpen.value = true
     } else {
-      errorMessage.value = '예약 처리 중 오류가 발생했습니다. 다시 시도해주세요.'
+      errorMessage.value = '예약 처리 중 오류가 발생했습니다.<br>다시 시도해주세요.'
+      isErrorModalOpen.value = true
     }
   } finally {
     isLoading.value = false
@@ -348,7 +351,6 @@ const handlePayment = async () => {
 
     <!-- Bottom Action -->
     <div class="bottom-action">
-      <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
       <button 
         class="pay-btn" 
         :disabled="isLoading"
@@ -356,6 +358,16 @@ const handlePayment = async () => {
       >
         {{ isLoading ? '처리 중...' : '결제하기' }}
       </button>
+    </div>
+  </div>
+
+  <!-- Error Modal -->
+  <div v-if="isErrorModalOpen" class="modal-overlay" @click.self="isErrorModalOpen = false">
+    <div class="modal-content error-modal">
+      <div class="modal-icon error">⚠️</div>
+      <h3>예약 실패</h3>
+      <p class="modal-desc" v-html="errorMessage"></p>
+      <button class="close-modal-btn" @click="isErrorModalOpen = false">확인</button>
     </div>
   </div>
 </template>
@@ -601,12 +613,72 @@ const handlePayment = async () => {
   cursor: not-allowed;
 }
 
-.error-message {
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100%;
-  max-width: 600px;
-  color: #e11d48;
-  font-size: 0.9rem;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   text-align: center;
+  padding: 2rem;
+  width: 90%;
+  max-width: 360px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.modal-content h3 {
+  font-size: 1.2rem;
   margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.modal-desc {
+  color: #666;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+}
+
+.close-modal-btn {
+  background: var(--primary);
+  color: #004d40;
+  border: none;
+  padding: 0.8rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.error-message {
+  display: none;
 }
 </style>

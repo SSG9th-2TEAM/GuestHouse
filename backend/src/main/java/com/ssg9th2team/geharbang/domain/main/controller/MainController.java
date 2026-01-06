@@ -7,6 +7,7 @@ import com.ssg9th2team.geharbang.domain.main.dto.AccommodationDetailDto;
 import com.ssg9th2team.geharbang.domain.main.dto.MainAccommodationListResponse;
 import com.ssg9th2team.geharbang.domain.main.service.MainService;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
@@ -30,6 +31,7 @@ public class MainController {
     private final MainService mainService;
     private final AccommodationService accommodationService;
     private final UserRepository userRepository; // Inject UserRepository
+
     private final RoomJpaRepository roomJpaRepository;
 
     @GetMapping("/list")

@@ -120,11 +120,6 @@ const router = createRouter({
             component: () => import('../views/SocialSignupView/SocialSignupView.vue')
         },
         {
-            path: '/oauth2/redirect',
-            name: 'oauth-redirect',
-            component: () => import('../views/OAuth2RedirectView/OAuth2RedirectView.vue')
-        },
-        {
             path: '/find-email',
             name: 'find-email',
             component: () => import('../views/LoginView/FindEmailView.vue')

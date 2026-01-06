@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import HostAccommodationRegister from './HostAccommodationRegister.vue'
 import { fetchHostAccommodations, deleteHostAccommodation } from '@/api/hostAccommodation'
 
-const SERVER_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:8080'
+const SERVER_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || ''
 
 // 이미지 URL을 전체 경로로 변환
 const getFullImageUrl = (url) => {

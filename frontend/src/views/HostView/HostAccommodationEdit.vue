@@ -7,10 +7,10 @@ const route = useRoute()
 const router = useRouter()
 const accommodationId = route.params.id
 
-// API Base URL (프록시 사용: /api -> http://localhost:8080/api)
+// API Base URL (프록시 사용: /api -> /api)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 // 이미지 URL용 서버 기본 경로
-const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8080'
+const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || ''
 
 // 이미지 URL을 전체 경로로 변환
 const getFullImageUrl = (url) => {
