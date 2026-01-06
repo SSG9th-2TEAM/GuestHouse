@@ -56,9 +56,20 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
               AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rs.hasGuestCapacity, 0) = 1)
+              AND (:minPrice IS NULL OR
+                   (CASE
+                       WHEN (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(rs.minPriceForGuest, a.min_price)
+                    END) >= :minPrice)
+              AND (:maxPrice IS NULL OR
+                   (CASE
+                       WHEN (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(rs.minPriceForGuest, a.min_price)
+                    END) <= :maxPrice)
             ORDER BY a.accommodations_id DESC
-            """,
-            countQuery = """
+            """, countQuery = """
             WITH room_stats AS (
                 SELECT accommodations_id,
                        MAX(CASE
@@ -80,13 +91,13 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
               AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rs.hasGuestCapacity, 0) = 1)
-            """,
-            nativeQuery = true)
+            """, nativeQuery = true)
     Page<ListDtoProjection> searchPublicListNoDates(
             @Param("keyword") String keyword,
             @Param("guestCount") Integer guestCount,
-            Pageable pageable
-    );
+            @Param("minPrice") Integer minPrice,
+            @Param("maxPrice") Integer maxPrice,
+            Pageable pageable);
 
     @Query(value = """
             WITH RECURSIVE stay_dates (stay_date) AS (
@@ -191,8 +202,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       WHERE ar.accommodations_id = a.accommodations_id
                    ))
             ORDER BY a.accommodations_id DESC
-            """,
-            countQuery = """
+            """, countQuery = """
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
@@ -259,15 +269,29 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       FROM available_rooms ar
                       WHERE ar.accommodations_id = a.accommodations_id
                    ))
-            """,
-            nativeQuery = true)
+               AND (:minPrice IS NULL OR
+                    (CASE
+                        WHEN (:checkin IS NULL OR :checkout IS NULL)
+                             AND (:guestCount IS NULL OR :guestCount < 2)
+                            THEN a.min_price
+                        ELSE COALESCE(mp.min_price, a.min_price)
+                     END) >= :minPrice)
+               AND (:maxPrice IS NULL OR
+                    (CASE
+                        WHEN (:checkin IS NULL OR :checkout IS NULL)
+                             AND (:guestCount IS NULL OR :guestCount < 2)
+                            THEN a.min_price
+                        ELSE COALESCE(mp.min_price, a.min_price)
+                     END) <= :maxPrice)
+            """, nativeQuery = true)
     Page<ListDtoProjection> searchPublicList(
             @Param("keyword") String keyword,
             @Param("checkin") LocalDateTime checkin,
             @Param("checkout") LocalDateTime checkout,
             @Param("guestCount") Integer guestCount,
-            Pageable pageable
-    );
+            @Param("minPrice") Integer minPrice,
+            @Param("maxPrice") Integer maxPrice,
+            Pageable pageable);
 
     @Query(value = """
             WITH room_stats AS (
@@ -315,9 +339,20 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
               AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rs.hasGuestCapacity, 0) = 1)
+              AND (:minPrice IS NULL OR
+                   (CASE
+                       WHEN (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(rs.minPriceForGuest, a.min_price)
+                    END) >= :minPrice)
+              AND (:maxPrice IS NULL OR
+                   (CASE
+                       WHEN (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(rs.minPriceForGuest, a.min_price)
+                    END) <= :maxPrice)
             ORDER BY a.accommodations_id DESC
-            """,
-            countQuery = """
+            """, countQuery = """
             WITH room_stats AS (
                 SELECT accommodations_id,
                        MAX(CASE
@@ -341,14 +376,14 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
               AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rs.hasGuestCapacity, 0) = 1)
-            """,
-            nativeQuery = true)
+            """, nativeQuery = true)
     Page<ListDtoProjection> searchPublicListByThemeNoDates(
             @Param("themeIds") List<Long> themeIds,
             @Param("keyword") String keyword,
             @Param("guestCount") Integer guestCount,
-            Pageable pageable
-    );
+            @Param("minPrice") Integer minPrice,
+            @Param("maxPrice") Integer maxPrice,
+            Pageable pageable);
 
     @Query(value = """
             WITH RECURSIVE stay_dates (stay_date) AS (
@@ -455,8 +490,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       WHERE ar.accommodations_id = a.accommodations_id
                    ))
             ORDER BY a.accommodations_id DESC
-            """,
-            countQuery = """
+            """, countQuery = """
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
@@ -525,16 +559,16 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       FROM available_rooms ar
                       WHERE ar.accommodations_id = a.accommodations_id
                    ))
-            """,
-            nativeQuery = true)
+            """, nativeQuery = true)
     Page<ListDtoProjection> searchPublicListByTheme(
             @Param("themeIds") List<Long> themeIds,
             @Param("keyword") String keyword,
             @Param("checkin") LocalDateTime checkin,
             @Param("checkout") LocalDateTime checkout,
             @Param("guestCount") Integer guestCount,
-            Pageable pageable
-    );
+            @Param("minPrice") Integer minPrice,
+            @Param("maxPrice") Integer maxPrice,
+            Pageable pageable);
 
     @Query(value = """
             WITH room_stats AS (
@@ -584,9 +618,20 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
               AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rs.hasGuestCapacity, 0) = 1)
+              AND (:minPrice IS NULL OR
+                   (CASE
+                       WHEN (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(rs.minPriceForGuest, a.min_price)
+                    END) >= :minPrice)
+              AND (:maxPrice IS NULL OR
+                   (CASE
+                       WHEN (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(rs.minPriceForGuest, a.min_price)
+                    END) <= :maxPrice)
             ORDER BY a.accommodations_id DESC
-            """,
-            countQuery = """
+            """, countQuery = """
             WITH room_stats AS (
                 SELECT accommodations_id,
                        MAX(CASE
@@ -612,8 +657,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
               AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rs.hasGuestCapacity, 0) = 1)
-            """,
-            nativeQuery = true)
+            """, nativeQuery = true)
     Page<ListDtoProjection> searchPublicListByBoundsNoDates(
             @Param("keyword") String keyword,
             @Param("minLat") Double minLat,
@@ -621,8 +665,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("minLng") Double minLng,
             @Param("maxLng") Double maxLng,
             @Param("guestCount") Integer guestCount,
-            Pageable pageable
-    );
+            @Param("minPrice") Integer minPrice,
+            @Param("maxPrice") Integer maxPrice,
+            Pageable pageable);
 
     @Query(value = """
             WITH RECURSIVE stay_dates (stay_date) AS (
@@ -730,9 +775,22 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       FROM available_rooms ar
                       WHERE ar.accommodations_id = a.accommodations_id
                    ))
+              AND (:minPrice IS NULL OR
+                   (CASE
+                       WHEN (:checkin IS NULL OR :checkout IS NULL)
+                            AND (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(mp.min_price, a.min_price)
+                    END) >= :minPrice)
+              AND (:maxPrice IS NULL OR
+                   (CASE
+                       WHEN (:checkin IS NULL OR :checkout IS NULL)
+                            AND (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(mp.min_price, a.min_price)
+                    END) <= :maxPrice)
             ORDER BY a.accommodations_id DESC
-            """,
-            countQuery = """
+            """, countQuery = """
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
@@ -780,9 +838,16 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                             GROUP BY d.stay_date
                             HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > rc.max_guests
                         ))
+            ),
+            min_prices (accommodations_id, min_price) AS (
+                SELECT accommodations_id,
+                       MIN(price) AS min_price
+                FROM available_rooms
+                GROUP BY accommodations_id
             )
             SELECT COUNT(*)
             FROM accommodation a
+            LEFT JOIN min_prices mp ON mp.accommodations_id = a.accommodations_id
             WHERE a.accommodation_status = 1
               AND a.approval_status = 'APPROVED'
               AND a.latitude IS NOT NULL
@@ -803,8 +868,21 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       FROM available_rooms ar
                       WHERE ar.accommodations_id = a.accommodations_id
                    ))
-            """,
-            nativeQuery = true)
+              AND (:minPrice IS NULL OR
+                   (CASE
+                       WHEN (:checkin IS NULL OR :checkout IS NULL)
+                            AND (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(mp.min_price, a.min_price)
+                    END) >= :minPrice)
+              AND (:maxPrice IS NULL OR
+                   (CASE
+                       WHEN (:checkin IS NULL OR :checkout IS NULL)
+                            AND (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(mp.min_price, a.min_price)
+                    END) <= :maxPrice)
+            """, nativeQuery = true)
     Page<ListDtoProjection> searchPublicListByBounds(
             @Param("keyword") String keyword,
             @Param("minLat") Double minLat,
@@ -814,8 +892,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("checkin") LocalDateTime checkin,
             @Param("checkout") LocalDateTime checkout,
             @Param("guestCount") Integer guestCount,
-            Pageable pageable
-    );
+            @Param("minPrice") Integer minPrice,
+            @Param("maxPrice") Integer maxPrice,
+            Pageable pageable);
 
     @Query(value = """
             WITH room_stats AS (
@@ -867,9 +946,20 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
               AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rs.hasGuestCapacity, 0) = 1)
+              AND (:minPrice IS NULL OR
+                   (CASE
+                       WHEN (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(rs.minPriceForGuest, a.min_price)
+                    END) >= :minPrice)
+              AND (:maxPrice IS NULL OR
+                   (CASE
+                       WHEN (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(rs.minPriceForGuest, a.min_price)
+                    END) <= :maxPrice)
             ORDER BY a.accommodations_id DESC
-            """,
-            countQuery = """
+            """, countQuery = """
             WITH room_stats AS (
                 SELECT accommodations_id,
                        MAX(CASE
@@ -897,8 +987,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
               AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rs.hasGuestCapacity, 0) = 1)
-            """,
-            nativeQuery = true)
+            """, nativeQuery = true)
     Page<ListDtoProjection> searchPublicListByThemeAndBoundsNoDates(
             @Param("themeIds") List<Long> themeIds,
             @Param("keyword") String keyword,
@@ -907,8 +996,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("minLng") Double minLng,
             @Param("maxLng") Double maxLng,
             @Param("guestCount") Integer guestCount,
-            Pageable pageable
-    );
+            @Param("minPrice") Integer minPrice,
+            @Param("maxPrice") Integer maxPrice,
+            Pageable pageable);
 
     @Query(value = """
             WITH RECURSIVE stay_dates (stay_date) AS (
@@ -1018,9 +1108,22 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       FROM available_rooms ar
                       WHERE ar.accommodations_id = a.accommodations_id
                    ))
+              AND (:minPrice IS NULL OR
+                   (CASE
+                       WHEN (:checkin IS NULL OR :checkout IS NULL)
+                            AND (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(mp.min_price, a.min_price)
+                    END) >= :minPrice)
+              AND (:maxPrice IS NULL OR
+                   (CASE
+                       WHEN (:checkin IS NULL OR :checkout IS NULL)
+                            AND (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(mp.min_price, a.min_price)
+                    END) <= :maxPrice)
             ORDER BY a.accommodations_id DESC
-            """,
-            countQuery = """
+            """, countQuery = """
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
                 UNION ALL
@@ -1068,10 +1171,17 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                             GROUP BY d.stay_date
                             HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > rc.max_guests
                         ))
+            ),
+            min_prices (accommodations_id, min_price) AS (
+                SELECT accommodations_id,
+                       MIN(price) AS min_price
+                FROM available_rooms
+                GROUP BY accommodations_id
             )
             SELECT COUNT(DISTINCT a.accommodations_id)
             FROM accommodation a
             JOIN accommodation_theme at ON at.accommodations_id = a.accommodations_id
+            LEFT JOIN min_prices mp ON mp.accommodations_id = a.accommodations_id
             WHERE at.theme_id IN (:themeIds)
               AND a.accommodation_status = 1
               AND a.approval_status = 'APPROVED'
@@ -1093,8 +1203,21 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       FROM available_rooms ar
                       WHERE ar.accommodations_id = a.accommodations_id
                    ))
-            """,
-            nativeQuery = true)
+              AND (:minPrice IS NULL OR
+                   (CASE
+                       WHEN (:checkin IS NULL OR :checkout IS NULL)
+                            AND (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(mp.min_price, a.min_price)
+                    END) >= :minPrice)
+              AND (:maxPrice IS NULL OR
+                   (CASE
+                       WHEN (:checkin IS NULL OR :checkout IS NULL)
+                            AND (:guestCount IS NULL OR :guestCount < 2)
+                           THEN a.min_price
+                       ELSE COALESCE(mp.min_price, a.min_price)
+                    END) <= :maxPrice)
+            """, nativeQuery = true)
     Page<ListDtoProjection> searchPublicListByThemeAndBounds(
             @Param("themeIds") List<Long> themeIds,
             @Param("keyword") String keyword,
@@ -1105,8 +1228,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("checkin") LocalDateTime checkin,
             @Param("checkout") LocalDateTime checkout,
             @Param("guestCount") Integer guestCount,
-            Pageable pageable
-    );
+            @Param("minPrice") Integer minPrice,
+            @Param("maxPrice") Integer maxPrice,
+            Pageable pageable);
 }
-
-

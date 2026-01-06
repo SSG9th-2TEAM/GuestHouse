@@ -32,8 +32,9 @@ public class SearchServiceImpl implements SearchService {
             Double maxLng,
             LocalDateTime checkin,
             LocalDateTime checkout,
-            Integer guestCount
-    ) {
+            Integer guestCount,
+            Integer minPrice,
+            Integer maxPrice) {
         PageRequest pageable = PageRequest.of(page, size);
         String normalizedKeyword = normalizeKeyword(keyword);
         Page<ListDtoProjection> resultPage;
@@ -64,8 +65,9 @@ public class SearchServiceImpl implements SearchService {
                         checkin,
                         checkout,
                         guestCount,
-                        pageable
-                );
+                        minPrice,
+                        maxPrice,
+                        pageable);
             } else if (hasThemes) {
                 resultPage = searchRepository.searchPublicListByTheme(
                         themeIds,
@@ -73,8 +75,9 @@ public class SearchServiceImpl implements SearchService {
                         checkin,
                         checkout,
                         guestCount,
-                        pageable
-                );
+                        minPrice,
+                        maxPrice,
+                        pageable);
             } else if (hasBounds) {
                 resultPage = searchRepository.searchPublicListByBounds(
                         normalizedKeyword,
@@ -85,16 +88,18 @@ public class SearchServiceImpl implements SearchService {
                         checkin,
                         checkout,
                         guestCount,
-                        pageable
-                );
+                        minPrice,
+                        maxPrice,
+                        pageable);
             } else {
                 resultPage = searchRepository.searchPublicList(
                         normalizedKeyword,
                         checkin,
                         checkout,
                         guestCount,
-                        pageable
-                );
+                        minPrice,
+                        maxPrice,
+                        pageable);
             }
         } else {
             if (hasThemes && hasBounds) {
@@ -106,15 +111,17 @@ public class SearchServiceImpl implements SearchService {
                         west,
                         east,
                         guestCount,
-                        pageable
-                );
+                        minPrice,
+                        maxPrice,
+                        pageable);
             } else if (hasThemes) {
                 resultPage = searchRepository.searchPublicListByThemeNoDates(
                         themeIds,
                         normalizedKeyword,
                         guestCount,
-                        pageable
-                );
+                        minPrice,
+                        maxPrice,
+                        pageable);
             } else if (hasBounds) {
                 resultPage = searchRepository.searchPublicListByBoundsNoDates(
                         normalizedKeyword,
@@ -123,14 +130,16 @@ public class SearchServiceImpl implements SearchService {
                         west,
                         east,
                         guestCount,
-                        pageable
-                );
+                        minPrice,
+                        maxPrice,
+                        pageable);
             } else {
                 resultPage = searchRepository.searchPublicListNoDates(
                         normalizedKeyword,
                         guestCount,
-                        pageable
-                );
+                        minPrice,
+                        maxPrice,
+                        pageable);
             }
         }
 

@@ -30,12 +30,11 @@ public class SearchController {
             @RequestParam(name = "maxLat", required = false) Double maxLat,
             @RequestParam(name = "minLng", required = false) Double minLng,
             @RequestParam(name = "maxLng", required = false) Double maxLng,
-            @RequestParam(name = "checkin", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkin,
-            @RequestParam(name = "checkout", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkout,
-            @RequestParam(name = "guestCount", required = false) Integer guestCount
-    ) {
+            @RequestParam(name = "checkin", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkin,
+            @RequestParam(name = "checkout", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkout,
+            @RequestParam(name = "guestCount", required = false) Integer guestCount,
+            @RequestParam(name = "minPrice", required = false) Integer minPrice,
+            @RequestParam(name = "maxPrice", required = false) Integer maxPrice) {
         LocalDateTime checkinAt = checkin != null ? checkin.atTime(15, 0) : null;
         LocalDateTime checkoutAt = checkout != null ? checkout.atTime(11, 0) : null;
         return searchService.searchPublicList(
@@ -49,7 +48,8 @@ public class SearchController {
                 maxLng,
                 checkinAt,
                 checkoutAt,
-                guestCount
-        );
+                guestCount,
+                minPrice,
+                maxPrice);
     }
 }

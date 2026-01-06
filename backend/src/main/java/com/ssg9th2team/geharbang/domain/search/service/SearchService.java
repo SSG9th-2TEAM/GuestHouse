@@ -17,6 +17,7 @@ public interface SearchService {
             Double maxLng,
             LocalDateTime checkin,
             LocalDateTime checkout,
-            Integer guestCount
-    );
+            Integer guestCount,
+            Integer minPrice,
+            Integer maxPrice);
 }
