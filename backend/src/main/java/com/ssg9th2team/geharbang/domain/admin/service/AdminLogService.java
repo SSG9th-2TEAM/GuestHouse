@@ -1,13 +1,16 @@
 package com.ssg9th2team.geharbang.domain.admin.service;
 
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminLogRow;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.repository.mybatis.AdminLogMapper;
-import com.ssg9th2team.geharbang.domain.auth.repository.AdminRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -15,33 +18,38 @@ import org.springframework.util.StringUtils;
 public class AdminLogService {
 
     private final AdminLogMapper adminLogMapper;
-    private final AdminRepository adminRepository;
 
-    public void writeLog(String targetType, Long targetId, String actionType, String reason) {
+    public void writeLog(Long adminUserId, String actionType, String targetType, Long targetId, String reason, String metadataJson) {
         try {
-            Long adminId = resolveAdminId();
-            if (adminId == null || targetId == null) {
+            if (adminUserId == null || targetId == null) {
                 return;
             }
             String normalizedReason = StringUtils.hasText(reason) ? reason.trim() : null;
-            adminLogMapper.insertAdminLog(adminId, targetType, targetId, actionType, normalizedReason);
+            String normalizedMetadata = StringUtils.hasText(metadataJson) ? metadataJson.trim() : null;
+            adminLogMapper.insertAdminLog(adminUserId, targetType, targetId, actionType, normalizedReason, normalizedMetadata);
         } catch (Exception e) {
             log.warn("Failed to insert admin_log: targetType={}, targetId={}, actionType={}",
                     targetType, targetId, actionType, e);
         }
     }
 
-    private Long resolveAdminId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return null;
-        }
-        String username = authentication.getName();
-        if (!StringUtils.hasText(username)) {
-            return null;
-        }
-        return adminRepository.findByUsername(username)
-                .map(admin -> admin.getId())
-                .orElse(null);
+    public AdminPageResponse<AdminLogRow> getLogs(
+            LocalDate startDate,
+            LocalDate endDate,
+            String actionType,
+            String keyword,
+            int page,
+            int size,
+            int maxSize
+    ) {
+        int safePage = Math.max(0, page);
+        int safeSize = size > 0 ? Math.min(size, maxSize) : maxSize;
+        LocalDateTime start = startDate != null ? startDate.atStartOfDay() : null;
+        LocalDateTime end = endDate != null ? endDate.plusDays(1).atStartOfDay() : null;
+        int offset = safePage * safeSize;
+        List<AdminLogRow> items = adminLogMapper.selectAdminLogs(start, end, actionType, keyword, safeSize, offset);
+        long total = adminLogMapper.countAdminLogs(start, end, actionType, keyword);
+        int totalPages = total == 0 ? 0 : (int) Math.ceil((double) total / safeSize);
+        return AdminPageResponse.of(items, safePage, safeSize, total, totalPages);
     }
 }

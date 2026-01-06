@@ -120,7 +120,7 @@ class SearchServiceIntegrationTest {
 
         Accommodation blocked = persistAccommodation("\uC11C\uADC0\uD3EC \uC608\uC57D\uBD88\uAC00", "\uC11C\uADC0\uD3EC\uC2DC");
         Room blockedRoom = persistRoom(blocked.getAccommodationsId(), 4);
-        persistReservation(blocked.getAccommodationsId(), blockedRoom.getRoomId(), checkin, checkout);
+        persistReservation(blocked.getAccommodationsId(), blockedRoom.getRoomId(), checkin, checkout, 4);
 
         Accommodation available = persistAccommodation("\uC11C\uADC0\uD3EC \uC608\uC57D\uAC00\uB2A5", "\uC11C\uADC0\uD3EC\uC2DC");
         persistRoom(available.getAccommodationsId(), 4);
@@ -144,6 +144,36 @@ class SearchServiceIntegrationTest {
                 .map(item -> item.getAccomodationsName())
                 .toList();
         assertThat(names).containsExactly("\uC11C\uADC0\uD3EC \uC608\uC57D\uAC00\uB2A5");
+    }
+
+    @Test
+    @DisplayName("Min price uses available rooms when capacity remains")
+    void searchMinPriceUsesAvailableRoomsWhenCapacityRemains() {
+        LocalDateTime checkin = LocalDateTime.of(2026, 3, 1, 15, 0);
+        LocalDateTime checkout = LocalDateTime.of(2026, 3, 3, 11, 0);
+
+        Accommodation accommodation = persistAccommodation("\uC11C\uADC0\uD3EC \uCD5C\uC800\uAC00 \uD14C\uC2A4\uD2B8", "\uC11C\uADC0\uD3EC\uC2DC");
+        Room cheapRoom = persistRoom(accommodation.getAccommodationsId(), 4, 5000);
+        persistRoom(accommodation.getAccommodationsId(), 4, 15000);
+        persistReservation(accommodation.getAccommodationsId(), cheapRoom.getRoomId(), checkin, checkout, 1);
+        entityManager.clear();
+
+        PublicListResponse response = searchService.searchPublicList(
+                Collections.emptyList(),
+                "\uC11C\uADC0\uD3EC",
+                0,
+                10,
+                null,
+                null,
+                null,
+                null,
+                checkin,
+                checkout,
+                2
+        );
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).getMinPrice()).isEqualTo(5000L);
     }
 
     private Accommodation persistAccommodation(String name, String district) {
@@ -177,10 +207,14 @@ class SearchServiceIntegrationTest {
     }
 
     private Room persistRoom(Long accommodationsId, int maxGuests) {
+        return persistRoom(accommodationsId, maxGuests, 10000);
+    }
+
+    private Room persistRoom(Long accommodationsId, int maxGuests, int price) {
         Room room = Room.builder()
                 .accommodationsId(accommodationsId)
                 .roomName("test room")
-                .price(10000)
+                .price(price)
                 .minGuests(1)
                 .maxGuests(maxGuests)
                 .roomStatus(1)
@@ -191,6 +225,10 @@ class SearchServiceIntegrationTest {
     }
 
     private void persistReservation(Long accommodationsId, Long roomId, LocalDateTime checkin, LocalDateTime checkout) {
+        persistReservation(accommodationsId, roomId, checkin, checkout, 2);
+    }
+
+    private void persistReservation(Long accommodationsId, Long roomId, LocalDateTime checkin, LocalDateTime checkout, int guestCount) {
         int nights = (int) ChronoUnit.DAYS.between(checkin.toLocalDate(), checkout.toLocalDate());
         Reservation reservation = Reservation.builder()
                 .accommodationsId(accommodationsId)
@@ -199,7 +237,7 @@ class SearchServiceIntegrationTest {
                 .checkin(checkin)
                 .checkout(checkout)
                 .stayNights(nights)
-                .guestCount(2)
+                .guestCount(guestCount)
                 .reservationStatus(2)
                 .totalAmountBeforeDc(10000)
                 .couponDiscountAmount(0)

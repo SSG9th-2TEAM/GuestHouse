@@ -20,6 +20,7 @@ import com.ssg9th2team.geharbang.domain.holiday.dto.HolidayItemResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class HostReportService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -262,7 +264,7 @@ public class HostReportService {
                     }
                 }
             } catch (Exception ex) {
-                // ignore holiday fetch errors and continue
+                log.warn("Failed to fetch holidays for {}-{}, continuing without them.", cursor.getYear(), cursor.getMonthValue(), ex);
             }
             cursor = cursor.plusMonths(1);
         }

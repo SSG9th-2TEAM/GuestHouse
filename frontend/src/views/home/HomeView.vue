@@ -19,6 +19,7 @@ const loadError = ref('')
 const searchStore = useSearchStore()
 const MAX_ROW_CARDS = 12
 const MAX_ITEMS_PER_ROW = MAX_ROW_CARDS - 1
+const MAX_THEME_SECTIONS = 8
 
 const normalizeItem = (item) => {
   const id = item.accomodationsId ?? item.accommodationsId ?? item.accommodationId ?? item.id
@@ -114,10 +115,15 @@ const loadSections = async () => {
     }
 
     const preferredThemeIds = new Set(preferredThemes.map((theme) => theme.id))
-    const orderedThemes = [
-      ...preferredThemes,
-      ...themeList.filter((theme) => !preferredThemeIds.has(theme.id))
-    ]
+    const remainingThemes = themeList
+      .filter((theme) => !preferredThemeIds.has(theme.id))
+      .sort((a, b) => {
+        const countA = Number(a.accommodationCount ?? 0)
+        const countB = Number(b.accommodationCount ?? 0)
+        if (countA !== countB) return countB - countA
+        return (a.id ?? 0) - (b.id ?? 0)
+      })
+    const orderedThemes = [...preferredThemes, ...remainingThemes].slice(0, MAX_THEME_SECTIONS)
 
     const results = await Promise.all(
       orderedThemes.map(async (theme) => {
@@ -186,7 +192,7 @@ const loadRecommendations = async () => {
 onMounted(() => {
   searchStore.setKeyword('')
   searchStore.resetDates()
-  searchStore.setGuestCount(0)
+  searchStore.setGuestCount(1)
   loadSections()
   loadWishlist()
   loadRecommendations()

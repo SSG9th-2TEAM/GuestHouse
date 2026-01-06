@@ -25,12 +25,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
 public class OpenAiSummaryClient implements AiSummaryClient {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final Pattern NUMBERED_BULLET_MATCH = Pattern.compile("^\\d+\\..*");
+    private static final Pattern NUMBERED_BULLET_PREFIX = Pattern.compile("^\\d+\\.\\s*");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate;
@@ -117,13 +120,13 @@ public class OpenAiSummaryClient implements AiSummaryClient {
                         "입력 데이터(평점/리뷰/태그/기간)만 근거로, 과장/추측 없이 실무적으로 요약해라.\n" +
                         "출력은 반드시 한국어 마크다운으로만 작성한다.\n\n" +
                         "[입력]\n" +
-                        "- 기간: %s ~ %s\n" +
-                        "- 숙소명: %s\n" +
-                        "- 리뷰 수: %d\n" +
-                        "- 평균 평점: %.2f\n" +
-                        "- 별점 분포: %s\n" +
-                        "- 상위 태그 TOP10: %s\n" +
-                        "- 최근 리뷰 샘플(최대 10개):\n%s\n\n" +
+                        "- 기간: %2$s ~ %3$s\n" +
+                        "- 숙소명: %1$s\n" +
+                        "- 리뷰 수: %4$d\n" +
+                        "- 평균 평점: %5$.2f\n" +
+                        "- 별점 분포: %6$s\n" +
+                        "- 상위 태그 TOP10: %7$s\n" +
+                        "- 최근 리뷰 샘플(최대 10개):\n%8$s\n\n" +
                         "[출력 형식(고정)]\n" +
                         "## 총평\n" +
                         "- (1~2문장, 60자 이내)\n\n" +
@@ -136,19 +139,17 @@ public class OpenAiSummaryClient implements AiSummaryClient {
                         "## 주의/리스크\n" +
                         "- (최대 2개)\n\n" +
                         "## 근거 데이터\n" +
-                        "- 리뷰 수: %d, 평균 평점: %.2f\n" +
+                        "- 리뷰 수: %4$d, 평균 평점: %5$.2f\n" +
                         "- 대표 태그: (topTag) (n건)\n" +
                         "- 참고: 데이터가 부족하면 \"데이터 부족\"이라고 명시",
+                accommodationName,
                 summary.getFrom(),
                 summary.getTo(),
-                accommodationName,
                 summary.getReviewCount() != null ? summary.getReviewCount() : 0,
                 summary.getAvgRating() != null ? summary.getAvgRating() : 0.0,
                 summary.getRatingDistribution(),
                 tagLine,
-                recentReviews,
-                summary.getReviewCount() != null ? summary.getReviewCount() : 0,
-                summary.getAvgRating() != null ? summary.getAvgRating() : 0.0
+                recentReviews
         );
 
         Map<String, Object> system = Map.of("role", "system", "content", "너는 호스트 숙소 리뷰 리포트 분석가다.");
@@ -258,8 +259,8 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         String normalized = line;
         if (normalized.startsWith("-")) {
             normalized = normalized.substring(1).trim();
-        } else if (normalized.matches("^\\d+\\..*")) {
-            normalized = normalized.replaceFirst("^\\d+\\.\\s*", "");
+        } else if (NUMBERED_BULLET_MATCH.matcher(normalized).matches()) {
+            normalized = NUMBERED_BULLET_PREFIX.matcher(normalized).replaceFirst("");
         } else {
             return null;
         }

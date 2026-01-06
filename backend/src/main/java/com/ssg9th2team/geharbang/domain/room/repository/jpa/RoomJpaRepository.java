@@ -52,12 +52,12 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
          * - 해당 기간에 확정/진행중 예약이 없는 객실
          */
         @Query(value = """
-                WITH RECURSIVE stay_dates AS (
-                    SELECT DATE(:checkin) AS stay_date
+                WITH RECURSIVE stay_dates (stay_date) AS (
+                    SELECT CAST(:checkin AS DATE) AS stay_date
                     UNION ALL
-                    SELECT DATE_ADD(stay_date, INTERVAL 1 DAY)
+                    SELECT CAST(stay_date AS DATE) + INTERVAL '1' DAY
                     FROM stay_dates
-                    WHERE stay_date < DATE_SUB(DATE(:checkout), INTERVAL 1 DAY)
+                    WHERE CAST(stay_date AS DATE) < CAST(:checkout AS DATE) - INTERVAL '1' DAY
                 )
                 SELECT r.room_id
                 FROM room r
@@ -84,8 +84,8 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                                 ON res.room_id = r.room_id
                                AND res.is_deleted = 0
                                AND res.reservation_status IN (2, 3)
-                               AND d.stay_date >= DATE(res.checkin)
-                               AND d.stay_date < DATE(res.checkout)
+                               AND d.stay_date >= CAST(res.checkin AS DATE)
+                               AND d.stay_date < CAST(res.checkout AS DATE)
                               GROUP BY d.stay_date
                               HAVING COALESCE(SUM(res.guest_count), 0) + :guestCount > COALESCE(r.max_guests, 0)
                           ))
@@ -98,3 +98,6 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                 @Param("guestCount") Integer guestCount
         );
 }
+
+
+

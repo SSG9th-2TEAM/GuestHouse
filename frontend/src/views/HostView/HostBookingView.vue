@@ -12,6 +12,14 @@ const bookings = ref([])
 const calendarBookings = ref([])
 const isLoading = ref(false)
 const loadError = ref('')
+const isDesktop = ref(false)
+const pageSize = ref(20)
+const currentPage = ref(0)
+const totalPages = ref(0)
+const totalElements = ref(0)
+const cursorNext = ref(null)
+const hasNextCursor = ref(false)
+const loadMoreLoading = ref(false)
 const hostState = ref('loading')
 const hostCounts = ref({ total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 })
 const pendingOnly = computed(() => hostState.value === 'pending-only')
@@ -83,6 +91,10 @@ const sortOptions = [
 
 const selectedStatus = ref('all')
 const selectedSort = ref('latest')
+const bookingTotalCount = computed(() => {
+  if (totalElements.value > 0) return totalElements.value
+  return filteredBookings.value.length
+})
 
 const getLabel = (list, value, fallback = '-') => {
   const found = list.find((item) => item.value === value)
@@ -444,6 +456,33 @@ const buildBookingParams = () => {
   }
 }
 
+const resolveServerSort = () => {
+  if (selectedSort.value === 'latest') {
+    if (selectedRange.value !== 'upcoming' || !includePast.value) return 'CHECKIN_ASC'
+    return 'CREATED_DESC'
+  }
+  if (selectedSort.value === 'checkin') return 'CHECKIN_ASC'
+  if (selectedSort.value === 'checkout') return 'CHECKIN_ASC'
+  return 'CHECKIN_ASC'
+}
+
+const extractListPayload = (payload) => {
+  if (Array.isArray(payload)) {
+    return { items: payload, meta: null }
+  }
+  const items = payload?.items ?? payload?.content ?? payload?.data ?? []
+  const meta = payload?.meta ?? null
+  return { items, meta }
+}
+
+const resetPaging = () => {
+  currentPage.value = 0
+  totalPages.value = 0
+  totalElements.value = 0
+  cursorNext.value = null
+  hasNextCursor.value = false
+}
+
 const filteredBookings = computed(() => {
   const base = bookings.value.filter((booking) => booking.bookingStatusCode !== 0)
   const filter = statusFilters.find((item) => item.value === selectedStatus.value)
@@ -457,51 +496,7 @@ const filteredBookings = computed(() => {
       return checkIn.getTime() >= today
     })
   }
-
-  const sortByCheckInAsc = (list) => [...list].sort((a, b) => {
-    return (toDate(a.checkIn)?.getTime() ?? 0) - (toDate(b.checkIn)?.getTime() ?? 0)
-  })
-  const sortByCheckInDesc = (list) => [...list].sort((a, b) => {
-    return (toDate(b.checkIn)?.getTime() ?? 0) - (toDate(a.checkIn)?.getTime() ?? 0)
-  })
-  const sortByCheckoutAsc = (list) => [...list].sort((a, b) => {
-    return (toDate(a.checkOut)?.getTime() ?? 0) - (toDate(b.checkOut)?.getTime() ?? 0)
-  })
-  const sortByCheckoutDesc = (list) => [...list].sort((a, b) => {
-    return (toDate(b.checkOut)?.getTime() ?? 0) - (toDate(a.checkOut)?.getTime() ?? 0)
-  })
-  const sortByCreatedDesc = (list) => [...list].sort((a, b) => {
-    return (toDate(b.createdAt)?.getTime() ?? 0) - (toDate(a.createdAt)?.getTime() ?? 0)
-  })
-
-  if (selectedRange.value === 'upcoming' && includePast.value) {
-    const upcoming = []
-    const past = []
-    filtered.forEach((booking) => {
-      const checkIn = toDateOnly(booking.checkIn)
-      const isUpcoming = checkIn ? checkIn.getTime() >= today : true
-      if (isUpcoming) {
-        upcoming.push(booking)
-      } else {
-        past.push(booking)
-      }
-    })
-    if (selectedSort.value === 'checkin') {
-      return [...sortByCheckInAsc(upcoming), ...sortByCheckInDesc(past)]
-    }
-    if (selectedSort.value === 'checkout') {
-      return [...sortByCheckoutAsc(upcoming), ...sortByCheckoutDesc(past)]
-    }
-    return [...sortByCreatedDesc(upcoming), ...sortByCreatedDesc(past)]
-  }
-
-  if (selectedSort.value === 'checkin') {
-    return sortByCheckInAsc(filtered)
-  }
-  if (selectedSort.value === 'checkout') {
-    return sortByCheckoutAsc(filtered)
-  }
-  return sortByCreatedDesc(filtered)
+  return filtered
 })
 
 const calendarLegend = computed(() => '표시된 건수는 해당 날짜에 포함된 예약 수입니다.')
@@ -517,28 +512,79 @@ const loadBookings = async () => {
   }
   isLoading.value = true
   loadError.value = ''
-  const response = await fetchHostBookings(params)
+  const requestParams = {
+    ...params,
+    sort: resolveServerSort(),
+    rangeMode: 'OVERLAP'
+  }
+  if (isDesktop.value) {
+    requestParams.page = currentPage.value
+    requestParams.size = pageSize.value
+  } else {
+    requestParams.size = pageSize.value
+  }
+
+  const response = await fetchHostBookings(requestParams)
   if (response.ok) {
-    const payload = response.data
-    const list = Array.isArray(payload)
-      ? payload
-      : payload?.items ?? payload?.content ?? payload?.data ?? []
-    bookings.value = list.map(normalizeBooking)
+    const { items, meta } = extractListPayload(response.data)
+    bookings.value = items.map(normalizeBooking)
+    if (meta?.pageInfo) {
+      totalPages.value = meta.pageInfo.totalPages ?? 0
+      totalElements.value = meta.pageInfo.totalElements ?? 0
+    }
+    if (meta?.cursorInfo) {
+      cursorNext.value = meta.cursorInfo.nextCursor ?? null
+      hasNextCursor.value = Boolean(meta.cursorInfo.hasNext)
+    } else {
+      cursorNext.value = null
+      hasNextCursor.value = false
+    }
   } else {
     loadError.value = '예약 목록을 불러오지 못했습니다.'
   }
   isLoading.value = false
 }
 
+const loadMoreBookings = async () => {
+  if (pendingOnly.value || loadMoreLoading.value || !cursorNext.value) return
+  const params = buildBookingParams()
+  if (params === null) return
+  loadMoreLoading.value = true
+  loadError.value = ''
+  const response = await fetchHostBookings({
+    ...params,
+    sort: resolveServerSort(),
+    rangeMode: 'OVERLAP',
+    size: pageSize.value,
+    cursor: cursorNext.value
+  })
+  if (response.ok) {
+    const { items, meta } = extractListPayload(response.data)
+    bookings.value = [...bookings.value, ...items.map(normalizeBooking)]
+    if (meta?.cursorInfo) {
+      cursorNext.value = meta.cursorInfo.nextCursor ?? null
+      hasNextCursor.value = Boolean(meta.cursorInfo.hasNext)
+    }
+  } else {
+    loadError.value = '예약 목록을 불러오지 못했습니다.'
+  }
+  loadMoreLoading.value = false
+}
+
+const goToPage = (nextPage) => {
+  const maxPage = Math.max(0, totalPages.value - 1)
+  const target = Math.min(Math.max(0, nextPage), maxPage)
+  if (target === currentPage.value) return
+  currentPage.value = target
+  loadBookings()
+}
+
 const loadCalendar = async (month) => {
   if (pendingOnly.value) return
   const response = await fetchHostBookingCalendar(month)
   if (response.ok) {
-    const payload = response.data
-    const list = Array.isArray(payload)
-      ? payload
-      : payload?.items ?? payload?.content ?? payload?.data ?? []
-    calendarBookings.value = list.map(normalizeBooking)
+    const { items } = extractListPayload(response.data)
+    calendarBookings.value = items.map(normalizeBooking)
   } else {
     loadError.value = '예약 캘린더를 불러오지 못했습니다.'
   }
@@ -563,6 +609,18 @@ const loadHostState = async () => {
 }
 
 onMounted(async () => {
+  if (typeof window !== 'undefined') {
+    const media = window.matchMedia('(min-width: 768px)')
+    const update = () => {
+      isDesktop.value = media.matches
+    }
+    update()
+    media.addEventListener?.('change', update)
+    media.addListener?.(update)
+  }
+  if (selectedRange.value === 'upcoming' && !includePast.value) {
+    selectedSort.value = 'checkin'
+  }
   await loadHostState()
   if (!pendingOnly.value) {
     await loadBookings()
@@ -638,15 +696,25 @@ const syncRangeQuery = () => {
 
 watch(selectedStatus, (value) => {
   syncQuery({ status: value, type: value })
+  resetPaging()
+  loadBookings()
 })
 
 watch(selectedSort, (value) => {
   syncQuery({ sort: value })
+  resetPaging()
+  loadBookings()
 })
 
 watch(includePast, (value) => {
   syncQuery({ includePast: value ? 1 : 0 })
+  resetPaging()
+  if (!value && selectedSort.value === 'latest') {
+    selectedSort.value = 'checkin'
+  }
   if (selectedRange.value === 'upcoming') {
+    loadBookings()
+  } else {
     loadBookings()
   }
 })
@@ -655,11 +723,16 @@ watch(selectedRange, () => {
   if (selectedRange.value !== 'custom') {
     customRange.value = { start: '', end: '' }
   }
+  if (selectedRange.value !== 'upcoming' && selectedSort.value === 'latest') {
+    selectedSort.value = 'checkin'
+  }
+  resetPaging()
   syncRangeQuery()
   loadBookings()
 })
 
 watch(rangeAnchorDate, () => {
+  resetPaging()
   syncRangeQuery()
   loadBookings()
 })
@@ -668,10 +741,21 @@ watch(
   () => ({ ...customRange.value }),
   () => {
     if (selectedRange.value === 'custom') {
+      resetPaging()
       loadBookings()
     }
   }
 )
+
+watch(isDesktop, (value) => {
+  if (value) {
+    resetPaging()
+    loadBookings()
+  } else {
+    resetPaging()
+    loadBookings()
+  }
+})
 
 
 const setView = (view) => {
@@ -697,7 +781,7 @@ const setView = (view) => {
     <header class="view-header">
       <div>
         <h2>예약 관리</h2>
-        <p class="subtitle">총 {{ filteredBookings.length }}건 · {{ sortOptions.find(item => item.value === selectedSort)?.label }}</p>
+        <p class="subtitle">총 {{ bookingTotalCount }}건 · {{ sortOptions.find(item => item.value === selectedSort)?.label }}</p>
       </div>
 
       <div class="tab-switch" role="tablist" aria-label="예약 보기 전환">
@@ -872,6 +956,15 @@ const setView = (view) => {
           :animation-delay="`${Math.min(index, 5) * 70}ms`"
           @detail="openModal"
         />
+        <button
+          v-if="hasNextCursor && !isDesktop"
+          class="ghost-btn load-more"
+          type="button"
+          :disabled="loadMoreLoading"
+          @click="loadMoreBookings"
+        >
+          {{ loadMoreLoading ? '불러오는 중...' : '더보기' }}
+        </button>
       </div>
 
       <div class="table-wrap">
@@ -917,6 +1010,21 @@ const setView = (view) => {
           </tr>
           </tbody>
         </table>
+        <div v-if="isDesktop && totalPages > 0" class="table-pagination">
+          <button
+            class="ghost-btn"
+            type="button"
+            :disabled="currentPage === 0"
+            @click="goToPage(currentPage - 1)"
+          >이전</button>
+          <span class="muted">페이지 {{ currentPage + 1 }} / {{ totalPages }}</span>
+          <button
+            class="ghost-btn"
+            type="button"
+            :disabled="currentPage >= totalPages - 1"
+            @click="goToPage(currentPage + 1)"
+          >다음</button>
+        </div>
       </div>
     </section>
 
@@ -1315,6 +1423,10 @@ const setView = (view) => {
   cursor: pointer;
 }
 
+.load-more {
+  margin-top: 0.75rem;
+}
+
 .nowrap-cell {
   white-space: nowrap;
   word-break: keep-all;
@@ -1351,6 +1463,22 @@ const setView = (view) => {
   border: 1px solid var(--border, #e5e7eb);
   border-radius: 14px;
   overflow-x: auto;
+}
+
+.table-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.table-pagination .ghost-btn {
+  width: auto;
+  min-height: 36px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.85rem;
 }
 
 .booking-table {

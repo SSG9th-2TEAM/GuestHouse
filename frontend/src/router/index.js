@@ -222,6 +222,11 @@ const router = createRouter({
                             path: 'weekly',
                             name: 'admin-dashboard-weekly',
                             component: () => import('../views/AdminView/AdminWeeklyReportView.vue')
+                        },
+                        {
+                            path: 'audit',
+                            name: 'admin-dashboard-audit',
+                            component: () => import('../views/AdminView/AdminAuditLogView.vue')
                         }
                     ]
                 },
