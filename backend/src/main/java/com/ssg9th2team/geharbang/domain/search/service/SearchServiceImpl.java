@@ -51,93 +51,86 @@ public class SearchServiceImpl implements SearchService {
             east = Math.max(minLng, maxLng);
         }
 
-        if (themeIds == null || themeIds.isEmpty()) {
-            if (hasBounds) {
-                if (hasStayDates) {
-                    resultPage = searchRepository.searchPublicListByBounds(
-                            normalizedKeyword,
-                            south,
-                            north,
-                            west,
-                            east,
-                            checkin,
-                            checkout,
-                            guestCount,
-                            pageable
-                    );
-                } else {
-                    resultPage = searchRepository.searchPublicListByBoundsNoDates(
-                            normalizedKeyword,
-                            south,
-                            north,
-                            west,
-                            east,
-                            guestCount,
-                            pageable
-                    );
-                }
+        boolean hasThemes = themeIds != null && !themeIds.isEmpty();
+        if (hasStayDates) {
+            if (hasThemes && hasBounds) {
+                resultPage = searchRepository.searchPublicListByThemeAndBounds(
+                        themeIds,
+                        normalizedKeyword,
+                        south,
+                        north,
+                        west,
+                        east,
+                        checkin,
+                        checkout,
+                        guestCount,
+                        pageable
+                );
+            } else if (hasThemes) {
+                resultPage = searchRepository.searchPublicListByTheme(
+                        themeIds,
+                        normalizedKeyword,
+                        checkin,
+                        checkout,
+                        guestCount,
+                        pageable
+                );
+            } else if (hasBounds) {
+                resultPage = searchRepository.searchPublicListByBounds(
+                        normalizedKeyword,
+                        south,
+                        north,
+                        west,
+                        east,
+                        checkin,
+                        checkout,
+                        guestCount,
+                        pageable
+                );
             } else {
-                if (hasStayDates) {
-                    resultPage = searchRepository.searchPublicList(
-                            normalizedKeyword,
-                            checkin,
-                            checkout,
-                            guestCount,
-                            pageable
-                    );
-                } else {
-                    resultPage = searchRepository.searchPublicListNoDates(
-                            normalizedKeyword,
-                            guestCount,
-                            pageable
-                    );
-                }
+                resultPage = searchRepository.searchPublicList(
+                        normalizedKeyword,
+                        checkin,
+                        checkout,
+                        guestCount,
+                        pageable
+                );
             }
         } else {
-            if (hasBounds) {
-                if (hasStayDates) {
-                    resultPage = searchRepository.searchPublicListByThemeAndBounds(
-                            themeIds,
-                            normalizedKeyword,
-                            south,
-                            north,
-                            west,
-                            east,
-                            checkin,
-                            checkout,
-                            guestCount,
-                            pageable
-                    );
-                } else {
-                    resultPage = searchRepository.searchPublicListByThemeAndBoundsNoDates(
-                            themeIds,
-                            normalizedKeyword,
-                            south,
-                            north,
-                            west,
-                            east,
-                            guestCount,
-                            pageable
-                    );
-                }
+            if (hasThemes && hasBounds) {
+                resultPage = searchRepository.searchPublicListByThemeAndBoundsNoDates(
+                        themeIds,
+                        normalizedKeyword,
+                        south,
+                        north,
+                        west,
+                        east,
+                        guestCount,
+                        pageable
+                );
+            } else if (hasThemes) {
+                resultPage = searchRepository.searchPublicListByThemeNoDates(
+                        themeIds,
+                        normalizedKeyword,
+                        guestCount,
+                        pageable
+                );
+            } else if (hasBounds) {
+                resultPage = searchRepository.searchPublicListByBoundsNoDates(
+                        normalizedKeyword,
+                        south,
+                        north,
+                        west,
+                        east,
+                        guestCount,
+                        pageable
+                );
             } else {
-                if (hasStayDates) {
-                    resultPage = searchRepository.searchPublicListByTheme(
-                            themeIds,
-                            normalizedKeyword,
-                            checkin,
-                            checkout,
-                            guestCount,
-                            pageable
-                    );
-                } else {
-                    resultPage = searchRepository.searchPublicListByThemeNoDates(
-                            themeIds,
-                            normalizedKeyword,
-                            guestCount,
-                            pageable
-                    );
-                }
+                resultPage = searchRepository.searchPublicListNoDates(
+                        normalizedKeyword,
+                        guestCount,
+                        pageable
+                );
             }
         }
 
@@ -158,8 +151,8 @@ public class SearchServiceImpl implements SearchService {
 
     private ListDto toListDto(ListDtoProjection projection) {
         return ListDto.builder()
-                .accomodationsId(projection.getAccomodationsId())
-                .accomodationsName(projection.getAccomodationsName())
+                .accommodationsId(projection.getAccommodationsId())
+                .accommodationsName(projection.getAccommodationsName())
                 .shortDescription(projection.getShortDescription())
                 .city(projection.getCity())
                 .district(projection.getDistrict())

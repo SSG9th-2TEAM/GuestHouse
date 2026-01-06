@@ -80,7 +80,7 @@ class SearchServiceIntegrationTest {
         );
 
         assertThat(response.items()).hasSize(1);
-        assertThat(response.items().get(0).getAccomodationsName())
+        assertThat(response.items().get(0).getAccommodationsName())
                 .isEqualTo("\uC11C\uADC0\uD3EC \uD14C\uC2A4\uD2B8 \uC219\uC18C");
     }
 
@@ -109,7 +109,7 @@ class SearchServiceIntegrationTest {
         );
 
         List<String> names = response.items().stream()
-                .map(item -> item.getAccomodationsName())
+                .map(item -> item.getAccommodationsName())
                 .toList();
         assertThat(names).containsExactly("\uC11C\uADC0\uD3EC \uB300\uD615 \uC219\uC18C");
     }
@@ -143,7 +143,7 @@ class SearchServiceIntegrationTest {
         );
 
         List<String> names = response.items().stream()
-                .map(item -> item.getAccomodationsName())
+                .map(item -> item.getAccommodationsName())
                 .toList();
         assertThat(names).containsExactly("\uC11C\uADC0\uD3EC \uC608\uC57D\uAC00\uB2A5");
     }
@@ -205,7 +205,7 @@ class SearchServiceIntegrationTest {
         );
 
         assertThat(response.items()).hasSize(1);
-        assertThat(response.items().get(0).getAccomodationsName()).isEqualTo("Bounds-In");
+        assertThat(response.items().get(0).getAccommodationsName()).isEqualTo("Bounds-In");
     }
 
     @Test
@@ -238,7 +238,7 @@ class SearchServiceIntegrationTest {
         );
 
         assertThat(response.items()).hasSize(1);
-        assertThat(response.items().get(0).getAccomodationsName()).isEqualTo("Theme-In");
+        assertThat(response.items().get(0).getAccommodationsName()).isEqualTo("Theme-In");
     }
 
     private Accommodation persistAccommodation(String name, String district) {

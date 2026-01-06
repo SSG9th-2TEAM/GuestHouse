@@ -28,8 +28,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 GROUP BY accommodations_id
             )
             SELECT
-                a.accommodations_id AS accomodationsId,
-                a.accommodations_name AS accomodationsName,
+                a.accommodations_id AS accommodationsId,
+                a.accommodations_name AS accommodationsName,
                 a.short_description AS shortDescription,
                 a.city AS city,
                 a.district AS district,
@@ -144,8 +144,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 GROUP BY accommodations_id
             )
             SELECT
-                a.accommodations_id AS accomodationsId,
-                a.accommodations_name AS accomodationsName,
+                a.accommodations_id AS accommodationsId,
+                a.accommodations_name AS accommodationsName,
                 a.short_description AS shortDescription,
                 a.city AS city,
                 a.district AS district,
@@ -285,8 +285,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 GROUP BY accommodations_id
             )
             SELECT DISTINCT
-                a.accommodations_id AS accomodationsId,
-                a.accommodations_name AS accomodationsName,
+                a.accommodations_id AS accommodationsId,
+                a.accommodations_name AS accommodationsName,
                 a.short_description AS shortDescription,
                 a.city AS city,
                 a.district AS district,
@@ -406,8 +406,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 GROUP BY accommodations_id
             )
             SELECT DISTINCT
-                a.accommodations_id AS accomodationsId,
-                a.accommodations_name AS accomodationsName,
+                a.accommodations_id AS accommodationsId,
+                a.accommodations_name AS accommodationsName,
                 a.short_description AS shortDescription,
                 a.city AS city,
                 a.district AS district,
@@ -552,8 +552,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 GROUP BY accommodations_id
             )
             SELECT
-                a.accommodations_id AS accomodationsId,
-                a.accommodations_name AS accomodationsName,
+                a.accommodations_id AS accommodationsId,
+                a.accommodations_name AS accommodationsName,
                 a.short_description AS shortDescription,
                 a.city AS city,
                 a.district AS district,
@@ -680,8 +680,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 GROUP BY accommodations_id
             )
             SELECT
-                a.accommodations_id AS accomodationsId,
-                a.accommodations_name AS accomodationsName,
+                a.accommodations_id AS accommodationsId,
+                a.accommodations_name AS accommodationsName,
                 a.short_description AS shortDescription,
                 a.city AS city,
                 a.district AS district,
@@ -833,8 +833,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 GROUP BY accommodations_id
             )
             SELECT DISTINCT
-                a.accommodations_id AS accomodationsId,
-                a.accommodations_name AS accomodationsName,
+                a.accommodations_id AS accommodationsId,
+                a.accommodations_name AS accommodationsName,
                 a.short_description AS shortDescription,
                 a.city AS city,
                 a.district AS district,
@@ -966,8 +966,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 GROUP BY accommodations_id
             )
             SELECT DISTINCT
-                a.accommodations_id AS accomodationsId,
-                a.accommodations_name AS accomodationsName,
+                a.accommodations_id AS accommodationsId,
+                a.accommodations_name AS accommodationsName,
                 a.short_description AS shortDescription,
                 a.city AS city,
                 a.district AS district,

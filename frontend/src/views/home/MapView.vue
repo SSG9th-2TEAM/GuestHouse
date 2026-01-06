@@ -107,10 +107,10 @@ const toggleWishlist = async (id) => {
 }
 
 const normalizeItem = (item) => {
-  const rawId = item.accomodationsId ?? item.accommodationsId ?? item.id
+  const rawId = item.accommodationsId ?? item.accommodationId ?? item.id
   const numericId = Number(rawId)
   const id = Number.isFinite(numericId) ? numericId : rawId
-  const title = item.accomodationsName ?? item.accommodationsName ?? item.title ?? ''
+  const title = item.accommodationsName ?? item.accommodationName ?? item.title ?? ''
   const description = item.shortDescription ?? item.description ?? ''
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
   const price = Number(item.minPrice ?? item.price ?? 0)

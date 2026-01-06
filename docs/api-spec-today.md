@@ -1,4 +1,4 @@
-﻿# 오늘 작성한 API 명세
+# 오늘 작성한 API 명세
 
 ## 공통
 - Base URL: /api
@@ -10,7 +10,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 테마 목록 조회 | GET | /themes | - | 테마 목록 조회 | [{ id, themeCategory, themeName }] |
 | 로그인 사용자 선호 테마 조회 | GET | /themes/me | - | 로그인 사용자 선호 테마(최대 3건) 조회 | [{ id, themeCategory, themeName }] |
-| 테마별 숙소 리스트 | GET | /public/list | 	hemeIds (optional, 반복 가능) | 테마 필터 기반 숙소 리스트 조회 | [{ accomodationsId, accomodationsName, shortDescription, city, district, township, minPrice, rating, reviewCount, imageUrl }] |
+| 테마별 숙소 리스트 | GET | /public/list | 	hemeIds (optional, 반복 가능) | 테마 필터 기반 숙소 리스트 조회 | [{ accommodationsId, accommodationsName, shortDescription, city, district, township, minPrice, rating, reviewCount, imageUrl }] |
 | 숙소 상세 조회 | GET | /public/detail/{accommodationsId} | ccommodationsId (path) | 숙소 상세 조회 | AccommodationDetailDto |
 
 ## 상세 규격
@@ -56,8 +56,8 @@
 `json
 [
   {
-    "accomodationsId": 1,
-    "accomodationsName": "제주 비지터 게스트하우스",
+    "accommodationsId": 1,
+    "accommodationsName": "제주 비지터 게스트하우스",
     "shortDescription": "좋은 시설과 깨끗한 방에서의 편안한 휴식",
     "city": "제주",
     "district": "제주시",
