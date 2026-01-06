@@ -2,7 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { completeSocialSignup, saveTokens } from '@/api/authClient'
-import { fetchThemes } from '@/api/theme'
+import { fetchThemes, fetchThemeCategories } from '@/api/theme'
+
+// 상수 정의
+const MAX_THEME_SELECTIONS = 3
 
 const router = useRouter()
 const route = useRoute()
@@ -143,9 +146,10 @@ const closeTermsModal = () => {
 const themes = ref([])
 const themesLoading = ref(false)
 const themesError = ref('')
+const categories = ref([]) // 카테고리 목록 (DB에서 가져옴)
 
-// 카테고리별 이모지와 한글 이름 매핑
-const categoryInfo = {
+// 기본 카테고리 정보 (API 실패 시 fallback)
+const defaultCategoryInfo = {
   'NATURE': { emoji: '🌿', name: '자연' },
   'CULTURE': { emoji: '🏛️', name: '문화' },
   'ACTIVITY': { emoji: '🏄', name: '활동' },
@@ -157,6 +161,23 @@ const categoryInfo = {
   'FOOD': { emoji: '🍴', name: '음식' },
   'PLAY': { emoji: '🎮', name: '놀이' }
 }
+
+// 카테고리 배열을 객체로 변환 (categoryKey를 키로 사용)
+const categoryInfo = computed(() => {
+  // 카테고리 데이터가 로드되지 않았으면 기본값 사용
+  if (categories.value.length === 0) {
+    return defaultCategoryInfo
+  }
+
+  const info = {}
+  categories.value.forEach(category => {
+    info[category.categoryKey] = {
+      emoji: category.emoji,
+      name: category.categoryName
+    }
+  })
+  return info
+})
 
 // 카테고리별로 그룹화된 테마
 const groupedThemes = computed(() => {
@@ -174,19 +195,34 @@ const loadThemes = async () => {
   themesLoading.value = true
   themesError.value = ''
   try {
-    const response = await fetchThemes()
-    if (response.ok && Array.isArray(response.data)) {
+    // 테마 목록과 카테고리 목록을 병렬로 가져오기
+    const [themesResponse, categoriesResponse] = await Promise.all([
+      fetchThemes(),
+      fetchThemeCategories()
+    ])
+
+    // 카테고리 데이터 처리
+    if (categoriesResponse.ok && Array.isArray(categoriesResponse.data)) {
+      categories.value = categoriesResponse.data
+      console.log('카테고리 로드 성공:', categories.value)
+    } else {
+      console.warn('카테고리 목록 로드 실패, 기본값 사용:', categoriesResponse)
+    }
+
+    // 테마 데이터 처리
+    if (themesResponse.ok && Array.isArray(themesResponse.data)) {
       // 백엔드에서 받은 테마를 프론트엔드 형식으로 변환
-      themes.value = response.data.map(theme => ({
+      themes.value = themesResponse.data.map(theme => ({
         id: theme.id,
         category: theme.themeCategory,
         label: theme.themeName,
         imageUrl: theme.themeImageUrl,
         selected: false
       }))
+      console.log('테마 로드 성공:', themes.value.length, '개')
     } else {
       themesError.value = '테마 목록을 불러오지 못했습니다.'
-      console.error('테마 목록 로드 실패:', response)
+      console.error('테마 목록 로드 실패:', themesResponse)
     }
   } catch (error) {
     themesError.value = '테마 목록을 불러오는 중 오류가 발생했습니다.'
@@ -203,10 +239,10 @@ const toggleTheme = (theme) => {
     return
   }
 
-  // 새로 선택하는 경우 - 최대 3개 제한
+  // 새로 선택하는 경우 - 최대 선택 개수 제한
   const selectedCount = themes.value.filter(t => t.selected).length
-  if (selectedCount >= 3) {
-    openModal('테마는 최대 3개까지만 선택할 수 있습니다.', 'info')
+  if (selectedCount >= MAX_THEME_SELECTIONS) {
+    openModal(`테마는 최대 ${MAX_THEME_SELECTIONS}개까지만 선택할 수 있습니다.`, 'info')
     return
   }
 
@@ -386,7 +422,7 @@ const handleSkip = async () => {
       <template v-if="currentStep === 2">
         <div class="theme-section">
           <h2 class="theme-title">관심 테마를 선택해주세요</h2>
-          <p class="theme-desc">마음에 드는 여행 스타일을 선택하시면<br/>꼭 맞는 숙소를 추천해 드립니다. (최대 3개 선택 가능)</p>
+          <p class="theme-desc">마음에 드는 여행 스타일을 선택하시면<br/>꼭 맞는 숙소를 추천해 드립니다. (최대 {{ MAX_THEME_SELECTIONS }}개 선택 가능)</p>
 
           <div v-if="themesLoading" class="theme-loading">
             <div class="spinner"></div>
