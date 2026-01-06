@@ -3,17 +3,24 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchHostReviews, fetchHostReviewSummary, upsertHostReviewReply, reportHostReview } from '@/api/hostReview'
 import { fetchHostAccommodations } from '@/api/hostAccommodation'
-import { deriveHostState } from '@/composables/useHostState'
+import { deriveHostGateInfo, buildHostGateNotice } from '@/composables/useHostState'
 import { formatDate } from '@/utils/formatters'
-import HostPendingLock from '@/components/host/HostPendingLock.vue'
+import HostGateNotice from '@/components/host/HostGateNotice.vue'
 
 const reviews = ref([])
 const isLoading = ref(false)
 const loadError = ref('')
 const router = useRouter()
-const hostState = ref('loading')
-const hostCounts = ref({ total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 })
-const pendingOnly = computed(() => hostState.value === 'pending-only')
+const hostGateInfo = ref({
+  hostState: 'loading',
+  counts: { total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 },
+  rejectedReason: '',
+  recheckReason: ''
+})
+const hostState = computed(() => hostGateInfo.value.hostState)
+const canUseHostFeatures = computed(() => hostGateInfo.value.gateState === 'APPROVED')
+const gateVisible = computed(() => !canUseHostFeatures.value && hostState.value !== 'loading')
+const gateNotice = computed(() => buildHostGateNotice(hostGateInfo.value))
 
 const summary = ref({ avgRating: 0, reviewCount: 0 })
 const summaryError = ref('')
@@ -60,7 +67,7 @@ const normalizeReview = (item) => {
 }
 
 const loadReviews = async () => {
-  if (pendingOnly.value) return
+  if (!canUseHostFeatures.value) return
   isLoading.value = true
   loadError.value = ''
   const params = {
@@ -147,7 +154,7 @@ const submitReport = async () => {
 }
 
 const loadSummary = async () => {
-  if (pendingOnly.value) return
+  if (!canUseHostFeatures.value) return
   summaryLoading.value = true
   summaryError.value = ''
   const response = await fetchHostReviewSummary()
@@ -181,24 +188,27 @@ const loadHostState = async () => {
     const list = Array.isArray(payload)
       ? payload
       : payload?.items ?? payload?.content ?? payload?.data ?? []
-    const snapshot = deriveHostState(list)
-    hostState.value = snapshot.hostState
-    hostCounts.value = snapshot.counts
+    hostGateInfo.value = deriveHostGateInfo(list)
   } else {
-    hostState.value = 'empty'
+    hostGateInfo.value = {
+      hostState: 'empty',
+      counts: { total: 0, approved: 0, pending: 0, rejected: 0, unknown: 0 },
+      rejectedReason: '',
+      recheckReason: ''
+    }
   }
 }
 
 onMounted(async () => {
   await loadHostState()
-  if (!pendingOnly.value) {
+  if (canUseHostFeatures.value) {
     await Promise.all([loadAccommodations(), loadSummary()])
     loadReviews()
   }
 })
 
 watch([selectedAccommodationId, selectedSort], () => {
-  if (!pendingOnly.value) {
+  if (canUseHostFeatures.value) {
     loadReviews()
   }
 })
@@ -206,15 +216,15 @@ watch([selectedAccommodationId, selectedSort], () => {
 
 <template>
   <div class="review-view">
-    <HostPendingLock
-      v-if="pendingOnly"
-      title="승인 후 리뷰를 관리할 수 있어요"
-      description="숙소 승인 완료 후 리뷰 수집 및 답글 기능이 활성화됩니다."
-      primary-cta-text="숙소 관리"
-      primary-cta-to="/host/accommodation"
-      secondary-cta-text="추가 등록"
-      secondary-cta-to="/host/accommodation/register"
-      :badge-text="`검수중 ${hostCounts.pending}건`"
+    <HostGateNotice
+      v-if="gateVisible"
+      :title="gateNotice.title"
+      :description="gateNotice.description"
+      :reason="gateNotice.reason"
+      :primary-text="gateNotice.primaryText"
+      :primary-to="gateNotice.primaryTo"
+      :secondary-text="gateNotice.secondaryText"
+      :secondary-to="gateNotice.secondaryTo"
     />
 
     <template v-else>

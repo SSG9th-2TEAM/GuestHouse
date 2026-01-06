@@ -21,10 +21,12 @@ const accommodationCount = computed(() => accommodations.value.length)
 const hasAccommodations = computed(() => accommodations.value.length > 0)
 
 const formatPrice = (price) => new Intl.NumberFormat('ko-KR').format(price)
-const getStatusLabel = (status) => {
+const getStatusLabel = (status, rejectionReason) => {
   if (status === 'active') return '운영중'
-  if (status === 'inspection') return '검수중'
-  return '운영중지'
+  if (status === 'pending') return rejectionReason ? '재검토중' : '검수중'
+  if (status === 'rejected') return '반려'
+  if (status === 'inactive') return '운영중지'
+  return '상태 확인'
 }
 
 const handleRegisterCancel = () => (viewMode.value = 'list')
@@ -52,16 +54,40 @@ const handleDelete = async (id) => {
 const normalizeStatus = (status) => {
   if (!status) return 'inactive'
   const value = String(status).toLowerCase()
-  if (value === 'active') return 'active'
-  if (value === 'inactive') return 'inactive'
-  if (value === 'inspection') return 'inspection'
+  if (value === 'approved' || value === 'active' || value === 'operating') return 'active'
+  if (value === 'pending' || value === 'inspection' || value === 'review' || value === 'reviewing') return 'pending'
+  if (value === 'rejected' || value === 'reject' || value === 'denied') return 'rejected'
+  if (value === 'inactive' || value === 'stopped' || value === 'stop') return 'inactive'
   return value
+}
+
+const resubmitWindowMs = 24 * 60 * 60 * 1000
+const getResubmitMap = () => {
+  try {
+    const raw = sessionStorage.getItem('hostResubmitMap')
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+const isResubmittedRecently = (id) => {
+  if (!id) return false
+  const map = getResubmitMap()
+  const timestamp = map[String(id)]
+  if (!timestamp) return false
+  return Date.now() - Number(timestamp) <= resubmitWindowMs
 }
 
 const normalizeAccommodation = (item) => {
   const id = item.accommodationsId ?? item.accommodationId ?? item.id
   const name = item.accommodationsName ?? item.name ?? ''
-  const status = normalizeStatus(item.status ?? item.accommodationStatus ?? item.approvalStatus)
+  const statusSource = item.approvalStatus ?? item.status ?? item.accommodationStatus
+  let status = normalizeStatus(statusSource)
+  const rejectionReason = item.rejectionReason ?? item.rejectReason ?? item.approvalReason ?? item.reason ?? ''
+  if (status === 'rejected' && isResubmittedRecently(id)) {
+    status = 'pending'
+  }
   const location = [item.city, item.district, item.township, item.address]
     .filter(Boolean)
     .join(' ')
@@ -77,7 +103,8 @@ const normalizeAccommodation = (item) => {
     maxGuests,
     roomCount,
     price,
-    images: Array.isArray(images) ? images : [images].filter(Boolean)
+    images: Array.isArray(images) ? images : [images].filter(Boolean),
+    rejectionReason
   }
 }
 
@@ -136,11 +163,20 @@ onMounted(loadAccommodations)
               <h3 class="accommodation-name clickable" @click="$router.push(`/room/${accommodation.id}`)">{{ accommodation.name }}</h3>
               <span
                   class="status-badge"
-                  :class="{ active: accommodation.status === 'active', inactive: accommodation.status === 'inactive' }"
+                  :class="{
+                    active: accommodation.status === 'active',
+                    pending: accommodation.status === 'pending',
+                    rejected: accommodation.status === 'rejected',
+                    inactive: accommodation.status === 'inactive'
+                  }"
               >
-                {{ getStatusLabel(accommodation.status) }}
+                {{ getStatusLabel(accommodation.status, accommodation.rejectionReason) }}
               </span>
             </div>
+
+            <p v-if="accommodation.status === 'rejected'" class="status-reason">
+              {{ accommodation.rejectionReason ? `반려 사유: ${accommodation.rejectionReason}` : '반려 사유를 확인할 수 없습니다.' }}
+            </p>
 
             <div class="info-details">
               <span class="detail-item"><span class="detail-icon">📍</span>{{ accommodation.location }}</span>
@@ -300,9 +336,28 @@ onMounted(loadAccommodations)
   border-color: #c0e6df;
 }
 
+.status-badge.pending {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.status-badge.rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
 .status-badge.inactive {
   background: #f1f5f9;
   color: #475569;
+}
+
+.status-reason {
+  margin: 0.5rem 0 0.2rem;
+  font-size: 0.85rem;
+  color: #b91c1c;
+  font-weight: 700;
 }
 
 .info-details {
