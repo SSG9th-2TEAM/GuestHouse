@@ -75,7 +75,7 @@ const verifyBusinessNumber = async () => {
       },
       body: JSON.stringify({
         image: base64Image
-      })`1`
+      })
     })
 
     if (response.ok) {

@@ -69,8 +69,6 @@ const handleLogin = () => {
 const handleLogout = () => {
   logout()
   isLoggedIn.value = false
-  isHostMode.value = false
-  sessionStorage.setItem('isHostMode', 'false')
   router.push('/')
   isMenuOpen.value = false
 }
