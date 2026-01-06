@@ -1001,7 +1001,6 @@ watch(filteredRooms, (rooms) => {
             </div>
             <div class="room-action">
               <div class="price">₩{{ formatPrice(room.price) }}</div>
-              <div class="price">₩{{ formatPrice(room.price) }}</div>
               <button
                 class="select-btn"
                 :class="{ active: selectedRoom?.id === room.id, unavailable: !room.available }"
