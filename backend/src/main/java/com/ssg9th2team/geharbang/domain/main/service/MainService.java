@@ -8,6 +8,8 @@ public interface MainService {
 
     MainAccommodationListResponse getMainAccommodationList(Long userId, List<Long> filterThemeIds, String keyword);
 
-    Map<Long, MainAccommodationListResponse> getMainAccommodationListBulk(Long userId, List<Long> themeIds, String keyword);
+    // 벌크 조회 - 여러 테마를 한 번에 조회
+    Map<Long, MainAccommodationListResponse> getMainAccommodationListBulk(Long userId, List<Long> themeIds,
+            String keyword);
 
 }

@@ -10,6 +10,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 
@@ -82,6 +83,8 @@ public class ObjectStorageService {
             String header = parts[0];
             String data = parts.length > 1 ? parts[1] : parts[0];
 
+            log.info("Base64 header: {}", header);
+
             byte[] imageBytes = Base64.getDecoder().decode(data);
 
             // 확장자 결정
@@ -93,6 +96,7 @@ public class ObjectStorageService {
             } else if (header.contains("webp")) {
                 extension = "webp";
             }
+            log.info("Detected extension: {}", extension);
 
             // 파일명 생성
             String fileName = folder + "/" + UUID.randomUUID() + "." + extension;
@@ -108,11 +112,13 @@ public class ObjectStorageService {
                     .acl(ObjectCannedACL.PUBLIC_READ)
                     .build();
 
-            s3Client.putObject(putRequest, RequestBody.fromBytes(imageBytes));
+            log.info("Uploading image: bucket={}, key={}, size={} bytes", bucket, fileName, imageBytes.length);
+            PutObjectResponse response = s3Client.putObject(putRequest, RequestBody.fromBytes(imageBytes));
+            log.info("Upload response: ETag={}", response.eTag());
 
             // 공개 URL 반환
             String publicUrl = endpoint + "/" + bucket + "/" + fileName;
-            log.debug("Image uploaded: {}", publicUrl);
+            log.info("Image uploaded successfully: {}", publicUrl);
 
             return publicUrl;
 

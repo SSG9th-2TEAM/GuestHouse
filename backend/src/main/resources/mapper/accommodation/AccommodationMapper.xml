@@ -3,20 +3,52 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
+
 <mapper namespace="com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper">
 
 
-    <!-- 테마, 편의시설, 객실 -->
+    <!-- 기존 N+1 방식 ResultMap (최적화: amenityIds, themeIds 제거로 9→7 쿼리) -->
+    <!-- 추가 최적화: amenities와 amenityDetails 중복 제거로 7→6 쿼리 -->
     <resultMap id="AccommodationDetailMap" type="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto" autoMapping="true">
         <id property="accommodationsId" column="accommodationsId"/>
-        <collection property="amenities" column="accommodationsId" select="selectAmenitiesByAccommodationId"/>
+        <!-- amenities 제거: amenityDetails에서 이름만 추출 가능 -->
         <collection property="amenityDetails" column="accommodationsId" select="selectAmenityDetailsByAccommodationId"/>
         <collection property="themes" column="accommodationsId" select="selectThemesByAccommodationId"/>
         <collection property="rooms" column="accommodationsId" select="selectRoomsByAccommodationId"/>
         <collection property="images" column="accommodationsId" select="selectImagesByAccommodationId"/>
         <collection property="reviews" column="accommodationsId" select="com.ssg9th2team.geharbang.domain.review.repository.mybatis.ReviewMapper.selectReviewsByAccommodationId"/>
-        <collection property="amenityIds" column="accommodationsId" select="selectAmenityIdsByAccommodationId"/>
-        <collection property="themeIds" column="accommodationsId" select="selectThemeIdsByAccommodationId"/>
+    </resultMap>
+
+    <!-- 최적화된 단일 쿼리 ResultMap (JOIN 방식) -->
+    <resultMap id="AccommodationDetailOptimizedMap" type="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto" autoMapping="true">
+        <id property="accommodationsId" column="accommodationsId"/>
+        <collection property="amenityDetails" ofType="com.ssg9th2team.geharbang.domain.accommodation.dto.AmenityDetailDto">
+            <result property="amenityName" column="amenityName"/>
+            <result property="amenityIcon" column="amenityIcon"/>
+        </collection>
+        <collection property="themes" ofType="string">
+            <result column="themeName"/>
+        </collection>
+        <collection property="rooms" ofType="com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto">
+            <id property="roomId" column="roomId"/>
+            <result property="roomName" column="roomName"/>
+            <result property="roomDescription" column="roomDescription"/>
+            <result property="maxGuests" column="maxGuests"/>
+            <result property="minGuests" column="minGuests"/>
+            <result property="price" column="price"/>
+            <result property="weekendPrice" column="weekendPrice"/>
+            <result property="mainImageUrl" column="roomMainImageUrl"/>
+            <result property="bathroomCount" column="bathroomCount"/>
+            <result property="bedCount" column="bedCount"/>
+            <result property="roomStatus" column="roomStatus"/>
+        </collection>
+        <collection property="images" ofType="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto">
+            <result property="imageUrl" column="imageUrl"/>
+            <result property="imageType" column="imageType"/>
+            <result property="sortOrder" column="sortOrder"/>
+        </collection>
+        <!-- reviews는 복잡한 구조로 별도 쿼리 유지 -->
+        <collection property="reviews" column="accommodationsId" select="com.ssg9th2team.geharbang.domain.review.repository.mybatis.ReviewMapper.selectReviewsByAccommodationId"/>
     </resultMap>
 
 
@@ -84,7 +116,7 @@
         )
     </insert>
 
-    <!-- 숙소 상세조회 -->
+    <!-- 숙소 상세조회 (기존 방식 - 6개 쿼리) -->
     <select id="selectAccommodationById" resultMap="AccommodationDetailMap">
         SELECT
             a.accommodations_id AS accommodationsId,
@@ -343,14 +375,13 @@
             COALESCE(MAX(r.max_guests), 0) AS maxGuests,
             COALESCE(COUNT(DISTINCT r.room_id), 0) AS roomCount,
             COALESCE(a.min_price, MIN(r.price), 0) AS pricePerNight,
-            MAX(ai.image_url) AS imageUrl
+            (SELECT ai.image_url FROM accommodation_image ai
+             WHERE ai.accommodations_id = a.accommodations_id
+             ORDER BY ai.sort_order ASC LIMIT 1) AS imageUrl
         FROM accommodation a
         LEFT JOIN room r
             ON r.accommodations_id = a.accommodations_id
             AND r.room_status = 1
-        LEFT JOIN accommodation_image ai
-            ON ai.accommodations_id = a.accommodations_id
-            AND ai.image_type = 'banner'
         WHERE a.user_id = #{hostId}
         GROUP BY
             a.accommodations_id,
@@ -394,14 +425,13 @@
             COALESCE(MAX(r.max_guests), 0) AS maxGuests,
             COALESCE(COUNT(DISTINCT r.room_id), 0) AS roomCount,
             COALESCE(a.min_price, MIN(r.price), 0) AS pricePerNight,
-            MAX(ai.image_url) AS imageUrl
+            (SELECT ai.image_url FROM accommodation_image ai
+             WHERE ai.accommodations_id = a.accommodations_id
+             ORDER BY ai.sort_order ASC LIMIT 1) AS imageUrl
         FROM accommodation a
         LEFT JOIN room r
             ON r.accommodations_id = a.accommodations_id
             AND r.room_status = 1
-        LEFT JOIN accommodation_image ai
-            ON ai.accommodations_id = a.accommodations_id
-            AND ai.image_type = 'banner'
         WHERE a.user_id = #{hostId}
           AND a.accommodations_id = #{accommodationsId}
         GROUP BY

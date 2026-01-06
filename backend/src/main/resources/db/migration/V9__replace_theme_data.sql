@@ -26,7 +26,7 @@ INSERT INTO theme (theme_category, theme_name, theme_image_url) VALUES
 ('CULTURE', '문화유적', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Classical%20building/3D/classical_building_3d.png'),
 
 -- 3. ACTIVITY (액티비티)
-('ACTIVITY', '서핑', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Person%20surfing/3D/person_surfing_3d.png'),
+('ACTIVITY', '서핑', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Person%20surfing%3A%20light%20skin%20tone/3D/person_surfing_light_skin_tone_3d.png'),
 ('ACTIVITY', '수상레저', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Speedboat/3D/speedboat_3d.png'),
 ('ACTIVITY', '워터파크', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Playground%20slide/3D/playground_slide_3d.png'),
 ('ACTIVITY', '러닝', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Person%20running/3D/person_running_3d.png'),

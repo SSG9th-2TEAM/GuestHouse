@@ -2,7 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { completeSocialSignup, saveTokens } from '@/api/authClient'
-import { fetchThemes } from '@/api/theme'
+import { fetchThemes, fetchThemeCategories } from '@/api/theme'
+
+// 상수 정의
+const MAX_THEME_SELECTIONS = 3
 
 const router = useRouter()
 const route = useRoute()
@@ -143,23 +146,83 @@ const closeTermsModal = () => {
 const themes = ref([])
 const themesLoading = ref(false)
 const themesError = ref('')
+const categories = ref([]) // 카테고리 목록 (DB에서 가져옴)
+
+// 기본 카테고리 정보 (API 실패 시 fallback)
+const defaultCategoryInfo = {
+  'NATURE': { emoji: '🌿', name: '자연' },
+  'CULTURE': { emoji: '🏛️', name: '문화' },
+  'ACTIVITY': { emoji: '🏄', name: '활동' },
+  'VIBE': { emoji: '✨', name: '분위기' },
+  'PARTY': { emoji: '🥳', name: '파티' },
+  'MEETING': { emoji: '💞', name: '만남' },
+  'PERSONA': { emoji: '👤', name: '특성/성향' },
+  'FACILITY': { emoji: '🏠', name: '시설' },
+  'FOOD': { emoji: '🍴', name: '음식' },
+  'PLAY': { emoji: '🎮', name: '놀이' }
+}
+
+// 카테고리 배열을 객체로 변환 (categoryKey를 키로 사용)
+const categoryInfo = computed(() => {
+  // 카테고리 데이터가 로드되지 않았으면 기본값 사용
+  if (categories.value.length === 0) {
+    return defaultCategoryInfo
+  }
+
+  const info = {}
+  categories.value.forEach(category => {
+    info[category.categoryKey] = {
+      emoji: category.emoji,
+      name: category.categoryName
+    }
+  })
+  return info
+})
+
+// 카테고리별로 그룹화된 테마
+const groupedThemes = computed(() => {
+  const groups = {}
+  themes.value.forEach(theme => {
+    if (!groups[theme.category]) {
+      groups[theme.category] = []
+    }
+    groups[theme.category].push(theme)
+  })
+  return groups
+})
 
 const loadThemes = async () => {
   themesLoading.value = true
   themesError.value = ''
   try {
-    const response = await fetchThemes()
-    if (response.ok && Array.isArray(response.data)) {
+    // 테마 목록과 카테고리 목록을 병렬로 가져오기
+    const [themesResponse, categoriesResponse] = await Promise.all([
+      fetchThemes(),
+      fetchThemeCategories()
+    ])
+
+    // 카테고리 데이터 처리
+    if (categoriesResponse.ok && Array.isArray(categoriesResponse.data)) {
+      categories.value = categoriesResponse.data
+      console.log('카테고리 로드 성공:', categories.value)
+    } else {
+      console.warn('카테고리 목록 로드 실패, 기본값 사용:', categoriesResponse)
+    }
+
+    // 테마 데이터 처리
+    if (themesResponse.ok && Array.isArray(themesResponse.data)) {
       // 백엔드에서 받은 테마를 프론트엔드 형식으로 변환
-      themes.value = response.data.map(theme => ({
+      themes.value = themesResponse.data.map(theme => ({
         id: theme.id,
+        category: theme.themeCategory,
         label: theme.themeName,
         imageUrl: theme.themeImageUrl,
         selected: false
       }))
+      console.log('테마 로드 성공:', themes.value.length, '개')
     } else {
       themesError.value = '테마 목록을 불러오지 못했습니다.'
-      console.error('테마 목록 로드 실패:', response)
+      console.error('테마 목록 로드 실패:', themesResponse)
     }
   } catch (error) {
     themesError.value = '테마 목록을 불러오는 중 오류가 발생했습니다.'
@@ -170,7 +233,20 @@ const loadThemes = async () => {
 }
 
 const toggleTheme = (theme) => {
-  theme.selected = !theme.selected
+  // 이미 선택된 테마를 해제하는 경우
+  if (theme.selected) {
+    theme.selected = false
+    return
+  }
+
+  // 새로 선택하는 경우 - 최대 선택 개수 제한
+  const selectedCount = themes.value.filter(t => t.selected).length
+  if (selectedCount >= MAX_THEME_SELECTIONS) {
+    openModal(`테마는 최대 ${MAX_THEME_SELECTIONS}개까지만 선택할 수 있습니다.`, 'info')
+    return
+  }
+
+  theme.selected = true
 }
 
 // Modal
@@ -307,9 +383,7 @@ const handleSkip = async () => {
       <!-- Progress Steps -->
       <div class="progress-steps">
         <div class="step" :class="{ active: currentStep >= 1, done: currentStep > 1 }">
-          <svg v-if="currentStep > 1" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-          <span v-if="currentStep > 1">1</span>
-          <span v-else>1</span>
+          <span>1</span>
         </div>
         <div class="step-line" :class="{ active: currentStep >= 2 }"></div>
         <div class="step" :class="{ active: currentStep >= 2 }">
@@ -346,33 +420,40 @@ const handleSkip = async () => {
       <template v-if="currentStep === 2">
         <div class="theme-section">
           <h2 class="theme-title">관심 테마를 선택해주세요</h2>
-          <p class="theme-desc">마음에 드는 여행 스타일을 선택하시면<br/>꼭 맞는 숙소를 추천해 드립니다. (여러 개 선택 가능)</p>
+          <p class="theme-desc">마음에 드는 여행 스타일을 선택하시면<br/>꼭 맞는 숙소를 추천해 드립니다. (최대 {{ MAX_THEME_SELECTIONS }}개 선택 가능)</p>
 
           <div v-if="themesLoading" class="theme-loading">
             <div class="spinner"></div>
             <p>테마 목록을 불러오는 중...</p>
           </div>
           <div v-else-if="themesError" class="theme-error">{{ themesError }}</div>
-          <div v-else class="theme-grid">
-            <button
-              type="button"
-              v-for="theme in themes"
-              :key="theme.id"
-              class="theme-card"
-              :class="{ selected: theme.selected }"
-              @click="toggleTheme(theme)"
+          <div v-else class="theme-categories">
+            <div
+              v-for="(categoryThemes, categoryKey) in groupedThemes"
+              :key="categoryKey"
+              class="category-section"
             >
-              <img :src="theme.imageUrl" :alt="theme.label" class="theme-image" />
-              <div class="theme-overlay"></div>
-              <div class="theme-label-container">
-                <span class="theme-label">{{ theme.label }}</span>
+              <h3 class="category-header">
+                <span class="category-emoji">{{ categoryInfo[categoryKey]?.emoji }}</span>
+                <span class="category-name">{{ categoryInfo[categoryKey]?.name }}</span>
+              </h3>
+              <div class="theme-chips">
+                <button
+                  type="button"
+                  v-for="theme in categoryThemes"
+                  :key="theme.id"
+                  class="theme-chip"
+                  :class="{ selected: theme.selected }"
+                  @click="toggleTheme(theme)"
+                >
+                  <img :src="theme.imageUrl" :alt="theme.label" class="chip-icon" />
+                  <span class="chip-label">{{ theme.label }}</span>
+                  <div class="chip-check" v-if="theme.selected">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                  </div>
+                </button>
               </div>
-              <div class="theme-checkbox-wrapper">
-                <div class="theme-checkbox">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                </div>
-              </div>
-            </button>
+            </div>
           </div>
         </div>
 
@@ -390,11 +471,10 @@ const handleSkip = async () => {
     <!-- Modal -->
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
       <div class="modal-content">
-        <div class="modal-icon" :class="modalType">
-          <span v-if="modalType === 'success'">✓</span>
-          <span v-else-if="modalType === 'error'">!</span>
-          <span v-else>i</span>
-        </div>
+        <button class="modal-close-btn" @click="closeModal">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+
         <p class="modal-message">{{ modalMessage }}</p>
         <button class="modal-btn" @click="closeModal">확인</button>
       </div>
@@ -403,6 +483,9 @@ const handleSkip = async () => {
     <!-- Terms Modal -->
     <div v-if="showTermsModal" class="modal-overlay" @click.self="closeTermsModal">
       <div class="modal-content large">
+        <button class="modal-close-btn" @click="closeTermsModal">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
         <h2>{{ termsModalTitle }}</h2>
         <div class="terms-content-scroll">
           <div v-html="termsModalContent"></div>
@@ -511,7 +594,6 @@ const handleSkip = async () => {
 }
 .step.done {
   background: var(--success-color);
-  color: white;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
   display: flex;
   align-items: center;
@@ -519,10 +601,10 @@ const handleSkip = async () => {
   gap: 4px;
 }
 .step.done span {
-  color: white;
+  color: var(--text-primary);
 }
 .step.done svg {
-  color: white;
+  color: var(--text-primary);
 }
 .step-line {
   width: 60px;
@@ -669,118 +751,103 @@ const handleSkip = async () => {
   background-color: #fee2e2;
   border-radius: 8px;
 }
-.theme-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 1rem;
+
+/* 카테고리별 테마 레이아웃 */
+.theme-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  text-align: left;
 }
-.theme-card {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  cursor: pointer;
-  aspect-ratio: 1 / 1;
-  border: 3px solid #e5e7eb;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+.category-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
-.theme-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-  border-color: var(--accent-color);
-}
-.theme-card.selected {
-  border-color: #BFE7DF;
-  border-width: 4px;
-  transform: translateY(-6px) scale(1.03);
-  box-shadow: 0 12px 28px rgba(191, 231, 223, 0.5);
-}
-.theme-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.4s ease;
-}
-.theme-card:hover .theme-image {
-  transform: scale(1.1);
-}
-.theme-overlay {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.1);
-  transition: background-color 0.3s ease;
-}
-.theme-card:hover .theme-overlay {
-  background: rgba(0,0,0,0.25);
-}
-.theme-card.selected .theme-overlay {
-  background: linear-gradient(135deg, rgba(191, 231, 223, 0.4) 0%, rgba(109, 195, 187, 0.5) 100%);
-}
-.theme-label-container {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.3), transparent);
-  padding: 10px 12px;
-  transition: all 0.3s ease;
-}
-.theme-card.selected .theme-label-container {
-  background: linear-gradient(to top, rgba(191, 231, 223, 0.95), rgba(191, 231, 223, 0.85));
-}
-.theme-label {
-  color: white;
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  font-size: 0.95rem;
-  text-align: center;
-  display: block;
-  width: 100%;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  color: var(--text-primary);
+  margin: 0;
 }
-.theme-card.selected .theme-label {
-  color: #004d40;
-  text-shadow: none;
-}
-.theme-checkbox-wrapper {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 28px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(8px);
-  border-radius: 50%;
+
+.category-emoji {
+  font-size: 1.4rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
-  transform: scale(0.5);
-  opacity: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
-.theme-checkbox {
-  width: 22px;
-  height: 22px;
-  background: var(--background-white);
-  border-radius: 50%;
+
+.category-name {
+  letter-spacing: -0.02em;
+}
+
+/* 테마 칩 레이아웃 */
+.theme-chips {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.theme-chip {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  color: var(--primary-dark);
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: white;
   border: 2px solid var(--border-color);
-  transition: all 0.3s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  position: relative;
 }
-.theme-card.selected .theme-checkbox-wrapper {
-  transform: scale(1);
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.5);
+
+.theme-chip:hover {
+  border-color: #BFE7DF;
+  background: #f0fdf9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(191, 231, 223, 0.2);
 }
-.theme-card.selected .theme-checkbox {
+
+.theme-chip.selected {
+  background: #BFE7DF;
+  border-color: #6DC3BB;
+  color: #004d40;
+  box-shadow: 0 4px 12px rgba(191, 231, 223, 0.4);
+}
+
+.chip-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.chip-label {
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+
+.chip-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
   background: #6DC3BB;
+  border-radius: 50%;
   color: white;
-  border-color: white;
-  box-shadow: 0 2px 8px rgba(109, 195, 187, 0.4);
+  margin-left: 0.25rem;
+  flex-shrink: 0;
 }
 
 /* Buttons */
@@ -868,6 +935,29 @@ const handleSkip = async () => {
   text-align: center;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: slideUp 0.3s ease;
+  position: relative;
+}
+.modal-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+}
+.modal-close-btn:hover {
+  background: var(--background-light);
+  color: var(--text-primary);
+  transform: rotate(90deg);
 }
 @keyframes slideUp {
   from { transform: translateY(20px); opacity: 0; }
@@ -896,6 +986,9 @@ const handleSkip = async () => {
 .modal-icon.info {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   color: white;
+}
+.modal-icon.success svg {
+  color: var(--text-primary);
 }
 .modal-message {
   font-size: 1.05rem;
