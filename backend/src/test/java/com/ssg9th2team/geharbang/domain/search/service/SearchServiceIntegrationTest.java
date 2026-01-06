@@ -253,12 +253,50 @@ class SearchServiceIntegrationTest {
                 assertThat(response.items().get(0).getAccommodationsName()).isEqualTo("Theme-In");
         }
 
+        @Test
+        @DisplayName("Price filter without dates returns correct count and items")
+        void searchByPriceFiltersWithoutDates() {
+                Accommodation cheap = persistAccommodation("Cheap-Acc", "Seogwipo",
+                                BigDecimal.valueOf(33.25), BigDecimal.valueOf(126.55), 5000);
+                persistRoom(cheap.getAccommodationsId(), 4, 5000);
+
+                Accommodation expensive = persistAccommodation("Expensive-Acc", "Seogwipo",
+                                BigDecimal.valueOf(33.26), BigDecimal.valueOf(126.56), 20000);
+                persistRoom(expensive.getAccommodationsId(), 4, 20000);
+
+                entityManager.clear();
+
+                PublicListResponse response = searchService.searchPublicList(
+                                Collections.emptyList(),
+                                null,
+                                0,
+                                10,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                15000,
+                                25000);
+
+                assertThat(response.items()).hasSize(1);
+                assertThat(response.items().get(0).getAccommodationsName()).isEqualTo("Expensive-Acc");
+                assertThat(response.page().totalElements()).isEqualTo(1);
+        }
+
         private Accommodation persistAccommodation(String name, String district) {
                 return persistAccommodation(name, district, BigDecimal.valueOf(33.25), BigDecimal.valueOf(126.55));
         }
 
         private Accommodation persistAccommodation(String name, String district, BigDecimal latitude,
                         BigDecimal longitude) {
+                return persistAccommodation(name, district, latitude, longitude, 10000);
+        }
+
+        private Accommodation persistAccommodation(String name, String district, BigDecimal latitude,
+                        BigDecimal longitude, int minPrice) {
                 Accommodation accommodation = Accommodation.builder()
                                 .accountNumberId(1L)
                                 .userId(1L)
@@ -278,7 +316,7 @@ class SearchServiceIntegrationTest {
                                 .parkingInfo("test parking")
                                 .checkInTime("15:00")
                                 .checkOutTime("11:00")
-                                .minPrice(10000)
+                                .minPrice(minPrice)
                                 .build();
                 entityManager.persist(accommodation);
                 entityManager.flush();

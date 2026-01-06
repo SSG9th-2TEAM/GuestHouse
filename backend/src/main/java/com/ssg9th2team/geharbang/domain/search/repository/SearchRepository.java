@@ -26,49 +26,55 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 FROM room
                 WHERE room_status = 1
                 GROUP BY accommodations_id
+            ),
+            priced_accommodations AS (
+                SELECT a.accommodations_id,
+                       a.accommodations_name,
+                       a.short_description,
+                       a.city,
+                       a.district,
+                       a.township,
+                       a.latitude,
+                       a.longitude,
+                       a.rating,
+                       a.review_count,
+                       COALESCE(rs.maxGuests, 0) AS maxGuests,
+                       COALESCE(rs.hasGuestCapacity, 0) AS hasGuestCapacity,
+                       CASE
+                           WHEN (:guestCount IS NULL OR :guestCount < 2)
+                               THEN a.min_price
+                           ELSE COALESCE(rs.minPriceForGuest, a.min_price)
+                       END AS effective_price
+                FROM accommodation a
+                LEFT JOIN room_stats rs ON rs.accommodations_id = a.accommodations_id
+                WHERE a.accommodation_status = 1
+                  AND a.approval_status = 'APPROVED'
             )
             SELECT
-                a.accommodations_id AS accommodationsId,
-                a.accommodations_name AS accommodationsName,
-                a.short_description AS shortDescription,
-                a.city AS city,
-                a.district AS district,
-                a.township AS township,
-                a.latitude AS latitude,
-                a.longitude AS longitude,
-                CASE
-                    WHEN (:guestCount IS NULL OR :guestCount < 2)
-                        THEN a.min_price
-                    ELSE COALESCE(rs.minPriceForGuest, a.min_price)
-                END AS minPrice,
-                a.rating AS rating,
-                a.review_count AS reviewCount,
-                COALESCE(rs.maxGuests, 0) AS maxGuests,
+                pa.accommodations_id AS accommodationsId,
+                pa.accommodations_name AS accommodationsName,
+                pa.short_description AS shortDescription,
+                pa.city AS city,
+                pa.district AS district,
+                pa.township AS township,
+                pa.latitude AS latitude,
+                pa.longitude AS longitude,
+                pa.effective_price AS minPrice,
+                pa.rating AS rating,
+                pa.review_count AS reviewCount,
+                pa.maxGuests AS maxGuests,
                 ai.image_url AS imageUrl
-            FROM accommodation a
+            FROM priced_accommodations pa
             LEFT JOIN accommodation_image ai
-              ON ai.accommodations_id = a.accommodations_id
+              ON ai.accommodations_id = pa.accommodations_id
              AND ai.sort_order = 0
              AND ai.image_type = 'banner'
-            LEFT JOIN room_stats rs ON rs.accommodations_id = a.accommodations_id
-            WHERE a.accommodation_status = 1
-              AND a.approval_status = 'APPROVED'
-              AND (:keyword IS NULL OR :keyword = ''
-                   OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
-              AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rs.hasGuestCapacity, 0) = 1)
-              AND (:minPrice IS NULL OR
-                   (CASE
-                       WHEN (:guestCount IS NULL OR :guestCount < 2)
-                           THEN a.min_price
-                       ELSE COALESCE(rs.minPriceForGuest, a.min_price)
-                    END) >= :minPrice)
-              AND (:maxPrice IS NULL OR
-                   (CASE
-                       WHEN (:guestCount IS NULL OR :guestCount < 2)
-                           THEN a.min_price
-                       ELSE COALESCE(rs.minPriceForGuest, a.min_price)
-                    END) <= :maxPrice)
-            ORDER BY a.accommodations_id DESC
+            WHERE (:keyword IS NULL OR :keyword = ''
+                   OR LOWER(CONCAT_WS(' ', pa.accommodations_name, pa.city, pa.district, pa.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
+              AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
+              AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
+            ORDER BY pa.accommodations_id DESC
             """, countQuery = """
             WITH room_stats AS (
                 SELECT accommodations_id,
@@ -82,15 +88,31 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 FROM room
                 WHERE room_status = 1
                 GROUP BY accommodations_id
+            ),
+            priced_accommodations AS (
+                SELECT a.accommodations_id,
+                       a.accommodations_name,
+                       a.city,
+                       a.district,
+                       a.township,
+                       COALESCE(rs.hasGuestCapacity, 0) AS hasGuestCapacity,
+                       CASE
+                           WHEN (:guestCount IS NULL OR :guestCount < 2)
+                               THEN a.min_price
+                           ELSE COALESCE(rs.minPriceForGuest, a.min_price)
+                       END AS effective_price
+                FROM accommodation a
+                LEFT JOIN room_stats rs ON rs.accommodations_id = a.accommodations_id
+                WHERE a.accommodation_status = 1
+                  AND a.approval_status = 'APPROVED'
             )
             SELECT COUNT(*)
-            FROM accommodation a
-            LEFT JOIN room_stats rs ON rs.accommodations_id = a.accommodations_id
-            WHERE a.accommodation_status = 1
-              AND a.approval_status = 'APPROVED'
-              AND (:keyword IS NULL OR :keyword = ''
-                   OR LOWER(CONCAT_WS(' ', a.accommodations_name, a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
-              AND (:guestCount IS NULL OR :guestCount = 0 OR COALESCE(rs.hasGuestCapacity, 0) = 1)
+            FROM priced_accommodations pa
+            WHERE (:keyword IS NULL OR :keyword = ''
+                   OR LOWER(CONCAT_WS(' ', pa.accommodations_name, pa.city, pa.district, pa.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
+              AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
+              AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
             """, nativeQuery = true)
     Page<ListDtoProjection> searchPublicListNoDates(
             @Param("keyword") String keyword,
