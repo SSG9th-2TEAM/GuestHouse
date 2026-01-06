@@ -140,6 +140,19 @@ const handleDelete = async (id) => {
   }
 }
 
+// 예정된 예약 카드 클릭 → 예약완료 상세 페이지
+const handleUpcomingClick = (item) => {
+  router.push({
+    name: 'booking-success',
+    query: { reservationId: item.reservationId }
+  })
+}
+
+// 이용완료 카드 클릭 → 숙소 상세 페이지
+const handlePastClick = (item) => {
+  router.push(`/room/${item.accommodationsId}`)
+}
+
 // 리뷰 작성
 const handleWriteReview = (item) => {
   router.push({
@@ -190,7 +203,15 @@ onMounted(() => {
         </div>
 
         <div v-else class="card-list">
-          <div v-for="item in upcomingReservations" :key="item.reservationId" class="res-card">
+          <div 
+            v-for="item in upcomingReservations" 
+            :key="item.reservationId" 
+            class="res-card clickable" 
+            role="link"
+            tabindex="0"
+            @click="handleUpcomingClick(item)"
+            @keydown.enter="handleUpcomingClick(item)"
+          >
             <div class="card-content">
               <img
                   :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
@@ -216,7 +237,7 @@ onMounted(() => {
               </div>
             </div>
 
-            <div class="card-actions">
+            <div class="card-actions" @click.stop>
               <button class="action-btn outline" @click="handleCancel(item)">예약 취소</button>
             </div>
           </div>
@@ -232,7 +253,15 @@ onMounted(() => {
         </div>
 
         <div v-else class="card-list">
-          <div v-for="item in pastReservations" :key="item.reservationId" class="res-card">
+          <div 
+            v-for="item in pastReservations" 
+            :key="item.reservationId" 
+            class="res-card clickable" 
+            role="link"
+            tabindex="0"
+            @click="handlePastClick(item)"
+            @keydown.enter="handlePastClick(item)"
+          >
             <div class="card-content">
               <img
                   :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
@@ -255,7 +284,7 @@ onMounted(() => {
               </div>
             </div>
 
-            <div class="card-actions">
+            <div class="card-actions" @click.stop>
               <template v-if="!item.hasReview">
                  <button
                   class="action-btn review"
@@ -359,6 +388,16 @@ onMounted(() => {
   border-radius: 16px;
   padding: 1rem;
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+
+.res-card.clickable {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.res-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 .card-content {

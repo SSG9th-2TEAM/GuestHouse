@@ -19,8 +19,28 @@ const info = ref({
   totalPrice: 0,
   paymentDate: '',
   reserverName: '',
-  reserverPhone: ''
+  reserverPhone: '',
+  paymentMethod: ''
 })
+
+// 결제 수단 한글 변환
+const getPaymentMethodName = (method) => {
+  const methodNames = {
+    '카드': '신용/체크카드',
+    'CARD': '신용/체크카드',
+    '가상계좌': '가상계좌',
+    'VIRTUAL_ACCOUNT': '가상계좌',
+    '계좌이체': '계좌이체',
+    'TRANSFER': '계좌이체',
+    '휴대폰': '휴대폰 결제',
+    'MOBILE_PHONE': '휴대폰 결제',
+    '간편결제': '간편결제',
+    'EASY_PAY': '간편결제',
+    '토스페이': '토스페이',
+    '토스결제': '토스페이'
+  }
+  return methodNames[method] || method
+}
 
 onMounted(async () => {
     // 1. state에서 데이터 확인 (booking-success 라우트로 이동 시 전달됨)
@@ -51,7 +71,8 @@ onMounted(async () => {
                 totalPrice: res.finalPaymentAmount,
                 paymentDate: new Date(res.createdAt).toLocaleString(),
                 reserverName: res.reserverName,
-                reserverPhone: res.reserverPhone
+                reserverPhone: res.reserverPhone,
+                paymentMethod: res.paymentMethod || ''
             }
         } catch (error) {
             console.error('예약 정보 조회 실패:', error)
@@ -156,6 +177,10 @@ const goHistory = () => router.push('/reservations')
         <div class="row total">
           <span>총 결제 금액</span>
           <span>{{ info.totalPrice?.toLocaleString() }}원</span>
+        </div>
+        <div class="row" v-if="info.paymentMethod">
+          <span>결제 수단</span>
+          <span>{{ getPaymentMethodName(info.paymentMethod) }}</span>
         </div>
 
         <div class="payment-date">

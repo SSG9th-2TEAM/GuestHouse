@@ -365,7 +365,7 @@ onUnmounted(() => {
 
               <div class="host-toggle-card" @click="toggleHostMode">
                 <div class="toggle-info">
-                  <div class="toggle-title">호스트 모드 전환</div>
+                  <div class="toggle-title">{{ isHostRoute ? '게스트 모드로 전환' : '호스트 모드로 전환' }}</div>
                   <div class="toggle-status">현재: {{ !isLoggedIn ? '비회원' : (isHostRoute ? '호스트 모드' : '게스트 모드') }}</div>
                 </div>
                 <div class="toggle-icon">›</div>
