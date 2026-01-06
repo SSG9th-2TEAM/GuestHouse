@@ -7,7 +7,7 @@ export const useSearchStore = defineStore('search', () => {
     const endDate = ref(null)
 
     // Guest state
-    const guestCount = ref(0)
+    const guestCount = ref(1)
 
     // Price/theme filter state
     const minPrice = ref(null)
@@ -31,8 +31,8 @@ export const useSearchStore = defineStore('search', () => {
     })
 
     const guestDisplayText = computed(() => {
-        if (guestCount.value === 0) return '게스트 추가'
-        return `게스트 ${guestCount.value}명`
+        const count = guestCount.value > 0 ? guestCount.value : 1
+        return `게스트 ${count}명`
     })
 
     // Format for detail view
@@ -57,7 +57,8 @@ export const useSearchStore = defineStore('search', () => {
     }
 
     const setGuestCount = (count) => {
-        guestCount.value = count
+        const parsed = Number(count)
+        guestCount.value = Number.isFinite(parsed) ? Math.max(1, parsed) : 1
     }
 
     const increaseGuest = () => {
@@ -65,7 +66,7 @@ export const useSearchStore = defineStore('search', () => {
     }
 
     const decreaseGuest = () => {
-        if (guestCount.value > 0) {
+        if (guestCount.value > 1) {
             guestCount.value--
         }
     }

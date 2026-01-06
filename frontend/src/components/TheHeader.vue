@@ -245,6 +245,13 @@ const formatDateParam = (date) => {
   return `${year}-${month}-${day}`
 }
 
+const isMapContext = () => {
+  if (route.path === '/map') return true
+  const from = route.query.from
+  if (Array.isArray(from)) return from.includes('map')
+  return from === 'map'
+}
+
 const buildSearchQuery = () => {
   const query = {}
   const keyword = String(searchKeyword.value ?? '').trim()
@@ -259,7 +266,7 @@ const buildSearchQuery = () => {
     query.checkout = checkout
   }
 
-  if (route.path === '/list' || route.path === '/map') {
+  if (route.path === '/list' || isMapContext()) {
     if (searchStore.minPrice !== null) query.min = String(searchStore.minPrice)
     if (searchStore.maxPrice !== null) query.max = String(searchStore.maxPrice)
     if (searchStore.themeIds.length) query.themeIds = searchStore.themeIds.join(',')
@@ -269,7 +276,7 @@ const buildSearchQuery = () => {
 }
 
 const handleSearch = () => {
-  const targetPath = route.path === '/map' ? '/map' : '/list'
+  const targetPath = isMapContext() ? '/map' : '/list'
   router.push({ path: targetPath, query: buildSearchQuery() })
   isSearchExpanded.value = false
 }
@@ -470,7 +477,7 @@ onUnmounted(() => {
                   <span class="guest-type">게스트</span>
                 </div>
                 <div class="guest-controls">
-                  <button class="guest-btn" @click.stop="decreaseGuest" :disabled="searchStore.guestCount === 0">
+                  <button class="guest-btn" @click.stop="decreaseGuest" :disabled="searchStore.guestCount <= 1">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
                     </svg>
@@ -619,7 +626,7 @@ onUnmounted(() => {
                   <span class="guest-type">게스트</span>
                 </div>
                 <div class="guest-controls">
-                  <button class="guest-btn" @click="decreaseGuest" :disabled="searchStore.guestCount === 0">
+                  <button class="guest-btn" @click="decreaseGuest" :disabled="searchStore.guestCount <= 1">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
                     </svg>

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -25,9 +26,10 @@ public class ThemeController {
 
     @GetMapping
     public List<ThemeResponseDto> findAll() {
+        Map<Long, Long> counts = themeService.getThemeAccommodationCounts();
         return themeService.findAllThemes()
                 .stream()
-                .map(ThemeResponseDto::from)
+                .map(theme -> ThemeResponseDto.from(theme, counts.get(theme.getId())))
                 .collect(Collectors.toList());
     }
 
@@ -35,13 +37,14 @@ public class ThemeController {
     @Transactional(readOnly = true)
     public List<ThemeResponseDto> findMyThemes(Authentication authentication) {
         String email = authentication.getName();
+        Map<Long, Long> counts = themeService.getThemeAccommodationCounts();
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"))
                 .getThemes()
                 .stream()
                 .sorted(Comparator.comparing(Theme::getId))
                 .limit(3)
-                .map(ThemeResponseDto::from)
+                .map(theme -> ThemeResponseDto.from(theme, counts.get(theme.getId())))
                 .collect(Collectors.toList());
     }
 }

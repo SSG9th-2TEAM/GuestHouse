@@ -423,7 +423,7 @@ const fitToMarkers = (itemsWithCoords) => {
   }
 }
 
-const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 0 }) => {
+const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 1 }) => {
   searchStore.setPriceRange(min, max)
   searchStore.setThemeIds(themeIds)
   searchStore.setGuestCount(guestCount)
