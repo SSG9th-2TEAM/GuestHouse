@@ -56,11 +56,11 @@ public class UserCouponServiceImpl implements UserCouponService {
     @Override
     @Transactional
     public boolean issueFirstReservationCoupon(Long userId) {
-        // 완료된 예약 수 조회
+        // 내 계정에서 완료된 예약 수 조회 ( reservationStatus가 2인게 몇개인지 조회해라 )
         Long completedCount = reservationJpaRepository.countByUserIdAndReservationStatus(userId, 2);
 
         // 첫 예약인지 체크
-        if(completedCount != 1) {
+        if(completedCount != 1) {   // 여기서 1은 예약 확정 된게 1개이면
             return false;
         }
 

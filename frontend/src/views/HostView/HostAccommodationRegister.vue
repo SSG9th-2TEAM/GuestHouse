@@ -526,23 +526,42 @@ const amenityOptions = [
   { id: 'tv', label: 'TV' }
 ]
 
-// 테마 옵션
-const themeOptions = {
-  activity: {
-    label: '액티비티',
-    items: ['불멍', '포틀럭', '러닝', '서핑']
-  },
-  location: {
-    label: '위치 특성',
-    items: ['바닷가', '공항 주변', '노을 맛집(노을 명소)']
-  },
-  experience: {
-    label: '특별한 경험',
-    items: ['여성 전용', '1인실', '독서', '스냅 촬영']
-  },
-  meal: {
-    label: '식사',
-    items: ['조식', '오마카세']
+// 테마 옵션 (API에서 동적으로 로드)
+const themeOptions = ref({})
+const themeList = ref([]) // 전체 테마 리스트 (id, themeName 매핑용)
+
+// 카테고리 라벨 매핑
+const categoryLabels = {
+  'MEETING': '만남/소셜',
+  'PERSONA': '페르소나/성향',
+  'FACILITY': '시설/편의',
+  'FOOD': '식사',
+  'PLAY': '놀거리'
+}
+
+// 테마 목록 로드
+const loadThemes = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/themes`)
+    if (!response.ok) throw new Error('테마 로드 실패')
+    const data = await response.json()
+    themeList.value = data
+
+    // 카테고리별로 그룹화
+    const grouped = {}
+    data.forEach(theme => {
+      const category = theme.themeCategory || 'ETC'
+      if (!grouped[category]) {
+        grouped[category] = {
+          label: categoryLabels[category] || category,
+          items: []
+        }
+      }
+      grouped[category].items.push(theme.themeName)
+    })
+    themeOptions.value = grouped
+  } catch (error) {
+    console.error('테마 로드 실패:', error)
   }
 }
 
@@ -826,12 +845,10 @@ const amenityIdMap = {
   'tv': 4
 }
 
-// 테마 ID 매핑 (프론트 name -> 백엔드 themeId)
-const themeIdMap = {
-  '불멍': 1, '포틀럭': 2, '러닝': 3, '서핑': 4,
-  '바닷가': 5, '공항 주변': 6, '노을 맛집(노을 명소)': 7,
-  '여성 전용': 8, '1인실': 9, '독서': 10, '스냅 촬영': 11,
-  '조식': 12, '오마카세': 13
+// 테마 ID 매핑 (themeName -> themeId) - API에서 동적으로 생성
+const getThemeId = (themeName) => {
+  const theme = themeList.value.find(t => t.themeName === themeName)
+  return theme ? theme.id : undefined
 }
 
 const handleSubmit = async () => {
@@ -907,7 +924,7 @@ const handleSubmit = async () => {
 
     // 테마 ID 변환
     const themeIds = form.value.themes
-      .map(t => themeIdMap[t])
+      .map(t => getThemeId(t))
       .filter(id => id !== undefined)
 
     // 백엔드 API 요청 데이터 구성
@@ -984,6 +1001,11 @@ const handleSubmit = async () => {
     isSubmitting.value = false
   }
 }
+
+// 컴포넌트 마운트 시 테마 로드
+onMounted(() => {
+  loadThemes()
+})
 </script>
 
 <template>
