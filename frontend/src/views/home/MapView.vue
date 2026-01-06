@@ -451,7 +451,8 @@ onMounted(() => {
 
     const options = {
       center: new window.kakao.maps.LatLng(36.5, 127.8), // Center of South Korea approximate
-      level: 13 // Zoom level to see the whole country
+      level: 13, // Zoom level to see the whole country
+      draggable: true
     }
 
     mapInstance.value = new window.kakao.maps.Map(mapContainer.value, options)
