@@ -15,6 +15,7 @@ import com.ssg9th2team.geharbang.domain.admin.log.AdminLogConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
@@ -73,6 +74,7 @@ public class AdminAccommodationService {
         return toDetail(accommodation, metrics);
     }
 
+    @Transactional
     public AdminAccommodationDetail approveAccommodation(Long adminUserId, Long accommodationId) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
@@ -81,10 +83,9 @@ public class AdminAccommodationService {
         Accommodation saved = accommodationRepository.save(accommodation);
         adminLogService.writeLog(
                 adminUserId,
-                AdminLogConstants.ACTION_APPROVE,
                 AdminLogConstants.TARGET_ACCOMMODATION,
                 accommodationId,
-                null,
+                AdminLogConstants.ACTION_APPROVE,
                 null
         );
         AdminAccommodationMetrics metrics = loadMetrics(List.of(saved))
@@ -92,6 +93,7 @@ public class AdminAccommodationService {
         return toDetail(saved, metrics);
     }
 
+    @Transactional
     public AdminAccommodationDetail rejectAccommodation(Long adminUserId, Long accommodationId, String reason) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
@@ -99,11 +101,10 @@ public class AdminAccommodationService {
         Accommodation saved = accommodationRepository.save(accommodation);
         adminLogService.writeLog(
                 adminUserId,
-                AdminLogConstants.ACTION_REJECT,
                 AdminLogConstants.TARGET_ACCOMMODATION,
                 accommodationId,
-                reason,
-                null
+                AdminLogConstants.ACTION_REJECT,
+                reason
         );
         AdminAccommodationMetrics metrics = loadMetrics(List.of(saved))
                 .get(saved.getAccommodationsId());

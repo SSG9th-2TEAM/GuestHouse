@@ -2,28 +2,22 @@ package com.ssg9th2team.geharbang.domain.accommodation.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Getter
 @AllArgsConstructor
-@NoArgsConstructor
-@Setter
 public class HostAccommodationSummaryResponse {
-    // MyBatis resultType mapping needs mutable setters for field injection.
-    private Long accommodationsId;
-    private String accommodationsName;
-    private String status;
-    private String approvalStatus;
-    private Integer accommodationStatus;
-    private String rejectionReason;
-    private Integer isResubmitted;
-    private String city;
-    private String district;
-    private String township;
-    private String addressDetail;
-    private Integer maxGuests;
-    private Integer roomCount;
-    private Integer pricePerNight;
-    private String imageUrl;
+    private final Long accommodationsId;
+    private final String accommodationsName;
+    private final String status;
+    private final String approvalStatus;
+    private final Integer accommodationStatus;
+    private final String rejectionReason;
+    private final String city;
+    private final String district;
+    private final String township;
+    private final String addressDetail;
+    private final Integer maxGuests;
+    private final Integer roomCount;
+    private final Integer pricePerNight;
+    private final String imageUrl;
 }

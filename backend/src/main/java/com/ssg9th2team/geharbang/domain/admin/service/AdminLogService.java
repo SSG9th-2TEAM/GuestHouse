@@ -19,14 +19,21 @@ public class AdminLogService {
 
     private final AdminLogMapper adminLogMapper;
 
-    public void writeLog(Long adminUserId, String actionType, String targetType, Long targetId, String reason, String metadataJson) {
+    public void writeLog(Long adminUserId, String targetType, Long targetId, String actionType, String reason) {
+        writeLog(adminUserId, targetType, targetId, actionType, reason, null);
+    }
+
+    public void writeLog(Long adminUserId, String targetType, Long targetId, String actionType, String reason, String metadataJson) {
         try {
             if (adminUserId == null || targetId == null) {
                 return;
             }
             String normalizedReason = StringUtils.hasText(reason) ? reason.trim() : null;
             String normalizedMetadata = StringUtils.hasText(metadataJson) ? metadataJson.trim() : null;
-            adminLogMapper.insertAdminLog(adminUserId, targetType, targetId, actionType, normalizedReason, normalizedMetadata);
+            int inserted = adminLogMapper.insertAdminLog(adminUserId, targetType, targetId, actionType, normalizedReason, normalizedMetadata);
+            if (inserted > 0) {
+                log.info("AdminLog inserted: adminId={}, target={}#{}, action={}", adminUserId, targetType, targetId, actionType);
+            }
         } catch (Exception e) {
             log.warn("Failed to insert admin_log: targetType={}, targetId={}, actionType={}",
                     targetType, targetId, actionType, e);
