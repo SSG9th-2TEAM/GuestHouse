@@ -142,16 +142,14 @@ const normalizeThemeName = (value) => {
 }
 
 const moveCultureHeritageToEnd = (items) => {
-  const head = []
-  const tail = []
-  items.forEach((item) => {
-    if (normalizeThemeName(item?.themeName) === '문화유적') {
-      tail.push(item)
-    } else {
-      head.push(item)
+  return [...items].sort((a, b) => {
+    const isACulture = normalizeThemeName(a?.themeName) === '문화유적'
+    const isBCulture = normalizeThemeName(b?.themeName) === '문화유적'
+    if (isACulture === isBCulture) {
+      return 0
     }
+    return isACulture ? 1 : -1
   })
-  return head.concat(tail)
 }
 
 const themesByCategory = computed(() => {
@@ -168,13 +166,16 @@ const themesByCategory = computed(() => {
     label: CATEGORY_LABELS[key] ?? key,
     items: moveCultureHeritageToEnd(items)
   }))
-  const cultureIndex = result.findIndex((group) =>
+  const groupContainsCultureHeritage = (group) =>
     group.items.some((item) => normalizeThemeName(item?.themeName) === '문화유적')
-  )
-  if (cultureIndex !== -1 && cultureIndex !== result.length - 1) {
-    const [cultureGroup] = result.splice(cultureIndex, 1)
-    result.push(cultureGroup)
-  }
+  result.sort((a, b) => {
+    const aHasCulture = groupContainsCultureHeritage(a)
+    const bHasCulture = groupContainsCultureHeritage(b)
+    if (aHasCulture === bHasCulture) {
+      return 0
+    }
+    return aHasCulture ? 1 : -1
+  })
   return result
 })
 
