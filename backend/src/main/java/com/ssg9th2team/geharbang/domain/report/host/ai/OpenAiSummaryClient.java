@@ -20,12 +20,15 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -34,6 +37,7 @@ public class OpenAiSummaryClient implements AiSummaryClient {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final Pattern NUMBERED_BULLET_MATCH = Pattern.compile("^\\d+\\..*");
     private static final Pattern NUMBERED_BULLET_PREFIX = Pattern.compile("^\\d+\\.\\s*");
+    private static final Map<String, HostReviewAiSummaryResponse> CACHE = new ConcurrentHashMap<>();
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate;
@@ -78,6 +82,12 @@ public class OpenAiSummaryClient implements AiSummaryClient {
             throw new HostReportAiException("OpenAI is not configured");
         }
 
+        String cacheKey = buildCacheKey(summary, request);
+        HostReviewAiSummaryResponse cached = CACHE.get(cacheKey);
+        if (cached != null) {
+            return copyResponse(cached);
+        }
+
         try {
             Map<String, Object> requestBody = buildRequest(summary, request);
 
@@ -97,7 +107,9 @@ public class OpenAiSummaryClient implements AiSummaryClient {
                 throw new HostReportAiException("OpenAI response missing content");
             }
 
-            return parseResponse(content, base);
+            HostReviewAiSummaryResponse parsed = parseResponse(content, base);
+            CACHE.put(cacheKey, copyResponse(parsed));
+            return parsed;
         } catch (RestClientException ex) {
             log.warn("OpenAI summary request failed: {}", ex.getMessage());
             throw new HostReportAiException("OpenAI request failed", ex);
@@ -227,6 +239,45 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         response.setActions(parsed.getOrDefault("actions", List.of()));
         response.setRisks(parsed.getOrDefault("risks", List.of()));
         return response;
+    }
+
+    private String buildCacheKey(HostReviewReportSummaryResponse summary, HostReviewAiSummaryRequest request) {
+        Long accommodationId = request.getAccommodationId();
+        String topTagsHash = hashTopTags(summary.getTopTags());
+        int reviewCount = summary.getReviewCount() != null ? summary.getReviewCount() : 0;
+        double avgRating = summary.getAvgRating() != null ? summary.getAvgRating() : 0.0;
+        return String.format(Locale.ROOT, "%s|%s|%s|%d|%.2f|%s",
+                accommodationId,
+                summary.getFrom(),
+                summary.getTo(),
+                reviewCount,
+                avgRating,
+                topTagsHash
+        );
+    }
+
+    private String hashTopTags(List<HostReviewReportTagRow> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return "none";
+        }
+        String raw = tags.stream()
+                .map(tag -> (tag.getTagName() != null ? tag.getTagName() : "") + ":" + (tag.getCount() != null ? tag.getCount() : 0))
+                .collect(Collectors.joining("|"));
+        return Integer.toHexString(Objects.hash(raw));
+    }
+
+    private HostReviewAiSummaryResponse copyResponse(HostReviewAiSummaryResponse source) {
+        HostReviewAiSummaryResponse copy = new HostReviewAiSummaryResponse();
+        copy.setAccommodationId(source.getAccommodationId());
+        copy.setFrom(source.getFrom());
+        copy.setTo(source.getTo());
+        copy.setGeneratedAt(source.getGeneratedAt());
+        copy.setOverview(source.getOverview() != null ? new ArrayList<>(source.getOverview()) : List.of());
+        copy.setPositives(source.getPositives() != null ? new ArrayList<>(source.getPositives()) : List.of());
+        copy.setNegatives(source.getNegatives() != null ? new ArrayList<>(source.getNegatives()) : List.of());
+        copy.setActions(source.getActions() != null ? new ArrayList<>(source.getActions()) : List.of());
+        copy.setRisks(source.getRisks() != null ? new ArrayList<>(source.getRisks()) : List.of());
+        return copy;
     }
 
     private Map<String, List<String>> parseMarkdownSummary(String content) {
