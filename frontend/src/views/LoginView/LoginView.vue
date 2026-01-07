@@ -97,7 +97,7 @@ const handleLogin = async () => {
 
 const socialLogin = (provider) => {
   // 백엔드 OAuth2 URL로 리다이렉트
-  const baseUrl = window.location.origin
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
   const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
   if (redirect.startsWith('/')) {
     sessionStorage.setItem('postLoginRedirect', redirect)
@@ -105,9 +105,9 @@ const socialLogin = (provider) => {
     sessionStorage.removeItem('postLoginRedirect')
   }
   const urls = {
-    Google: `${baseUrl}/oauth2/authorization/google`, // Google OAuth2 (구현 필요)
-    Kakao: `${baseUrl}/oauth2/authorization/kakao`, // Kakao OAuth2 (구현 필요)
-    Naver: `${baseUrl}/oauth2/authorization/naver` // Naver OAuth2 (구현 완료)
+    Google: `${baseUrl}/oauth2/authorization/google`,
+    Kakao: `${baseUrl}/oauth2/authorization/kakao`,
+    Naver: `${baseUrl}/oauth2/authorization/naver`
   }
 
   if (provider === 'Naver' || provider === 'Google' || provider === 'Kakao') {
