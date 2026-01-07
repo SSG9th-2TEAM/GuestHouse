@@ -85,8 +85,9 @@ const handleLogin = () => {
 const handleLogout = () => {
   logout()
   isLoggedIn.value = false
-  router.push('/')
   isMenuOpen.value = false
+  // 페이지 새로고침으로 상태 완전 초기화
+  window.location.href = '/'
 }
 
 // Calendar state - from store
