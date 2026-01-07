@@ -2,39 +2,59 @@ package com.ssg9th2team.geharbang.global.config;
 
 import org.springframework.boot.web.servlet.error.ErrorController;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 
 import jakarta.servlet.http.HttpServletRequest;
 
 @Controller
 public class ForwardController implements ErrorController {
 
-    // SPA 라우팅: 정적 리소스나 API가 아닌 모든 경로를 index.html로 포워딩
-    @GetMapping(value = "/**")
-    public String forward(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-
-        // 제외할 경로들 (정적 리소스, API 등)
-        if (uri.startsWith("/api/") ||
-                uri.startsWith("/assets/") ||
-                uri.startsWith("/uploads/") ||
-                uri.startsWith("/swagger-ui/") ||
-                uri.startsWith("/v3/") ||
-                uri.startsWith("/oauth2/") ||
-                uri.startsWith("/login/oauth2/") ||
-                uri.equals("/favicon.ico") ||
-                uri.equals("/logo.png") ||
-                uri.equals("/icon.png") ||
-                uri.equals("/index.html") ||
-                uri.contains(".")) { // 확장자가 있는 파일
-            return null; // Spring 기본 처리
-        }
-
+    // SPA 라우팅: 특정 프론트엔드 라우트만 index.html로 포워딩
+    // "/**" 대신 구체적인 경로 패턴 사용하여 무한 루프 방지
+    @RequestMapping({
+            "/login",
+            "/signup",
+            "/register",
+            "/find-email",
+            "/find-password",
+            "/oauth2/redirect",
+            "/social-signup",
+            "/room/{id}",
+            "/room/{id}/**",
+            "/map",
+            "/search",
+            "/search/**",
+            "/mypage",
+            "/mypage/**",
+            "/host",
+            "/host/**",
+            "/admin",
+            "/admin/**",
+            "/booking",
+            "/booking/**",
+            "/payment",
+            "/payment/**",
+            "/policy",
+            "/policy/**",
+            "/api/oauth2/login-disabled",
+            "/profile",
+            "/reservations",
+            "/reservations/**",
+            "/wishlist",
+            "/coupons",
+            "/reviews",
+            "/write-review",
+            "/delete-account",
+            "/reset-password",
+            "/reset-password-success",
+            "/list"
+    })
+    public String forwardToIndex() {
         return "forward:/index.html";
     }
 
-    @GetMapping("/error")
-    public String handleError() {
+    @RequestMapping("/error")
+    public String handleError(HttpServletRequest request) {
         return "forward:/index.html";
     }
 }

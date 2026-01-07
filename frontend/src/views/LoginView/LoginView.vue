@@ -97,7 +97,7 @@ const handleLogin = async () => {
 
 const socialLogin = (provider) => {
   // 백엔드 OAuth2 URL로 리다이렉트
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+  // 배포 환경에서도 작동하도록 상대 경로 사용
   const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
   if (redirect.startsWith('/')) {
     sessionStorage.setItem('postLoginRedirect', redirect)
@@ -105,9 +105,9 @@ const socialLogin = (provider) => {
     sessionStorage.removeItem('postLoginRedirect')
   }
   const urls = {
-    Google: `${baseUrl}/oauth2/authorization/google`,
-    Kakao: `${baseUrl}/oauth2/authorization/kakao`,
-    Naver: `${baseUrl}/oauth2/authorization/naver`
+    Google: `/oauth2/authorization/google`,
+    Kakao: `/oauth2/authorization/kakao`,
+    Naver: `/oauth2/authorization/naver`
   }
 
   if (provider === 'Naver' || provider === 'Google' || provider === 'Kakao') {
