@@ -21,7 +21,7 @@ public class ApprovalStatusConverter implements AttributeConverter<ApprovalStatu
             case "PENDING", "WAIT", "REQUEST" -> ApprovalStatus.PENDING;
             case "APPROVED", "APPROVE" -> ApprovalStatus.APPROVED;
             case "REJECTED", "REJECT", "DENIED" -> ApprovalStatus.REJECTED;
-            default -> null;
+            default -> throw new IllegalArgumentException("Unknown approval status: " + dbData);
         };
     }
 }

@@ -12,16 +12,19 @@ import com.ssg9th2team.geharbang.domain.report.host.service.HostReportService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -29,13 +32,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class HostAiInsightService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-    private static final Map<String, HostAiInsightResponse> CACHE = new ConcurrentHashMap<>();
+    private static final String CACHE_NAME = "hostAiInsight";
 
     private final HostReportService hostReportService;
     private final RuleBasedSummaryClient ruleBasedSummaryClient;
     private final MockAiSummaryClient mockAiSummaryClient;
     private final OpenAiSummaryClient openAiSummaryClient;
     private final OpenAiInsightClient openAiInsightClient;
+    private final CacheManager cacheManager;
 
     @Value("${ai.summary.provider:RULE}")
     private String provider;
@@ -44,10 +48,8 @@ public class HostAiInsightService {
         HostAiInsightTab tab = parseTab(request.getTab());
         String cacheKey = buildCacheKey(hostId, request, tab);
         if (!request.isForceRefresh()) {
-            HostAiInsightResponse cached = CACHE.get(cacheKey);
-            if (cached != null) {
-                return copyResponse(cached);
-            }
+            HostAiInsightResponse cached = getCached(cacheKey, request);
+            if (cached != null) return cached;
         }
 
         Provider selected = parseProvider(provider);
@@ -64,7 +66,7 @@ public class HostAiInsightService {
             response.setFallbackUsed(false);
         }
 
-        CACHE.put(cacheKey, copyResponse(response));
+        putCache(cacheKey, response, request);
         return response;
     }
 
@@ -246,6 +248,36 @@ public class HostAiInsightService {
             copy.setSections(sections);
         }
         return copy;
+    }
+
+    private HostAiInsightResponse getCached(String cacheKey, HostAiInsightRequest request) {
+        if (!isCacheEligible(request)) return null;
+        Cache cache = cacheManager.getCache(CACHE_NAME);
+        if (cache == null) return null;
+        HostAiInsightResponse cached = cache.get(cacheKey, HostAiInsightResponse.class);
+        return cached == null ? null : copyResponse(cached);
+    }
+
+    private void putCache(String cacheKey, HostAiInsightResponse response, HostAiInsightRequest request) {
+        if (!isCacheEligible(request)) return;
+        Cache cache = cacheManager.getCache(CACHE_NAME);
+        if (cache == null) return;
+        cache.put(cacheKey, copyResponse(response));
+    }
+
+    private boolean isCacheEligible(HostAiInsightRequest request) {
+        if (request == null) return false;
+        LocalDate from = request.getFrom();
+        LocalDate to = request.getTo();
+        if (from == null || to == null) return true;
+        if (to.isBefore(from)) return false;
+        long days = ChronoUnit.DAYS.between(from, to) + 1;
+        if (days == 7 || days == 30) return true;
+        if (from.getDayOfMonth() == 1) {
+            LocalDate lastDay = from.with(TemporalAdjusters.lastDayOfMonth());
+            return lastDay.equals(to);
+        }
+        return false;
     }
 
     private List<HostAiInsightSection> normalizeSections(List<HostAiInsightSection> sections) {

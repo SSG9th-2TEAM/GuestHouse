@@ -1,12 +1,12 @@
 package com.ssg9th2team.geharbang.domain.report.host.ai;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewAiSummaryRequest;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewAiSummaryResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportRecentRow;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportSummaryResponse;
-import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportTagRow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -25,8 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -37,7 +35,6 @@ public class OpenAiSummaryClient implements AiSummaryClient {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final Pattern NUMBERED_BULLET_MATCH = Pattern.compile("^\\d+\\..*");
     private static final Pattern NUMBERED_BULLET_PREFIX = Pattern.compile("^\\d+\\.\\s*");
-    private static final Map<String, HostReviewAiSummaryResponse> CACHE = new ConcurrentHashMap<>();
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate;
@@ -82,12 +79,6 @@ public class OpenAiSummaryClient implements AiSummaryClient {
             throw new HostReportAiException("OpenAI is not configured");
         }
 
-        String cacheKey = buildCacheKey(summary, request);
-        HostReviewAiSummaryResponse cached = CACHE.get(cacheKey);
-        if (cached != null) {
-            return copyResponse(cached);
-        }
-
         try {
             Map<String, Object> requestBody = buildRequest(summary, request);
 
@@ -96,10 +87,10 @@ public class OpenAiSummaryClient implements AiSummaryClient {
             headers.setBearerAuth(apiKey);
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-            ResponseEntity<Map> response = restTemplate.postForEntity(
+            ResponseEntity<String> response = restTemplate.postForEntity(
                     baseUrl + "/chat/completions",
                     entity,
-                    Map.class
+                    String.class
             );
 
             String content = extractContent(response.getBody());
@@ -108,7 +99,6 @@ public class OpenAiSummaryClient implements AiSummaryClient {
             }
 
             HostReviewAiSummaryResponse parsed = parseResponse(content, base);
-            CACHE.put(cacheKey, copyResponse(parsed));
             return parsed;
         } catch (RestClientException ex) {
             log.warn("OpenAI summary request failed: {}", ex.getMessage());
@@ -130,7 +120,8 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         String prompt = String.format(Locale.KOREA,
                 "너는 게스트하우스 호스트를 위한 운영 컨설턴트다.\n" +
                         "입력 데이터(평점/리뷰/태그/기간)만 근거로, 과장/추측 없이 실무적으로 요약해라.\n" +
-                        "출력은 반드시 한국어 마크다운으로만 작성한다.\n\n" +
+                        "출력은 반드시 JSON 객체만 반환하며 코드펜스나 추가 설명을 포함하지 않는다.\n" +
+                        "형식은 {\"overview\":string[],\"positives\":string[],\"negatives\":string[],\"actions\":string[],\"risks\":string[]}이다.\n\n" +
                         "[입력]\n" +
                         "- 기간: %2$s ~ %3$s\n" +
                         "- 숙소명: %1$s\n" +
@@ -139,21 +130,13 @@ public class OpenAiSummaryClient implements AiSummaryClient {
                         "- 별점 분포: %6$s\n" +
                         "- 상위 태그 TOP10: %7$s\n" +
                         "- 최근 리뷰 샘플(최대 10개):\n%8$s\n\n" +
-                        "[출력 형식(고정)]\n" +
-                        "## 총평\n" +
-                        "- (1~2문장, 60자 이내)\n\n" +
-                        "## 좋았던 점 TOP 3\n" +
-                        "- (각 1줄, 20단어 이내, 가능하면 태그/근거 포함)\n\n" +
-                        "## 아쉬운 점 TOP 3\n" +
-                        "- (각 1줄, 20단어 이내, 없으면 \"유의미한 부정 신호 없음\"이라고 써라)\n\n" +
-                        "## 즉시 실행 액션 TOP 5\n" +
-                        "- [ ] (각 1줄, \"무엇을/어떻게\"가 들어가게)\n\n" +
-                        "## 주의/리스크\n" +
-                        "- (최대 2개)\n\n" +
-                        "## 근거 데이터\n" +
-                        "- 리뷰 수: %4$d, 평균 평점: %5$.2f\n" +
-                        "- 대표 태그: (topTag) (n건)\n" +
-                        "- 참고: 데이터가 부족하면 \"데이터 부족\"이라고 명시",
+                        "[출력 규칙]\n" +
+                        "- overview: 1~2문장, 60자 이내\n" +
+                        "- positives/negatives: 각 최대 3개, 1줄, 20단어 이내\n" +
+                        "- negatives는 없으면 \"유의미한 부정 신호 없음\"을 포함\n" +
+                        "- actions: 최대 5개, \"무엇을/어떻게\" 포함\n" +
+                        "- risks: 최대 2개\n" +
+                        "- 데이터가 부족하면 \"데이터 부족\"을 명시",
                 accommodationName,
                 summary.getFrom(),
                 summary.getTo(),
@@ -171,6 +154,7 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         body.put("messages", List.of(system, user));
         body.put("temperature", 0.4);
         body.put("max_tokens", 800);
+        body.put("response_format", Map.of("type", "json_object"));
         return body;
     }
 
@@ -207,16 +191,13 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         return trimmed;
     }
 
-    private String extractContent(Map body) {
-        if (body == null) return null;
-        Object choices = body.get("choices");
-        if (!(choices instanceof List<?> list) || list.isEmpty()) return null;
-        Object first = list.get(0);
-        if (!(first instanceof Map<?, ?> choice)) return null;
-        Object message = choice.get("message");
-        if (!(message instanceof Map<?, ?> messageMap)) return null;
-        Object content = messageMap.get("content");
-        return content == null ? null : content.toString();
+    private String extractContent(String body) throws Exception {
+        if (body == null || body.isBlank()) return null;
+        JsonNode root = objectMapper.readTree(body);
+        JsonNode content = root.path("choices").path(0).path("message").path("content");
+        if (content.isMissingNode() || content.isNull()) return null;
+        String value = content.asText();
+        return value == null || value.isBlank() ? null : value;
     }
 
     private HostReviewAiSummaryResponse parseResponse(String content, HostReviewAiSummaryResponse base) throws Exception {
@@ -239,31 +220,6 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         response.setActions(parsed.getOrDefault("actions", List.of()));
         response.setRisks(parsed.getOrDefault("risks", List.of()));
         return response;
-    }
-
-    private String buildCacheKey(HostReviewReportSummaryResponse summary, HostReviewAiSummaryRequest request) {
-        Long accommodationId = request.getAccommodationId();
-        String topTagsHash = hashTopTags(summary.getTopTags());
-        int reviewCount = summary.getReviewCount() != null ? summary.getReviewCount() : 0;
-        double avgRating = summary.getAvgRating() != null ? summary.getAvgRating() : 0.0;
-        return String.format(Locale.ROOT, "%s|%s|%s|%d|%.2f|%s",
-                accommodationId,
-                summary.getFrom(),
-                summary.getTo(),
-                reviewCount,
-                avgRating,
-                topTagsHash
-        );
-    }
-
-    private String hashTopTags(List<HostReviewReportTagRow> tags) {
-        if (tags == null || tags.isEmpty()) {
-            return "none";
-        }
-        String raw = tags.stream()
-                .map(tag -> (tag.getTagName() != null ? tag.getTagName() : "") + ":" + (tag.getCount() != null ? tag.getCount() : 0))
-                .collect(Collectors.joining("|"));
-        return Integer.toHexString(Objects.hash(raw));
     }
 
     private HostReviewAiSummaryResponse copyResponse(HostReviewAiSummaryResponse source) {
@@ -332,6 +288,6 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         if (firstBrace >= 0 && lastBrace > firstBrace) {
             return trimmed.substring(firstBrace, lastBrace + 1);
         }
-        return trimmed.replaceAll("```", "");
+        return trimmed.replace("```", "");
     }
 }
