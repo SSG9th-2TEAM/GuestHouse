@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
 import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationRequestDto;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
@@ -69,6 +70,8 @@ class ConcurrencyTest {
         ReviewJpaRepository reviewJpaRepository;
         @MockBean
         PaymentService paymentService;
+        @MockBean
+        PaymentJpaRepository paymentJpaRepository;
 
         @Bean
         public ReservationService reservationService(
@@ -78,7 +81,8 @@ class ConcurrencyTest {
                 UserRepository userRepository,
                 ReviewJpaRepository reviewJpaRepository,
                 PaymentService paymentService,
-                RoomJpaRepository roomJpaRepository) {
+                RoomJpaRepository roomJpaRepository,
+                PaymentJpaRepository paymentJpaRepository) {
             return new ReservationServiceImpl(
                     reservationRepository,
                     accommodationRepository,
@@ -86,7 +90,8 @@ class ConcurrencyTest {
                     userRepository,
                     reviewJpaRepository,
                     paymentService,
-                    roomJpaRepository);
+                    roomJpaRepository,
+                    paymentJpaRepository);
         }
     }
 
