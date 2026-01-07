@@ -56,48 +56,21 @@ public class SecurityConfig {
 
                                 // 요청 권한 설정
                                 .authorizeHttpRequests(auth -> auth
-                                                // 인증 없이 접근 가능한 경로
-                                                .requestMatchers(
-                                                                "/api/auth/**",
-                                                                "/api/public/**",
-                                                                "/api/themes",
-                                                                "/api/list/**",
-                                                                "/api/recommendations/**",
-                                                                "/api/ocr/**",
-                                                                "/api/payments/**",
-                                                                "/uploads/**",
-                                                                "/error",
-                                                                "/oauth2/**",
-                                                                "/login/oauth2/**",
-                                                                "/swagger-ui/**",
-                                                                "/v3/api-docs/**",
-                                                                // Static resources
-                                                                "/",
-                                                                "/index.html",
-                                                                "/assets/**",
-                                                                "/favicon.ico",
-                                                                "/logo.png",
-                                                                "/icon.png",
-                                                                // SPA Routes (handled by ForwardController)
-                                                                "/payment/**",
-                                                                "/booking/**",
-                                                                "/login",
-                                                                "/signup",
-                                                                "/oauth2/redirect",
-                                                                "/social-signup",
-                                                                "/room/**",
-                                                                "/map",
-                                                                "/search",
-                                                                "/mypage/**",
-                                                                "/host/**",
-                                                                "/admin/**",
-                                                                "/policy/**")
-                                                .permitAll()
-                                                // 그 외 모든 요청은 인증 필요
-                                                .anyRequest().authenticated())
+                                                // 인증이 필요한 API 경로
+                                                .requestMatchers("/api/user/**").authenticated()
+                                                .requestMatchers("/api/reservations/**").authenticated()
+                                                .requestMatchers("/api/reviews/write/**").authenticated()
+                                                .requestMatchers("/api/coupons/my").authenticated()
+                                                .requestMatchers("/api/coupons/issue").authenticated()
+                                                .requestMatchers("/api/coupons/*/use").authenticated()
+                                                .requestMatchers("/api/host/**").authenticated()
+                                                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                                                // 그 외 모든 요청은 허용 (SPA에서 프론트엔드 라우팅 처리)
+                                                .anyRequest().permitAll())
 
-                                // OAuth2 로그인 설정
+                                // OAuth2 로그인 설정 (기본 로그인 페이지 비활성화)
                                 .oauth2Login(oauth2 -> oauth2
+                                                .loginPage("/api/oauth2/login-disabled") // 비활성화용 더미 경로
                                                 .authorizationEndpoint(authorization -> authorization
                                                                 .authorizationRequestResolver(
                                                                                 authorizationRequestResolver()))

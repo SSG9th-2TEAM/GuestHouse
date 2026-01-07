@@ -42,14 +42,22 @@ onMounted(async () => {
     sessionStorage.setItem('accessToken', accessToken)
     sessionStorage.setItem('refreshToken', refreshToken)
 
-    // JWT 토큰에서 사용자 정보 추출
-    const decoded = decodeJWT(accessToken)
-    if (decoded) {
-      const userInfo = {
-        email: decoded.sub, // JWT의 subject에 이메일이 저장됨
-        role: decoded.authorities?.[0]?.replace('ROLE_', '') || 'USER' // 권한에서 역할 추출
+    // 서버에서 사용자 정보 가져오기 (userId 포함)
+    const { getCurrentUser } = await import('@/api/authClient')
+    const userResponse = await getCurrentUser()
+    if (userResponse.ok && userResponse.data) {
+      saveUserInfo(userResponse.data)
+    } else {
+      // 서버 응답 실패 시 JWT에서 기본 정보라도 추출
+      const decoded = decodeJWT(accessToken)
+      if (decoded) {
+        const userInfo = {
+          email: decoded.sub,
+          role: decoded.authorities?.[0]?.replace('ROLE_', '') || 'USER',
+          userId: decoded.userId || decoded.id || null
+        }
+        saveUserInfo(userInfo)
       }
-      saveUserInfo(userInfo)
     }
 
     // 로그인 성공 - 홈으로 리다이렉트
