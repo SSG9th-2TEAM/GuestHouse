@@ -71,6 +71,8 @@ class ConcurrencyTest extends com.ssg9th2team.geharbang.config.IntegrationTestCo
         PaymentService paymentService;
         @MockBean
         PaymentJpaRepository paymentJpaRepository;
+        @MockBean
+        WaitlistService waitlistService;
 
         @Bean
         public ReservationService reservationService(
@@ -81,7 +83,8 @@ class ConcurrencyTest extends com.ssg9th2team.geharbang.config.IntegrationTestCo
                 ReviewJpaRepository reviewJpaRepository,
                 PaymentService paymentService,
                 RoomJpaRepository roomJpaRepository,
-                PaymentJpaRepository paymentJpaRepository) {
+                PaymentJpaRepository paymentJpaRepository,
+                WaitlistService waitlistService) {
             return new ReservationServiceImpl(
                     reservationRepository,
                     accommodationRepository,
@@ -90,7 +93,8 @@ class ConcurrencyTest extends com.ssg9th2team.geharbang.config.IntegrationTestCo
                     reviewJpaRepository,
                     paymentService,
                     roomJpaRepository,
-                    paymentJpaRepository);
+                    paymentJpaRepository,
+                    waitlistService);
         }
     }
 
