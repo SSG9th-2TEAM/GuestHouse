@@ -79,6 +79,7 @@ class SearchServiceIntegrationTest {
                                 null,
                                 null,
                                 null,
+                                null,
                                 null);
 
                 assertThat(response.items()).hasSize(1);
@@ -110,6 +111,7 @@ class SearchServiceIntegrationTest {
                                 null,
                                 null,
                                 4,
+                                null,
                                 null,
                                 null);
 
@@ -148,6 +150,7 @@ class SearchServiceIntegrationTest {
                                 checkout,
                                 2,
                                 null,
+                                null,
                                 null);
 
                 List<String> names = response.items().stream()
@@ -182,6 +185,7 @@ class SearchServiceIntegrationTest {
                                 checkout,
                                 2,
                                 null,
+                                null,
                                 null);
 
                 assertThat(response.items()).hasSize(1);
@@ -213,6 +217,7 @@ class SearchServiceIntegrationTest {
                                 null,
                                 null,
                                 null,
+                                null,
                                 null);
 
                 assertThat(response.items()).hasSize(1);
@@ -239,6 +244,7 @@ class SearchServiceIntegrationTest {
                                 null,
                                 0,
                                 10,
+                                null,
                                 null,
                                 null,
                                 null,

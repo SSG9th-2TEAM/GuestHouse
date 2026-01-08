@@ -319,5 +319,10 @@ class SearchServiceTest {
         public String getImageUrl() {
             return imageUrl;
         }
+
+        @Override
+        public Double getBayesianScore() {
+            return 0.0;
+        }
     }
 }

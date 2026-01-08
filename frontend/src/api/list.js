@@ -47,7 +47,8 @@ export async function searchList({
   checkout = null,
   guestCount = null,
   minPrice = null,
-  maxPrice = null
+  maxPrice = null,
+  sort = null
 } = {}) {
   const params = { page, size }
   if (Array.isArray(themeIds) && themeIds.length) {

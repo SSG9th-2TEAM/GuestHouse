@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.data.domain.Sort;
 
 @Service
@@ -38,28 +39,27 @@ public class SearchServiceImpl implements SearchService {
             Integer minPrice,
             Integer maxPrice,
             String sort) {
-        Sort sortObj = Sort.by(Sort.Direction.DESC, "accommodationsId");
+        Sort sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
         if (sort != null && !sort.isEmpty()) {
             switch (sort) {
                 case "reviews":
-                    sortObj = Sort.by(Sort.Direction.DESC, "reviewCount");
+                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "reviewCount");
                     break;
                 case "rating":
-                    sortObj = Sort.by(Sort.Direction.DESC, "rating");
+                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "rating");
                     break;
                 case "priceHigh":
-                    sortObj = Sort.by(Sort.Direction.DESC, "minPrice");
+                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "minPrice");
                     break;
                 case "priceLow":
-                    sortObj = Sort.by(Sort.Direction.ASC, "minPrice");
+                    sortObj = JpaSort.unsafe(Sort.Direction.ASC, "minPrice");
                     break;
                 case "recommended":
                 default:
-                    // Fallback to default or rating
                     if ("recommended".equals(sort)) {
-                        sortObj = Sort.by(Sort.Direction.DESC, "rating", "reviewCount");
+                        sortObj = JpaSort.unsafe(Sort.Direction.DESC, "bayesianScore");
                     } else {
-                        sortObj = Sort.by(Sort.Direction.DESC, "accommodationsId");
+                        sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
                     }
                     break;
             }
