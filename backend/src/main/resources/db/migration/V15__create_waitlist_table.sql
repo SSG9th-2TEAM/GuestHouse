@@ -1,7 +1,8 @@
+DROP TABLE IF EXISTS waitlist;
 CREATE TABLE waitlist (
     waitlist_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
-    room_id BIGINT NOT NULL,
+    room_id BIGINT UNSIGNED NOT NULL,
     accommodations_id BIGINT NOT NULL,
 
     checkin DATETIME(6) NOT NULL,

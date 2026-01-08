@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS forbidden_word;
 CREATE TABLE forbidden_word (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     word VARCHAR(100) NOT NULL,
