@@ -5,7 +5,7 @@ FROM eclipse-temurin:17-jdk-alpine
 WORKDIR /app
 
 # JAR 파일 복사
-COPY geharbang-0.0.1-SNAPSHOT.jar app.jar
+COPY *.jar app.jar
 
 # 포트 노출
 EXPOSE 8080
