@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -36,6 +38,10 @@ public class SearchController {
             @RequestParam(name = "minPrice", required = false) Integer minPrice,
             @RequestParam(name = "maxPrice", required = false) Integer maxPrice,
             @RequestParam(name = "sort", required = false) String sort) {
+        // 체크인/체크아웃 날짜 검증
+        if (checkin != null && checkout != null && !checkout.isAfter(checkin)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "체크아웃 날짜는 체크인 날짜 이후여야 합니다.");
+        }
         LocalDateTime checkinAt = checkin != null ? checkin.atTime(15, 0) : null;
         LocalDateTime checkoutAt = checkout != null ? checkout.atTime(11, 0) : null;
         return searchService.searchPublicList(
