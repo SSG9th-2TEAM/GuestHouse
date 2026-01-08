@@ -1,5 +1,5 @@
 -- Chatbot Room 테이블
-CREATE TABLE chatbot_room (
+CREATE TABLE IF NOT EXISTS chatbot_room (
     chat_room_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     last_message TEXT,
@@ -9,7 +9,7 @@ CREATE TABLE chatbot_room (
 ) CHARSET=utf8mb4;
 
 -- Chatbot History 테이블
-CREATE TABLE chatbot_history (
+CREATE TABLE IF NOT EXISTS chatbot_history (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     chat_room_id BIGINT NOT NULL,
     message TEXT NOT NULL,

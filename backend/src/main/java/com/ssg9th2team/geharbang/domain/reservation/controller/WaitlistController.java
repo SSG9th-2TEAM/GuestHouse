@@ -28,7 +28,7 @@ public class WaitlistController {
 
             Long waitlistId = waitlistService.registerWaitlist(
                     request.roomId(),
-                    request.accommodationId(),
+                    request.accommodationsId(),
                     checkin,
                     checkout,
                     request.guestCount());
@@ -54,7 +54,7 @@ public class WaitlistController {
     // Request/Response DTOs
     public record WaitlistRequest(
             Long roomId,
-            Long accommodationId,
+            Long accommodationsId,
             String checkin,
             String checkout,
             Integer guestCount) {
