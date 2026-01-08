@@ -36,9 +36,52 @@ jobs:
       env:
         SPRING_PROFILES_ACTIVE: test
 
+    - name: Build JAR for deployment
+      run: ./gradlew bootJar
+
+    - name: Upload JAR artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-jar
+        path: backend/build/libs/geharbang-0.0.1-SNAPSHOT.jar
+
     - name: Upload test results
       if: failure()
       uses: actions/upload-artifact@v4
       with:
         name: test-results
         path: backend/build/reports/tests/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+
+    steps:
+    - name: Download JAR artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: app-jar
+        path: ./
+
+    - name: Setup SSH Key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.PUBLIC_SERVER_IP }} >> ~/.ssh/known_hosts
+
+    - name: Deploy to Private Server via Public Server
+      run: |
+        # Public 서버로 JAR 전송
+        scp -o StrictHostKeyChecking=no ./geharbang-0.0.1-SNAPSHOT.jar ${{ secrets.SSH_USERNAME }}@${{ secrets.PUBLIC_SERVER_IP }}:/tmp/
+        
+        # Public 서버에서 Private 서버로 JAR 전송 및 Docker 재시작
+        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.PUBLIC_SERVER_IP }} << 'EOF'
+          scp /tmp/geharbang-0.0.1-SNAPSHOT.jar root@${{ secrets.PRIVATE_SERVER_IP }}:~/applications/thismo/
+          ssh root@${{ secrets.PRIVATE_SERVER_IP }} "cd ~/applications/thismo && docker-compose up -d --build"
+          rm /tmp/geharbang-0.0.1-SNAPSHOT.jar
+        EOF
+
+    - name: Deployment Complete
+      run: echo "✅ Deployment to Private Server completed successfully!"
