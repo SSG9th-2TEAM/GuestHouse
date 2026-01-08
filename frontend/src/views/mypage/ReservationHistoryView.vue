@@ -215,7 +215,7 @@ onMounted(() => {
               <img
                   :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
                   class="card-img"
-                  alt="thumbnail"
+                  :alt="item.accommodationName || '숙소 이미지'"
               />
               <div class="card-info">
                 <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
@@ -265,7 +265,7 @@ onMounted(() => {
               <img
                   :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
                   class="card-img"
-                  alt="thumbnail"
+                  :alt="item.accommodationName || '숙소 이미지'"
               />
               <div class="card-info">
                 <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
@@ -320,20 +320,17 @@ onMounted(() => {
         </div>
 
         <div v-else class="card-list">
-          <div 
+          <router-link 
             v-for="item in cancelledReservations" 
             :key="item.reservationId" 
-            class="res-card clickable cancelled" 
-            role="link"
-            tabindex="0"
-            @click="handlePastClick(item)"
-            @keydown.enter="handlePastClick(item)"
+            :to="`/room/${item.accommodationsId}`"
+            class="res-card clickable cancelled"
           >
             <div class="card-content">
               <img
                   :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
                   class="card-img"
-                  alt="thumbnail"
+                  :alt="item.accommodationName || '숙소 이미지'"
               />
               <div class="card-info">
                 <div class="cancelled-badge">취소됨</div>
@@ -348,7 +345,7 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-          </div>
+          </router-link>
         </div>
       </section>
     </template>
@@ -601,5 +598,11 @@ onMounted(() => {
   padding: 2px 8px;
   border-radius: 4px;
   margin-bottom: 4px;
+}
+
+/* router-link 기본 스타일 제거 */
+a.res-card {
+  text-decoration: none;
+  color: inherit;
 }
 </style>

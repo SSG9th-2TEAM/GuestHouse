@@ -111,4 +111,11 @@ public interface ReservationJpaRepository
         List<Reservation> findAllByUserId(Long userId);
 
         long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+        /**
+         * 결제 완료된 예약 조회 (reservationStatus >= 2: 확정, 체크인완료 포함)
+         * 성능 최적화: 메모리 필터링 대신 DB 레벨에서 필터링
+         */
+        @Query("SELECT r FROM Reservation r WHERE r.userId = :userId AND r.isDeleted = false AND r.reservationStatus >= 2 ORDER BY r.createdAt DESC")
+        List<Reservation> findCompletedReservationsByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
 }
