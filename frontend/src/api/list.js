@@ -47,7 +47,8 @@ export async function searchList({
   checkout = null,
   guestCount = null,
   minPrice = null,
-  maxPrice = null
+  maxPrice = null,
+  sort = null
 } = {}) {
   const params = { page, size }
   if (Array.isArray(themeIds) && themeIds.length) {
@@ -73,6 +74,9 @@ export async function searchList({
   }
   if (Number.isFinite(maxPrice)) {
     params.maxPrice = String(maxPrice)
+  }
+  if (sort) {
+    params.sort = sort
   }
   if (bounds) {
     params.minLat = bounds.minLat

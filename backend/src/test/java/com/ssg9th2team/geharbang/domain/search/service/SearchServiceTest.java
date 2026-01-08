@@ -66,6 +66,7 @@ class SearchServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null);
 
         assertThat(response.items()).hasSize(1);
@@ -101,6 +102,7 @@ class SearchServiceTest {
                 "오션뷰",
                 1,
                 10,
+                null,
                 null,
                 null,
                 null,
@@ -158,6 +160,7 @@ class SearchServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null);
 
         assertThat(response.items()).hasSize(1);
@@ -209,6 +212,7 @@ class SearchServiceTest {
                 checkin,
                 checkout,
                 4,
+                null,
                 null,
                 null);
 
@@ -314,6 +318,11 @@ class SearchServiceTest {
         @Override
         public String getImageUrl() {
             return imageUrl;
+        }
+
+        @Override
+        public Double getBayesianScore() {
+            return 0.0;
         }
     }
 }

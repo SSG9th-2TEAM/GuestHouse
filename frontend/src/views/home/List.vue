@@ -24,11 +24,46 @@ const isLoadingMore = ref(false)
 const loadMoreTrigger = ref(null)
 
 const PAGE_SIZE = 16
+const MOBILE_BREAKPOINT = 1024
 
 let observer = null
 
+// 화면 크기 감지 (PC vs Mobile)
+const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false)
+
+const handleResize = () => {
+  isMobile.value = window.innerWidth < MOBILE_BREAKPOINT
+}
+
 // Filter State
 const isFilterModalOpen = ref(false)
+
+// Sort State
+const SORT_OPTIONS = [
+  { value: 'recommended', label: '추천순' },
+  { value: 'reviews', label: '리뷰 많은순' },
+  { value: 'rating', label: '평점 높은순' },
+  { value: 'priceHigh', label: '가격 높은순' },
+  { value: 'priceLow', label: '가격 낮은순' }
+]
+const currentSort = ref('recommended')
+const isSortOpen = ref(false)
+
+const currentSortLabel = computed(() => {
+  const option = SORT_OPTIONS.find(opt => opt.value === currentSort.value)
+  return option?.label || '추천순'
+})
+
+const toggleSort = () => {
+  isSortOpen.value = !isSortOpen.value
+}
+
+const selectSort = (value) => {
+  if (currentSort.value !== value) {
+    router.replace({ query: { ...route.query, sort: value } })
+  }
+  isSortOpen.value = false
+}
 
 const normalizeItem = (item) => {
   const id = item.accommodationsId ?? item.accommodationId ?? item.id
@@ -56,6 +91,15 @@ const applyRouteKeyword = () => {
   const nextKeyword = getKeywordFromRoute()
   if (nextKeyword !== searchStore.keyword) {
     searchStore.setKeyword(nextKeyword)
+  }
+}
+
+const applyRouteSort = () => {
+  const sortParam = route.query.sort
+  if (sortParam && SORT_OPTIONS.some(opt => opt.value === sortParam)) {
+    currentSort.value = sortParam
+  } else {
+    currentSort.value = 'recommended'
   }
 }
 
@@ -107,7 +151,9 @@ const loadList = async ({
   minPrice = searchStore.minPrice,
   maxPrice = searchStore.maxPrice,
   page: pageParam = 0,
-  reset = false
+  sort = currentSort.value,
+  reset = false,
+  appendData = true
 } = {}) => {
   if (isLoading.value || isLoadingMore.value) return
   if (reset) {
@@ -126,17 +172,21 @@ const loadList = async ({
       minPrice,
       maxPrice,
       page: pageParam,
-      size: PAGE_SIZE
+      size: PAGE_SIZE,
+      sort
     })
     if (response.ok) {
       const payload = response.data
       const list = Array.isArray(payload?.items) ? payload.items : []
       const normalized = list.map(normalizeItem)
-      if (reset) {
+      
+      // 모바일: 데이터 추가, PC: 데이터 교체
+      if (reset || !appendData) {
         items.value = normalized
       } else {
         items.value = [...items.value, ...normalized]
       }
+      
       const meta = payload?.page
       if (meta) {
         page.value = meta.number ?? pageParam
@@ -154,7 +204,7 @@ const loadList = async ({
   }
 }
 
-// Client filtering removed - now using server results directly
+// 정렬은 서버에서 처리됨
 const filteredItems = computed(() => {
   return items.value
 })
@@ -167,17 +217,58 @@ const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 1 }) => {
   loadList({ themeIds, reset: true })
 }
 
+const goToDetail = (id) => {
+  if (!id) return
+  const query = { from: 'list', sort: currentSort.value, ...buildFilterQuery() }
+  router.push({ path: `/room/${id}`, query })
+}
+
 const goToMap = () => {
-  router.push({ path: '/map', query: buildFilterQuery() })
+  router.push({ path: '/map', query: { ...buildFilterQuery(), from: 'list' } })
 }
 
 const hasMore = computed(() => page.value + 1 < totalPages.value)
 
+// 모바일용 무한 스크롤
 const loadMore = () => {
+  if (!isMobile.value) return
   if (!hasMore.value || isLoading.value || isLoadingMore.value) return
   const nextPage = page.value + 1
-  loadList({ page: nextPage })
+  loadList({ page: nextPage, appendData: true })
 }
+
+// PC용 페이징
+const goToPage = (targetPage) => {
+  if (isMobile.value) return
+  const validPage = Math.min(Math.max(targetPage, 0), totalPages.value - 1)
+  if (validPage === page.value) return
+  loadList({ page: validPage, reset: false, appendData: false })
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+// 페이지 번호 목록 계산 (ReviewSection과 동일한 로직)
+const pageNumbers = computed(() => {
+  const total = totalPages.value
+  const current = page.value + 1 // 0-based를 1-based로 변환
+
+  if (total <= 5) {
+    return Array.from({ length: total }, (_, index) => index + 1)
+  }
+
+  if (current <= 2) {
+    return [1, 2, 3, 'ellipsis', total]
+  }
+
+  if (current === 3) {
+    return [1, 2, 3, 4, 'ellipsis', total]
+  }
+
+  if (current >= total - 1) {
+    return [1, 'ellipsis', total - 2, total - 1, total]
+  }
+
+  return [1, 'ellipsis', current - 1, current, current + 1, 'ellipsis', total]
+})
 
 const teardownObserver = () => {
   if (observer) {
@@ -187,6 +278,11 @@ const teardownObserver = () => {
 }
 
 const setupObserver = () => {
+  // PC에서는 Observer 사용 안함
+  if (!isMobile.value) {
+    teardownObserver()
+    return
+  }
   if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return
   teardownObserver()
   observer = new IntersectionObserver(
@@ -204,7 +300,7 @@ const setupObserver = () => {
 }
 
 const refreshObserver = async () => {
-  if (!hasMore.value) {
+  if (!isMobile.value || !hasMore.value) {
     teardownObserver()
     return
   }
@@ -212,16 +308,27 @@ const refreshObserver = async () => {
   setupObserver()
 }
 
+const handleClickOutside = (e) => {
+  if (!e.target.closest('.sort-wrapper')) {
+    isSortOpen.value = false
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('resize', handleResize)
+  document.addEventListener('click', handleClickOutside)
   loadWishlist()
   applyRouteFilters(route.query)
   applyRouteKeyword()
+  applyRouteSort()
   loadList({ reset: true })
   await nextTick()
   refreshObserver()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  document.removeEventListener('click', handleClickOutside)
   teardownObserver()
 })
 
@@ -235,11 +342,13 @@ watch(
     route.query.maxPrice,
     route.query.guestCount,
     route.query.checkin,
-    route.query.checkout
+    route.query.checkout,
+    route.query.sort
   ],
   () => {
     applyRouteFilters(route.query)
     applyRouteKeyword()
+    applyRouteSort()
     loadList({ reset: true })
   }
 )
@@ -257,6 +366,18 @@ watch(
     refreshObserver()
   }
 )
+
+// 화면 크기 변경 시 Observer 재설정
+watch(
+  () => isMobile.value,
+  (mobile) => {
+    if (mobile) {
+      refreshObserver()
+    } else {
+      teardownObserver()
+    }
+  }
+)
 </script>
 
 <template>
@@ -264,6 +385,27 @@ watch(
     <div class="header">
       <h1 v-if="filteredItems.length > 0">검색결과 {{ totalCount }}건</h1>
       <h1 v-else>숙소 목록</h1>
+    </div>
+
+    <!-- Fixed Filter & Sort Buttons -->
+    <div class="fixed-btns" @click.stop>
+      <div class="sort-wrapper">
+        <button class="sort-btn" @click="toggleSort">
+          <span class="sort-label">{{ currentSortLabel }}</span>
+          <span class="sort-arrow" :class="{ open: isSortOpen }">▼</span>
+        </button>
+        <div class="sort-dropdown" v-if="isSortOpen">
+          <button
+            v-for="option in SORT_OPTIONS"
+            :key="option.value"
+            class="sort-option"
+            :class="{ active: currentSort === option.value }"
+            @click="selectSort(option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
       <button class="filter-btn" @click="isFilterModalOpen = !isFilterModalOpen"><span class="icon">🔍</span>필터</button>
     </div>
 
@@ -281,7 +423,7 @@ watch(
         :image-url="item.imageUrl"
         :is-favorite="wishlistIds.has(item.id)"
         @toggle-favorite="toggleWishlist"
-        @click="router.push(`/room/${item.id}`)"
+        @click="goToDetail(item.id)"
         class="list-item"
       />
     </div>
@@ -298,8 +440,44 @@ watch(
       </p>
     </div>
 
-    <div ref="loadMoreTrigger" class="list-footer list-footer--observer" v-if="hasMore">
+    <!-- 모바일: 무한 스크롤 트리거 -->
+    <div ref="loadMoreTrigger" class="list-footer list-footer--observer" v-if="isMobile && hasMore">
       <span v-if="isLoadingMore" class="load-more-status">불러오는 중...</span>
+    </div>
+
+    <!-- PC: 페이지네이션 -->
+    <div v-if="!isMobile && totalPages > 1 && filteredItems.length > 0" class="list-pagination">
+      <button
+        type="button"
+        class="page-btn nav"
+        :disabled="page === 0"
+        @click="goToPage(page - 1)"
+      >
+        이전
+      </button>
+      <div class="page-list">
+        <template v-for="pageNum in pageNumbers" :key="`page-${pageNum}`">
+          <span v-if="pageNum === 'ellipsis'" class="page-ellipsis">…</span>
+          <button
+            v-else
+            type="button"
+            class="page-btn number"
+            :class="{ active: pageNum === page + 1 }"
+            :aria-current="pageNum === page + 1 ? 'page' : null"
+            @click="goToPage(pageNum - 1)"
+          >
+            {{ pageNum }}
+          </button>
+        </template>
+      </div>
+      <button
+        type="button"
+        class="page-btn nav"
+        :disabled="!hasMore"
+        @click="goToPage(page + 1)"
+      >
+        다음
+      </button>
     </div>
 
     <!-- Floating Map Button -->
@@ -324,7 +502,7 @@ watch(
 
 <style scoped>
 .main-content {
-  padding-top: 1rem;
+  padding-top: 4px;
   padding-bottom: 6rem; /* Extra padding for floating button */
   max-width: 1280px; 
   margin: 0 auto;
@@ -349,11 +527,106 @@ watch(
   margin: 0;
 }
 
-.filter-btn {
+/* Sort Button Styles */
+.sort-wrapper {
+  position: relative;
+}
+
+.sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid #e0e0e0;
+  border-radius: 20px;
+  background: white;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sort-btn:hover {
+  border-color: #6DC3BB;
+  background-color: #f0f7f6;
+}
+
+.sort-arrow {
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+
+.sort-arrow.open {
+  transform: rotate(180deg);
+}
+
+.sort-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 140px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 6px 0;
+  z-index: 130;
+  animation: dropdownFadeIn 0.15s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sort-option {
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 0.9rem;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.sort-option:hover {
+  background-color: #f5f5f5;
+}
+
+.sort-option.active {
+  color: #6DC3BB;
+  font-weight: 600;
+  background-color: #f0f7f6;
+}
+
+/* Fixed Buttons Group */
+.fixed-btns {
   position: fixed;
-  top: 104px;
+  top: 84px;
   right: 1rem;
   z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .fixed-btns {
+    top: calc(112px + env(safe-area-inset-top));
+    right: 12px;
+  }
+}
+
+.filter-btn {
   padding: 8px 16px;
   border: 1px solid #ddd;
   border-radius: 20px;
@@ -364,23 +637,17 @@ watch(
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .filter-btn:hover {
   background-color: #f5f5f5;
 }
 
-@media (max-width: 768px) {
-  .filter-btn {
-    top: calc(128px + env(safe-area-inset-top));
-    right: 12px;
-  }
-}
-
 .list-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 280px), var(--card-width, 280px))); 
-  gap: 2rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
   justify-content: center;
 }
 
@@ -391,6 +658,22 @@ watch(
 
 .list-item:hover {
   transform: translateY(-5px);
+}
+
+/* 태블릿 (3열) */
+@media (min-width: 640px) {
+  .list-container {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+/* PC (4열) */
+@media (min-width: 1024px) {
+  .list-container {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+  }
 }
 
 .list-footer {
@@ -502,5 +785,75 @@ watch(
     display: inline-block;
     margin: 0 0.2rem;
   }
+}
+
+/* PC 페이지네이션 스타일 (ReviewSection과 동일) */
+.list-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 2rem 0 1rem;
+  padding-bottom: 2rem;
+}
+
+.page-list {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.page-btn {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text-main);
+  transition: all 0.2s ease;
+}
+
+.page-btn.number {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.65rem;
+  font-weight: 600;
+  background: #fff;
+}
+
+.page-btn.number:hover:not(.active) {
+  background: #f0f7f6;
+  border-color: #6DC3BB;
+}
+
+.page-btn.number.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #004d40;
+}
+
+.page-btn.nav {
+  background: #fff;
+  border-color: #e5e7eb;
+  font-weight: 600;
+}
+
+.page-btn.nav:hover:not(:disabled) {
+  background: #f0f7f6;
+  border-color: #6DC3BB;
+  color: #6DC3BB;
+}
+
+.page-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.page-ellipsis {
+  color: var(--text-sub);
+  font-size: 0.9rem;
+  padding: 0 0.25rem;
 }
 </style>

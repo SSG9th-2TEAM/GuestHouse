@@ -13,6 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.jpa.domain.JpaSort;
+import org.springframework.data.domain.Sort;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -34,8 +37,34 @@ public class SearchServiceImpl implements SearchService {
             LocalDateTime checkout,
             Integer guestCount,
             Integer minPrice,
-            Integer maxPrice) {
-        PageRequest pageable = PageRequest.of(page, size);
+            Integer maxPrice,
+            String sort) {
+        Sort sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
+        if (sort != null && !sort.isEmpty()) {
+            switch (sort) {
+                case "reviews":
+                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "reviewCount");
+                    break;
+                case "rating":
+                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "rating");
+                    break;
+                case "priceHigh":
+                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "minPrice");
+                    break;
+                case "priceLow":
+                    sortObj = JpaSort.unsafe(Sort.Direction.ASC, "minPrice");
+                    break;
+                case "recommended":
+                default:
+                    if ("recommended".equals(sort)) {
+                        sortObj = JpaSort.unsafe(Sort.Direction.DESC, "(bayesianScore)");
+                    } else {
+                        sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
+                    }
+                    break;
+            }
+        }
+        PageRequest pageable = PageRequest.of(page, size, sortObj);
         String normalizedKeyword = normalizeKeyword(keyword);
         Page<ListDtoProjection> resultPage;
 
