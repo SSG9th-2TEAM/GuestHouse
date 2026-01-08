@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.report.host.dto.HostAiInsightRequest;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportSummaryResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostThemeReportResponse;
 import com.ssg9th2team.geharbang.domain.report.host.service.HostReportService;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -23,10 +24,7 @@ public class HostAiInsightEligibilityChecker {
 
     private final HostReportService hostReportService;
 
-    public HostAiInsightEligibilityResult evaluate(HostAiInsightTab tab, HostAiInsightRequest request, Long hostId) {
-        if (tab == null) {
-            return HostAiInsightEligibilityResult.blocked("알 수 없는 탭입니다.", 0, 0, 0, "");
-        }
+    public HostAiInsightEligibilityResult evaluate(@NotNull HostAiInsightTab tab, HostAiInsightRequest request, Long hostId) {
         return switch (tab) {
             case REVIEW -> evaluateReviewEligibility(request, hostId);
             case THEME -> evaluateThemeEligibility(request, hostId);

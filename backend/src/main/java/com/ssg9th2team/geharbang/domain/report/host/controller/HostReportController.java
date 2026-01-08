@@ -18,6 +18,8 @@ import com.ssg9th2team.geharbang.domain.report.host.service.HostReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -138,8 +140,7 @@ public class HostReportController {
         boolean tabProvided = tab != null && !tab.isBlank();
         HostAiInsightTab target = parseTab(tab);
         if (tabProvided && target == null) {
-            response.setReview(HostAiInsightEligibilityResult.blocked("알 수 없는 탭입니다.", 0, 0, 0, ""));
-            return response;
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid tab value: " + tab);
         }
         if (target != null) {
             HostAiInsightEligibilityResult result = eligibilityChecker.evaluate(target, request, hostId);
@@ -166,14 +167,10 @@ public class HostReportController {
             HostAiInsightTab tab,
             HostAiInsightEligibilityResult result
     ) {
-        if (tab == HostAiInsightTab.REVIEW) {
-            response.setReview(result);
-            return;
+        switch (tab) {
+            case REVIEW -> response.setReview(result);
+            case THEME -> response.setTheme(result);
+            case DEMAND -> response.setDemand(result);
         }
-        if (tab == HostAiInsightTab.THEME) {
-            response.setTheme(result);
-            return;
-        }
-        response.setDemand(result);
     }
 }
