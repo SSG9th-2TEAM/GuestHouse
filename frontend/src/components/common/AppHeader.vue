@@ -83,8 +83,10 @@ onUnmounted(() => {
             </svg>
           </button>
 
-          <div class="mobile-menu" :class="{ active: isMenuOpen }">
-            <button>설정</button>
+          <div class="mobile-menu" :class="{ active: isMenuOpen }" @click.stop>
+            <router-link class="menu-link" to="/events" @click="isMenuOpen = false">
+              이벤트
+            </router-link>
           </div>
         </div>
       </div>
@@ -280,12 +282,11 @@ onUnmounted(() => {
   display: block;
 }
 
-.mobile-menu button {
+.mobile-menu .menu-link {
   display: block;
   width: 100%;
   padding: 12px 16px;
   background: transparent;
-  border: none;
   text-align: left;
   cursor: pointer;
   color: #3d4452;
@@ -294,13 +295,14 @@ onUnmounted(() => {
   transition: all 0.2s ease;
   border-bottom: 1px solid #f0f4f8;
   font-family: 'Noto Sans KR', sans-serif;
+  text-decoration: none;
 }
 
-.mobile-menu button:last-child {
+.mobile-menu .menu-link:last-child {
   border-bottom: none;
 }
 
-.mobile-menu button:hover {
+.mobile-menu .menu-link:hover {
   background-color: #f0f7f6;
   color: #6DC3BB;
   padding-left: 20px;

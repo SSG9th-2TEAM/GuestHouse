@@ -2,10 +2,12 @@ package com.ssg9th2team.geharbang.domain.coupon.service;
 
 import com.ssg9th2team.geharbang.domain.coupon.dto.UserCouponResponseDto;
 import com.ssg9th2team.geharbang.domain.coupon.entity.Coupon;
+import com.ssg9th2team.geharbang.domain.coupon.entity.CouponIssueResult;
 import com.ssg9th2team.geharbang.domain.coupon.entity.CouponTriggerType;
 import com.ssg9th2team.geharbang.domain.coupon.entity.UserCoupon;
 
 import java.util.List;
+import java.util.Set;
 
 public interface UserCouponService {
 
@@ -33,8 +35,11 @@ public interface UserCouponService {
 
 
     // 공통 발급 로직
-    boolean issueToUser(Long userId, Coupon coupon);
+    CouponIssueResult issueToUser(Long userId, Coupon coupon);
 
     // 만료된 쿠폰 상태 변경 (스케줄러에서 호출)
     int expireOverdueCoupons();
+
+    // 사용자 보유 쿠폰 ID 목록 조회
+    Set<Long> getMyCouponIds(Long userId);
 }

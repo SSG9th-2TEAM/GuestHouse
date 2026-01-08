@@ -61,6 +61,7 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/reservations/**").authenticated()
                                                 .requestMatchers("/api/reviews/write/**").authenticated()
                                                 .requestMatchers("/api/coupons/my").authenticated()
+                                                .requestMatchers("/api/coupons/my/ids").authenticated()
                                                 .requestMatchers("/api/coupons/issue").authenticated()
                                                 .requestMatchers("/api/coupons/*/use").authenticated()
                                                 .requestMatchers("/api/host/**").authenticated()

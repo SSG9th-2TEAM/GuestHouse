@@ -204,23 +204,6 @@ const isDateInRange = (date) => {
   return time > searchStore.startDate.getTime() && time < searchStore.endDate.getTime()
 }
 
-const HOLIDAYS = [
-  '2024-01-01', '2024-02-09', '2024-02-10', '2024-02-11', '2024-02-12',
-  '2024-03-01', '2024-04-10', '2024-05-05', '2024-05-06', '2024-05-15',
-  '2024-06-06', '2024-08-15', '2024-09-16', '2024-09-17', '2024-09-18',
-  '2024-10-03', '2024-10-09', '2024-12-25',
-  '2025-01-01', '2025-01-27', '2025-01-28', '2025-01-29', '2025-01-30',
-  '2025-03-01', '2025-03-03', '2025-05-05', '2025-05-06', '2025-06-06',
-  '2025-08-15', '2025-10-03', '2025-10-05', '2025-10-06', '2025-10-07', '2025-10-08', '2025-10-09', '2025-12-25'
-]
-
-const isHoliday = (date) => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return HOLIDAYS.includes(`${y}-${m}-${d}`)
-}
-
 const toggleCalendar = (e) => {
   e.stopPropagation()
   calendarStore.toggleCalendar('header')
@@ -394,6 +377,7 @@ onUnmounted(() => {
                 <li><router-link to="/reviews" @click="isMenuOpen = false">리뷰 내역</router-link></li>
                 <li><router-link to="/wishlist" @click="isMenuOpen = false">위시리스트</router-link></li>
                 <li><router-link to="/coupons" @click="isMenuOpen = false">쿠폰</router-link></li>
+                <li><router-link to="/events" @click="isMenuOpen = false">이벤트</router-link></li>
               </ul>
 
               <div class="menu-footer">
@@ -1037,7 +1021,7 @@ onUnmounted(() => {
 /* Desktop styles */
 @media (min-width: 769px) {
   .header-container {
-    padding: 8px 24px;
+    padding: 8px 24px 4px;
   }
 
   .header-content {
@@ -1124,13 +1108,13 @@ onUnmounted(() => {
   }
 
   .header-container {
-    padding: 8px 12px;
+    padding: 8px 12px 4px;
     max-width: 100%;
     overflow: visible;
   }
 
   .header-content {
-    gap: 10px;
+    gap: 0;
     max-width: 100%;
   }
 
@@ -1139,7 +1123,7 @@ onUnmounted(() => {
   }
 
   .logo {
-    height: 32px;
+    height: 36px;
   }
 
   .right-menu {
@@ -1177,8 +1161,8 @@ onUnmounted(() => {
     align-items: center;
     background: white;
     border: 1px solid #e0e6eb;
-    border-radius: 40px;
-    padding: 12px 16px;
+    border-radius: 20px;
+    padding: 8px 16px;
     gap: 8px;
     width: 100%;
     cursor: pointer;
@@ -1233,7 +1217,7 @@ onUnmounted(() => {
     flex-direction: column;
     background: white;
     border: 1px solid #e0e6eb;
-    border-radius: 16px;
+    border-radius: 20px;
     padding: 20px;
     width: 100%;
     position: relative;
@@ -1313,24 +1297,34 @@ onUnmounted(() => {
   .mobile-calendar-popup {
     background: #fff;
     border: 1px solid #f0f0f0;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    border-radius: 16px;
     padding: 16px;
     margin: 8px 0;
+    font-family: 'Noto Sans KR', sans-serif;
+    animation: calendarFadeIn 0.2s ease;
   }
   
-  .mobile-calendar-popup .calendar-container {
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  .mobile-calendar-popup .calendar-month {
-    width: 100%;
+  @keyframes calendarFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   
   .mobile-calendar-popup .calendar-container {
     display: flex;
+    flex-direction: column;
+    gap: 12px;
     align-items: center;
+  }
+  
+  .mobile-calendar-popup .calendar-month {
+    width: 100%;
   }
   
   .mobile-calendar-header {
@@ -1353,10 +1347,80 @@ onUnmounted(() => {
     margin-bottom: 8px;
   }
   
+  .mobile-calendar-popup .weekday {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #9ca3af;
+    padding: 8px 0;
+  }
+  
+  .mobile-calendar-popup .weekday.sunday {
+    color: #ef4444;
+  }
+  
+  .mobile-calendar-popup .weekday.saturday {
+    color: #2563eb;
+  }
+  
   .mobile-calendar-popup .calendar-days {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
+  }
+  
+  .mobile-calendar-popup .calendar-day {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    padding: 12px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+  }
+  
+  .mobile-calendar-popup .calendar-day.sunday:not(.range-start):not(.range-end):not(.disabled) {
+    color: #ef4444;
+  }
+  
+  .mobile-calendar-popup .calendar-day.saturday:not(.range-start):not(.range-end):not(.disabled) {
+    color: #2563eb;
+  }
+  
+  .mobile-calendar-popup .calendar-day.holiday:not(.range-start):not(.range-end):not(.disabled) {
+    color: #ef4444;
+    font-weight: 600;
+  }
+  
+  .mobile-calendar-popup .calendar-day.today:not(.range-start):not(.range-end):not(.in-range) {
+    color: #6DC3BB;
+    font-weight: 700;
+  }
+  
+  .mobile-calendar-popup .calendar-day:not(.empty):not(.disabled):hover {
+    background-color: #f0f7f6;
+    color: #6DC3BB;
+  }
+  
+  .mobile-calendar-popup .calendar-day.in-range {
+    background-color: #BFE7DF;
+    color: #2d7a73;
+    border-radius: 0;
+  }
+  
+  .mobile-calendar-popup .calendar-day.range-start,
+  .mobile-calendar-popup .calendar-day.range-end {
+    background-color: #5CC5B3;
+    color: #fff;
+    font-weight: 700;
+  }
+  
+  .mobile-calendar-popup .calendar-day.range-start:hover,
+  .mobile-calendar-popup .calendar-day.range-end:hover {
+    background-color: #49B5A3;
+    color: #fff;
   }
   
   .mobile-calendar-popup .nav-prev,

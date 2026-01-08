@@ -118,6 +118,11 @@ ncp-*.pem
 docker-data/
 docker-compose.override.yml
 docker-compose.*.override.yml
+
+############################
+# 테스트 출력물 (추적 불필요)
+############################
+backend/test_output*.txt
 docker-compose.*.local.yml
 .env.docker
 .envrc

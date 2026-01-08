@@ -482,7 +482,7 @@ onMounted(() => {
   window.kakao.maps.load(() => {
     if (!mapContainer.value) return
 
-    const savedState = loadMapState()
+    const savedState = route.query.from === 'list' ? null : loadMapState()
     if (savedState) {
       autoFitPending = false
     }
@@ -725,7 +725,7 @@ watch(
 /* Filter Button Styles */
 .filter-btn-wrapper {
   position: fixed;
-  top: 104px;
+  top: 84px;
   right: 1rem;
   z-index: 120;
 }
@@ -750,7 +750,7 @@ watch(
 
 @media (max-width: 768px) {
   .filter-btn-wrapper {
-    top: calc(128px + env(safe-area-inset-top));
+    top: calc(112px + env(safe-area-inset-top));
     right: 12px;
   }
 }

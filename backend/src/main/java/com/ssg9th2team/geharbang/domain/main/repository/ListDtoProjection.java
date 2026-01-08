@@ -26,4 +26,6 @@ public interface ListDtoProjection {
     Integer getMaxGuests();
 
     String getImageUrl();
+
+    Double getBayesianScore();
 }
