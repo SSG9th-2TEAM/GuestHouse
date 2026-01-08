@@ -15,6 +15,10 @@ public class CouponInventoryService {
 
     private final CouponInventoryRepository couponInventoryRepository;
 
+    /**
+     * 선착순 제한이 있는 쿠폰이면 하루 수량을 확인하고 1장 차감한다.
+     * 수량이 모두 소진되면 false 반환.
+     */
     @Transactional
     public boolean consumeSlotIfLimited(Long couponId) {
         return couponInventoryRepository.findWithLockByCouponId(couponId)
@@ -29,6 +33,10 @@ public class CouponInventoryService {
                 .orElse(true);
     }
 
+    /**
+     * 매일 00시에 모든 선착순 쿠폰 재고를 초기화한다.
+     * 재고 레코드 개수를 반환한다.
+     */
     @Transactional
     public int resetDailyInventories() {
         LocalDate today = LocalDate.now();
