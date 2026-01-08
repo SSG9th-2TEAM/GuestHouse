@@ -69,6 +69,8 @@ spring.log
 # Node / Vue / Frontend
 ############################
 node_modules/
+frontend/node-v*
+backend/.gradle/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
