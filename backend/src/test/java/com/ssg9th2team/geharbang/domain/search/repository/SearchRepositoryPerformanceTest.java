@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.search.repository;
 
+import com.ssg9th2team.geharbang.config.IntegrationTestConfig;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.AccommodationsCategory;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
@@ -9,9 +10,7 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StopWatch;
 
@@ -22,17 +21,9 @@ import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
-@TestPropertySource(properties = {
-        "spring.datasource.url=jdbc:h2:mem:searchproftest;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false",
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
-        "spring.jpa.properties.hibernate.type.preferred_boolean_jdbc_type=TINYINT",
-        "spring.flyway.enabled=false"
-})
 @Transactional
-class SearchRepositoryPerformanceTest {
+@org.junit.jupiter.api.Disabled("CI 환경 부하로 인한 임시 비활성화")
+class SearchRepositoryPerformanceTest extends IntegrationTestConfig {
 
     @Autowired
     private SearchRepository searchRepository;

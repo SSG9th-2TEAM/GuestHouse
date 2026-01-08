@@ -19,7 +19,7 @@ public interface ReviewService {
 
 
     // 숙소별 리뷰 조회
-    List<ReviewResponseDto> getReviewsByAccommodation(Long accommodationsId);
+    List<ReviewResponseDto> getReviewsByAccommodation(Long userId, Long accommodationsId);
 
     // [User] 내가 작성한 리뷰 조회
     List<ReviewResponseDto> getReviewsByUserId(Long userId);

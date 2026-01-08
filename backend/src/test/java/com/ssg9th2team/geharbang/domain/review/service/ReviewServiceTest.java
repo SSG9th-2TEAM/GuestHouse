@@ -30,11 +30,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 
-@SpringBootTest
-@ActiveProfiles("test")
+@ActiveProfiles("integration-test")
 @Transactional
 @Sql(scripts = "/sql/test-base-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
-public class ReviewServiceTest {
+public class ReviewServiceTest extends com.ssg9th2team.geharbang.config.IntegrationTestConfig {
 
     @Autowired
     private ReviewServiceImpl reviewService;
