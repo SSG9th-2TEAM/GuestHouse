@@ -37,3 +37,10 @@ export async function fetchHostReviewAiSummary(payload = {}) {
     body: JSON.stringify(payload)
   })
 }
+
+export async function fetchHostAiInsight(payload = {}) {
+  return hostRequest('/host/reports/ai-insight', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+}

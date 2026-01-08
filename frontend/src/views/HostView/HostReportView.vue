@@ -10,7 +10,7 @@ import {
   fetchHostReviewReportTrend,
   fetchHostThemeReport,
   fetchHostDemandForecast,
-  fetchHostReviewAiSummary
+  fetchHostAiInsight
 } from '@/api/hostReport'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 
@@ -57,9 +57,15 @@ const reviewSummary = ref(null)
 const reviewTrend = ref([])
 const reviewLoading = ref(false)
 const reviewError = ref('')
-const aiSummary = ref(null)
-const aiLoading = ref(false)
-const aiError = ref('')
+const compareSummary = ref(null)
+const compareLoading = ref(false)
+const compareError = ref('')
+const showCompare = ref(false)
+const aiInsightState = ref({
+  REVIEW: { data: null, loading: false, error: '' },
+  THEME: { data: null, loading: false, error: '' },
+  DEMAND: { data: null, loading: false, error: '' }
+})
 const expandedReviews = ref({})
 const formatNumber = (value) => {
   const numberValue = Number(value)
@@ -81,10 +87,81 @@ const formatGeneratedAt = (value) => {
   return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-const aiHasContent = computed(() => {
-  if (!aiSummary.value) return false
-  const fields = ['overview', 'positives', 'negatives', 'actions', 'risks']
-  return fields.some((key) => Array.isArray(aiSummary.value?.[key]) && aiSummary.value[key].length > 0)
+const formatRating = (value) => {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return '-'
+  return numeric.toFixed(1)
+}
+
+const formatIsoDate = (date) => {
+  if (!date) return null
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const parseIsoDate = (iso) => {
+  if (!iso) return null
+  const parsed = new Date(`${iso}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed
+}
+
+const getPreviousRange = (from, to) => {
+  const start = parseIsoDate(from)
+  const end = parseIsoDate(to)
+  if (!start || !end) return null
+  if (end < start) return null
+  const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24))
+  const prevEnd = new Date(start)
+  prevEnd.setDate(prevEnd.getDate() - 1)
+  const prevStart = new Date(prevEnd)
+  prevStart.setDate(prevStart.getDate() - diffDays)
+  return {
+    from: formatIsoDate(prevStart),
+    to: formatIsoDate(prevEnd)
+  }
+}
+
+const calcLowRatingRatio = (summary) => {
+  const total = Number(summary?.reviewCount ?? 0)
+  if (!total) return null
+  const dist = summary?.ratingDistribution ?? {}
+  const low = Number(dist?.[1] ?? 0) + Number(dist?.[2] ?? 0) + Number(dist?.[3] ?? 0)
+  return low / total
+}
+
+const formatDelta = (current, previous, type) => {
+  const curr = Number(current)
+  const prev = Number(previous)
+  if (!Number.isFinite(curr) || !Number.isFinite(prev)) return null
+  if (type === 'count') {
+    const diff = curr - prev
+    const sign = diff > 0 ? '+' : ''
+    const pct = prev > 0 ? `${sign}${((diff / prev) * 100).toFixed(1)}%` : null
+    const value = `${sign}${formatNumber(diff)}`
+    return pct ? `${value} (${pct})` : value
+  }
+  if (type === 'rating') {
+    const diff = curr - prev
+    const sign = diff > 0 ? '+' : ''
+    return `${sign}${diff.toFixed(1)}`
+  }
+  if (type === 'ratio') {
+    const diff = (curr - prev) * 100
+    const sign = diff > 0 ? '+' : ''
+    return `${sign}${diff.toFixed(1)}%p`
+  }
+  return null
+}
+
+const reviewAiInsight = computed(() => aiInsightState.value.REVIEW.data)
+const themeAiInsight = computed(() => aiInsightState.value.THEME.data)
+const demandAiInsight = computed(() => aiInsightState.value.DEMAND.data)
+const reviewAiHasContent = computed(() => {
+  if (!reviewAiInsight.value) return false
+  return Array.isArray(reviewAiInsight.value?.sections) && reviewAiInsight.value.sections.length > 0
 })
 
 const themeFilters = ref({
@@ -125,7 +202,66 @@ const reviewRatingEntries = computed(() => {
 })
 
 const reviewHasData = computed(() => (reviewSummary.value?.reviewCount ?? 0) > 0)
-const canGenerateAi = computed(() => reviewHasData.value && !reviewLoading.value && !aiLoading.value)
+const canGenerateAi = computed(() => reviewHasData.value && !reviewLoading.value && !aiInsightState.value.REVIEW.loading)
+const compareRange = computed(() => getPreviousRange(reviewFilters.value.from, reviewFilters.value.to))
+const compareLabel = computed(() => {
+  if (!compareRange.value) return ''
+  return `직전 기간 ${compareRange.value.from} ~ ${compareRange.value.to}`
+})
+const lowRatingRatio = computed(() => calcLowRatingRatio(reviewSummary.value))
+const compareLowRatingRatio = computed(() => calcLowRatingRatio(compareSummary.value))
+const compareDeltas = computed(() => ({
+  reviewCount: compareSummary.value ? formatDelta(reviewSummary.value?.reviewCount, compareSummary.value?.reviewCount, 'count') : null,
+  avgRating: compareSummary.value ? formatDelta(reviewSummary.value?.avgRating, compareSummary.value?.avgRating, 'rating') : null,
+  lowRatio: (lowRatingRatio.value == null || compareLowRatingRatio.value == null)
+    ? null
+    : formatDelta(lowRatingRatio.value, compareLowRatingRatio.value, 'ratio')
+}))
+const compareItems = computed(() => {
+  if (!compareSummary.value) return []
+  const items = []
+  if (compareDeltas.value.reviewCount) {
+    items.push({ label: '리뷰 수', value: compareDeltas.value.reviewCount })
+  }
+  if (compareDeltas.value.avgRating) {
+    items.push({ label: '평균 평점', value: compareDeltas.value.avgRating })
+  }
+  if (compareDeltas.value.lowRatio) {
+    items.push({ label: '저평점 비율(3점 이하)', value: compareDeltas.value.lowRatio })
+  }
+  return items
+})
+const compareEnabled = computed(() => compareItems.value.length > 0 || compareLoading.value)
+const kpiItems = computed(() => {
+  const reviewCount = reviewSummary.value?.reviewCount
+  const avgRating = reviewSummary.value?.avgRating
+  const lowRatio = lowRatingRatio.value
+  const topTag = topTagLabel.value
+  return [
+    {
+      label: '리뷰 수',
+      value: Number.isFinite(Number(reviewCount)) ? `${formatNumber(reviewCount)}건` : '-',
+      delta: compareSummary.value ? formatDelta(reviewCount, compareSummary.value?.reviewCount, 'count') : null
+    },
+    {
+      label: '평균 평점',
+      value: formatRating(avgRating),
+      delta: compareSummary.value ? formatDelta(avgRating, compareSummary.value?.avgRating, 'rating') : null
+    },
+    {
+      label: '저평점 비율(3점 이하)',
+      tooltip: '선택 기간 리뷰 중 평점 3점 이하 비율(= 3점 이하 리뷰 수 / 전체 리뷰 수)',
+      value: lowRatio == null ? '-' : `${(lowRatio * 100).toFixed(1)}%`,
+      delta: compareLowRatingRatio.value == null ? null : formatDelta(lowRatio, compareLowRatingRatio.value, 'ratio')
+    },
+    {
+      label: '대표 태그',
+      value: topTag && topTag !== '데이터 없음' ? topTag : '-',
+      delta: null
+    }
+  ]
+})
+
 const aiMetaChips = computed(() => {
   const chips = []
   if (reviewFilters.value.from && reviewFilters.value.to) {
@@ -133,35 +269,165 @@ const aiMetaChips = computed(() => {
   }
   const count = formatNumber(reviewSummary.value?.reviewCount ?? 0)
   chips.push(`리뷰 ${count}건 기준`)
-  if (aiSummary.value?.generatedAt) {
-    chips.push(`생성 ${formatGeneratedAt(aiSummary.value.generatedAt)}`)
+  if (reviewAiInsight.value?.generatedAt) {
+    chips.push(`생성 ${formatGeneratedAt(reviewAiInsight.value.generatedAt)}`)
   }
   return chips
 })
 
-const aiNegativesDisplay = computed(() => {
-  const negatives = Array.isArray(aiSummary.value?.negatives) ? [...aiSummary.value.negatives] : []
-  const ratingDist = reviewSummary.value?.ratingDistribution ?? {}
-  const lowRatingCount = [1, 2, 3].reduce((sum, rating) => sum + Number(ratingDist?.[rating] ?? 0), 0)
-  const fallbacks = []
-  if (lowRatingCount > 0) {
-    fallbacks.push('낮은 평점(3점 이하) 리뷰가 있습니다. 원인 태그를 점검하세요.')
-  } else {
-    fallbacks.push('부정 신호가 적습니다(유지관리 권장).')
-  }
-  fallbacks.push('반복 키워드/불만 흐름을 주간으로 모니터링하세요.')
-  fallbacks.push('청소·소음·응대 체크리스트를 정기 점검하세요.')
-  fallbacks.push('체크인 안내/응대 속도에 대한 피드백을 점검하세요.')
+const aiRiskRecommendations = computed(() => ([
+  '저평점(3점 이하) 리뷰 추이 주 1회 점검',
+  '청결/소음/응대 관련 키워드 급증 여부 확인',
+  '이상 징후 발생 시 대응 프로세스 공유'
+]))
 
-  fallbacks.forEach((item) => {
-    if (negatives.length < 3 && !negatives.includes(item)) {
-      negatives.push(item)
-    }
+const getInsightState = (tab) => aiInsightState.value[tab]
+const hasInsight = (tab) => {
+  const data = getInsightState(tab)?.data
+  return Array.isArray(data?.sections) && data.sections.length > 0
+}
+const getAiButtonLabel = (tab) => {
+  const state = getInsightState(tab)
+  if (state?.loading) return '생성 중...'
+  return hasInsight(tab) ? 'AI 요약 재생성' : 'AI 요약 생성'
+}
+
+const normalizeSections = (insight) => {
+  return Array.isArray(insight?.sections) ? insight.sections : []
+}
+
+const getSectionItems = (insight, title) => {
+  const section = normalizeSections(insight).find((item) => item.title === title)
+  return section?.items ?? []
+}
+
+const aiActionsWithPriority = computed(() => {
+  const actions = getSectionItems(reviewAiInsight.value, '다음 액션')
+  return actions.map((text, index) => {
+    if (index === 0) return { text, priority: '즉시', tone: 'urgent' }
+    if (index <= 2) return { text, priority: '이번주', tone: 'recommended' }
+    return { text, priority: '상시', tone: 'improve' }
   })
-  return negatives.slice(0, 3)
 })
 
+const reviewRiskItems = computed(() => getSectionItems(reviewAiInsight.value, '주의·리스크'))
+const reviewRisksCompact = computed(() => {
+  if (reviewRiskItems.value.length === 0) return true
+  return reviewRiskItems.value.every((item) => (
+    item.includes('유의미한 리스크 없음') ||
+    item.includes('데이터 부족') ||
+    item.includes('특이 징후 없음') ||
+    item.includes('이슈 징후 낮음')
+  ))
+})
+
+const reviewRiskEmpty = computed(() => reviewRisksCompact.value)
+
+const splitInsightLine = (line) => {
+  if (!line) return { main: '-', evidence: '' }
+  const raw = String(line)
+  if (raw.includes('||')) {
+    const [main, evidence] = raw.split('||')
+    return { main: main.trim(), evidence: evidence?.trim() ?? '' }
+  }
+  const marker = '— 근거:'
+  if (raw.includes(marker)) {
+    const [main, evidence] = raw.split(marker)
+    return { main: main.trim(), evidence: evidence?.trim() ?? '' }
+  }
+  return { main: raw.trim(), evidence: '' }
+}
+
+const normalizeInsightText = (text) => {
+  if (!text) return ''
+  return String(text)
+    .replace(/부정 키워드 미감지/g, '불만 신호 낮음')
+    .replace(/유의미한 부정 신호 없음/g, '불만 신호 낮음')
+    .replace(/리스크 없음/g, '특이 징후 없음')
+    .replace(/유의미한 리스크 없음/g, '특이 징후 없음')
+    .replace(/저평점 리뷰 키워드 주간 모니터링/g, '저평점(3점 이하) 리뷰 추이 주 1회 점검')
+    .replace(/데이터 부족/g, '표본이 적어 신뢰도 낮음')
+    .trim()
+}
+
+const shouldShowEvidence = (mainText, evidenceText) => {
+  if (!evidenceText) return false
+  const evidence = String(evidenceText).trim()
+  if (!evidence) return false
+  const noiseSignals = ['데이터 부족', '데이터 없음', '리스크 없음', '특이 징후 없음', '이슈 징후 낮음']
+  if (noiseSignals.some((signal) => evidence.includes(signal))) return false
+  const main = String(mainText).trim()
+  if (!main) return true
+  if (main === evidence || main.includes(evidence)) return false
+  const mainNumbers = (main.match(/\d+(?:\.\d+)?/g) ?? [])
+  const evidenceNumbers = (evidence.match(/\d+(?:\.\d+)?/g) ?? [])
+  if (evidenceNumbers.length > 0 && evidenceNumbers.every((num) => mainNumbers.includes(num))) {
+    return false
+  }
+  return true
+}
+
+const getSectionItemsLimited = (insight, title, limit) => {
+  const items = getSectionItems(insight, title)
+  if (!Number.isFinite(limit)) return items
+  return items.slice(0, limit)
+}
+
+const themeInsightOrder = [
+  '핵심 요약',
+  '강점',
+  '개선 포인트',
+  '다음 액션',
+  '모니터링'
+]
+
+const demandInsightOrder = [
+  '핵심 요약',
+  '운영 액션',
+  '모니터링'
+]
+
+const getInsightBlocks = (insight, order, limits) => {
+  const sections = normalizeSections(insight)
+  const ordered = order.map((title) => sections.find((section) => section.title === title)).filter(Boolean)
+  const extra = sections.filter((section) => !order.includes(section.title))
+  return [...ordered, ...extra].map((section) => ({
+    ...section,
+    items: getSectionItemsLimited(
+      { sections: [section] },
+      section.title,
+      limits?.[section.title] ?? limits?.defaultLimit
+    )
+  }))
+}
+
+const themeInsightLimits = {
+  '핵심 요약': 2,
+  '강점': 2,
+  '개선 포인트': 2,
+  '다음 액션': 3,
+  '모니터링': 2,
+  defaultLimit: 2
+}
+
+const demandInsightLimits = {
+  '핵심 요약': 2,
+  '운영 액션': 3,
+  '운영 액션 제안': 3,
+  '모니터링': 2,
+  defaultLimit: 2
+}
+
+const themeInsightBlocks = computed(() => getInsightBlocks(themeAiInsight.value, themeInsightOrder, themeInsightLimits))
+const demandInsightBlocks = computed(() => getInsightBlocks(demandAiInsight.value, demandInsightOrder, demandInsightLimits))
+
 const themeRows = computed(() => themeReport.value?.rows ?? [])
+const themeShowAll = ref(false)
+const themeVisibleLimit = computed(() => (isDesktop.value ? 8 : 5))
+const themeVisibleRows = computed(() => {
+  if (themeShowAll.value) return themeRows.value
+  return themeRows.value.slice(0, themeVisibleLimit.value)
+})
 const themeTotals = computed(() => {
   return themeRows.value.reduce((acc, row) => {
     acc.reservations += Number(row.reservationCount ?? 0)
@@ -195,6 +461,15 @@ const themeKpis = computed(() => ([
 const themeViewMode = ref('cards')
 const isZeroValue = (value) => Number(value ?? 0) === 0
 const forecastDaily = computed(() => forecastReport.value?.forecastDaily ?? [])
+const forecastPeak = computed(() => {
+  if (!forecastDaily.value.length) return null
+  return forecastDaily.value.reduce((best, row) => {
+    const value = Number(row.predictedValue ?? 0)
+    if (!best) return row
+    const bestValue = Number(best.predictedValue ?? 0)
+    return value > bestValue ? row : best
+  }, null)
+})
 const topTagLabel = computed(() => {
   const tags = reviewSummary.value?.topTags ?? []
   return tags.length > 0 ? `${tags[0].tagName}` : '데이터 없음'
@@ -329,6 +604,8 @@ const loadReviewReport = async () => {
   if (!canUseHostFeatures.value) return
   reviewLoading.value = true
   reviewError.value = ''
+  compareSummary.value = null
+  compareError.value = ''
   const params = {
     from: reviewFilters.value.from,
     to: reviewFilters.value.to
@@ -346,6 +623,24 @@ const loadReviewReport = async () => {
 
   if (summaryRes.ok) {
     reviewSummary.value = summaryRes.data
+    const prevRange = getPreviousRange(params.from, params.to)
+    if (prevRange) {
+      compareLoading.value = true
+      const compareParams = {
+        from: prevRange.from,
+        to: prevRange.to
+      }
+      if (params.accommodationId) {
+        compareParams.accommodationId = params.accommodationId
+      }
+      const compareRes = await fetchHostReviewReportSummary(compareParams)
+      if (compareRes.ok) {
+        compareSummary.value = compareRes.data
+      } else {
+        compareError.value = '비교 데이터 없음'
+      }
+      compareLoading.value = false
+    }
   } else {
     reviewError.value = '리뷰 리포트를 불러오지 못했습니다.'
   }
@@ -362,30 +657,67 @@ const toggleReviewContent = (reviewId) => {
   expandedReviews.value[reviewId] = !expandedReviews.value[reviewId]
 }
 
-const loadAiSummary = async () => {
-  if (aiLoading.value) return
-  if (!reviewHasData.value) {
-    aiError.value = '리뷰가 없는 기간입니다. 기간을 바꿔 다시 시도해주세요.'
-    aiSummary.value = null
-    return
+
+const buildDemandRange = () => {
+  const today = new Date()
+  const historyDays = Number(forecastFilters.value.historyDays ?? 180)
+  const horizonDays = Number(forecastFilters.value.horizonDays ?? 30)
+  const from = new Date(today)
+  from.setDate(from.getDate() - historyDays)
+  const to = new Date(today)
+  to.setDate(to.getDate() + horizonDays)
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10)
   }
-  aiLoading.value = true
-  aiError.value = ''
-  const payload = {
-    from: reviewFilters.value.from,
-    to: reviewFilters.value.to
+}
+
+const loadAiInsight = async (tab, forceRefresh = false) => {
+  const state = getInsightState(tab)
+  if (state.loading) return
+  state.loading = true
+  state.error = ''
+  const payload = { tab, forceRefresh }
+
+  if (tab === 'REVIEW') {
+    if (!reviewHasData.value) {
+      state.error = '리뷰가 없는 기간입니다. 기간을 바꿔 다시 시도해주세요.'
+      state.data = null
+      state.loading = false
+      return
+    }
+    payload.from = reviewFilters.value.from
+    payload.to = reviewFilters.value.to
+    if (reviewFilters.value.accommodationId !== 'all') {
+      payload.accommodationId = reviewFilters.value.accommodationId
+    }
+  } else if (tab === 'THEME') {
+    payload.from = themeFilters.value.from
+    payload.to = themeFilters.value.to
+    payload.metric = themeFilters.value.metric
+    if (themeFilters.value.accommodationId !== 'all') {
+      payload.accommodationId = themeFilters.value.accommodationId
+    }
+  } else if (tab === 'DEMAND') {
+    const range = buildDemandRange()
+    payload.from = range.from
+    payload.to = range.to
+    payload.target = forecastFilters.value.target
+    payload.horizonDays = forecastFilters.value.horizonDays
+    payload.historyDays = forecastFilters.value.historyDays
+    if (forecastFilters.value.accommodationId !== 'all') {
+      payload.accommodationId = forecastFilters.value.accommodationId
+    }
   }
-  if (reviewFilters.value.accommodationId !== 'all') {
-    payload.accommodationId = reviewFilters.value.accommodationId
-  }
-  const response = await fetchHostReviewAiSummary(payload)
+
+  const response = await fetchHostAiInsight(payload)
   if (response.ok) {
-    aiSummary.value = response.data
+    state.data = response.data
   } else {
-    aiError.value = 'AI 요약을 불러오지 못했습니다.'
-    aiSummary.value = null
+    state.error = 'AI 인사이트를 불러오지 못했습니다.'
+    state.data = null
   }
-  aiLoading.value = false
+  state.loading = false
 }
 
 const loadThemeReport = async () => {
@@ -475,19 +807,24 @@ watch(forecastViewMode, (value) => {
 watch(reviewFilters, () => {
   if (activeTab.value === 'reviews') {
     loadReviewReport()
-    aiSummary.value = null
-    aiError.value = ''
+    aiInsightState.value.REVIEW.data = null
+    aiInsightState.value.REVIEW.error = ''
   }
 }, { deep: true })
 
 watch(themeFilters, () => {
   loadThemeReport()
+  aiInsightState.value.THEME.data = null
+  aiInsightState.value.THEME.error = ''
+  themeShowAll.value = false
 }, { deep: true })
 
 watch(forecastFilters, () => {
   if (activeTab.value === 'forecast') {
     loadForecast()
   }
+  aiInsightState.value.DEMAND.data = null
+  aiInsightState.value.DEMAND.error = ''
 }, { deep: true })
 </script>
 
@@ -507,8 +844,8 @@ watch(forecastFilters, () => {
     <template v-else>
       <header class="host-view-header">
         <div>
-          <h2 class="host-title">리포트</h2>
-          <p class="host-subtitle">리뷰/테마/수요 흐름을 한눈에 확인하세요.</p>
+          <h2 class="host-title">AI 리포트</h2>
+          <p class="host-subtitle">AI가 리뷰/테마/수요를 요약해 운영 포인트를 제공합니다.</p>
         </div>
         <p v-if="accommodationLoading" class="host-subtitle">숙소 불러오는 중...</p>
         <p v-else-if="accommodationError" class="error-text">{{ accommodationError }}</p>
@@ -563,34 +900,57 @@ watch(forecastFilters, () => {
         </div>
       </div>
 
-      <div v-if="reviewLoading" class="loading-box">리뷰 리포트 로딩 중...</div>
+      <div v-if="reviewLoading" class="report-skeleton">
+        <div class="kpi-grid">
+          <div v-for="n in 4" :key="`kpi-skel-${n}`" class="kpi-card skeleton-card">
+            <div class="skeleton-line short"></div>
+            <div class="skeleton-line long"></div>
+            <div class="skeleton-line mini"></div>
+          </div>
+        </div>
+        <div class="skeleton-tags">
+          <span v-for="n in 6" :key="`tag-skel-${n}`" class="skeleton-chip"></span>
+        </div>
+        <div class="skeleton-panels">
+          <div class="skeleton-panel"></div>
+          <div class="skeleton-panel"></div>
+        </div>
+      </div>
       <div v-else-if="reviewError" class="error-box">{{ reviewError }}</div>
       <div v-else>
         <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-icon">★</div>
-            <div>
-              <p>평균 평점</p>
-              <strong>{{ reviewSummary?.avgRating ?? 0 }}</strong>
-            </div>
+          <div v-for="item in kpiItems" :key="item.label" class="kpi-card">
+            <p class="kpi-label">
+              {{ item.label }}
+              <span v-if="item.tooltip" class="kpi-help" :title="item.tooltip">?</span>
+            </p>
+            <strong class="kpi-value">{{ item.value }}</strong>
+            <span v-if="item.delta" class="kpi-delta">Δ {{ item.delta }}</span>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-icon">✉</div>
-            <div>
-              <p>리뷰 수</p>
-              <strong>{{ reviewSummary?.reviewCount ?? 0 }}</strong>
-            </div>
+        </div>
+        <div v-if="compareEnabled" class="compare-toolbar">
+          <p v-if="showCompare" class="compare-label">{{ compareLabel }}</p>
+          <button type="button" class="ghost-btn" @click="showCompare = !showCompare">
+            {{ showCompare ? '비교 숨기기' : '전 기간 비교' }}
+          </button>
+        </div>
+        <div v-if="compareEnabled" class="kpi-compare" :class="{ hidden: !showCompare }">
+          <div v-if="compareLoading" class="compare-skeleton">
+            <span class="skeleton-line mini"></span>
+            <span class="skeleton-line mini"></span>
+            <span class="skeleton-line mini"></span>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-icon">#</div>
-            <div>
-              <p>대표 태그</p>
-              <strong>{{ topTagLabel }}</strong>
-            </div>
+          <div v-else-if="compareItems.length" class="compare-items">
+            <span v-for="item in compareItems" :key="item.label">
+              {{ item.label }} <strong>{{ item.value }}</strong>
+            </span>
           </div>
         </div>
 
-        <div v-if="!reviewHasData" class="empty-box">선택한 기간에 리뷰가 없습니다.</div>
+        <div v-if="!reviewHasData" class="empty-box">
+          <p>데이터가 부족합니다 (리뷰 {{ formatNumber(reviewSummary?.reviewCount ?? 0) }}건).</p>
+          <button type="button" class="ghost-btn" @click="applyReviewPreset('30days')">최근 30일 보기</button>
+        </div>
 
         <div v-else class="grid-two">
           <div class="panel">
@@ -609,10 +969,17 @@ watch(forecastFilters, () => {
           <div class="panel">
             <h3>TOP 태그</h3>
             <p class="muted">자주 언급된 키워드를 모았어요.</p>
-            <div class="tag-list">
+            <!-- Tag chips are display-only in this view; no click behavior. -->
+            <div class="tag-chip-list">
               <span v-if="(reviewSummary?.topTags ?? []).length === 0" class="muted">태그 데이터가 없습니다.</span>
-              <span v-for="tag in reviewSummary?.topTags" :key="tag.tagName" class="tag-chip">
-                {{ tag.tagName }} · {{ tag.count }}
+              <span
+                v-for="tag in reviewSummary?.topTags"
+                :key="tag.tagName"
+                class="tag-chip tag-chip-static"
+                :title="`${tag.tagName} ${formatNumber(tag.count)}건`"
+              >
+                {{ tag.tagName }}
+                <span class="chip-count">{{ formatNumber(tag.count) }}</span>
               </span>
             </div>
           </div>
@@ -622,59 +989,121 @@ watch(forecastFilters, () => {
           <div class="ai-head">
             <div>
               <p class="ai-kicker">AI 리뷰 인사이트</p>
-              <h3>요약 리포트</h3>
-              <p class="muted">선택 기간 리뷰를 기반으로 핵심 포인트를 정리합니다.</p>
+              <h3>AI 요약</h3>
+              <p class="muted">선택 기간 리뷰 데이터를 기반으로 핵심 포인트를 정리합니다.</p>
             </div>
             <div class="ai-meta">
               <button
                 type="button"
                 class="primary-btn ai-btn"
-                :disabled="!canGenerateAi || aiLoading"
-                :aria-busy="aiLoading ? 'true' : 'false'"
-                @click="loadAiSummary"
+                :disabled="!canGenerateAi || getInsightState('REVIEW').loading"
+                :aria-busy="getInsightState('REVIEW').loading ? 'true' : 'false'"
+                @click="loadAiInsight('REVIEW', true)"
               >
-                <span v-if="aiLoading" class="spinner" aria-hidden="true"></span>
-                {{ aiLoading ? '생성 중...' : aiHasContent ? '재생성' : 'AI 요약 생성' }}
+                <span v-if="getInsightState('REVIEW').loading" class="spinner" aria-hidden="true"></span>
+                {{ getAiButtonLabel('REVIEW') }}
               </button>
               <div class="ai-meta-chips">
                 <span v-for="chip in aiMetaChips" :key="chip" class="ai-chip">{{ chip }}</span>
               </div>
             </div>
           </div>
-          <div v-if="aiError" class="error-box ai-state">
-            <p>{{ aiError }}</p>
-            <button type="button" class="link-btn" @click="loadAiSummary">다시 시도</button>
+          <div v-if="getInsightState('REVIEW').loading" class="ai-skeleton">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
           </div>
-          <div v-else-if="aiSummary && !aiHasContent" class="empty-box ai-state">AI 요약 대상 리뷰가 없습니다.</div>
-          <div v-else-if="aiSummary" class="ai-grid">
-            <div class="ai-block">
-              <h4>총평</h4>
-              <ul>
-                <li v-for="line in aiSummary.overview" :key="line">{{ line }}</li>
+          <div v-else-if="getInsightState('REVIEW').error" class="error-box ai-state">
+            <p>{{ getInsightState('REVIEW').error }}</p>
+            <button type="button" class="link-btn" @click="loadAiInsight('REVIEW', true)">다시 시도</button>
+          </div>
+          <div v-else-if="reviewAiInsight && !reviewAiHasContent" class="empty-box ai-state">AI 요약 대상 리뷰가 없습니다.</div>
+          <div v-else-if="reviewAiInsight" class="ai-grid review-grid">
+            <div class="ai-block ai-card ai-card--overview">
+              <div class="ai-card__head">
+                <h4>총평</h4>
+              </div>
+              <ul class="ai-list">
+                <li v-for="line in getSectionItemsLimited(reviewAiInsight, '총평', 2)" :key="line">
+                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                  <span
+                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                    class="ai-evidence"
+                  >
+                    데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                  </span>
+                </li>
               </ul>
             </div>
-            <div class="ai-block">
-              <h4>좋았던 점</h4>
-              <ul>
-                <li v-for="line in aiSummary.positives" :key="line">{{ line }}</li>
+            <div class="ai-block ai-card ai-card--positives">
+              <div class="ai-card__head">
+                <h4>좋았던 점</h4>
+              </div>
+              <ul class="ai-list">
+                <li v-for="line in getSectionItemsLimited(reviewAiInsight, '좋았던 점', 2)" :key="line">
+                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                  <span
+                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                    class="ai-evidence"
+                  >
+                    데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                  </span>
+                </li>
               </ul>
             </div>
-            <div class="ai-block">
-              <h4>개선 포인트</h4>
-              <ul>
-                <li v-for="line in aiNegativesDisplay" :key="line">{{ line }}</li>
+            <div class="ai-block ai-card ai-card--negatives">
+              <div class="ai-card__head">
+                <h4>개선 포인트</h4>
+              </div>
+              <ul class="ai-list">
+                <li v-for="line in getSectionItemsLimited(reviewAiInsight, '개선 포인트', 2)" :key="line">
+                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                  <span
+                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                    class="ai-evidence"
+                  >
+                    데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                  </span>
+                </li>
               </ul>
             </div>
-            <div class="ai-block">
-              <h4>다음 액션</h4>
-              <ul>
-                <li v-for="line in aiSummary.actions" :key="line">{{ line }}</li>
+            <div class="ai-block ai-card ai-card--actions" :class="{ 'ai-wide': reviewRiskEmpty }">
+              <div class="ai-card__head">
+                <h4>다음 액션</h4>
+              </div>
+              <ul class="action-list">
+                <li v-for="item in aiActionsWithPriority" :key="item.text" class="action-item">
+                  <span class="action-badge" :class="item.tone">{{ item.priority }}</span>
+                  <span class="action-text">{{ normalizeInsightText(splitInsightLine(item.text).main) }}</span>
+                  <span
+                    v-if="shouldShowEvidence(splitInsightLine(item.text).main, splitInsightLine(item.text).evidence)"
+                    class="ai-evidence"
+                  >
+                    데이터: {{ normalizeInsightText(splitInsightLine(item.text).evidence) }}
+                  </span>
+                </li>
               </ul>
+              <div v-if="reviewRiskEmpty" class="monitoring-callout">
+                <h5>특이 징후 없음(현재) · 모니터링 포인트</h5>
+                <ul>
+                  <li v-for="line in aiRiskRecommendations" :key="line">{{ line }}</li>
+                </ul>
+              </div>
             </div>
-            <div class="ai-block ai-wide">
-              <h4>주의/리스크</h4>
-              <ul>
-                <li v-for="line in aiSummary.risks" :key="line">{{ line }}</li>
+            <div v-if="!reviewRiskEmpty" class="ai-block ai-card ai-card--risks">
+              <div class="ai-card__head">
+                <h4>주의·리스크</h4>
+              </div>
+              <ul class="ai-list">
+                <li v-for="line in getSectionItemsLimited(reviewAiInsight, '주의·리스크', 2)" :key="line">
+                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                  <span
+                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                    class="ai-evidence"
+                  >
+                    데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                  </span>
+                </li>
               </ul>
             </div>
           </div>
@@ -783,6 +1212,63 @@ watch(forecastFilters, () => {
               </div>
             </div>
 
+            <div class="panel ai-panel">
+              <div class="ai-head">
+                <div>
+                  <p class="ai-kicker">AI 테마 인사이트</p>
+                  <h3>AI 요약</h3>
+                  <p class="muted">테마 성과를 기반으로 운영 포인트를 정리합니다.</p>
+                </div>
+                <div class="ai-meta">
+                  <button
+                    type="button"
+                    class="primary-btn ai-btn"
+                    :disabled="themeLoading || getInsightState('THEME').loading"
+                    :aria-busy="getInsightState('THEME').loading ? 'true' : 'false'"
+                    @click="loadAiInsight('THEME', true)"
+                  >
+                    <span v-if="getInsightState('THEME').loading" class="spinner" aria-hidden="true"></span>
+                    {{ getAiButtonLabel('THEME') }}
+                  </button>
+                </div>
+              </div>
+              <div v-if="getInsightState('THEME').loading" class="ai-skeleton">
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+              </div>
+              <div v-else-if="getInsightState('THEME').error" class="error-box ai-state">
+                <p>{{ getInsightState('THEME').error }}</p>
+                <button type="button" class="link-btn" @click="loadAiInsight('THEME', true)">다시 시도</button>
+              </div>
+              <div v-else-if="themeAiInsight" class="ai-grid theme-ai-grid">
+                <div
+                  v-for="section in themeInsightBlocks"
+                  :key="section.title"
+                  class="ai-block ai-card"
+                  :class="{ 'ai-wide': section.title.includes('모니터링') }"
+                >
+                  <div class="ai-card__head">
+                    <h4>{{ section.title }}</h4>
+                  </div>
+                  <ul class="ai-list">
+                    <li v-for="line in section.items" :key="line">
+                      <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                      <span
+                        v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                        class="ai-evidence"
+                      >
+                        데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div v-else class="muted ai-state">
+                테마 데이터가 충분하지 않으면 인사이트가 제한될 수 있습니다.
+              </div>
+            </div>
+
             <div class="theme-results-card">
               <div class="theme-results-head">
                 <div>
@@ -815,7 +1301,7 @@ watch(forecastFilters, () => {
 
                   <div v-else>
                     <div v-if="themeViewMode === 'cards'" class="theme-grid-desktop">
-                      <article v-for="row in themeRows" :key="row.themeId" class="theme-card">
+                      <article v-for="row in themeVisibleRows" :key="row.themeId" class="theme-card">
                         <div class="theme-card__head">
                           <strong>{{ row.themeName }}</strong>
                         </div>
@@ -871,7 +1357,7 @@ watch(forecastFilters, () => {
                   </div>
 
                   <div v-if="themeRows.length" class="theme-grid theme-grid-stack">
-                    <article v-for="row in themeRows" :key="row.themeId" class="theme-card">
+                    <article v-for="row in themeVisibleRows" :key="row.themeId" class="theme-card">
                       <div class="theme-card__head">
                         <strong>{{ row.themeName }}</strong>
                       </div>
@@ -890,6 +1376,11 @@ watch(forecastFilters, () => {
                         </div>
                       </div>
                     </article>
+                  </div>
+                  <div v-if="themeViewMode === 'cards' && themeRows.length > themeVisibleLimit" class="theme-more">
+                    <button type="button" class="ghost-btn" @click="themeShowAll = !themeShowAll">
+                      {{ themeShowAll ? '접기' : `테마 더보기 (${themeRows.length - themeVisibleLimit}개)` }}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -946,8 +1437,69 @@ watch(forecastFilters, () => {
             <p>예측 합계</p>
             <strong>{{ formatForecastValue(forecastReport?.forecastSummary?.predictedTotal ?? 0) }}</strong>
           </div>
+          <div class="kpi-card">
+            <p>최고 예측일</p>
+            <strong>{{ forecastPeak ? `${forecastPeak.date} · ${formatForecastValue(forecastPeak.predictedValue)}` : '-' }}</strong>
+          </div>
         </div>
         <p v-if="forecastMetaText" class="forecast-meta">{{ forecastMetaText }}</p>
+
+        <div class="panel ai-panel">
+          <div class="ai-head">
+            <div>
+              <p class="ai-kicker">AI 수요 인사이트</p>
+              <h3>AI 요약</h3>
+              <p class="muted">예측 결과를 기반으로 운영 포인트를 정리합니다.</p>
+            </div>
+            <div class="ai-meta">
+              <button
+                type="button"
+                class="primary-btn ai-btn"
+                :disabled="forecastLoading || getInsightState('DEMAND').loading"
+                :aria-busy="getInsightState('DEMAND').loading ? 'true' : 'false'"
+                @click="loadAiInsight('DEMAND', true)"
+              >
+                <span v-if="getInsightState('DEMAND').loading" class="spinner" aria-hidden="true"></span>
+                {{ getAiButtonLabel('DEMAND') }}
+              </button>
+            </div>
+          </div>
+          <div v-if="getInsightState('DEMAND').loading" class="ai-skeleton">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+          <div v-else-if="getInsightState('DEMAND').error" class="error-box ai-state">
+            <p>{{ getInsightState('DEMAND').error }}</p>
+            <button type="button" class="link-btn" @click="loadAiInsight('DEMAND', true)">다시 시도</button>
+          </div>
+          <div v-else-if="demandAiInsight" class="ai-grid demand-ai-grid">
+            <div
+              v-for="section in demandInsightBlocks"
+              :key="section.title"
+              class="ai-block ai-card"
+              :class="{ 'ai-wide': section.title.includes('모니터링') }"
+            >
+              <div class="ai-card__head">
+                <h4>{{ section.title }}</h4>
+              </div>
+              <ul class="ai-list">
+                <li v-for="line in section.items" :key="line">
+                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                  <span
+                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                    class="ai-evidence"
+                  >
+                    데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div v-else class="muted ai-state">
+            예측 데이터가 충분하지 않으면 인사이트가 제한될 수 있습니다.
+          </div>
+        </div>
 
         <div v-if="forecastDaily.length === 0" class="empty-box">예측 데이터가 없습니다.</div>
         <div v-else>
@@ -1041,6 +1593,7 @@ watch(forecastFilters, () => {
             </div>
           </div>
         </div>
+
       </div>
       </section>
     </template>
@@ -1054,7 +1607,7 @@ watch(forecastFilters, () => {
 .report-view {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.2rem;
   padding-bottom: 2rem;
 }
 
@@ -1090,7 +1643,7 @@ watch(forecastFilters, () => {
   background: var(--bg-white);
   border: 1px solid var(--brand-border);
   border-radius: 1rem;
-  padding: 1rem;
+  padding: 0.9rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -1207,28 +1760,133 @@ watch(forecastFilters, () => {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.8rem;
 }
 
 .kpi-card {
   background: var(--bg-white);
   border: 1px solid var(--brand-border);
   border-radius: 0.8rem;
-  padding: 1rem;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-height: 96px;
+}
+
+.kpi-card p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.kpi-card strong {
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.kpi-label {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.kpi-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--brand-border);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  cursor: help;
+}
+
+.kpi-value {
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.kpi-delta {
+  font-size: 0.78rem;
+  color: #0f766e;
+}
+
+.kpi-compare {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.7rem;
+  border: 1px dashed var(--brand-border);
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.kpi-compare.hidden {
+  display: none;
+}
+
+.compare-toolbar {
+  margin-top: 0.75rem;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
 }
 
-.kpi-icon {
-  width: 2.2rem;
-  height: 2.2rem;
+.compare-label {
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.compare-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-default);
+}
+
+.compare-empty {
+  font-size: 0.85rem;
+}
+
+.tag-chip-list {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+  scroll-snap-type: x proximity;
+}
+
+.tag-chip-list .tag-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  border: 1px solid var(--brand-border);
+  background: #f8fafc;
   border-radius: 999px;
-  background: var(--brand-primary);
-  color: var(--brand-accent);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Tag chips are display-only in this view; no click behavior. */
+.tag-chip-static {
+  cursor: default;
+}
+
+.chip-count {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-radius: 999px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.72rem;
 }
 
 .panel {
@@ -1668,6 +2326,10 @@ watch(forecastFilters, () => {
   margin-top: 1rem;
 }
 
+.empty-box p {
+  margin: 0 0 0.6rem;
+}
+
 .error-box {
   color: var(--danger);
 }
@@ -1810,7 +2472,11 @@ watch(forecastFilters, () => {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0.85rem;
   align-items: stretch;
-  grid-auto-rows: 1fr;
+}
+
+.theme-ai-grid,
+.demand-ai-grid {
+  grid-template-columns: 1fr;
 }
 
 .ai-wide {
@@ -1822,30 +2488,217 @@ watch(forecastFilters, () => {
   border-radius: 0.9rem;
   padding: 0.9rem 1rem;
   background: #fafafa;
-  max-width: 46ch;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.55rem;
 }
 
-.ai-block h4 {
+.theme-ai-grid .ai-block,
+.demand-ai-grid .ai-block {
+  padding: 0.8rem 0.9rem;
+}
+
+.ai-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.ai-card__head h4 {
   margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
-.ai-block ul {
-  padding-left: 1.1rem;
-  margin: 0.35rem 0 0;
-  line-height: 1.6;
+.ai-card-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.ai-list {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.4rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  line-height: 1.6;
   word-break: keep-all;
   overflow-wrap: anywhere;
-  flex: 1;
+}
+
+.ai-main {
+  display: block;
+}
+
+.ai-evidence {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.action-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.35rem 0 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.action-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.5rem;
+  row-gap: 0.15rem;
+}
+
+.action-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  flex: 0 0 auto;
+}
+
+.action-badge.urgent {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.action-badge.recommended {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.action-badge.improve {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.action-text {
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.action-item .ai-evidence {
+  grid-column: 2;
+}
+
+.monitoring-callout {
+  margin-top: 0.8rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.7rem;
+  background: #f8fafc;
+  border: 1px dashed var(--brand-border);
+}
+
+.monitoring-callout h5 {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.monitoring-callout ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+}
+
+.risk-callout {
+  grid-column: 1 / -1;
+  padding: 0.8rem 1rem;
+  border-radius: 0.8rem;
+  background: #ecfdf3;
+  border: 1px solid #86efac;
+  color: #166534;
+  font-weight: 600;
+}
+
+.report-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.skeleton-line {
+  height: 0.6rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+
+.skeleton-line.short {
+  width: 40%;
+}
+
+.skeleton-line.long {
+  width: 70%;
+  height: 1.2rem;
+}
+
+.skeleton-line.mini {
+  width: 50%;
+  height: 0.5rem;
+}
+
+.skeleton-card {
+  height: 110px;
+  border-radius: 0.8rem;
+  border: 1px solid var(--brand-border);
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+
+.skeleton-tags {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.skeleton-chip {
+  width: 90px;
+  height: 32px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+
+.skeleton-panels {
+  display: grid;
+  gap: 1rem;
+}
+
+.skeleton-panel {
+  height: 160px;
+  border-radius: 0.9rem;
+  border: 1px solid var(--brand-border);
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+
+.ai-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.theme-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
 }
 
 
 .ai-state {
   margin-top: 0;
+}
+
+.compare-skeleton {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .table-only {
@@ -1884,6 +2737,11 @@ watch(forecastFilters, () => {
 
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .compare-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .rating-bars li {
@@ -1951,12 +2809,60 @@ watch(forecastFilters, () => {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .report-section {
+    max-width: 1240px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .ai-panel {
+    padding: 1.1rem 1.25rem;
+  }
+
   .theme-grid {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
 
   .ai-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .theme-ai-grid,
+  .demand-ai-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-grid.review-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ai-grid.review-grid .ai-card--overview {
+    grid-column: 1;
+  }
+
+  .ai-grid.review-grid .ai-card--positives {
+    grid-column: 2;
+  }
+
+  .ai-grid.review-grid .ai-card--negatives {
+    grid-column: 3;
+  }
+
+  .ai-grid.review-grid .ai-card--actions {
+    grid-column: 1 / span 2;
+  }
+
+  .ai-grid.review-grid .ai-card--risks {
+    grid-column: 3;
+  }
+
+  .ai-grid.review-grid .ai-card--actions.ai-wide {
+    grid-column: 1 / -1;
+  }
+
+  .tag-chip-list {
+    flex-wrap: wrap;
+    overflow: visible;
   }
 
   .theme-layout {
@@ -2010,6 +2916,14 @@ watch(forecastFilters, () => {
   .theme-grid-desktop {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ai-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 1440px) {
@@ -2021,6 +2935,12 @@ watch(forecastFilters, () => {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
   }
 }
 </style>
