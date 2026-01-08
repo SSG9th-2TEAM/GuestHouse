@@ -4,7 +4,7 @@ import lombok.Getter;
 
 @Getter
 public class HostAiInsightEligibilityResult {
-    private final String status;
+    private final EligibilityStatus status;
     private final boolean canGenerate;
     private final String disabledReason;
     private final String warningMessage;
@@ -14,7 +14,7 @@ public class HostAiInsightEligibilityResult {
     private final String unitLabel;
 
     private HostAiInsightEligibilityResult(
-            String status,
+            EligibilityStatus status,
             boolean canGenerate,
             String disabledReason,
             String warningMessage,
@@ -41,7 +41,7 @@ public class HostAiInsightEligibilityResult {
             String unitLabel
     ) {
         return new HostAiInsightEligibilityResult(
-                "BLOCKED",
+                EligibilityStatus.BLOCKED,
                 false,
                 disabledReason,
                 "",
@@ -60,7 +60,7 @@ public class HostAiInsightEligibilityResult {
             String unitLabel
     ) {
         return new HostAiInsightEligibilityResult(
-                "WARN",
+                EligibilityStatus.WARN,
                 true,
                 "",
                 warningMessage,
@@ -78,7 +78,7 @@ public class HostAiInsightEligibilityResult {
             String unitLabel
     ) {
         return new HostAiInsightEligibilityResult(
-                "OK",
+                EligibilityStatus.OK,
                 true,
                 "",
                 "",

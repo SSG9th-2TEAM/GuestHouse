@@ -1,12 +1,13 @@
 package com.ssg9th2team.geharbang.domain.report.host.dto;
 
+import com.ssg9th2team.geharbang.domain.report.host.ai.EligibilityStatus;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
 public class HostAiInsightMeta {
-    private String status;
+    private EligibilityStatus status;
     private boolean canGenerate;
     private String disabledReason;
     private String warningMessage;
