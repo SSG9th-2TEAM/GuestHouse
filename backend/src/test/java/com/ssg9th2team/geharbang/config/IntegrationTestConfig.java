@@ -36,12 +36,15 @@ public abstract class IntegrationTestConfig {
         }
     }
 
-    @Container
     static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0")
             .withDatabaseName("guesthouse_test")
             .withUsername("test")
             .withPassword("test")
             .withCommand("--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci");
+
+    static {
+        mysql.start();
+    }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
