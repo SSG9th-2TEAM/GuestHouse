@@ -61,8 +61,9 @@ public class UserCouponServiceTest extends com.ssg9th2team.geharbang.config.Inte
                 .password("password")
                 .phone("010-1111-2222")
                 .role(com.ssg9th2team.geharbang.domain.auth.entity.UserRole.HOST)
-                .hostApproved(1) // 승인됨
-                .marketingAgree(true)
+                .hostApproved(true) // 승인됨
+                .marketingAgreed(true)
+                .socialSignupCompleted(true)
                 .build();
         userRepository.save(hostUser);
 
@@ -74,7 +75,8 @@ public class UserCouponServiceTest extends com.ssg9th2team.geharbang.config.Inte
                 .password("password")
                 .phone("010-3333-4444")
                 .role(com.ssg9th2team.geharbang.domain.auth.entity.UserRole.USER)
-                .marketingAgree(true)
+                .marketingAgreed(true)
+                .socialSignupCompleted(true)
                 .build();
         userRepository.save(normalUser);
         

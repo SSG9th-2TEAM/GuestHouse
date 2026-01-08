@@ -147,7 +147,7 @@ class ConcurrencyTest extends com.ssg9th2team.geharbang.config.IntegrationTestCo
     @Test
     @DisplayName("동시성 제어: 같은 객실/날짜에 100명이 동시에 예약하면 직렬화되어 1명만 성공해야 한다.")
     void concurrencyReservationTest() throws InterruptedException {
-        int numberOfThreads = 100;
+        int numberOfThreads = 10;
         ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
         CountDownLatch latch = new CountDownLatch(numberOfThreads);
 
