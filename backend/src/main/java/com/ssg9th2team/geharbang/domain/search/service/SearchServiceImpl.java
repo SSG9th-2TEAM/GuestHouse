@@ -57,7 +57,7 @@ public class SearchServiceImpl implements SearchService {
                 case "recommended":
                 default:
                     if ("recommended".equals(sort)) {
-                        sortObj = JpaSort.unsafe(Sort.Direction.DESC, "bayesianScore");
+                        sortObj = JpaSort.unsafe(Sort.Direction.DESC, "(bayesianScore)");
                     } else {
                         sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
                     }

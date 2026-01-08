@@ -121,7 +121,6 @@ public class AccommodationServiceTest {
         Long userId = 1L;
         Long savedId = createTestAccommodation(userId, "조회 테스트 숙소");
 
-
         // when
         AccommodationResponseDto response = accommodationService.getAccommodation(savedId);
 
@@ -266,6 +265,26 @@ public class AccommodationServiceTest {
 
         System.out.println("편의시설/테마 연결 성공 - Amenities: " + response.getAmenityIds().size()
                 + ", Themes: " + response.getThemeIds().size());
+    }
+
+    @Test
+    @DisplayName("숙소 카테고리 매핑 테스트 - GUESTHOUSE")
+    void verifyGuesthouseCategoryMapping() {
+        // given
+        Long userId = 1L;
+        AccommodationCreateRequestDto requestDto = createBaseAccommodationDto("게스트하우스 매핑 테스트");
+        requestDto.setAccommodationsCategory("GUESTHOUSE"); // GUESTHOUSE 설정
+        requestDto.setBusinessRegistrationImage(null); // Base64 Error 방지
+        requestDto.setImages(null); // Base64 Error 방지
+
+        // when
+        Long savedId = accommodationService.createAccommodation(userId, requestDto);
+        AccommodationResponseDto response = accommodationService.getAccommodation(savedId);
+
+        // then
+        assertThat(response).isNotNull();
+        System.out.println("조회된 카테고리: " + response.getAccommodationsCategory());
+        assertThat(response.getAccommodationsCategory()).isEqualTo("GUESTHOUSE");
     }
 
     // ============ Helper Methods ============

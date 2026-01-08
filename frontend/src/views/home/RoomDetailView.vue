@@ -23,6 +23,7 @@ const { applyRouteFilters } = useListingFilters()
 
 const DEFAULT_IMAGE = 'https://placehold.co/800x600'
 const DEFAULT_HOST_IMAGE = 'https://picsum.photos/seed/host/100/100'
+const rawData = ref(null) // DEBUG REF
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value)
@@ -63,6 +64,7 @@ const buildFilterQuery = () => {
   if (route.query.checkin) query.checkin = String(route.query.checkin)
   if (route.query.checkout) query.checkout = String(route.query.checkout)
   if (route.query.keyword) query.keyword = String(route.query.keyword)
+  if (route.query.sort) query.sort = String(route.query.sort)
   return query
 }
 
@@ -81,6 +83,7 @@ const goBack = () => {
 
 const createEmptyGuesthouse = (id = null) => ({
   id,
+  category: '',
   name: '',
   rating: '-',
   reviewCount: 0,
@@ -198,8 +201,12 @@ const normalizeDetail = (data) => {
   const fallbackPrice = toNumber(data?.minPrice ?? 0, 0)
   const ratingValue = Number(data?.rating)
   const reviews = normalizeReviews(data?.reviews)
+  // Fallback to snake_case if camelCase is missing
+  const category = data?.accommodationsCategory || data?.accommodations_category || ''
+  
   return {
     id: data?.accommodationsId ?? null,
+    category,
     name: data?.accommodationsName ?? '',
     rating: Number.isFinite(ratingValue) ? ratingValue.toFixed(2) : '-',
     reviewCount: toNumber(data?.reviewCount ?? reviews.length, 0),
@@ -260,7 +267,14 @@ const stayNights = computed(() => {
 // 총 가격 계산 (객실 가격 × 숙박 일수)
 const totalPrice = computed(() => {
   if (!selectedRoom.value) return 0
-  return selectedRoom.value.price * stayNights.value
+  let price = selectedRoom.value.price * stayNights.value
+  
+  const category = (guesthouse.value.category || '').toUpperCase()
+  if (category === 'GUESTHOUSE' || category === '게스트하우스') {
+    const count = Number(searchStore.guestCount)
+    price *= Math.max(1, Number.isFinite(count) ? count : 1)
+  }
+  return price
 })
 
 const hasDateRange = computed(() => Boolean(searchStore.startDate && searchStore.endDate))
@@ -488,6 +502,7 @@ const loadAccommodation = async () => {
       ...detailResponse.data,
       reviews: reviewsData
     }
+    rawData.value = detailResponse.data // DEBUG ASSIGNMENT
     guesthouse.value = normalizeDetail(detailWithReviews)
     availableCoupons.value = couponsData || []
 
@@ -1091,13 +1106,17 @@ watch(filteredRooms, (rooms) => {
         <span v-else>객실을 선택해주세요</span>
         <div class="total-price" v-if="selectedRoom">
           <span class="price-detail" v-if="hasDateRange">
-            ₩{{ formatPrice(selectedRoom.price) }} × {{ stayNights }}박 = 
+            ₩{{ formatPrice(selectedRoom.price) }} × {{ stayNights }}박<span v-if="['GUESTHOUSE', '게스트하우스'].includes((guesthouse.category || '').toUpperCase())"> × {{ searchStore.guestCount }}명</span>
+            <span style="font-size:0.8rem; color:#999; margin-left:5px;">({{ guesthouse.category }})</span> =  
           </span>
           <span class="price-amount">₩{{ formatPrice(hasDateRange ? totalPrice : selectedRoom.price) }}</span>
           <span class="price-nights" v-if="!hasDateRange"> / 1박</span>
+          <div id="debug-guesthouse" style="opacity:0; position:absolute; pointer-events:none;">{{ JSON.stringify(rawData) }}</div>
         </div>
+        <button class="book-btn" :class="{ disabled: !hasDateRange }" @click="goToBooking">
+          {{ hasDateRange ? '예약하기' : '객실을 선택해주세요' }}
+        </button>
       </div>
-      <button class="book-btn" :disabled="!canBook" @click="goToBooking">예약하기</button>
     </div>
     <div v-if="selectedRoom && !canBook" class="booking-hint">
       날짜를 선택해주세요.

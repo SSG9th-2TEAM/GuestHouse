@@ -60,8 +60,7 @@ const toggleSort = () => {
 
 const selectSort = (value) => {
   if (currentSort.value !== value) {
-    currentSort.value = value
-    loadList({ reset: true })
+    router.replace({ query: { ...route.query, sort: value } })
   }
   isSortOpen.value = false
 }
@@ -92,6 +91,15 @@ const applyRouteKeyword = () => {
   const nextKeyword = getKeywordFromRoute()
   if (nextKeyword !== searchStore.keyword) {
     searchStore.setKeyword(nextKeyword)
+  }
+}
+
+const applyRouteSort = () => {
+  const sortParam = route.query.sort
+  if (sortParam && SORT_OPTIONS.some(opt => opt.value === sortParam)) {
+    currentSort.value = sortParam
+  } else {
+    currentSort.value = 'recommended'
   }
 }
 
@@ -211,7 +219,7 @@ const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 1 }) => {
 
 const goToDetail = (id) => {
   if (!id) return
-  const query = { from: 'list', ...buildFilterQuery() }
+  const query = { from: 'list', sort: currentSort.value, ...buildFilterQuery() }
   router.push({ path: `/room/${id}`, query })
 }
 
@@ -312,6 +320,7 @@ onMounted(async () => {
   loadWishlist()
   applyRouteFilters(route.query)
   applyRouteKeyword()
+  applyRouteSort()
   loadList({ reset: true })
   await nextTick()
   refreshObserver()
@@ -333,11 +342,13 @@ watch(
     route.query.maxPrice,
     route.query.guestCount,
     route.query.checkin,
-    route.query.checkout
+    route.query.checkout,
+    route.query.sort
   ],
   () => {
     applyRouteFilters(route.query)
     applyRouteKeyword()
+    applyRouteSort()
     loadList({ reset: true })
   }
 )
