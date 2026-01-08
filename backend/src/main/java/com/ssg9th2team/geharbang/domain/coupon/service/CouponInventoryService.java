@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -39,9 +38,6 @@ public class CouponInventoryService {
      */
     @Transactional
     public int resetDailyInventories() {
-        LocalDate today = LocalDate.now();
-        List<CouponInventory> inventories = couponInventoryRepository.findAll();
-        inventories.forEach(inventory -> inventory.resetIfNeeded(today));
-        return inventories.size();
+        return couponInventoryRepository.resetAllInventories(LocalDate.now());
     }
 }

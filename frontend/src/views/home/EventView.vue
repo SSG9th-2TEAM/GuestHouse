@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getDownloadableCoupons, issueCoupon, getMyCoupons } from '@/api/couponApi'
+import { getDownloadableCoupons, issueCoupon, getMyCouponIds } from '@/api/couponApi'
 import { getAccessToken } from '@/api/authClient'
 
 const router = useRouter()
@@ -42,39 +42,41 @@ const fetchCoupons = async () => {
 
 const loadClaimedCoupons = async () => {
   try {
-    const statuses = ['ISSUED', 'USED', 'EXPIRED']
-    const results = await Promise.all(
-      statuses.map(async (status) => {
-        try {
-          return await getMyCoupons(status)
-        } catch (error) {
-          console.warn(`쿠폰 조회 실패(${status}):`, error)
-          return []
-        }
-      })
+    const ids = await getMyCouponIds()
+    const normalized = new Set(
+      (ids || [])
+        .map((id) => normalizeId(id))
+        .filter((id) => id !== null)
     )
-    const ids = new Set()
-    results.flat().forEach((coupon) => {
-      const normalized = normalizeId(coupon?.couponId)
-      if (normalized) {
-        ids.add(normalized)
-      }
-    })
-    claimedCoupons.value = ids
+    claimedCoupons.value = normalized
   } catch (error) {
     console.error('내 쿠폰 조회 실패:', error)
   }
 }
 
-const updateCountdown = () => {
+const clearCountdown = () => {
+  if (countdownInterval.value) {
+    clearInterval(countdownInterval.value)
+    countdownInterval.value = null
+  }
+}
+
+const startCountdown = () => {
+  clearCountdown()
+  countdownInterval.value = setInterval(updateCountdown, 1000)
+}
+
+const updateCountdown = async () => {
   const now = new Date()
   const nextMidnight = new Date(now)
   nextMidnight.setHours(24, 0, 0, 0)
   const diffMs = nextMidnight.getTime() - now.getTime()
   if (diffMs <= 0) {
     nextResetCountdown.value = '00:00:00'
-    fetchCoupons()
-    loadClaimedCoupons()
+    clearCountdown()
+    await fetchCoupons()
+    await loadClaimedCoupons()
+    startCountdown()
     return
   }
   const hours = Math.floor(diffMs / (1000 * 60 * 60))
@@ -149,17 +151,15 @@ const formatPeriod = (start, end) => {
   return '상시 진행'
 }
 
-onMounted(() => {
-  fetchCoupons()
-  loadClaimedCoupons()
-  updateCountdown()
-  countdownInterval.value = setInterval(updateCountdown, 1000)
+onMounted(async () => {
+  await fetchCoupons()
+  await loadClaimedCoupons()
+  await updateCountdown()
+  startCountdown()
 })
 
 onUnmounted(() => {
-  if (countdownInterval.value) {
-    clearInterval(countdownInterval.value)
-  }
+  clearCountdown()
 })
 </script>
 
@@ -397,6 +397,7 @@ onUnmounted(() => {
 .flash-countdown {
   font-weight: 600;
   color: #dc2626;
+  margin-left: auto;
 }
 
 .coupon-meta {

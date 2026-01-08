@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -216,5 +217,11 @@ public class UserCouponServiceImpl implements UserCouponService {
         }
 
         return expiredCoupons.size();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<Long> getMyCouponIds(Long userId) {
+        return userCouponJpaRepository.findCouponIdsByUserId(userId);
     }
 }
