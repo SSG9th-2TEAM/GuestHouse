@@ -12,7 +12,7 @@ RUN curl -L -o scouter.tar.gz https://github.com/scouter-project/scouter/release
     tar -xzf scouter.tar.gz && \
     mv scouter/agent.java scouter-agent && \
     rm -rf scouter scouter.tar.gz && \
-    echo "net_collector_ip=host.docker.internal" > scouter-agent/conf/scouter.conf && \
+    echo "net_collector_ip=127.0.0.1" > scouter-agent/conf/scouter.conf && \
     echo "net_collector_udp_port=6100" >> scouter-agent/conf/scouter.conf && \
     echo "obj_name=guesthouse-backend" >> scouter-agent/conf/scouter.conf
 
