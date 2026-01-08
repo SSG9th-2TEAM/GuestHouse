@@ -202,7 +202,222 @@ const reviewRatingEntries = computed(() => {
 })
 
 const reviewHasData = computed(() => (reviewSummary.value?.reviewCount ?? 0) > 0)
-const canGenerateAi = computed(() => reviewHasData.value && !reviewLoading.value && !aiInsightState.value.REVIEW.loading)
+const AI_ELIGIBILITY_RULES = {
+  REVIEW: { minRequired: 10, recommended: 20, unitLabel: '건' },
+  THEME_RESERVATION: { minRequired: 10, recommended: 20, unitLabel: '건' },
+  THEME_REVENUE: { minRequired: 5, recommended: 15, unitLabel: '건' },
+  DEMAND: { minRequired: 14, recommended: 28, unitLabel: '일' }
+}
+
+const buildMeta = ({ status, canGenerate, disabledReason, warningMessage, current, minRequired, recommended, unitLabel }) => ({
+  status,
+  canGenerate,
+  disabledReason,
+  warningMessage,
+  current,
+  minRequired,
+  recommended,
+  unitLabel
+})
+
+const reviewEligibility = computed(() => {
+  const current = Number(reviewSummary.value?.reviewCount ?? 0)
+  const { minRequired, recommended, unitLabel } = AI_ELIGIBILITY_RULES.REVIEW
+  if (current < minRequired) {
+    return buildMeta({
+      status: 'BLOCKED',
+      canGenerate: false,
+      disabledReason: `AI 요약은 리뷰 ${minRequired}건 이상부터 생성할 수 있어요. (현재 ${formatNumber(current)}${unitLabel})`,
+      warningMessage: '',
+      current,
+      minRequired,
+      recommended,
+      unitLabel
+    })
+  }
+  if (current < recommended) {
+    return buildMeta({
+      status: 'WARN',
+      canGenerate: true,
+      disabledReason: '',
+      warningMessage: `표본이 적어 참고용입니다. (현재 ${formatNumber(current)}${unitLabel} / 권장 ${recommended}${unitLabel})`,
+      current,
+      minRequired,
+      recommended,
+      unitLabel
+    })
+  }
+  return buildMeta({
+    status: 'OK',
+    canGenerate: true,
+    disabledReason: '',
+    warningMessage: '',
+    current,
+    minRequired,
+    recommended,
+    unitLabel
+  })
+})
+
+const themeEligibility = computed(() => {
+  const reservationCurrent = Number(themeTotals.value.reservations ?? 0)
+  const revenueCurrent = Number(themeTotals.value.revenue ?? 0)
+  const distinctThemes = Number(themeRows.value.length ?? 0)
+  if (distinctThemes < 2) {
+    return buildMeta({
+      status: 'BLOCKED',
+      canGenerate: false,
+      disabledReason: `테마가 2개 이상 필요해요. (현재 ${formatNumber(distinctThemes)}개)`,
+      warningMessage: '',
+      current: reservationCurrent,
+      minRequired: AI_ELIGIBILITY_RULES.THEME_RESERVATION.minRequired,
+      recommended: AI_ELIGIBILITY_RULES.THEME_RESERVATION.recommended,
+      unitLabel: AI_ELIGIBILITY_RULES.THEME_RESERVATION.unitLabel
+    })
+  }
+  if (reservationCurrent === 0) {
+    return buildMeta({
+      status: 'BLOCKED',
+      canGenerate: false,
+      disabledReason: 'AI 요약은 기간 예약 데이터가 필요해요. (현재 0건)',
+      warningMessage: '',
+      current: reservationCurrent,
+      minRequired: AI_ELIGIBILITY_RULES.THEME_RESERVATION.minRequired,
+      recommended: AI_ELIGIBILITY_RULES.THEME_RESERVATION.recommended,
+      unitLabel: AI_ELIGIBILITY_RULES.THEME_RESERVATION.unitLabel
+    })
+  }
+  if (themeFilters.value.metric === 'revenue') {
+    const { minRequired, recommended, unitLabel } = AI_ELIGIBILITY_RULES.THEME_REVENUE
+    if (revenueCurrent === 0 || reservationCurrent < minRequired) {
+      const reason = revenueCurrent === 0
+        ? 'AI 요약은 기간 매출 데이터가 필요해요. (현재 0원)'
+        : `AI 요약은 예약 ${minRequired}건 이상이 필요해요. (현재 ${formatNumber(reservationCurrent)}${unitLabel})`
+      return buildMeta({
+        status: 'BLOCKED',
+        canGenerate: false,
+        disabledReason: reason,
+        warningMessage: '',
+        current: reservationCurrent,
+        minRequired,
+        recommended,
+        unitLabel
+      })
+    }
+    if (reservationCurrent < recommended) {
+      return buildMeta({
+        status: 'WARN',
+        canGenerate: true,
+        disabledReason: '',
+        warningMessage: `표본이 적어 참고용입니다. (현재 ${formatNumber(reservationCurrent)}${unitLabel} / 권장 ${recommended}${unitLabel})`,
+        current: reservationCurrent,
+        minRequired,
+        recommended,
+        unitLabel
+      })
+    }
+    return buildMeta({
+      status: 'OK',
+      canGenerate: true,
+      disabledReason: '',
+      warningMessage: '',
+      current: reservationCurrent,
+      minRequired,
+      recommended,
+      unitLabel
+    })
+  }
+
+  const { minRequired, recommended, unitLabel } = AI_ELIGIBILITY_RULES.THEME_RESERVATION
+  if (reservationCurrent < minRequired) {
+    return buildMeta({
+      status: 'BLOCKED',
+      canGenerate: false,
+      disabledReason: `AI 요약은 예약 ${minRequired}건 이상이 필요해요. (현재 ${formatNumber(reservationCurrent)}${unitLabel})`,
+      warningMessage: '',
+      current: reservationCurrent,
+      minRequired,
+      recommended,
+      unitLabel
+    })
+  }
+  if (reservationCurrent < recommended) {
+    return buildMeta({
+      status: 'WARN',
+      canGenerate: true,
+      disabledReason: '',
+      warningMessage: `표본이 적어 참고용입니다. (현재 ${formatNumber(reservationCurrent)}${unitLabel} / 권장 ${recommended}${unitLabel})`,
+      current: reservationCurrent,
+      minRequired,
+      recommended,
+      unitLabel
+    })
+  }
+  return buildMeta({
+    status: 'OK',
+    canGenerate: true,
+    disabledReason: '',
+    warningMessage: '',
+    current: reservationCurrent,
+    minRequired,
+    recommended,
+    unitLabel
+  })
+})
+
+const demandEligibility = computed(() => {
+  const current = Number(forecastReport.value?.historyPointCount ?? 0)
+  const { minRequired, recommended, unitLabel } = AI_ELIGIBILITY_RULES.DEMAND
+  if (current < minRequired) {
+    return buildMeta({
+      status: 'BLOCKED',
+      canGenerate: false,
+      disabledReason: `예측을 위해 일별 관측치 ${minRequired}일 이상이 필요해요. (현재 ${formatNumber(current)}${unitLabel} / 권장 ${recommended}${unitLabel})`,
+      warningMessage: '',
+      current,
+      minRequired,
+      recommended,
+      unitLabel
+    })
+  }
+  if (current < recommended) {
+    return buildMeta({
+      status: 'WARN',
+      canGenerate: true,
+      disabledReason: '',
+      warningMessage: `표본이 적어 참고용입니다. (현재 ${formatNumber(current)}${unitLabel} / 권장 ${recommended}${unitLabel})`,
+      current,
+      minRequired,
+      recommended,
+      unitLabel
+    })
+  }
+  return buildMeta({
+    status: 'OK',
+    canGenerate: true,
+    disabledReason: '',
+    warningMessage: '',
+    current,
+    minRequired,
+    recommended,
+    unitLabel
+  })
+})
+
+const getEligibilityInfo = (tab) => {
+  const state = getInsightState(tab)
+  if (state?.data?.meta) {
+    return state.data.meta
+  }
+  if (tab === 'REVIEW') return reviewEligibility.value
+  if (tab === 'THEME') return themeEligibility.value
+  return demandEligibility.value
+}
+
+const isWarnStatus = (tab) => getEligibilityInfo(tab).status === 'WARN'
+const isBlockedStatus = (tab) => getEligibilityInfo(tab).status === 'BLOCKED'
+
+const canGenerateAi = (tab) => getEligibilityInfo(tab).canGenerate && !getInsightState(tab).loading
 const compareRange = computed(() => getPreviousRange(reviewFilters.value.from, reviewFilters.value.to))
 const compareLabel = computed(() => {
   if (!compareRange.value) return ''
@@ -262,17 +477,56 @@ const kpiItems = computed(() => {
   ]
 })
 
-const aiMetaChips = computed(() => {
+const buildAiMetaChips = ({ periodLabel, basisLabel, generatedAt }) => {
   const chips = []
-  if (reviewFilters.value.from && reviewFilters.value.to) {
-    chips.push(`기간 ${reviewFilters.value.from} ~ ${reviewFilters.value.to}`)
-  }
-  const count = formatNumber(reviewSummary.value?.reviewCount ?? 0)
-  chips.push(`리뷰 ${count}건 기준`)
-  if (reviewAiInsight.value?.generatedAt) {
-    chips.push(`생성 ${formatGeneratedAt(reviewAiInsight.value.generatedAt)}`)
+  if (periodLabel) chips.push(periodLabel)
+  if (basisLabel) chips.push(basisLabel)
+  if (generatedAt) {
+    chips.push(`생성 ${formatGeneratedAt(generatedAt)}`)
+  } else {
+    chips.push('생성 전')
   }
   return chips
+}
+
+const reviewAiMetaChips = computed(() => {
+  const periodLabel = reviewFilters.value.from && reviewFilters.value.to
+    ? `기간 ${reviewFilters.value.from} ~ ${reviewFilters.value.to}`
+    : ''
+  const count = formatNumber(reviewSummary.value?.reviewCount ?? 0)
+  const basisLabel = `리뷰 ${count}건 기준`
+  return buildAiMetaChips({
+    periodLabel,
+    basisLabel,
+    generatedAt: reviewAiInsight.value?.generatedAt
+  })
+})
+
+const themeAiMetaChips = computed(() => {
+  const periodLabel = themeFilters.value.from && themeFilters.value.to
+    ? `기간 ${themeFilters.value.from} ~ ${themeFilters.value.to}`
+    : ''
+  const basisLabel = themeFilters.value.metric === 'revenue'
+    ? `매출 ${formatNumber(themeTotals.value.revenue)}원 기준`
+    : `예약 ${formatNumber(themeTotals.value.reservations)}건 기준`
+  return buildAiMetaChips({
+    periodLabel,
+    basisLabel,
+    generatedAt: themeAiInsight.value?.generatedAt
+  })
+})
+
+const demandAiMetaChips = computed(() => {
+  const periodLabel = `기간 향후 ${formatNumber(forecastFilters.value.horizonDays)}일`
+  const predictedTotal = forecastReport.value?.forecastSummary?.predictedTotal ?? 0
+  const basisLabel = forecastFilters.value.target === 'revenue'
+    ? `매출 ${formatNumber(predictedTotal)}원 기준`
+    : `예약 ${formatNumber(predictedTotal)}건 기준`
+  return buildAiMetaChips({
+    periodLabel,
+    basisLabel,
+    generatedAt: demandAiInsight.value?.generatedAt
+  })
 })
 
 const aiRiskRecommendations = computed(() => ([
@@ -301,14 +555,22 @@ const getSectionItems = (insight, title) => {
   return section?.items ?? []
 }
 
-const aiActionsWithPriority = computed(() => {
-  const actions = getSectionItems(reviewAiInsight.value, '다음 액션')
+const buildActionItems = (insight, sectionTitle) => {
+  const actions = getSectionItems(insight, sectionTitle)
   return actions.map((text, index) => {
     if (index === 0) return { text, priority: '즉시', tone: 'urgent' }
     if (index <= 2) return { text, priority: '이번주', tone: 'recommended' }
     return { text, priority: '상시', tone: 'improve' }
   })
-})
+}
+
+const aiActionsWithPriority = computed(() => (
+  buildActionItems(reviewAiInsight.value, '다음 액션')
+))
+
+const themeActionsWithPriority = computed(() => (
+  buildActionItems(themeAiInsight.value, '다음 액션')
+))
 
 const reviewRiskItems = computed(() => getSectionItems(reviewAiInsight.value, '주의·리스크'))
 const reviewRisksCompact = computed(() => {
@@ -350,6 +612,8 @@ const normalizeInsightText = (text) => {
     .trim()
 }
 
+const getEvidenceLabel = () => '근거'
+
 const shouldShowEvidence = (mainText, evidenceText) => {
   if (!evidenceText) return false
   const evidence = String(evidenceText).trim()
@@ -373,34 +637,6 @@ const getSectionItemsLimited = (insight, title, limit) => {
   return items.slice(0, limit)
 }
 
-const themeInsightOrder = [
-  '핵심 요약',
-  '강점',
-  '개선 포인트',
-  '다음 액션',
-  '모니터링'
-]
-
-const demandInsightOrder = [
-  '핵심 요약',
-  '운영 액션',
-  '모니터링'
-]
-
-const getInsightBlocks = (insight, order, limits) => {
-  const sections = normalizeSections(insight)
-  const ordered = order.map((title) => sections.find((section) => section.title === title)).filter(Boolean)
-  const extra = sections.filter((section) => !order.includes(section.title))
-  return [...ordered, ...extra].map((section) => ({
-    ...section,
-    items: getSectionItemsLimited(
-      { sections: [section] },
-      section.title,
-      limits?.[section.title] ?? limits?.defaultLimit
-    )
-  }))
-}
-
 const themeInsightLimits = {
   '핵심 요약': 2,
   '강점': 2,
@@ -412,14 +648,24 @@ const themeInsightLimits = {
 
 const demandInsightLimits = {
   '핵심 요약': 2,
+  '해석 포인트': 2,
+  '개선 포인트': 2,
   '운영 액션': 3,
   '운영 액션 제안': 3,
   '모니터링': 2,
   defaultLimit: 2
 }
 
-const themeInsightBlocks = computed(() => getInsightBlocks(themeAiInsight.value, themeInsightOrder, themeInsightLimits))
-const demandInsightBlocks = computed(() => getInsightBlocks(demandAiInsight.value, demandInsightOrder, demandInsightLimits))
+const demandMonitoringOpen = ref(false)
+const demandMonitoringItems = computed(() => getSectionItems(demandAiInsight.value, '모니터링'))
+const demandMonitoringDisplay = computed(() => (
+  demandMonitoringOpen.value ? demandMonitoringItems.value : demandMonitoringItems.value.slice(0, 2)
+))
+const demandActionItems = computed(() => {
+  const primary = getSectionItems(demandAiInsight.value, '운영 액션')
+  if (primary.length > 0) return primary
+  return getSectionItems(demandAiInsight.value, '운영 액션 제안')
+})
 
 const themeRows = computed(() => themeReport.value?.rows ?? [])
 const themeShowAll = ref(false)
@@ -437,6 +683,7 @@ const themeTotals = computed(() => {
 })
 const themeTopRow = computed(() => {
   if (themeRows.value.length === 0) return null
+  if ((themeTotals.value.reservations ?? 0) === 0) return null
   const key = themeFilters.value.metric === 'revenue' ? 'revenueSum' : 'reservationCount'
   return themeRows.value.reduce((best, row) => {
     const value = Number(row[key] ?? 0)
@@ -675,17 +922,16 @@ const buildDemandRange = () => {
 const loadAiInsight = async (tab, forceRefresh = false) => {
   const state = getInsightState(tab)
   if (state.loading) return
+  if (!getEligibilityInfo(tab).canGenerate) {
+    state.error = ''
+    state.data = null
+    return
+  }
   state.loading = true
   state.error = ''
   const payload = { tab, forceRefresh }
 
   if (tab === 'REVIEW') {
-    if (!reviewHasData.value) {
-      state.error = '리뷰가 없는 기간입니다. 기간을 바꿔 다시 시도해주세요.'
-      state.data = null
-      state.loading = false
-      return
-    }
     payload.from = reviewFilters.value.from
     payload.to = reviewFilters.value.to
     if (reviewFilters.value.accommodationId !== 'all') {
@@ -782,6 +1028,7 @@ onMounted(async () => {
     const media = window.matchMedia('(min-width: 768px)')
     const update = () => {
       isDesktop.value = media.matches
+      demandMonitoringOpen.value = media.matches
     }
     update()
     media.addEventListener?.('change', update)
@@ -991,12 +1238,13 @@ watch(forecastFilters, () => {
               <p class="ai-kicker">AI 리뷰 인사이트</p>
               <h3>AI 요약</h3>
               <p class="muted">선택 기간 리뷰 데이터를 기반으로 핵심 포인트를 정리합니다.</p>
+              <p v-if="isWarnStatus('REVIEW')" class="ai-warning">{{ getEligibilityInfo('REVIEW').warningMessage }}</p>
             </div>
             <div class="ai-meta">
               <button
                 type="button"
                 class="primary-btn ai-btn"
-                :disabled="!canGenerateAi || getInsightState('REVIEW').loading"
+                :disabled="!canGenerateAi('REVIEW') || reviewLoading"
                 :aria-busy="getInsightState('REVIEW').loading ? 'true' : 'false'"
                 @click="loadAiInsight('REVIEW', true)"
               >
@@ -1004,11 +1252,14 @@ watch(forecastFilters, () => {
                 {{ getAiButtonLabel('REVIEW') }}
               </button>
               <div class="ai-meta-chips">
-                <span v-for="chip in aiMetaChips" :key="chip" class="ai-chip">{{ chip }}</span>
+                <span v-for="chip in reviewAiMetaChips" :key="chip" class="ai-chip">{{ chip }}</span>
               </div>
             </div>
           </div>
-          <div v-if="getInsightState('REVIEW').loading" class="ai-skeleton">
+          <div v-if="isBlockedStatus('REVIEW')" class="empty-box ai-state">
+            {{ getEligibilityInfo('REVIEW').disabledReason }}
+          </div>
+          <div v-else-if="getInsightState('REVIEW').loading" class="ai-skeleton">
             <div class="skeleton-card"></div>
             <div class="skeleton-card"></div>
             <div class="skeleton-card"></div>
@@ -1022,6 +1273,7 @@ watch(forecastFilters, () => {
             <div class="ai-block ai-card ai-card--overview">
               <div class="ai-card__head">
                 <h4>총평</h4>
+                <span v-if="isWarnStatus('REVIEW')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
                 <li v-for="line in getSectionItemsLimited(reviewAiInsight, '총평', 2)" :key="line">
@@ -1030,7 +1282,7 @@ watch(forecastFilters, () => {
                     v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
                     class="ai-evidence"
                   >
-                    데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
                   </span>
                 </li>
               </ul>
@@ -1038,6 +1290,7 @@ watch(forecastFilters, () => {
             <div class="ai-block ai-card ai-card--positives">
               <div class="ai-card__head">
                 <h4>좋았던 점</h4>
+                <span v-if="isWarnStatus('REVIEW')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
                 <li v-for="line in getSectionItemsLimited(reviewAiInsight, '좋았던 점', 2)" :key="line">
@@ -1046,7 +1299,7 @@ watch(forecastFilters, () => {
                     v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
                     class="ai-evidence"
                   >
-                    데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
                   </span>
                 </li>
               </ul>
@@ -1054,6 +1307,7 @@ watch(forecastFilters, () => {
             <div class="ai-block ai-card ai-card--negatives">
               <div class="ai-card__head">
                 <h4>개선 포인트</h4>
+                <span v-if="isWarnStatus('REVIEW')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
                 <li v-for="line in getSectionItemsLimited(reviewAiInsight, '개선 포인트', 2)" :key="line">
@@ -1062,7 +1316,7 @@ watch(forecastFilters, () => {
                     v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
                     class="ai-evidence"
                   >
-                    데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
                   </span>
                 </li>
               </ul>
@@ -1070,6 +1324,7 @@ watch(forecastFilters, () => {
             <div class="ai-block ai-card ai-card--actions" :class="{ 'ai-wide': reviewRiskEmpty }">
               <div class="ai-card__head">
                 <h4>다음 액션</h4>
+                <span v-if="isWarnStatus('REVIEW')" class="ai-badge">참고용</span>
               </div>
               <ul class="action-list">
                 <li v-for="item in aiActionsWithPriority" :key="item.text" class="action-item">
@@ -1079,12 +1334,12 @@ watch(forecastFilters, () => {
                     v-if="shouldShowEvidence(splitInsightLine(item.text).main, splitInsightLine(item.text).evidence)"
                     class="ai-evidence"
                   >
-                    데이터: {{ normalizeInsightText(splitInsightLine(item.text).evidence) }}
+                    {{ getEvidenceLabel(splitInsightLine(item.text).evidence) }}: {{ normalizeInsightText(splitInsightLine(item.text).evidence) }}
                   </span>
                 </li>
               </ul>
               <div v-if="reviewRiskEmpty" class="monitoring-callout">
-                <h5>특이 징후 없음(현재) · 모니터링 포인트</h5>
+                <h5>특이 징후 없음 · 모니터링 포인트</h5>
                 <ul>
                   <li v-for="line in aiRiskRecommendations" :key="line">{{ line }}</li>
                 </ul>
@@ -1093,6 +1348,7 @@ watch(forecastFilters, () => {
             <div v-if="!reviewRiskEmpty" class="ai-block ai-card ai-card--risks">
               <div class="ai-card__head">
                 <h4>주의·리스크</h4>
+                <span v-if="isWarnStatus('REVIEW')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
                 <li v-for="line in getSectionItemsLimited(reviewAiInsight, '주의·리스크', 2)" :key="line">
@@ -1101,7 +1357,7 @@ watch(forecastFilters, () => {
                     v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
                     class="ai-evidence"
                   >
-                    데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
                   </span>
                 </li>
               </ul>
@@ -1218,21 +1474,28 @@ watch(forecastFilters, () => {
                   <p class="ai-kicker">AI 테마 인사이트</p>
                   <h3>AI 요약</h3>
                   <p class="muted">테마 성과를 기반으로 운영 포인트를 정리합니다.</p>
+                  <p v-if="isWarnStatus('THEME')" class="ai-warning">{{ getEligibilityInfo('THEME').warningMessage }}</p>
                 </div>
                 <div class="ai-meta">
                   <button
                     type="button"
                     class="primary-btn ai-btn"
-                    :disabled="themeLoading || getInsightState('THEME').loading"
+                    :disabled="!canGenerateAi('THEME') || themeLoading"
                     :aria-busy="getInsightState('THEME').loading ? 'true' : 'false'"
                     @click="loadAiInsight('THEME', true)"
                   >
                     <span v-if="getInsightState('THEME').loading" class="spinner" aria-hidden="true"></span>
                     {{ getAiButtonLabel('THEME') }}
                   </button>
+                  <div class="ai-meta-chips">
+                    <span v-for="chip in themeAiMetaChips" :key="chip" class="ai-chip">{{ chip }}</span>
+                  </div>
                 </div>
               </div>
-              <div v-if="getInsightState('THEME').loading" class="ai-skeleton">
+              <div v-if="isBlockedStatus('THEME')" class="empty-box ai-state">
+                {{ getEligibilityInfo('THEME').disabledReason }}
+              </div>
+              <div v-else-if="getInsightState('THEME').loading" class="ai-skeleton">
                 <div class="skeleton-card"></div>
                 <div class="skeleton-card"></div>
                 <div class="skeleton-card"></div>
@@ -1242,23 +1505,88 @@ watch(forecastFilters, () => {
                 <button type="button" class="link-btn" @click="loadAiInsight('THEME', true)">다시 시도</button>
               </div>
               <div v-else-if="themeAiInsight" class="ai-grid theme-ai-grid">
-                <div
-                  v-for="section in themeInsightBlocks"
-                  :key="section.title"
-                  class="ai-block ai-card"
-                  :class="{ 'ai-wide': section.title.includes('모니터링') }"
-                >
+                <div class="ai-block ai-card ai-card--summary">
                   <div class="ai-card__head">
-                    <h4>{{ section.title }}</h4>
+                    <h4>핵심 요약</h4>
+                    <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
                   </div>
                   <ul class="ai-list">
-                    <li v-for="line in section.items" :key="line">
+                    <li v-for="line in getSectionItemsLimited(themeAiInsight, '핵심 요약', themeInsightLimits['핵심 요약'])" :key="line">
                       <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
                       <span
                         v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
                         class="ai-evidence"
                       >
-                        데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                        {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+                <div class="ai-block ai-card ai-card--positives">
+                  <div class="ai-card__head">
+                    <h4>강점</h4>
+                    <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
+                  </div>
+                  <ul class="ai-list">
+                    <li v-for="line in getSectionItemsLimited(themeAiInsight, '강점', themeInsightLimits['강점'])" :key="line">
+                      <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                      <span
+                        v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                        class="ai-evidence"
+                      >
+                        {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+                <div class="ai-block ai-card ai-card--negatives">
+                  <div class="ai-card__head">
+                    <h4>개선 포인트</h4>
+                    <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
+                  </div>
+                  <ul class="ai-list">
+                    <li v-for="line in getSectionItemsLimited(themeAiInsight, '개선 포인트', themeInsightLimits['개선 포인트'])" :key="line">
+                      <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                      <span
+                        v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                        class="ai-evidence"
+                      >
+                        {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+                <div class="ai-block ai-card ai-card--actions ai-wide">
+                  <div class="ai-card__head">
+                    <h4>다음 액션</h4>
+                    <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
+                  </div>
+                  <ul class="action-list">
+                    <li v-for="item in themeActionsWithPriority" :key="item.text" class="action-item">
+                      <span class="action-badge" :class="item.tone">{{ item.priority }}</span>
+                      <span class="action-text">{{ normalizeInsightText(splitInsightLine(item.text).main) }}</span>
+                      <span
+                        v-if="shouldShowEvidence(splitInsightLine(item.text).main, splitInsightLine(item.text).evidence)"
+                        class="ai-evidence"
+                      >
+                        {{ getEvidenceLabel(splitInsightLine(item.text).evidence) }}: {{ normalizeInsightText(splitInsightLine(item.text).evidence) }}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+                <div class="ai-block ai-card ai-card--monitoring ai-wide">
+                  <div class="ai-card__head">
+                    <h4>모니터링</h4>
+                    <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
+                  </div>
+                  <ul class="ai-list">
+                    <li v-for="line in getSectionItemsLimited(themeAiInsight, '모니터링', themeInsightLimits['모니터링'])" :key="line">
+                      <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                      <span
+                        v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                        class="ai-evidence"
+                      >
+                        {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
                       </span>
                     </li>
                   </ul>
@@ -1450,21 +1778,28 @@ watch(forecastFilters, () => {
               <p class="ai-kicker">AI 수요 인사이트</p>
               <h3>AI 요약</h3>
               <p class="muted">예측 결과를 기반으로 운영 포인트를 정리합니다.</p>
+              <p v-if="isWarnStatus('DEMAND')" class="ai-warning">{{ getEligibilityInfo('DEMAND').warningMessage }}</p>
             </div>
             <div class="ai-meta">
               <button
                 type="button"
                 class="primary-btn ai-btn"
-                :disabled="forecastLoading || getInsightState('DEMAND').loading"
+                :disabled="!canGenerateAi('DEMAND') || forecastLoading"
                 :aria-busy="getInsightState('DEMAND').loading ? 'true' : 'false'"
                 @click="loadAiInsight('DEMAND', true)"
               >
                 <span v-if="getInsightState('DEMAND').loading" class="spinner" aria-hidden="true"></span>
                 {{ getAiButtonLabel('DEMAND') }}
               </button>
+              <div class="ai-meta-chips">
+                <span v-for="chip in demandAiMetaChips" :key="chip" class="ai-chip">{{ chip }}</span>
+              </div>
             </div>
           </div>
-          <div v-if="getInsightState('DEMAND').loading" class="ai-skeleton">
+          <div v-if="isBlockedStatus('DEMAND')" class="empty-box ai-state">
+            {{ getEligibilityInfo('DEMAND').disabledReason }}
+          </div>
+          <div v-else-if="getInsightState('DEMAND').loading" class="ai-skeleton">
             <div class="skeleton-card"></div>
             <div class="skeleton-card"></div>
             <div class="skeleton-card"></div>
@@ -1474,23 +1809,95 @@ watch(forecastFilters, () => {
             <button type="button" class="link-btn" @click="loadAiInsight('DEMAND', true)">다시 시도</button>
           </div>
           <div v-else-if="demandAiInsight" class="ai-grid demand-ai-grid">
-            <div
-              v-for="section in demandInsightBlocks"
-              :key="section.title"
-              class="ai-block ai-card"
-              :class="{ 'ai-wide': section.title.includes('모니터링') }"
-            >
+            <div class="ai-block ai-card ai-card--summary">
               <div class="ai-card__head">
-                <h4>{{ section.title }}</h4>
+                <h4>핵심 요약</h4>
+                <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="line in section.items" :key="line">
+                <li v-for="line in getSectionItemsLimited(demandAiInsight, '핵심 요약', demandInsightLimits['핵심 요약'])" :key="line">
                   <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
                   <span
                     v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
                     class="ai-evidence"
                   >
-                    데이터: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+            <div class="ai-block ai-card ai-card--analysis">
+              <div class="ai-card__head">
+                <h4>해석 포인트</h4>
+                <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
+              </div>
+              <ul class="ai-list">
+                <li v-for="line in getSectionItemsLimited(demandAiInsight, '해석 포인트', demandInsightLimits['해석 포인트'])" :key="line">
+                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                  <span
+                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                    class="ai-evidence"
+                  >
+                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+            <div class="ai-block ai-card ai-card--actions">
+              <div class="ai-card__head">
+                <h4>운영 액션</h4>
+                <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
+              </div>
+              <ul class="ai-list">
+                <li v-for="line in demandActionItems" :key="line">
+                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                  <span
+                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                    class="ai-evidence"
+                  >
+                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+            <div class="ai-block ai-card ai-card--improve">
+              <div class="ai-card__head">
+                <h4>개선 포인트</h4>
+                <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
+              </div>
+              <ul class="ai-list">
+                <li v-for="line in getSectionItemsLimited(demandAiInsight, '개선 포인트', demandInsightLimits['개선 포인트'])" :key="line">
+                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                  <span
+                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                    class="ai-evidence"
+                  >
+                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+            <div class="ai-block ai-card ai-card--monitoring ai-wide">
+              <div class="ai-card__head">
+                <h4>모니터링</h4>
+                <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
+                <button
+                  v-if="demandMonitoringItems.length > 2"
+                  type="button"
+                  class="ghost-btn ai-toggle"
+                  @click="demandMonitoringOpen = !demandMonitoringOpen"
+                >
+                  {{ demandMonitoringOpen ? '접기' : '펼치기' }}
+                </button>
+              </div>
+              <ul class="ai-list">
+                <li v-for="line in demandMonitoringDisplay" :key="line">
+                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
+                  <span
+                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
+                    class="ai-evidence"
+                  >
+                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
                   </span>
                 </li>
               </ul>
@@ -2467,16 +2874,29 @@ watch(forecastFilters, () => {
   margin: 0;
 }
 
+.ai-warning {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: #b45309;
+}
+
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
 .ai-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0.85rem;
   align-items: stretch;
-}
-
-.theme-ai-grid,
-.demand-ai-grid {
-  grid-template-columns: 1fr;
 }
 
 .ai-wide {
@@ -2514,6 +2934,11 @@ watch(forecastFilters, () => {
 .ai-card-label {
   font-size: 0.72rem;
   color: var(--text-muted);
+}
+
+.ai-toggle {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.65rem;
 }
 
 .ai-list {
@@ -2554,10 +2979,14 @@ watch(forecastFilters, () => {
 }
 
 .action-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.7rem;
   font-weight: 700;
+  line-height: 1;
   border-radius: 999px;
-  padding: 0.15rem 0.5rem;
+  padding: 0.2rem 0.55rem;
   flex: 0 0 auto;
 }
 
@@ -2731,6 +3160,18 @@ watch(forecastFilters, () => {
 }
 
 @media (max-width: 768px) {
+  .report-view select,
+  .report-view .filters select {
+    font-size: 16px;
+    min-height: 44px;
+    padding: 0.6rem 0.75rem;
+    line-height: 1.2;
+  }
+
+  .report-view option {
+    font-size: 16px;
+  }
+
   .filters-grid {
     grid-template-columns: 1fr;
   }
@@ -2777,13 +3218,16 @@ watch(forecastFilters, () => {
   .ai-meta-chips {
     justify-content: flex-start;
   }
+
+  .action-badge {
+    font-size: 0.72rem;
+    padding: 0.16rem 0.5rem;
+  }
 }
 
 @media (max-width: 480px) {
   .context-bar {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 0.75rem;
+    display: none;
   }
 
   .context-text {
@@ -2797,6 +3241,12 @@ watch(forecastFilters, () => {
     margin-top: 0;
     position: static;
     width: 100%;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1023px) {
+  .ai-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2827,11 +3277,6 @@ watch(forecastFilters, () => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .theme-ai-grid,
-  .demand-ai-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .ai-grid.review-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -2857,6 +3302,38 @@ watch(forecastFilters, () => {
   }
 
   .ai-grid.review-grid .ai-card--actions.ai-wide {
+    grid-column: 1 / -1;
+  }
+
+  .theme-ai-grid .ai-card--actions {
+    grid-column: 1 / span 2;
+  }
+
+  .theme-ai-grid .ai-card--monitoring {
+    grid-column: 1 / -1;
+  }
+
+  .demand-ai-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .demand-ai-grid .ai-card--summary {
+    grid-column: 1;
+  }
+
+  .demand-ai-grid .ai-card--analysis {
+    grid-column: 2;
+  }
+
+  .demand-ai-grid .ai-card--actions {
+    grid-column: 1;
+  }
+
+  .demand-ai-grid .ai-card--improve {
+    grid-column: 2;
+  }
+
+  .demand-ai-grid .ai-card--monitoring {
     grid-column: 1 / -1;
   }
 
@@ -2923,6 +3400,10 @@ watch(forecastFilters, () => {
 
   .ai-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .demand-ai-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

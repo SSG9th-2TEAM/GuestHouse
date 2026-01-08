@@ -12,4 +12,5 @@ public class HostAiInsightResponse {
     private boolean fallbackUsed;
     private String generatedAt;
     private List<HostAiInsightSection> sections;
+    private HostAiInsightMeta meta;
 }

@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.report.host.ai;
 
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostAiInsightRequest;
+import com.ssg9th2team.geharbang.domain.report.host.dto.HostAiInsightMeta;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostAiInsightResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostAiInsightSection;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostForecastResponse;
@@ -39,6 +40,7 @@ public class HostAiInsightService {
     private final MockAiSummaryClient mockAiSummaryClient;
     private final OpenAiSummaryClient openAiSummaryClient;
     private final OpenAiInsightClient openAiInsightClient;
+    private final HostAiInsightEligibilityChecker eligibilityChecker;
     private final CacheManager cacheManager;
 
     @Value("${ai.summary.provider:RULE}")
@@ -46,6 +48,10 @@ public class HostAiInsightService {
 
     public HostAiInsightResponse generate(Long hostId, HostAiInsightRequest request) {
         HostAiInsightTab tab = parseTab(request.getTab());
+        HostAiInsightEligibilityResult eligibility = eligibilityChecker.evaluate(tab, request, hostId);
+        if (!eligibility.isCanGenerate()) {
+            return buildIneligibleResponse(eligibility);
+        }
         String cacheKey = buildCacheKey(hostId, request, tab);
         if (!request.isForceRefresh()) {
             HostAiInsightResponse cached = getCached(cacheKey, request);
@@ -66,6 +72,7 @@ public class HostAiInsightService {
             response.setFallbackUsed(false);
         }
 
+        applyEligibilityMeta(response, eligibility);
         putCache(cacheKey, response, request);
         return response;
     }
@@ -86,12 +93,15 @@ public class HostAiInsightService {
             response.setEngine("OPENAI");
             response.setFallbackUsed(false);
             return response;
-        } catch (Exception ex) {
-            log.info("OpenAI insight failed; falling back to RULE. reason={}", ex.getMessage());
+        } catch (HostReportAiException ex) {
+            log.warn("OpenAI insight failed; falling back to RULE.", ex);
             HostAiInsightResponse fallback = buildRule(tab, request, hostId);
             fallback.setEngine("RULE");
             fallback.setFallbackUsed(true);
             return fallback;
+        } catch (RuntimeException ex) {
+            log.error("OpenAI insight failed with unexpected error.", ex);
+            throw ex;
         }
     }
 
@@ -237,6 +247,18 @@ public class HostAiInsightService {
         copy.setEngine(response.getEngine());
         copy.setFallbackUsed(response.isFallbackUsed());
         copy.setGeneratedAt(response.getGeneratedAt());
+        if (response.getMeta() != null) {
+            HostAiInsightMeta meta = new HostAiInsightMeta();
+            meta.setStatus(response.getMeta().getStatus());
+            meta.setCanGenerate(response.getMeta().isCanGenerate());
+            meta.setDisabledReason(response.getMeta().getDisabledReason());
+            meta.setWarningMessage(response.getMeta().getWarningMessage());
+            meta.setCurrent(response.getMeta().getCurrent());
+            meta.setMinRequired(response.getMeta().getMinRequired());
+            meta.setRecommended(response.getMeta().getRecommended());
+            meta.setUnitLabel(response.getMeta().getUnitLabel());
+            copy.setMeta(meta);
+        }
         if (response.getSections() != null) {
             List<HostAiInsightSection> sections = new ArrayList<>();
             for (HostAiInsightSection section : response.getSections()) {
@@ -248,6 +270,29 @@ public class HostAiInsightService {
             copy.setSections(sections);
         }
         return copy;
+    }
+
+    private void applyEligibilityMeta(HostAiInsightResponse response, HostAiInsightEligibilityResult eligibility) {
+        HostAiInsightMeta meta = new HostAiInsightMeta();
+        meta.setStatus(eligibility.getStatus());
+        meta.setCanGenerate(eligibility.isCanGenerate());
+        meta.setDisabledReason(eligibility.getDisabledReason());
+        meta.setWarningMessage(eligibility.getWarningMessage());
+        meta.setCurrent(eligibility.getCurrent());
+        meta.setMinRequired(eligibility.getMinRequired());
+        meta.setRecommended(eligibility.getRecommended());
+        meta.setUnitLabel(eligibility.getUnitLabel());
+        response.setMeta(meta);
+    }
+
+    private HostAiInsightResponse buildIneligibleResponse(HostAiInsightEligibilityResult eligibility) {
+        HostAiInsightResponse response = new HostAiInsightResponse();
+        response.setEngine("NONE");
+        response.setFallbackUsed(false);
+        response.setGeneratedAt(null);
+        response.setSections(List.of());
+        applyEligibilityMeta(response, eligibility);
+        return response;
     }
 
     private HostAiInsightResponse getCached(String cacheKey, HostAiInsightRequest request) {
