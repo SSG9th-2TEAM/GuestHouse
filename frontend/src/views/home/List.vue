@@ -104,6 +104,8 @@ const loadList = async ({
   checkin = searchStore.startDate,
   checkout = searchStore.endDate,
   guestCount = searchStore.guestCount,
+  minPrice = searchStore.minPrice,
+  maxPrice = searchStore.maxPrice,
   page: pageParam = 0,
   reset = false
 } = {}) => {
@@ -121,6 +123,8 @@ const loadList = async ({
       checkin,
       checkout,
       guestCount,
+      minPrice,
+      maxPrice,
       page: pageParam,
       size: PAGE_SIZE
     })
@@ -150,17 +154,9 @@ const loadList = async ({
   }
 }
 
-// Computed Items
+// Client filtering removed - now using server results directly
 const filteredItems = computed(() => {
-  const minValue = searchStore.minPrice
-  const maxValue = searchStore.maxPrice
-  const guestCount = searchStore.guestCount
-  return items.value.filter(item => {
-    if (minValue !== null && item.price < minValue) return false
-    if (maxValue !== null && item.price > maxValue) return false
-    if (guestCount > 0 && item.maxGuests < guestCount) return false
-    return true
-  })
+  return items.value
 })
 
 const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 1 }) => {
