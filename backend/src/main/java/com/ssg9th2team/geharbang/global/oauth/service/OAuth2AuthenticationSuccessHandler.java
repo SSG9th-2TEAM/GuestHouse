@@ -22,11 +22,11 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
     private final JwtTokenProvider jwtTokenProvider;
 
-    // 상대 경로 사용 (프론트/백엔드 같은 도메인)
-    private String redirectUri = "/oauth2/redirect";
+    @Value("${oauth2.redirect-uri}")
+    private String redirectUri;
 
-    // 상대 경로 사용
-    private String signupRedirectUri = "/social-signup";
+    @Value("${oauth2.signup-redirect-uri}")
+    private String signupRedirectUri;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
