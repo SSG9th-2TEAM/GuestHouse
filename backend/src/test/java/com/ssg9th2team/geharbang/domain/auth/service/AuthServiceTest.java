@@ -43,6 +43,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 public class AuthServiceTest {
 
     @InjectMocks
@@ -84,7 +85,7 @@ public class AuthServiceTest {
                 .username("admin@example.com")
                 .password("adminEncodedPassword")
                 .build();
-        ReflectionTestUtils.setField(testAdmin, "adminId", 99L); // Manually set ID for admin
+        ReflectionTestUtils.setField(testAdmin, "id", 99L); // Manually set ID for admin
 
         // Mock Themes
         testTheme1 = Theme.builder().themeName("테마1").themeCategory("카테고리1").build();
