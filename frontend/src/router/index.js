@@ -28,6 +28,11 @@ const router = createRouter({
             component: () => import('../views/home/MapView.vue')
         },
         {
+            path: '/events',
+            name: 'events',
+            component: () => import('../views/home/EventView.vue')
+        },
+        {
             path: '/profile',
             name: 'profile',
             component: () => import('../views/mypage/ProfileView.vue')

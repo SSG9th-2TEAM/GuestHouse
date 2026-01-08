@@ -2,6 +2,7 @@ package com.ssg9th2team.geharbang.domain.coupon.service;
 
 import com.ssg9th2team.geharbang.domain.coupon.dto.UserCouponResponseDto;
 import com.ssg9th2team.geharbang.domain.coupon.entity.Coupon;
+import com.ssg9th2team.geharbang.domain.coupon.entity.CouponIssueResult;
 import com.ssg9th2team.geharbang.domain.coupon.entity.CouponTriggerType;
 import com.ssg9th2team.geharbang.domain.coupon.entity.UserCoupon;
 import com.ssg9th2team.geharbang.domain.coupon.entity.UserCouponStatus;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +28,7 @@ public class UserCouponServiceImpl implements UserCouponService {
     private final UserCouponMapper userCouponMapper;
     private final ReviewJpaRepository reviewJpaRepository;
     private final ReservationJpaRepository reservationJpaRepository;
+    private final CouponInventoryService couponInventoryService;
 
     // 쿠폰 발급 (수동 - 숙소 상세페이지에서 쿠폰 받기 등)
     @Override
@@ -45,9 +48,11 @@ public class UserCouponServiceImpl implements UserCouponService {
         }
 
         // 공통 발급 메서드 호출
-        boolean success = issueToUser(userId, coupon);
-        if (!success) {
-         throw new IllegalArgumentException("이미 발급 받은 쿠폰입니다");
+        CouponIssueResult result = issueToUser(userId, coupon);
+        if (result == CouponIssueResult.DUPLICATED) {
+            throw new IllegalArgumentException("이미 발급 받은 쿠폰입니다.");
+        } else if (result == CouponIssueResult.SOLD_OUT) {
+            throw new IllegalStateException("오늘 선착순 수량이 모두 소진되었습니다.");
         }
     }
 
@@ -102,17 +107,23 @@ public class UserCouponServiceImpl implements UserCouponService {
             return false;  // 해당 트리거 타입의 활성화된 쿠폰이 없음
         }
 
-        return issueToUser(userId, coupon);
+        return issueToUser(userId, coupon) == CouponIssueResult.SUCCESS;
     }
 
 
     // 공통 발급 로직 (만료일 자동 계산)
     @Override
     @Transactional
-    public boolean issueToUser(Long userId, Coupon coupon) {
+    public CouponIssueResult issueToUser(Long userId, Coupon coupon) {
         // 1. 중복 체크
         if (userCouponJpaRepository.existsByUserIdAndCouponId(userId, coupon.getCouponId())) {
-            return false;
+            return CouponIssueResult.DUPLICATED;
+        }
+
+        // 2. 선착순 제한 확인
+        boolean slotAvailable = couponInventoryService.consumeSlotIfLimited(coupon.getCouponId());
+        if (!slotAvailable) {
+            return CouponIssueResult.SOLD_OUT;
         }
 
         // 2. 만료일 계산 (Coupon 엔티티의 calculateExpiryDate 메서드 사용)
@@ -122,7 +133,7 @@ public class UserCouponServiceImpl implements UserCouponService {
         UserCoupon userCoupon = UserCoupon.issue(userId, coupon.getCouponId(), expiresAt);
         userCouponJpaRepository.save(userCoupon);
 
-        return true;
+        return CouponIssueResult.SUCCESS;
     }
 
 
@@ -134,6 +145,8 @@ public class UserCouponServiceImpl implements UserCouponService {
         //  DTO 리스트 반환
         return userCouponMapper.selectMyCouponsByStatus(userId, status);
     }
+
+
 
 
     // 쿠폰 사용 처리
@@ -204,5 +217,11 @@ public class UserCouponServiceImpl implements UserCouponService {
         }
 
         return expiredCoupons.size();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<Long> getMyCouponIds(Long userId) {
+        return userCouponJpaRepository.findCouponIdsByUserId(userId);
     }
 }

@@ -1095,8 +1095,17 @@ onMounted(async () => {
     <div v-else class="page-header">
       <div class="header-top">
         <div class="title-area">
-          <h1>숙소 정보 수정</h1>
-          <p class="subtitle">등록된 숙소 정보를 수정할 수 있습니다.</p>
+          <div class="title-row">
+            <h1>숙소 정보 수정</h1>
+            <RouterLink
+              class="policy-link"
+              :to="{ path: '/policy', query: { tab: 'host' } }"
+              target="_blank"
+              rel="noopener"
+            >
+              숙소등록 이용약관 바로가기
+            </RouterLink>
+          </div>
         </div>
       </div>
       
@@ -1657,8 +1666,26 @@ onMounted(async () => {
 
 .title-area {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.title-row {
+  display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.policy-link {
+  font-size: 0.9rem;
+  color: #00875a;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.policy-link:hover {
+  text-decoration: underline;
 }
 
 .logo-badge {
