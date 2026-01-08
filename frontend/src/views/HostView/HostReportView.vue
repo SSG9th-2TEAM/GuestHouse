@@ -10,7 +10,8 @@ import {
   fetchHostReviewReportTrend,
   fetchHostThemeReport,
   fetchHostDemandForecast,
-  fetchHostAiInsight
+  fetchHostAiInsight,
+  fetchHostAiInsightEligibility
 } from '@/api/hostReport'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 
@@ -202,216 +203,28 @@ const reviewRatingEntries = computed(() => {
 })
 
 const reviewHasData = computed(() => (reviewSummary.value?.reviewCount ?? 0) > 0)
-const AI_ELIGIBILITY_RULES = {
-  REVIEW: { minRequired: 10, recommended: 20, unitLabel: '건' },
-  THEME_RESERVATION: { minRequired: 10, recommended: 20, unitLabel: '건' },
-  THEME_REVENUE: { minRequired: 5, recommended: 15, unitLabel: '건' },
-  DEMAND: { minRequired: 14, recommended: 28, unitLabel: '일' }
+const eligibility = ref({ review: null, theme: null, demand: null })
+const eligibilityError = ref('')
+
+const fallbackEligibility = {
+  status: 'OK',
+  canGenerate: true,
+  disabledReason: '',
+  warningMessage: '',
+  current: 0,
+  minRequired: 0,
+  recommended: 0,
+  unitLabel: ''
 }
-
-const buildMeta = ({ status, canGenerate, disabledReason, warningMessage, current, minRequired, recommended, unitLabel }) => ({
-  status,
-  canGenerate,
-  disabledReason,
-  warningMessage,
-  current,
-  minRequired,
-  recommended,
-  unitLabel
-})
-
-const reviewEligibility = computed(() => {
-  const current = Number(reviewSummary.value?.reviewCount ?? 0)
-  const { minRequired, recommended, unitLabel } = AI_ELIGIBILITY_RULES.REVIEW
-  if (current < minRequired) {
-    return buildMeta({
-      status: 'BLOCKED',
-      canGenerate: false,
-      disabledReason: `AI 요약은 리뷰 ${minRequired}건 이상부터 생성할 수 있어요. (현재 ${formatNumber(current)}${unitLabel})`,
-      warningMessage: '',
-      current,
-      minRequired,
-      recommended,
-      unitLabel
-    })
-  }
-  if (current < recommended) {
-    return buildMeta({
-      status: 'WARN',
-      canGenerate: true,
-      disabledReason: '',
-      warningMessage: `표본이 적어 참고용입니다. (현재 ${formatNumber(current)}${unitLabel} / 권장 ${recommended}${unitLabel})`,
-      current,
-      minRequired,
-      recommended,
-      unitLabel
-    })
-  }
-  return buildMeta({
-    status: 'OK',
-    canGenerate: true,
-    disabledReason: '',
-    warningMessage: '',
-    current,
-    minRequired,
-    recommended,
-    unitLabel
-  })
-})
-
-const themeEligibility = computed(() => {
-  const reservationCurrent = Number(themeTotals.value.reservations ?? 0)
-  const revenueCurrent = Number(themeTotals.value.revenue ?? 0)
-  const distinctThemes = Number(themeRows.value.length ?? 0)
-  if (distinctThemes < 2) {
-    return buildMeta({
-      status: 'BLOCKED',
-      canGenerate: false,
-      disabledReason: `테마가 2개 이상 필요해요. (현재 ${formatNumber(distinctThemes)}개)`,
-      warningMessage: '',
-      current: reservationCurrent,
-      minRequired: AI_ELIGIBILITY_RULES.THEME_RESERVATION.minRequired,
-      recommended: AI_ELIGIBILITY_RULES.THEME_RESERVATION.recommended,
-      unitLabel: AI_ELIGIBILITY_RULES.THEME_RESERVATION.unitLabel
-    })
-  }
-  if (reservationCurrent === 0) {
-    return buildMeta({
-      status: 'BLOCKED',
-      canGenerate: false,
-      disabledReason: 'AI 요약은 기간 예약 데이터가 필요해요. (현재 0건)',
-      warningMessage: '',
-      current: reservationCurrent,
-      minRequired: AI_ELIGIBILITY_RULES.THEME_RESERVATION.minRequired,
-      recommended: AI_ELIGIBILITY_RULES.THEME_RESERVATION.recommended,
-      unitLabel: AI_ELIGIBILITY_RULES.THEME_RESERVATION.unitLabel
-    })
-  }
-  if (themeFilters.value.metric === 'revenue') {
-    const { minRequired, recommended, unitLabel } = AI_ELIGIBILITY_RULES.THEME_REVENUE
-    if (revenueCurrent === 0 || reservationCurrent < minRequired) {
-      const reason = revenueCurrent === 0
-        ? 'AI 요약은 기간 매출 데이터가 필요해요. (현재 0원)'
-        : `AI 요약은 예약 ${minRequired}건 이상이 필요해요. (현재 ${formatNumber(reservationCurrent)}${unitLabel})`
-      return buildMeta({
-        status: 'BLOCKED',
-        canGenerate: false,
-        disabledReason: reason,
-        warningMessage: '',
-        current: reservationCurrent,
-        minRequired,
-        recommended,
-        unitLabel
-      })
-    }
-    if (reservationCurrent < recommended) {
-      return buildMeta({
-        status: 'WARN',
-        canGenerate: true,
-        disabledReason: '',
-        warningMessage: `표본이 적어 참고용입니다. (현재 ${formatNumber(reservationCurrent)}${unitLabel} / 권장 ${recommended}${unitLabel})`,
-        current: reservationCurrent,
-        minRequired,
-        recommended,
-        unitLabel
-      })
-    }
-    return buildMeta({
-      status: 'OK',
-      canGenerate: true,
-      disabledReason: '',
-      warningMessage: '',
-      current: reservationCurrent,
-      minRequired,
-      recommended,
-      unitLabel
-    })
-  }
-
-  const { minRequired, recommended, unitLabel } = AI_ELIGIBILITY_RULES.THEME_RESERVATION
-  if (reservationCurrent < minRequired) {
-    return buildMeta({
-      status: 'BLOCKED',
-      canGenerate: false,
-      disabledReason: `AI 요약은 예약 ${minRequired}건 이상이 필요해요. (현재 ${formatNumber(reservationCurrent)}${unitLabel})`,
-      warningMessage: '',
-      current: reservationCurrent,
-      minRequired,
-      recommended,
-      unitLabel
-    })
-  }
-  if (reservationCurrent < recommended) {
-    return buildMeta({
-      status: 'WARN',
-      canGenerate: true,
-      disabledReason: '',
-      warningMessage: `표본이 적어 참고용입니다. (현재 ${formatNumber(reservationCurrent)}${unitLabel} / 권장 ${recommended}${unitLabel})`,
-      current: reservationCurrent,
-      minRequired,
-      recommended,
-      unitLabel
-    })
-  }
-  return buildMeta({
-    status: 'OK',
-    canGenerate: true,
-    disabledReason: '',
-    warningMessage: '',
-    current: reservationCurrent,
-    minRequired,
-    recommended,
-    unitLabel
-  })
-})
-
-const demandEligibility = computed(() => {
-  const current = Number(forecastReport.value?.historyPointCount ?? 0)
-  const { minRequired, recommended, unitLabel } = AI_ELIGIBILITY_RULES.DEMAND
-  if (current < minRequired) {
-    return buildMeta({
-      status: 'BLOCKED',
-      canGenerate: false,
-      disabledReason: `예측을 위해 일별 관측치 ${minRequired}일 이상이 필요해요. (현재 ${formatNumber(current)}${unitLabel} / 권장 ${recommended}${unitLabel})`,
-      warningMessage: '',
-      current,
-      minRequired,
-      recommended,
-      unitLabel
-    })
-  }
-  if (current < recommended) {
-    return buildMeta({
-      status: 'WARN',
-      canGenerate: true,
-      disabledReason: '',
-      warningMessage: `표본이 적어 참고용입니다. (현재 ${formatNumber(current)}${unitLabel} / 권장 ${recommended}${unitLabel})`,
-      current,
-      minRequired,
-      recommended,
-      unitLabel
-    })
-  }
-  return buildMeta({
-    status: 'OK',
-    canGenerate: true,
-    disabledReason: '',
-    warningMessage: '',
-    current,
-    minRequired,
-    recommended,
-    unitLabel
-  })
-})
 
 const getEligibilityInfo = (tab) => {
   const state = getInsightState(tab)
   if (state?.data?.meta) {
     return state.data.meta
   }
-  if (tab === 'REVIEW') return reviewEligibility.value
-  if (tab === 'THEME') return themeEligibility.value
-  return demandEligibility.value
+  if (tab === 'REVIEW') return eligibility.value.review ?? fallbackEligibility
+  if (tab === 'THEME') return eligibility.value.theme ?? fallbackEligibility
+  return eligibility.value.demand ?? fallbackEligibility
 }
 
 const isWarnStatus = (tab) => getEligibilityInfo(tab).status === 'WARN'
@@ -558,9 +371,17 @@ const getSectionItems = (insight, title) => {
 const buildActionItems = (insight, sectionTitle) => {
   const actions = getSectionItems(insight, sectionTitle)
   return actions.map((text, index) => {
-    if (index === 0) return { text, priority: '즉시', tone: 'urgent' }
-    if (index <= 2) return { text, priority: '이번주', tone: 'recommended' }
-    return { text, priority: '상시', tone: 'improve' }
+    const parsed = parseInsightItem(text)
+    const priority = index === 0 ? '즉시' : index <= 2 ? '이번주' : '상시'
+    const tone = index === 0 ? 'urgent' : index <= 2 ? 'recommended' : 'improve'
+    return {
+      text,
+      priority,
+      tone,
+      main: parsed.main,
+      evidence: parsed.evidence,
+      showEvidence: parsed.showEvidence
+    }
   })
 }
 
@@ -637,6 +458,21 @@ const getSectionItemsLimited = (insight, title, limit) => {
   return items.slice(0, limit)
 }
 
+const parseInsightItem = (item) => {
+  const parsed = splitInsightLine(item)
+  return {
+    key: item,
+    main: normalizeInsightText(parsed.main),
+    evidence: normalizeInsightText(parsed.evidence),
+    showEvidence: shouldShowEvidence(parsed.main, parsed.evidence)
+  }
+}
+
+const getSectionItemsParsed = (insight, title, limit) => {
+  const items = getSectionItemsLimited(insight, title, limit)
+  return items.map(parseInsightItem)
+}
+
 const themeInsightLimits = {
   '핵심 요약': 2,
   '강점': 2,
@@ -663,8 +499,10 @@ const demandMonitoringDisplay = computed(() => (
 ))
 const demandActionItems = computed(() => {
   const primary = getSectionItems(demandAiInsight.value, '운영 액션')
-  if (primary.length > 0) return primary
-  return getSectionItems(demandAiInsight.value, '운영 액션 제안')
+  const items = primary.length > 0
+    ? primary
+    : getSectionItems(demandAiInsight.value, '운영 액션 제안')
+  return items.map(parseInsightItem)
 })
 
 const themeRows = computed(() => themeReport.value?.rows ?? [])
@@ -919,6 +757,51 @@ const buildDemandRange = () => {
   }
 }
 
+const buildEligibilityParams = (tab) => {
+  const params = { tab }
+  if (tab === 'REVIEW') {
+    params.from = reviewFilters.value.from
+    params.to = reviewFilters.value.to
+    if (reviewFilters.value.accommodationId !== 'all') {
+      params.accommodationId = reviewFilters.value.accommodationId
+    }
+  } else if (tab === 'THEME') {
+    params.from = themeFilters.value.from
+    params.to = themeFilters.value.to
+    params.metric = themeFilters.value.metric
+    if (themeFilters.value.accommodationId !== 'all') {
+      params.accommodationId = themeFilters.value.accommodationId
+    }
+  } else if (tab === 'DEMAND') {
+    params.historyDays = forecastFilters.value.historyDays
+    if (forecastFilters.value.accommodationId !== 'all') {
+      params.accommodationId = forecastFilters.value.accommodationId
+    }
+  }
+  return params
+}
+
+const loadEligibilityForTab = async (tab) => {
+  const response = await fetchHostAiInsightEligibility(buildEligibilityParams(tab))
+  if (response.ok) {
+    const payload = response.data ?? {}
+    if (payload.review) eligibility.value.review = payload.review
+    if (payload.theme) eligibility.value.theme = payload.theme
+    if (payload.demand) eligibility.value.demand = payload.demand
+    eligibilityError.value = ''
+    return
+  }
+  eligibilityError.value = '자격 정보를 불러오지 못했어요. 생성 시 서버에서 다시 확인합니다.'
+}
+
+const loadEligibilityAll = async () => {
+  await Promise.all([
+    loadEligibilityForTab('REVIEW'),
+    loadEligibilityForTab('THEME'),
+    loadEligibilityForTab('DEMAND')
+  ])
+}
+
 const loadAiInsight = async (tab, forceRefresh = false) => {
   const state = getInsightState(tab)
   if (state.loading) return
@@ -959,6 +842,11 @@ const loadAiInsight = async (tab, forceRefresh = false) => {
   const response = await fetchHostAiInsight(payload)
   if (response.ok) {
     state.data = response.data
+    if (response.data?.meta) {
+      if (tab === 'REVIEW') eligibility.value.review = response.data.meta
+      if (tab === 'THEME') eligibility.value.theme = response.data.meta
+      if (tab === 'DEMAND') eligibility.value.demand = response.data.meta
+    }
   } else {
     state.error = 'AI 인사이트를 불러오지 못했습니다.'
     state.data = null
@@ -1043,6 +931,7 @@ onMounted(async () => {
   loadReviewReport()
   loadThemeReport()
   loadForecast()
+  loadEligibilityAll()
 })
 
 watch(forecastViewMode, (value) => {
@@ -1057,6 +946,7 @@ watch(reviewFilters, () => {
     aiInsightState.value.REVIEW.data = null
     aiInsightState.value.REVIEW.error = ''
   }
+  loadEligibilityForTab('REVIEW')
 }, { deep: true })
 
 watch(themeFilters, () => {
@@ -1064,6 +954,7 @@ watch(themeFilters, () => {
   aiInsightState.value.THEME.data = null
   aiInsightState.value.THEME.error = ''
   themeShowAll.value = false
+  loadEligibilityForTab('THEME')
 }, { deep: true })
 
 watch(forecastFilters, () => {
@@ -1072,6 +963,7 @@ watch(forecastFilters, () => {
   }
   aiInsightState.value.DEMAND.data = null
   aiInsightState.value.DEMAND.error = ''
+  loadEligibilityForTab('DEMAND')
 }, { deep: true })
 </script>
 
@@ -1239,6 +1131,7 @@ watch(forecastFilters, () => {
               <h3>AI 요약</h3>
               <p class="muted">선택 기간 리뷰 데이터를 기반으로 핵심 포인트를 정리합니다.</p>
               <p v-if="isWarnStatus('REVIEW')" class="ai-warning">{{ getEligibilityInfo('REVIEW').warningMessage }}</p>
+              <p v-if="eligibilityError" class="ai-warning ai-warning--muted">{{ eligibilityError }}</p>
             </div>
             <div class="ai-meta">
               <button
@@ -1276,13 +1169,10 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('REVIEW')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="line in getSectionItemsLimited(reviewAiInsight, '총평', 2)" :key="line">
-                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                  <span
-                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                    class="ai-evidence"
-                  >
-                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                <li v-for="item in getSectionItemsParsed(reviewAiInsight, '총평', 2)" :key="item.key">
+                  <span class="ai-main">{{ item.main }}</span>
+                  <span v-if="item.showEvidence" class="ai-evidence">
+                    {{ getEvidenceLabel() }}: {{ item.evidence }}
                   </span>
                 </li>
               </ul>
@@ -1293,13 +1183,10 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('REVIEW')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="line in getSectionItemsLimited(reviewAiInsight, '좋았던 점', 2)" :key="line">
-                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                  <span
-                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                    class="ai-evidence"
-                  >
-                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                <li v-for="item in getSectionItemsParsed(reviewAiInsight, '좋았던 점', 2)" :key="item.key">
+                  <span class="ai-main">{{ item.main }}</span>
+                  <span v-if="item.showEvidence" class="ai-evidence">
+                    {{ getEvidenceLabel() }}: {{ item.evidence }}
                   </span>
                 </li>
               </ul>
@@ -1310,13 +1197,10 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('REVIEW')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="line in getSectionItemsLimited(reviewAiInsight, '개선 포인트', 2)" :key="line">
-                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                  <span
-                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                    class="ai-evidence"
-                  >
-                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                <li v-for="item in getSectionItemsParsed(reviewAiInsight, '개선 포인트', 2)" :key="item.key">
+                  <span class="ai-main">{{ item.main }}</span>
+                  <span v-if="item.showEvidence" class="ai-evidence">
+                    {{ getEvidenceLabel() }}: {{ item.evidence }}
                   </span>
                 </li>
               </ul>
@@ -1329,12 +1213,9 @@ watch(forecastFilters, () => {
               <ul class="action-list">
                 <li v-for="item in aiActionsWithPriority" :key="item.text" class="action-item">
                   <span class="action-badge" :class="item.tone">{{ item.priority }}</span>
-                  <span class="action-text">{{ normalizeInsightText(splitInsightLine(item.text).main) }}</span>
-                  <span
-                    v-if="shouldShowEvidence(splitInsightLine(item.text).main, splitInsightLine(item.text).evidence)"
-                    class="ai-evidence"
-                  >
-                    {{ getEvidenceLabel(splitInsightLine(item.text).evidence) }}: {{ normalizeInsightText(splitInsightLine(item.text).evidence) }}
+                  <span class="action-text">{{ item.main }}</span>
+                  <span v-if="item.showEvidence" class="ai-evidence">
+                    {{ getEvidenceLabel() }}: {{ item.evidence }}
                   </span>
                 </li>
               </ul>
@@ -1351,13 +1232,10 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('REVIEW')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="line in getSectionItemsLimited(reviewAiInsight, '주의·리스크', 2)" :key="line">
-                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                  <span
-                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                    class="ai-evidence"
-                  >
-                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                <li v-for="item in getSectionItemsParsed(reviewAiInsight, '주의·리스크', 2)" :key="item.key">
+                  <span class="ai-main">{{ item.main }}</span>
+                  <span v-if="item.showEvidence" class="ai-evidence">
+                    {{ getEvidenceLabel() }}: {{ item.evidence }}
                   </span>
                 </li>
               </ul>
@@ -1475,6 +1353,7 @@ watch(forecastFilters, () => {
                   <h3>AI 요약</h3>
                   <p class="muted">테마 성과를 기반으로 운영 포인트를 정리합니다.</p>
                   <p v-if="isWarnStatus('THEME')" class="ai-warning">{{ getEligibilityInfo('THEME').warningMessage }}</p>
+                  <p v-if="eligibilityError" class="ai-warning ai-warning--muted">{{ eligibilityError }}</p>
                 </div>
                 <div class="ai-meta">
                   <button
@@ -1511,13 +1390,10 @@ watch(forecastFilters, () => {
                     <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
                   </div>
                   <ul class="ai-list">
-                    <li v-for="line in getSectionItemsLimited(themeAiInsight, '핵심 요약', themeInsightLimits['핵심 요약'])" :key="line">
-                      <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                      <span
-                        v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                        class="ai-evidence"
-                      >
-                        {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '핵심 요약', themeInsightLimits['핵심 요약'])" :key="item.key">
+                      <span class="ai-main">{{ item.main }}</span>
+                      <span v-if="item.showEvidence" class="ai-evidence">
+                        {{ getEvidenceLabel() }}: {{ item.evidence }}
                       </span>
                     </li>
                   </ul>
@@ -1528,13 +1404,10 @@ watch(forecastFilters, () => {
                     <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
                   </div>
                   <ul class="ai-list">
-                    <li v-for="line in getSectionItemsLimited(themeAiInsight, '강점', themeInsightLimits['강점'])" :key="line">
-                      <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                      <span
-                        v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                        class="ai-evidence"
-                      >
-                        {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '강점', themeInsightLimits['강점'])" :key="item.key">
+                      <span class="ai-main">{{ item.main }}</span>
+                      <span v-if="item.showEvidence" class="ai-evidence">
+                        {{ getEvidenceLabel() }}: {{ item.evidence }}
                       </span>
                     </li>
                   </ul>
@@ -1545,13 +1418,10 @@ watch(forecastFilters, () => {
                     <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
                   </div>
                   <ul class="ai-list">
-                    <li v-for="line in getSectionItemsLimited(themeAiInsight, '개선 포인트', themeInsightLimits['개선 포인트'])" :key="line">
-                      <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                      <span
-                        v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                        class="ai-evidence"
-                      >
-                        {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '개선 포인트', themeInsightLimits['개선 포인트'])" :key="item.key">
+                      <span class="ai-main">{{ item.main }}</span>
+                      <span v-if="item.showEvidence" class="ai-evidence">
+                        {{ getEvidenceLabel() }}: {{ item.evidence }}
                       </span>
                     </li>
                   </ul>
@@ -1564,12 +1434,9 @@ watch(forecastFilters, () => {
                   <ul class="action-list">
                     <li v-for="item in themeActionsWithPriority" :key="item.text" class="action-item">
                       <span class="action-badge" :class="item.tone">{{ item.priority }}</span>
-                      <span class="action-text">{{ normalizeInsightText(splitInsightLine(item.text).main) }}</span>
-                      <span
-                        v-if="shouldShowEvidence(splitInsightLine(item.text).main, splitInsightLine(item.text).evidence)"
-                        class="ai-evidence"
-                      >
-                        {{ getEvidenceLabel(splitInsightLine(item.text).evidence) }}: {{ normalizeInsightText(splitInsightLine(item.text).evidence) }}
+                      <span class="action-text">{{ item.main }}</span>
+                      <span v-if="item.showEvidence" class="ai-evidence">
+                        {{ getEvidenceLabel() }}: {{ item.evidence }}
                       </span>
                     </li>
                   </ul>
@@ -1580,13 +1447,10 @@ watch(forecastFilters, () => {
                     <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
                   </div>
                   <ul class="ai-list">
-                    <li v-for="line in getSectionItemsLimited(themeAiInsight, '모니터링', themeInsightLimits['모니터링'])" :key="line">
-                      <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                      <span
-                        v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                        class="ai-evidence"
-                      >
-                        {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '모니터링', themeInsightLimits['모니터링'])" :key="item.key">
+                      <span class="ai-main">{{ item.main }}</span>
+                      <span v-if="item.showEvidence" class="ai-evidence">
+                        {{ getEvidenceLabel() }}: {{ item.evidence }}
                       </span>
                     </li>
                   </ul>
@@ -1779,6 +1643,7 @@ watch(forecastFilters, () => {
               <h3>AI 요약</h3>
               <p class="muted">예측 결과를 기반으로 운영 포인트를 정리합니다.</p>
               <p v-if="isWarnStatus('DEMAND')" class="ai-warning">{{ getEligibilityInfo('DEMAND').warningMessage }}</p>
+              <p v-if="eligibilityError" class="ai-warning ai-warning--muted">{{ eligibilityError }}</p>
             </div>
             <div class="ai-meta">
               <button
@@ -1815,13 +1680,10 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="line in getSectionItemsLimited(demandAiInsight, '핵심 요약', demandInsightLimits['핵심 요약'])" :key="line">
-                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                  <span
-                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                    class="ai-evidence"
-                  >
-                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                <li v-for="item in getSectionItemsParsed(demandAiInsight, '핵심 요약', demandInsightLimits['핵심 요약'])" :key="item.key">
+                  <span class="ai-main">{{ item.main }}</span>
+                  <span v-if="item.showEvidence" class="ai-evidence">
+                    {{ getEvidenceLabel() }}: {{ item.evidence }}
                   </span>
                 </li>
               </ul>
@@ -1832,13 +1694,10 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="line in getSectionItemsLimited(demandAiInsight, '해석 포인트', demandInsightLimits['해석 포인트'])" :key="line">
-                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                  <span
-                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                    class="ai-evidence"
-                  >
-                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                <li v-for="item in getSectionItemsParsed(demandAiInsight, '해석 포인트', demandInsightLimits['해석 포인트'])" :key="item.key">
+                  <span class="ai-main">{{ item.main }}</span>
+                  <span v-if="item.showEvidence" class="ai-evidence">
+                    {{ getEvidenceLabel() }}: {{ item.evidence }}
                   </span>
                 </li>
               </ul>
@@ -1849,13 +1708,10 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="line in demandActionItems" :key="line">
-                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                  <span
-                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                    class="ai-evidence"
-                  >
-                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                <li v-for="item in demandActionItems" :key="item.key">
+                  <span class="ai-main">{{ item.main }}</span>
+                  <span v-if="item.showEvidence" class="ai-evidence">
+                    {{ getEvidenceLabel() }}: {{ item.evidence }}
                   </span>
                 </li>
               </ul>
@@ -1866,13 +1722,10 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="line in getSectionItemsLimited(demandAiInsight, '개선 포인트', demandInsightLimits['개선 포인트'])" :key="line">
-                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                  <span
-                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                    class="ai-evidence"
-                  >
-                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                <li v-for="item in getSectionItemsParsed(demandAiInsight, '개선 포인트', demandInsightLimits['개선 포인트'])" :key="item.key">
+                  <span class="ai-main">{{ item.main }}</span>
+                  <span v-if="item.showEvidence" class="ai-evidence">
+                    {{ getEvidenceLabel() }}: {{ item.evidence }}
                   </span>
                 </li>
               </ul>
@@ -1891,13 +1744,10 @@ watch(forecastFilters, () => {
                 </button>
               </div>
               <ul class="ai-list">
-                <li v-for="line in demandMonitoringDisplay" :key="line">
-                  <span class="ai-main">{{ normalizeInsightText(splitInsightLine(line).main) }}</span>
-                  <span
-                    v-if="shouldShowEvidence(splitInsightLine(line).main, splitInsightLine(line).evidence)"
-                    class="ai-evidence"
-                  >
-                    {{ getEvidenceLabel(splitInsightLine(line).evidence) }}: {{ normalizeInsightText(splitInsightLine(line).evidence) }}
+                <li v-for="item in demandMonitoringDisplay.map(parseInsightItem)" :key="item.key">
+                  <span class="ai-main">{{ item.main }}</span>
+                  <span v-if="item.showEvidence" class="ai-evidence">
+                    {{ getEvidenceLabel() }}: {{ item.evidence }}
                   </span>
                 </li>
               </ul>
@@ -2878,6 +2728,10 @@ watch(forecastFilters, () => {
   margin: 0.35rem 0 0;
   font-size: 0.82rem;
   color: #b45309;
+}
+
+.ai-warning--muted {
+  color: var(--text-muted);
 }
 
 .ai-badge {

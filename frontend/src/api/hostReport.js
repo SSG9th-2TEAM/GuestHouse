@@ -44,3 +44,7 @@ export async function fetchHostAiInsight(payload = {}) {
     body: JSON.stringify(payload)
   })
 }
+
+export async function fetchHostAiInsightEligibility(params = {}) {
+  return hostGet('/host/reports/ai-insight/eligibility', cleanParams(params))
+}
