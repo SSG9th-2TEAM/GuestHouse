@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.report.host.ai;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostAiInsightSection;
@@ -14,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -116,10 +118,13 @@ public class OpenAiInsightClient {
             result.setGeneratedAt(ZonedDateTime.now(KST).toString());
             result.setSections(sections);
             return result;
+        } catch (HttpStatusCodeException ex) {
+            log.warn("OpenAI insight request failed: status={} body={}", ex.getStatusCode(), ex.getResponseBodyAsString());
+            throw new HostReportAiException("OpenAI request failed", ex);
         } catch (RestClientException ex) {
             log.warn("OpenAI insight request failed: {}", ex.getMessage());
             throw new HostReportAiException("OpenAI request failed", ex);
-        } catch (Exception ex) {
+        } catch (JsonProcessingException ex) {
             log.warn("OpenAI insight parsing failed: {}", ex.getMessage());
             throw new HostReportAiException("OpenAI response parsing failed", ex);
         }
@@ -190,7 +195,7 @@ public class OpenAiInsightClient {
         );
     }
 
-    private String extractContent(String body) throws Exception {
+    private String extractContent(String body) throws JsonProcessingException {
         if (body == null || body.isBlank()) return null;
         JsonNode root = objectMapper.readTree(body);
         JsonNode content = root.path("choices").path(0).path("message").path("content");
