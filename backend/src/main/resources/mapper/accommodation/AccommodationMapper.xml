@@ -7,16 +7,17 @@
 <mapper namespace="com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper">
 
 
-    <!-- 기존 N+1 방식 ResultMap (최적화: amenityIds, themeIds 제거로 9→7 쿼리) -->
-    <!-- 추가 최적화: amenities와 amenityDetails 중복 제거로 7→6 쿼리 -->
+    <!-- 기존 N+1 방식 ResultMap -->
     <resultMap id="AccommodationDetailMap" type="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto" autoMapping="true">
         <id property="accommodationsId" column="accommodationsId"/>
-        <!-- amenities 제거: amenityDetails에서 이름만 추출 가능 -->
         <collection property="amenityDetails" column="accommodationsId" select="selectAmenityDetailsByAccommodationId"/>
         <collection property="themes" column="accommodationsId" select="selectThemesByAccommodationId"/>
         <collection property="rooms" column="accommodationsId" select="selectRoomsByAccommodationId"/>
         <collection property="images" column="accommodationsId" select="selectImagesByAccommodationId"/>
         <collection property="reviews" column="accommodationsId" select="com.ssg9th2team.geharbang.domain.review.repository.mybatis.ReviewMapper.selectReviewsByAccommodationId"/>
+        <!-- 수정 페이지용 ID 목록 -->
+        <collection property="amenityIds" column="accommodationsId" select="selectAmenityIdsByAccommodationId"/>
+        <collection property="themeIds" column="accommodationsId" select="selectThemeIdsByAccommodationId"/>
     </resultMap>
 
     <!-- 최적화된 단일 쿼리 ResultMap (JOIN 방식) -->

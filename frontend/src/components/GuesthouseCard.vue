@@ -70,6 +70,7 @@ const emit = defineEmits(['toggle-favorite'])
         class="favorite-btn"
         :class="{ active: isFavorite }"
         @click.stop="$emit('toggle-favorite', id)"
+        aria-label="위시리스트 추가"
       >
         <span v-if="isFavorite">&#9829;</span>
         <span v-else>&#9825;</span>
@@ -143,21 +144,26 @@ const emit = defineEmits(['toggle-favorite'])
   position: absolute;
   top: 10px;
   right: 10px;
-  background: rgba(255,255,255,0.8);
+  background: rgba(255, 255, 255, 0.95);
   border-radius: 50%;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
   cursor: pointer;
-  border: none;
-  transition: color 0.2s, transform 0.1s;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #9ca3af;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1);
+  transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
 }
 
 .favorite-btn.active {
-  color: #ef4444; /* Red Heart */
+  color: #ef4444;
+  background: rgba(254, 242, 242, 0.95);
+  border-color: rgba(248, 113, 113, 0.5);
+  box-shadow: 0 3px 12px rgba(248, 113, 113, 0.2);
 }
 
 .inactive-badge {
@@ -178,6 +184,12 @@ const emit = defineEmits(['toggle-favorite'])
 
 .favorite-btn:active {
   transform: scale(0.9);
+}
+
+.favorite-btn:not(.active):hover {
+  color: #ef4444;
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(248, 113, 113, 0.4);
 }
 
 .card-content {
