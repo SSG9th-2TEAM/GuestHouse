@@ -37,12 +37,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@ActiveProfiles("test")
+@ActiveProfiles("integration-test")
 @Import(ConcurrencyTest.Config.class) // 내부 설정 클래스 Import
 @Sql(scripts = "/sql/test-base-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
-class ConcurrencyTest {
+class ConcurrencyTest extends com.ssg9th2team.geharbang.config.IntegrationTestConfig {
 
     @Autowired
     private ReservationService reservationService;

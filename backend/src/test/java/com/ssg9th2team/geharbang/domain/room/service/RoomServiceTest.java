@@ -24,11 +24,10 @@ import java.util.ArrayList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@SpringBootTest
-@ActiveProfiles("test")
+@ActiveProfiles("integration-test")
 @Transactional
 @Sql(scripts = "/sql/test-base-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
-public class RoomServiceTest {
+public class RoomServiceTest extends com.ssg9th2team.geharbang.config.IntegrationTestConfig {
 
     @Autowired
     private RoomServiceImpl roomService;

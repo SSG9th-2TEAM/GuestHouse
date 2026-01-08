@@ -20,11 +20,21 @@ import com.ssg9th2team.geharbang.domain.ocr.service.OcrService;
 @SpringBootTest
 @Testcontainers
 @ActiveProfiles("integration-test")
+@org.springframework.context.annotation.Import(IntegrationTestConfig.TestConfig.class)
 public abstract class IntegrationTestConfig {
 
     // OCR 서비스는 Google Cloud 인증이 필요하므로 Mock 처리
     @MockBean
     protected OcrService ocrService;
+
+    // CacheManager가 없어서 컨텍스트 로드 실패하는 문제 해결 (Redis 제외 시 필요)
+    @org.springframework.boot.test.context.TestConfiguration
+    static class TestConfig {
+        @org.springframework.context.annotation.Bean
+        public org.springframework.cache.CacheManager cacheManager() {
+            return new org.springframework.cache.concurrent.ConcurrentMapCacheManager();
+        }
+    }
 
     @Container
     static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0")
