@@ -182,7 +182,8 @@ public class ReservationServiceImpl implements ReservationService {
                 Long userId = user.getId();
 
                 // 사용자의 예약 목록 조회 (숙소 정보 + 이미지 + 리뷰 작성 여부 포함)
-                return reservationRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                // DB 레벨에서 결제 완료된 예약만 조회 (reservationStatus >= 2: 확정 이상)
+                return reservationRepository.findCompletedReservationsByUserIdOrderByCreatedAtDesc(userId)
                                 .stream()
                                 .map(reservation -> {
                                         Accommodation accommodation = accommodationRepository
