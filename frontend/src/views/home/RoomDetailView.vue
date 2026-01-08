@@ -1107,16 +1107,13 @@ watch(filteredRooms, (rooms) => {
         <span v-else>객실을 선택해주세요</span>
         <div class="total-price" v-if="selectedRoom">
           <span class="price-detail" v-if="hasDateRange">
-            ₩{{ formatPrice(selectedRoom.price) }} × {{ stayNights }}박<span v-if="['GUESTHOUSE', '게스트하우스'].includes((guesthouse.category || '').toUpperCase())"> × {{ searchStore.guestCount }}명</span>
-            <span style="font-size:0.8rem; color:#999; margin-left:5px;">({{ guesthouse.category }})</span> =  
+            ₩{{ formatPrice(selectedRoom.price) }} × {{ stayNights }}박<span v-if="['GUESTHOUSE', '게스트하우스'].includes((guesthouse.category || '').toUpperCase())"> × {{ searchStore.guestCount }}명</span> =
           </span>
           <span class="price-amount">₩{{ formatPrice(hasDateRange ? totalPrice : selectedRoom.price) }}</span>
           <span class="price-nights" v-if="!hasDateRange"> / 1박</span>
         </div>
-        <button class="book-btn" :class="{ disabled: !hasDateRange }" @click="goToBooking">
-          {{ hasDateRange ? '예약하기' : '객실을 선택해주세요' }}
-        </button>
       </div>
+      <button class="book-btn" :disabled="!canBook" @click="goToBooking">예약하기</button>
     </div>
     <div v-if="selectedRoom && !canBook" class="booking-hint">
       날짜를 선택해주세요.
@@ -1756,6 +1753,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 2rem;
   box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
   z-index: 100;
 }
