@@ -184,3 +184,11 @@ downloaded_images/
 
 # PR Description (local only)
 PR_DESCRIPTION.md
+
+# Scripts (테스트 스크립트 등)
+scripts/*.sh
+scripts/test_*.py
+scripts/concurrency_test.sh
+scripts/load_test.sh
+scripts/test_email.sh
+
