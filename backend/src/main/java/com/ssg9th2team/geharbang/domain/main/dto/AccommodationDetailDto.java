@@ -16,6 +16,7 @@ import java.util.List;
 public class AccommodationDetailDto {
     private Long accommodationsId;
     private String accommodationsName;
+    private String accommodationsCategory;
     private String accommodationsDescription;
     private String shortDescription;
     private String city;
@@ -48,6 +49,7 @@ public class AccommodationDetailDto {
         return AccommodationDetailDto.builder()
                 .accommodationsId(dto.getAccommodationsId())
                 .accommodationsName(dto.getAccommodationsName())
+                .accommodationsCategory(dto.getAccommodationsCategory())
                 .accommodationsDescription(dto.getAccommodationsDescription())
                 .shortDescription(dto.getShortDescription())
                 .city(dto.getCity())
