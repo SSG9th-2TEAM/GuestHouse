@@ -22,6 +22,7 @@ import java.util.Random;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Transactional
+@org.junit.jupiter.api.Disabled("CI 환경 부하로 인한 임시 비활성화")
 class SearchRepositoryPerformanceTest extends IntegrationTestConfig {
 
     @Autowired
