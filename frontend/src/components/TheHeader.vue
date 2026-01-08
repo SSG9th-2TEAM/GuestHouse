@@ -394,6 +394,7 @@ onUnmounted(() => {
                 <li><router-link to="/reviews" @click="isMenuOpen = false">리뷰 내역</router-link></li>
                 <li><router-link to="/wishlist" @click="isMenuOpen = false">위시리스트</router-link></li>
                 <li><router-link to="/coupons" @click="isMenuOpen = false">쿠폰</router-link></li>
+                <li><router-link to="/events" @click="isMenuOpen = false">이벤트</router-link></li>
               </ul>
 
               <div class="menu-footer">

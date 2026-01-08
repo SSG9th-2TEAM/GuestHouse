@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { createReservation } from '@/api/reservationApi'
 import { fetchAccommodationDetail } from '@/api/accommodation'
@@ -164,6 +164,13 @@ const booking = computed(() => {
 })
 
 const coupons = ref([])
+const eligibleCoupons = computed(() => {
+  const totalPrice = booking.value?.price || 0
+  return coupons.value.filter((coupon) => {
+    const min = coupon?.minPrice ?? 0
+    return totalPrice >= min
+  })
+})
 
 const selectedCoupon = ref(null)
 const isLoading = ref(false)
@@ -186,6 +193,15 @@ const couponDiscount = computed(() => {
 
 const finalPrice = computed(() => {
   return booking.value.price - couponDiscount.value
+})
+
+watch(eligibleCoupons, (newList) => {
+  if (
+    selectedCoupon.value &&
+    !newList.some((coupon) => coupon?.id === selectedCoupon.value?.id)
+  ) {
+    selectedCoupon.value = null
+  }
 })
 
 const goBack = () => router.back()
@@ -309,7 +325,11 @@ const handlePayment = async () => {
             </div>
             <select v-model="selectedCoupon" class="coupon-select">
               <option :value="null">쿠폰 선택 안함</option>
-              <option v-for="coupon in coupons" :key="coupon.id" :value="coupon">
+              <option
+                v-for="coupon in eligibleCoupons"
+                :key="coupon.id"
+                :value="coupon"
+              >
                 {{ coupon.name }} ({{ coupon.discountType === 'PERCENT' ? coupon.discountValue + '%' : coupon.discountValue.toLocaleString() + '원' }} 할인)
               </option>
             </select>
