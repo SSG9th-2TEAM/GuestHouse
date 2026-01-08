@@ -179,7 +179,9 @@ public class HostReportService {
             LocalDate date = historyStart.plusDays(i);
             dailyValues.put(date, 0.0);
         }
+        int historyPointCount = 0;
         if (rows != null) {
+            Set<LocalDate> observedDates = new HashSet<>();
             for (HostDemandDailyRow row : rows) {
                 LocalDate date = row.getStatDate();
                 if (date == null || !dailyValues.containsKey(date)) continue;
@@ -187,7 +189,9 @@ public class HostReportService {
                         ? row.getRevenue() != null ? row.getRevenue() : 0
                         : row.getReservationCount() != null ? row.getReservationCount() : 0;
                 dailyValues.put(date, value);
+                observedDates.add(date);
             }
+            historyPointCount = observedDates.size();
         }
 
         Set<LocalDate> holidays = loadHolidaySet(historyStart, forecastEnd);
@@ -212,7 +216,29 @@ public class HostReportService {
         response.setBaseline(computed.getBaseline());
         response.setForecastDaily(computed.getDaily());
         response.setForecastSummary(computed.getSummary());
+        response.setHistoryPointCount(historyPointCount);
         return response;
+    }
+
+    public int countDemandHistoryPoints(Long hostId, Long accommodationId, int historyDays) {
+        validateOwnership(hostId, accommodationId);
+        int safeHistoryDays = historyDays > 0 ? historyDays : 180;
+        LocalDate today = LocalDate.now(KST);
+        LocalDate historyStart = today.minusDays(safeHistoryDays);
+        LocalDate historyEnd = today.plusDays(1);
+        List<HostDemandDailyRow> rows = hostReportMapper.selectDemandDaily(
+                hostId,
+                accommodationId,
+                historyStart.atStartOfDay(),
+                historyEnd.atStartOfDay()
+        );
+        if (rows == null) return 0;
+        Set<LocalDate> observedDates = new HashSet<>();
+        for (HostDemandDailyRow row : rows) {
+            if (row == null || row.getStatDate() == null) continue;
+            observedDates.add(row.getStatDate());
+        }
+        return observedDates.size();
     }
 
     public HostReviewAiSummaryResponse getReviewAiSummary(Long hostId, Long accommodationId, LocalDate from, LocalDate to) {

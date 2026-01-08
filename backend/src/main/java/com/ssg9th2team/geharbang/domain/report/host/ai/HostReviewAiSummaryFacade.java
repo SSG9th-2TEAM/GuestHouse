@@ -58,9 +58,12 @@ public class HostReviewAiSummaryFacade implements AiSummaryClient {
             }
             log.info("AI summary provider=OPENAI fallback=none");
             return response;
-        } catch (Exception ex) {
-            log.info("AI summary provider=OPENAI fallback=RULE reason=request_failed");
+        } catch (HostReportAiException ex) {
+            log.warn("AI summary provider=OPENAI fallback=RULE reason=request_failed", ex);
             return ruleBasedSummaryClient.generate(summary, request);
+        } catch (RuntimeException ex) {
+            log.error("AI summary provider=OPENAI failed with unexpected error.", ex);
+            throw ex;
         }
     }
 
