@@ -35,12 +35,12 @@ public class SearchController {
             @RequestParam(name = "guestCount", required = false) Integer guestCount,
             @RequestParam(name = "minPrice", required = false) Integer minPrice,
             @RequestParam(name = "maxPrice", required = false) Integer maxPrice,
-            @RequestParam(name = \"sort\", required = false) String sort) {
+            @RequestParam(name = "sort", required = false) String sort) {
         // 체크인/체크아웃 날짜 검증
         if (checkin != null && checkout != null && !checkout.isAfter(checkin)) {
             throw new org.springframework.web.server.ResponseStatusException(
-                org.springframework.http.HttpStatus.BAD_REQUEST, 
-                "체크아웃 날짜는 체크인 날짜 이후여야 합니다.");
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "체크아웃 날짜는 체크인 날짜 이후여야 합니다.");
         }
         LocalDateTime checkinAt = checkin != null ? checkin.atTime(15, 0) : null;
         LocalDateTime checkoutAt = checkout != null ? checkout.atTime(11, 0) : null;
