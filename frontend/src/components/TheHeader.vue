@@ -228,11 +228,11 @@ const selectDate = (dayObj) => {
     searchStore.setStartDate(clickedDate)
     searchStore.setEndDate(null)
   } else {
-    // Set end date
-    if (clickedDate.getTime() < searchStore.startDate.getTime()) {
-      // If clicked date is before start date, swap them
-      searchStore.setEndDate(searchStore.startDate)
+    // Set end date - must be AFTER start date (not same day)
+    if (clickedDate.getTime() <= searchStore.startDate.getTime()) {
+      // If clicked date is same or before start date, set as new start date
       searchStore.setStartDate(clickedDate)
+      searchStore.setEndDate(null)
     } else {
       searchStore.setEndDate(clickedDate)
     }

@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -82,8 +84,11 @@ public class MainController {
             @RequestParam(name = "checkin", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkin,
             @RequestParam(name = "checkout", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkout,
             @RequestParam(name = "guestCount", required = false) Integer guestCount) {
-        if (checkin == null || checkout == null || !checkout.isAfter(checkin)) {
+        if (checkin == null || checkout == null) {
             return AvailableRoomResponse.of(List.of());
+        }
+        if (!checkout.isAfter(checkin)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "체크아웃 날짜는 체크인 날짜 이후여야 합니다.");
         }
         LocalDateTime checkinAt = checkin.atTime(15, 0);
         LocalDateTime checkoutAt = checkout.atTime(11, 0);

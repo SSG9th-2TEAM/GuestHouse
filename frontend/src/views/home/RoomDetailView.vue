@@ -404,10 +404,11 @@ const selectDate = (dayObj) => {
     return
   }
 
-  if (clickedDate.getTime() < searchStore.startDate.getTime()) {
-    searchStore.setEndDate(searchStore.startDate)
+  // Must be AFTER start date (not same day)
+  if (clickedDate.getTime() <= searchStore.startDate.getTime()) {
+    // If clicked date is same or before start date, set as new start date
     searchStore.setStartDate(clickedDate)
-    isCalendarOpen.value = false
+    searchStore.setEndDate(null)
     return
   }
 
