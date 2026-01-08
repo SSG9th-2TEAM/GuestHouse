@@ -2,6 +2,7 @@
 import { ref, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getAccessToken } from '../../api/authClient'
+import { requestAccommodationAiSuggestion } from '@/api/ai'
 
 const route = useRoute()
 const router = useRouter()
@@ -25,6 +26,7 @@ const loadError = ref('')
 
 // 예약 정보 상태
 const hasReservations = ref(false)
+const isAiSuggesting = ref(false)
 
 // 모달 상태
 const showModal = ref(false)
@@ -1033,6 +1035,90 @@ const fileToBase64 = (file) => {
   })
 }
 
+const fetchImageAsBase64 = async (url) => {
+  if (!url) return null
+  const absoluteUrl = getFullImageUrl(url)
+  const response = await fetch(absoluteUrl)
+  if (!response.ok) {
+    throw new Error('이미지를 불러오지 못했습니다.')
+  }
+  const blob = await response.blob()
+  return await fileToBase64(blob)
+}
+
+const resolveAllAiImageBase64 = async () => {
+  const base64Images = []
+
+  // 배너 이미지
+  if (bannerFile.value) {
+    base64Images.push(await fileToBase64(bannerFile.value))
+  } else if (form.value.bannerImage) {
+    try {
+      base64Images.push(await fetchImageAsBase64(form.value.bannerImage))
+    } catch (error) {
+      console.warn('배너 이미지 다운로드 실패:', error)
+    }
+  }
+
+  // 상세 이미지들
+  for (const item of displayImages.value) {
+    if (item.file) {
+      base64Images.push(await fileToBase64(item.file))
+    } else if (item.url) {
+      try {
+        base64Images.push(await fetchImageAsBase64(item.url))
+      } catch (error) {
+        console.warn('상세 이미지 다운로드 실패:', error)
+      }
+    }
+  }
+
+  return base64Images
+}
+
+const applyAiSuggestion = async () => {
+  if (isAiSuggesting.value) return
+  try {
+    const base64Images = await resolveAllAiImageBase64()
+    if (base64Images.length === 0) {
+      openModal('AI 추천을 사용하려면 먼저 이미지를 업로드하거나 기존 이미지를 유지해주세요.')
+      return
+    }
+    isAiSuggesting.value = true
+    const payload = {
+      images: base64Images,
+      language: 'ko',
+      context: {
+        city: form.value.city,
+        district: form.value.district,
+        township: form.value.township,
+        stayType: form.value.type,
+        themes: form.value.themes,
+        existingName: form.value.name,
+        existingDescription: form.value.description
+      }
+    }
+    const result = await requestAccommodationAiSuggestion(payload)
+    if (!result.ok) {
+      const message = result?.data?.message || 'AI 추천을 불러오지 못했습니다.'
+      throw new Error(message)
+    }
+    const data = result.data || {}
+    if (data.name) {
+      form.value.name = data.name
+    }
+    if (data.description) {
+      form.value.description = data.description
+    }
+    openModal('AI 추천 결과를 적용했습니다.')
+  } catch (error) {
+    console.error('AI 추천 실패:', error)
+    openModal(`AI 추천 실패: ${error?.message || '잠시 후 다시 시도해주세요.'}`)
+  } finally {
+    isAiSuggesting.value = false
+  }
+}
+
 // 배너 이미지 업로드
 const handleBannerUpload = (event) => {
   const file = event.target.files[0]
@@ -1137,6 +1223,48 @@ onMounted(async () => {
       <section class="form-section">
         <h3 class="subsection-title">기본정보</h3>
 
+        <!-- 이미지 업로드 (숙소명 바로 위) -->
+        <div class="form-group">
+          <label>배너 이미지 <span class="required">*</span></label>
+          <div class="banner-upload-area">
+            <div v-if="bannerPreview || form.bannerImage" class="banner-preview-wrapper">
+              <img :src="bannerPreview ? bannerPreview : form.bannerImage" class="banner-preview" />
+              <button type="button" class="remove-image-btn" @click="removeBannerImage">✕</button>
+            </div>
+            <label v-else class="upload-box">
+              <input type="file" accept="image/*" @change="handleBannerUpload" />
+              <div class="upload-placeholder">
+                <span class="upload-icon">📷</span>
+                <span class="upload-text">배너 이미지 업로드</span>
+                <span class="upload-info">권장 크기: 1200 x 400px</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>상세 이미지 (최대 5장)</label>
+          <div class="detail-images-container">
+            <div class="detail-images-preview">
+              <div v-for="(img, idx) in displayImages" :key="img.id" class="detail-image-item">
+                <img :src="img.url" />
+                <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
+              </div>
+              <label v-if="displayImages.length < 5" class="add-detail-image">
+                <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
+                <span>+</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="ai-helper">
+          <button type="button" class="ai-suggest-btn" @click="applyAiSuggestion" :disabled="isAiSuggesting">
+            {{ isAiSuggesting ? 'AI 추천 생성 중...' : 'AI로 숙소 소개 받기' }}
+          </button>
+          <p class="ai-helper-note">현재 이미지를 기반으로 숙소명과 소개문을 자동으로 제안합니다.</p>
+        </div>
+
         <div class="form-group">
           <label>숙소명 <span class="required">*</span></label>
           <input type="text" v-model="form.name" placeholder="숙소명을 입력해주세요" />
@@ -1182,6 +1310,47 @@ onMounted(async () => {
           <label>SNS</label>
           <input type="text" v-model="form.sns" placeholder="@instagram_id" />
         </div>
+      </section>
+
+      <!-- Section: 이미지 -->
+      <section class="form-section">
+         <h3 class="subsection-title">숙소 이미지</h3>
+
+         <!-- 배너 이미지 -->
+         <div class="form-group">
+            <label>배너 이미지 <span class="required">*</span></label>
+            <div class="banner-upload-area">
+               <div v-if="bannerPreview || form.bannerImage" class="banner-preview-wrapper">
+                  <img :src="bannerPreview ? bannerPreview : form.bannerImage" class="banner-preview" />
+                  <button type="button" class="remove-image-btn" @click="removeBannerImage">✕</button>
+               </div>
+               <label v-else class="upload-box">
+                  <input type="file" accept="image/*" @change="handleBannerUpload" />
+                  <div class="upload-placeholder">
+                     <span class="upload-icon">📷</span>
+                     <span class="upload-text">배너 이미지 업로드</span>
+                     <span class="upload-info">권장 크기: 1200 x 400px</span>
+                  </div>
+               </label>
+            </div>
+         </div>
+
+         <!-- 상세 이미지 -->
+         <div class="form-group">
+            <label>상세 이미지 (최대 5장)</label>
+            <div class="detail-images-container">
+               <div class="detail-images-preview">
+                  <div v-for="(img, idx) in displayImages" :key="img.id" class="detail-image-item">
+                     <img :src="img.url" />
+                     <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
+                  </div>
+                  <label v-if="displayImages.length < 5" class="add-detail-image">
+                     <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
+                     <span>+</span>
+                  </label>
+               </div>
+            </div>
+         </div>
       </section>
 
       <!-- Section: 위치 정보 (수정 불가) -->
@@ -1307,48 +1476,6 @@ onMounted(async () => {
         </div>
       </section>
       
-      <!-- Section: 이미지 -->
-      <section class="form-section">
-         <h3 class="subsection-title">숙소 이미지</h3>
-
-         <!-- 배너 이미지 -->
-         <div class="form-group">
-            <label>배너 이미지 <span class="required">*</span></label>
-            <div class="banner-upload-area">
-               <div v-if="bannerPreview || form.bannerImage" class="banner-preview-wrapper">
-                  <!-- Priority: bannerPreview (New File) > form.bannerImage (Existing URL) -->
-                  <img :src="bannerPreview ? bannerPreview : form.bannerImage" class="banner-preview" />
-                  <button type="button" class="remove-image-btn" @click="removeBannerImage">✕</button>
-               </div>
-               <label v-else class="upload-box">
-                  <input type="file" accept="image/*" @change="handleBannerUpload" />
-                  <div class="upload-placeholder">
-                     <span class="upload-icon">📷</span>
-                     <span class="upload-text">배너 이미지 업로드</span>
-                     <span class="upload-info">권장 크기: 1200 x 400px</span>
-                  </div>
-               </label>
-            </div>
-         </div>
-
-         <!-- 상세 이미지 -->
-         <div class="form-group">
-            <label>상세 이미지 (최대 5장)</label>
-            <div class="detail-images-container">
-               <div class="detail-images-preview">
-                  <div v-for="(img, idx) in displayImages" :key="img.id" class="detail-image-item">
-                     <img :src="img.url" />
-                     <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
-                  </div>
-                  <label v-if="displayImages.length < 5" class="add-detail-image">
-                     <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
-                     <span>+</span>
-                  </label>
-               </div>
-            </div>
-         </div>
-      </section>
-
       <!-- Section: 정산 계좌 (수정 가능) -->
       <section class="form-section">
          <h3 class="subsection-title">정산 계좌</h3>
@@ -3063,5 +3190,60 @@ input[type="number"]:focus {
   height: 400px;
   border-radius: 8px;
   border: 1px solid #e0e0e0;
+}
+
+.ai-helper {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 16px;
+  border: 1px solid #bae6fd;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ai-suggest-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+  white-space: nowrap;
+}
+
+.ai-suggest-btn::before {
+  content: '\2728';
+  font-size: 1.1rem;
+}
+
+.ai-suggest-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.45);
+}
+
+.ai-suggest-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.ai-suggest-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ai-helper-note {
+  margin: 0;
+  color: #0369a1;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 </style>
