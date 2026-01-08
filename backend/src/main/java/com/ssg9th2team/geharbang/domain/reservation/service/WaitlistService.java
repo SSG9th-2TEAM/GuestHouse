@@ -55,8 +55,7 @@ public class WaitlistService {
         Waitlist waitlist = Waitlist.builder()
                 .userId(user.getId())
                 .roomId(roomId)
-                .accommodationId(accommodationId)
-                .email(user.getEmail())
+                .accommodationsId(accommodationId)
                 .checkin(checkin)
                 .checkout(checkout)
                 .guestCount(guestCount)
@@ -103,6 +102,14 @@ public class WaitlistService {
             return;
         }
 
+        // 대기자의 이메일 정보 일괄 조회 (N+1 방지)
+        java.util.Set<Long> userIds = waitingList.stream()
+                .map(Waitlist::getUserId)
+                .collect(java.util.stream.Collectors.toSet());
+
+        java.util.Map<Long, String> userEmails = userRepository.findAllById(userIds).stream()
+                .collect(java.util.stream.Collectors.toMap(User::getId, User::getEmail));
+
         // 객실 및 숙소 정보 조회
         Room room = roomRepository.findById(roomId).orElse(null);
         if (room == null) {
@@ -116,17 +123,22 @@ public class WaitlistService {
 
         // 대기자들에게 알림 발송
         for (Waitlist waitlist : waitingList) {
+            String email = userEmails.get(waitlist.getUserId());
+            if (email == null) {
+                log.warn("대기자 사용자 정보를 찾을 수 없음: userId={}", waitlist.getUserId());
+                continue;
+            }
             try {
                 emailService.sendWaitlistNotificationEmail(
-                        waitlist.getEmail(),
+                        email,
                         accommodationName,
                         roomName,
                         checkin.format(DATE_FORMATTER),
                         checkout.format(DATE_FORMATTER));
                 waitlist.markAsNotified();
-                log.info("대기자 알림 발송 완료: email={}, roomId={}", waitlist.getEmail(), roomId);
+                log.info("대기자 알림 발송 완료: email={}, roomId={}", email, roomId);
             } catch (Exception e) {
-                log.error("대기자 알림 발송 실패: email={}, error={}", waitlist.getEmail(), e.getMessage());
+                log.error("대기자 알림 발송 실패: email={}, error={}", email, e.getMessage());
             }
         }
     }
