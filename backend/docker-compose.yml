@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    container_name: guesthouse-backend
+    restart: always
+    network_mode: host
+    environment:
+      - OAUTH2_REDIRECT_BASE_URL=http://49.50.138.206
+      - OAUTH2_FRONTEND_BASE_URL=http://49.50.138.206
+      - SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/guesthouse?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+      - SPRING_DATASOURCE_USERNAME=thismo
+      - SPRING_DATASOURCE_PASSWORD=thismo1234
