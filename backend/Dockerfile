@@ -23,4 +23,4 @@ COPY *.jar app.jar
 EXPOSE 8080
 
 # 애플리케이션 실행 (Scouter Agent 적용)
-ENTRYPOINT ["java", "-javaagent:/app/scouter-agent/scouter.agent.jar", "-Dscouter.config=/app/scouter-agent/conf/scouter.conf", "-jar", "app.jar"]
+ENTRYPOINT ["java", "--add-opens=java.base/java.lang=ALL-UNNAMED", "--add-opens=java.base/java.util=ALL-UNNAMED", "-javaagent:/app/scouter-agent/scouter.agent.jar", "-Dscouter.config=/app/scouter-agent/conf/scouter.conf", "-jar", "app.jar"]

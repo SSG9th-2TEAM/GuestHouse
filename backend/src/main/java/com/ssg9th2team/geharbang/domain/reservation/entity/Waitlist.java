@@ -31,11 +31,8 @@ public class Waitlist {
     @Column(name = "room_id", nullable = false)
     private Long roomId;
 
-    @Column(name = "accommodation_id", nullable = false)
-    private Long accommodationId;
-
-    @Column(name = "email", nullable = false, length = 100)
-    private String email;
+    @Column(name = "accommodations_id", nullable = false)
+    private Long accommodationsId;
 
     @Column(name = "checkin", nullable = false)
     private LocalDateTime checkin;
