@@ -193,12 +193,12 @@ onMounted(() => {
     </div>
 
     <template v-else>
-      <!-- 예정된 예약 -->
+      <!-- 예약 내역 -->
       <section class="section">
-        <h2 class="section-title">예정된 예약</h2>
+        <h2 class="section-title">예약 내역</h2>
 
         <div v-if="upcomingReservations.length === 0" class="empty-state">
-          예정된 예약이 없습니다.
+          예약 내역이 없습니다.
         </div>
 
         <div v-else class="card-list">
@@ -240,6 +240,44 @@ onMounted(() => {
               <button class="action-btn outline" @click="handleCancel(item)">예약 취소</button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- 취소 내역 -->
+      <section class="section">
+        <h2 class="section-title">취소 내역</h2>
+
+        <div v-if="cancelledReservations.length === 0" class="empty-state">
+          취소 내역이 없습니다.
+        </div>
+
+        <div v-else class="card-list">
+          <router-link 
+            v-for="item in cancelledReservations" 
+            :key="item.reservationId" 
+            :to="`/room/${item.accommodationsId}`"
+            class="res-card clickable cancelled"
+          >
+            <div class="card-content">
+              <img
+                  :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
+                  class="card-img"
+                  :alt="item.accommodationName || '숙소 이미지'"
+              />
+              <div class="card-info">
+                <div class="cancelled-badge">취소됨</div>
+                <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
+                <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
+                <div class="res-details">
+                  <span>예약일</span> <span class="val">{{ formatDate(item.checkin) }} ~ {{ formatDate(item.checkout) }}</span>
+                </div>
+                <div class="res-details">
+                  <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
+                  <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
+                </div>
+              </div>
+            </div>
+          </router-link>
         </div>
       </section>
 
@@ -308,44 +346,6 @@ onMounted(() => {
               >🗑</button>
             </div>
           </div>
-        </div>
-      </section>
-
-      <!-- 취소된 예약 -->
-      <section class="section">
-        <h2 class="section-title">취소된 예약</h2>
-
-        <div v-if="cancelledReservations.length === 0" class="empty-state">
-          취소된 예약이 없습니다.
-        </div>
-
-        <div v-else class="card-list">
-          <router-link 
-            v-for="item in cancelledReservations" 
-            :key="item.reservationId" 
-            :to="`/room/${item.accommodationsId}`"
-            class="res-card clickable cancelled"
-          >
-            <div class="card-content">
-              <img
-                  :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
-                  class="card-img"
-                  :alt="item.accommodationName || '숙소 이미지'"
-              />
-              <div class="card-info">
-                <div class="cancelled-badge">취소됨</div>
-                <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
-                <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
-                <div class="res-details">
-                  <span>예약일</span> <span class="val">{{ formatDate(item.checkin) }} ~ {{ formatDate(item.checkout) }}</span>
-                </div>
-                <div class="res-details">
-                  <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
-                  <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
-                </div>
-              </div>
-            </div>
-          </router-link>
         </div>
       </section>
     </template>
