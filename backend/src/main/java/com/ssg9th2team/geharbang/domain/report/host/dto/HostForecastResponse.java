@@ -21,4 +21,5 @@ public class HostForecastResponse {
     private HostForecastBaseline baseline;
     private List<HostForecastDaily> forecastDaily;
     private HostForecastSummary forecastSummary;
+    private Integer historyPointCount;
 }

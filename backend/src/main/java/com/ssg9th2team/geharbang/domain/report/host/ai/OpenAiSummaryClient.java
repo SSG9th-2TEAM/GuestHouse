@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.report.host.ai;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,13 +15,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -100,10 +101,13 @@ public class OpenAiSummaryClient implements AiSummaryClient {
 
             HostReviewAiSummaryResponse parsed = parseResponse(content, base);
             return parsed;
+        } catch (HttpStatusCodeException ex) {
+            log.warn("OpenAI summary request failed: status={} body={}", ex.getStatusCode(), ex.getResponseBodyAsString());
+            throw new HostReportAiException("OpenAI request failed", ex);
         } catch (RestClientException ex) {
             log.warn("OpenAI summary request failed: {}", ex.getMessage());
             throw new HostReportAiException("OpenAI request failed", ex);
-        } catch (Exception ex) {
+        } catch (JsonProcessingException ex) {
             log.warn("OpenAI summary parsing failed: {}", ex.getMessage());
             throw new HostReportAiException("OpenAI response parsing failed", ex);
         }
@@ -191,7 +195,7 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         return trimmed;
     }
 
-    private String extractContent(String body) throws Exception {
+    private String extractContent(String body) throws JsonProcessingException {
         if (body == null || body.isBlank()) return null;
         JsonNode root = objectMapper.readTree(body);
         JsonNode content = root.path("choices").path(0).path("message").path("content");
@@ -200,13 +204,16 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         return value == null || value.isBlank() ? null : value;
     }
 
-    private HostReviewAiSummaryResponse parseResponse(String content, HostReviewAiSummaryResponse base) throws Exception {
+    private HostReviewAiSummaryResponse parseResponse(String content, HostReviewAiSummaryResponse base) throws JsonProcessingException {
         String trimmed = stripCodeFence(content).trim();
         Map<String, List<String>> parsed;
         if (trimmed.startsWith("{")) {
             parsed = objectMapper.readValue(trimmed, new TypeReference<Map<String, List<String>>>() {});
         } else {
             parsed = parseMarkdownSummary(trimmed);
+        }
+        if (!hasRequiredFields(parsed)) {
+            throw new HostReportAiException("OpenAI response missing required fields");
         }
 
         HostReviewAiSummaryResponse response = new HostReviewAiSummaryResponse();
@@ -222,18 +229,13 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         return response;
     }
 
-    private HostReviewAiSummaryResponse copyResponse(HostReviewAiSummaryResponse source) {
-        HostReviewAiSummaryResponse copy = new HostReviewAiSummaryResponse();
-        copy.setAccommodationId(source.getAccommodationId());
-        copy.setFrom(source.getFrom());
-        copy.setTo(source.getTo());
-        copy.setGeneratedAt(source.getGeneratedAt());
-        copy.setOverview(source.getOverview() != null ? new ArrayList<>(source.getOverview()) : List.of());
-        copy.setPositives(source.getPositives() != null ? new ArrayList<>(source.getPositives()) : List.of());
-        copy.setNegatives(source.getNegatives() != null ? new ArrayList<>(source.getNegatives()) : List.of());
-        copy.setActions(source.getActions() != null ? new ArrayList<>(source.getActions()) : List.of());
-        copy.setRisks(source.getRisks() != null ? new ArrayList<>(source.getRisks()) : List.of());
-        return copy;
+    private boolean hasRequiredFields(Map<String, List<String>> parsed) {
+        if (parsed == null) return false;
+        return parsed.containsKey("overview")
+                && parsed.containsKey("positives")
+                && parsed.containsKey("negatives")
+                && parsed.containsKey("actions")
+                && parsed.containsKey("risks");
     }
 
     private Map<String, List<String>> parseMarkdownSummary(String content) {
