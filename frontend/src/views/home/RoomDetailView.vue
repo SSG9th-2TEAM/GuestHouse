@@ -23,7 +23,7 @@ const { applyRouteFilters } = useListingFilters()
 
 const DEFAULT_IMAGE = 'https://placehold.co/800x600'
 const DEFAULT_HOST_IMAGE = 'https://picsum.photos/seed/host/100/100'
-const rawData = ref(null) // DEBUG REF
+
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value)
@@ -502,7 +502,6 @@ const loadAccommodation = async () => {
       ...detailResponse.data,
       reviews: reviewsData
     }
-    rawData.value = detailResponse.data // DEBUG ASSIGNMENT
     guesthouse.value = normalizeDetail(detailWithReviews)
     availableCoupons.value = couponsData || []
 
@@ -572,6 +571,8 @@ const getSnsLabel = (type, url) => {
     return '링크'
   }
 }
+
+
 
 const buildSnsLinks = (sns) => {
   if (!sns) return []
@@ -1111,7 +1112,6 @@ watch(filteredRooms, (rooms) => {
           </span>
           <span class="price-amount">₩{{ formatPrice(hasDateRange ? totalPrice : selectedRoom.price) }}</span>
           <span class="price-nights" v-if="!hasDateRange"> / 1박</span>
-          <div id="debug-guesthouse" style="opacity:0; position:absolute; pointer-events:none;">{{ JSON.stringify(rawData) }}</div>
         </div>
         <button class="book-btn" :class="{ disabled: !hasDateRange }" @click="goToBooking">
           {{ hasDateRange ? '예약하기' : '객실을 선택해주세요' }}

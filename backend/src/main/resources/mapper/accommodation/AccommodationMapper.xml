@@ -10,7 +10,8 @@
     <!-- 기존 N+1 방식 ResultMap -->
     <resultMap id="AccommodationDetailMap" type="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto" autoMapping="true">
         <id property="accommodationsId" column="accommodationsId"/>
-        <result property="accommodationsCategory" column="accommodations_category" jdbcType="VARCHAR" javaType="java.lang.String"/>
+        <result property="accommodationsCategory" column="accommodationsCategory" jdbcType="VARCHAR" javaType="java.lang.String"/>
+
         <!-- amenities 제거: amenityDetails에서 이름만 추출 가능 -->
         <collection property="amenityDetails" column="accommodationsId" select="selectAmenityDetailsByAccommodationId"/>
         <collection property="themes" column="accommodationsId" select="selectThemesByAccommodationId"/>
@@ -126,7 +127,7 @@
             a.account_number_id AS accountNumberId,
             a.user_id AS userId,
             a.accommodations_name AS accommodationsName,
-            a.accommodations_category,
+            COALESCE(a.accommodations_category, 'GUESTHOUSE') AS accommodationsCategory,
             a.accommodations_description AS accommodationsDescription,
             a.short_description AS shortDescription,
             a.city,
