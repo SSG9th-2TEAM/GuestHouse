@@ -35,6 +35,11 @@ const pastReservations = computed(() => {
   })
 })
 
+// 취소된 예약 (reservationStatus === 9)
+const cancelledReservations = computed(() => {
+  return reservations.value.filter(r => r.reservationStatus === 9)
+})
+
 // 날짜 포맷 (YYYY.MM.DD)
 const formatDate = (dateString) => {
   const date = new Date(dateString)
@@ -305,6 +310,47 @@ onMounted(() => {
           </div>
         </div>
       </section>
+
+      <!-- 취소된 예약 -->
+      <section class="section">
+        <h2 class="section-title">취소된 예약</h2>
+
+        <div v-if="cancelledReservations.length === 0" class="empty-state">
+          취소된 예약이 없습니다.
+        </div>
+
+        <div v-else class="card-list">
+          <div 
+            v-for="item in cancelledReservations" 
+            :key="item.reservationId" 
+            class="res-card clickable cancelled" 
+            role="link"
+            tabindex="0"
+            @click="handlePastClick(item)"
+            @keydown.enter="handlePastClick(item)"
+          >
+            <div class="card-content">
+              <img
+                  :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
+                  class="card-img"
+                  alt="thumbnail"
+              />
+              <div class="card-info">
+                <div class="cancelled-badge">취소됨</div>
+                <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
+                <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
+                <div class="res-details">
+                  <span>예약일</span> <span class="val">{{ formatDate(item.checkin) }} ~ {{ formatDate(item.checkout) }}</span>
+                </div>
+                <div class="res-details">
+                  <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
+                  <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </template>
   </div>
 </template>
@@ -534,5 +580,26 @@ onMounted(() => {
 
 .action-btn.edit:hover {
   background: #f0fdf4; /* primary light color */
+}
+
+/* 취소된 예약 스타일 */
+.res-card.cancelled {
+  opacity: 0.7;
+  border-color: #e0e0e0;
+}
+
+.res-card.cancelled .card-img {
+  filter: grayscale(50%);
+}
+
+.cancelled-badge {
+  display: inline-block;
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 4px;
 }
 </style>
