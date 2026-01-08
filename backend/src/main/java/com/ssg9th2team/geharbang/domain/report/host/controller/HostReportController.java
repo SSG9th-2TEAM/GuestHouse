@@ -2,6 +2,10 @@ package com.ssg9th2team.geharbang.domain.report.host.controller;
 
 import com.ssg9th2team.geharbang.domain.booking.host.support.HostIdentityResolver;
 import com.ssg9th2team.geharbang.domain.report.host.ai.HostAiInsightService;
+import com.ssg9th2team.geharbang.domain.report.host.ai.HostAiInsightEligibilityChecker;
+import com.ssg9th2team.geharbang.domain.report.host.ai.HostAiInsightEligibilityResult;
+import com.ssg9th2team.geharbang.domain.report.host.ai.HostAiInsightTab;
+import com.ssg9th2team.geharbang.domain.report.host.dto.HostAiInsightEligibilityResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostAiInsightRequest;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostAiInsightResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostForecastResponse;
@@ -32,6 +36,7 @@ public class HostReportController {
     private final HostReportService hostReportService;
     private final HostIdentityResolver hostIdentityResolver;
     private final HostAiInsightService hostAiInsightService;
+    private final HostAiInsightEligibilityChecker eligibilityChecker;
 
     @GetMapping("/reviews/summary")
     public HostReviewReportSummaryResponse reviewSummary(
@@ -111,4 +116,64 @@ public class HostReportController {
         return hostAiInsightService.generate(hostId, request);
     }
 
+    @GetMapping("/ai-insight/eligibility")
+    public HostAiInsightEligibilityResponse aiInsightEligibility(
+            @RequestParam(required = false) String tab,
+            @RequestParam(required = false) Long accommodationId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false, defaultValue = "reservations") String metric,
+            @RequestParam(required = false, defaultValue = "180") Integer historyDays,
+            Authentication authentication
+    ) {
+        Long hostId = hostIdentityResolver.resolveHostUserId(authentication);
+        HostAiInsightRequest request = new HostAiInsightRequest();
+        request.setAccommodationId(accommodationId);
+        request.setFrom(from);
+        request.setTo(to);
+        request.setMetric(metric);
+        request.setHistoryDays(historyDays);
+
+        HostAiInsightEligibilityResponse response = new HostAiInsightEligibilityResponse();
+        boolean tabProvided = tab != null && !tab.isBlank();
+        HostAiInsightTab target = parseTab(tab);
+        if (tabProvided && target == null) {
+            response.setReview(HostAiInsightEligibilityResult.blocked("알 수 없는 탭입니다.", 0, 0, 0, ""));
+            return response;
+        }
+        if (target != null) {
+            HostAiInsightEligibilityResult result = eligibilityChecker.evaluate(target, request, hostId);
+            applyEligibilityResponse(response, target, result);
+            return response;
+        }
+        response.setReview(eligibilityChecker.evaluate(HostAiInsightTab.REVIEW, request, hostId));
+        response.setTheme(eligibilityChecker.evaluate(HostAiInsightTab.THEME, request, hostId));
+        response.setDemand(eligibilityChecker.evaluate(HostAiInsightTab.DEMAND, request, hostId));
+        return response;
+    }
+
+    private HostAiInsightTab parseTab(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return HostAiInsightTab.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private void applyEligibilityResponse(
+            HostAiInsightEligibilityResponse response,
+            HostAiInsightTab tab,
+            HostAiInsightEligibilityResult result
+    ) {
+        if (tab == HostAiInsightTab.REVIEW) {
+            response.setReview(result);
+            return;
+        }
+        if (tab == HostAiInsightTab.THEME) {
+            response.setTheme(result);
+            return;
+        }
+        response.setDemand(result);
+    }
 }
