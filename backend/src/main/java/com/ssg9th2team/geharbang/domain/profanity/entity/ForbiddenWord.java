@@ -27,10 +27,14 @@ public class ForbiddenWord {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @PrePersist
+    public void onPrePersist() {
+        this.createdAt = LocalDateTime.now();
+    }
+
     @Builder
     public ForbiddenWord(String word, String category) {
         this.word = word;
         this.category = category;
-        this.createdAt = LocalDateTime.now();
     }
 }
