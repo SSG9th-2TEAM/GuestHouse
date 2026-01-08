@@ -16,7 +16,7 @@ const topTabs = [
   { id: 'booking', label: '예약', path: '/host/booking' },
   { id: 'revenue', label: '매출', path: '/host/revenue' },
   { id: 'review', label: '리뷰', path: '/host/review' },
-  { id: 'report', label: '리포트', path: '/host/report' }
+  { id: 'report', label: 'AI 리포트', path: '/host/report' }
 ]
 
 const bottomTabs = [
@@ -130,7 +130,7 @@ watch(
       <div v-if="moreOpen" class="more-overlay" role="presentation" @click="closeMore">
         <div class="more-sheet" role="menu" @click.stop>
           <button class="more-item" type="button" role="menuitem" @click="goToMore('/host/review')">리뷰</button>
-          <button class="more-item" type="button" role="menuitem" @click="goToMore('/host/report')">리포트</button>
+          <button class="more-item" type="button" role="menuitem" @click="goToMore('/host/report')">AI 리포트</button>
         </div>
       </div>
     </teleport>

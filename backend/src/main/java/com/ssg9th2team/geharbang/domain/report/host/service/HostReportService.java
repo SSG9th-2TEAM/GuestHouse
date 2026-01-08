@@ -217,20 +217,6 @@ public class HostReportService {
 
     public HostReviewAiSummaryResponse getReviewAiSummary(Long hostId, Long accommodationId, LocalDate from, LocalDate to) {
         HostReviewReportSummaryResponse summary = getReviewSummary(hostId, accommodationId, from, to);
-        Integer reviewCount = summary.getReviewCount() != null ? summary.getReviewCount() : 0;
-        if (reviewCount == 0) {
-            HostReviewAiSummaryResponse empty = new HostReviewAiSummaryResponse();
-            empty.setAccommodationId(accommodationId);
-            empty.setFrom(summary.getFrom());
-            empty.setTo(summary.getTo());
-            empty.setGeneratedAt(java.time.ZonedDateTime.now(KST).toString());
-            empty.setOverview(List.of());
-            empty.setPositives(List.of());
-            empty.setNegatives(List.of());
-            empty.setActions(List.of());
-            empty.setRisks(List.of());
-            return empty;
-        }
         HostReviewAiSummaryRequest request = new HostReviewAiSummaryRequest();
         request.setAccommodationId(accommodationId);
         request.setFrom(summary.getFrom());
