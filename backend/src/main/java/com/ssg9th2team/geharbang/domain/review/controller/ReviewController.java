@@ -3,12 +3,13 @@ package com.ssg9th2team.geharbang.domain.review.controller;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.review.dto.ReviewCreateDto;
-import com.ssg9th2team.geharbang.domain.review.dto.ReviewUpdateDto;
 import com.ssg9th2team.geharbang.domain.review.dto.ReviewResponseDto;
 import com.ssg9th2team.geharbang.domain.review.dto.ReviewTagDto;
+import com.ssg9th2team.geharbang.domain.review.dto.ReviewUpdateDto;
 import com.ssg9th2team.geharbang.domain.review.service.ReviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -80,10 +81,21 @@ public class ReviewController {
     // 숙소별 리뷰 조회
     @GetMapping("/accommodations/{accommodationsId}")
     public ResponseEntity<List<ReviewResponseDto>> getReviewsByAccommodation(
+            Authentication authentication,
             @PathVariable Long accommodationsId) {
 
-        // ReviewResponseDto 타입으로 넘어온 값을 리스트에 담아서 서비스 호출
-        List<ReviewResponseDto> reviews = reviewService.getReviewsByAccommodation(accommodationsId);
+        Long userId = null;
+        if (authentication != null
+                && authentication.isAuthenticated()
+                && !(authentication instanceof AnonymousAuthenticationToken)
+                && !"anonymousUser".equals(authentication.getName())) {
+            String email = authentication.getName();
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
+            userId = user.getId();
+        }
+
+        List<ReviewResponseDto> reviews = reviewService.getReviewsByAccommodation(userId, accommodationsId);
 
         return ResponseEntity.ok(reviews);
     }

@@ -12,7 +12,8 @@ import java.util.List;
 public interface ReviewMapper {
 
     // 특정 숙소에 달린 ‘모든 리뷰 목록’을 조회
-    List<ReviewResponseDto> selectReviewsByAccommodationId(@Param("accommodationsId") Long accommodationsId);
+    List<ReviewResponseDto> selectReviewsByAccommodationId(@Param("userId") Long userId,
+                                                           @Param("accommodationsId") Long accommodationsId);
 
     // [User] 내가 작성한 모든 리뷰 목록 조회
     List<ReviewResponseDto> selectReviewsByUserId(@Param("userId") Long userId);

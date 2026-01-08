@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.coupon.service.UserCouponService;
 import com.ssg9th2team.geharbang.domain.coupon.service.UserCouponServiceImpl;
+import com.ssg9th2team.geharbang.domain.profanity.service.ProfanityFilterService;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import com.ssg9th2team.geharbang.domain.review.dto.ReviewCreateDto;
@@ -36,6 +37,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final ReservationJpaRepository reservationJpaRepository;
     private final UserRepository userRepository;
     private final UserCouponService userCouponService;
+    private final ProfanityFilterService profanityFilterService;
 
 
     // 리뷰 등록 (쿠폰 발급 여부 반환)
@@ -57,6 +59,9 @@ public class ReviewServiceImpl implements ReviewService {
         if(reviewJpaRepository.existsByUserIdAndAccommodationsIdAndIsDeletedFalse(userId, reviewCreateDto.getAccommodationsId())) {
             throw new IllegalArgumentException("이미 리뷰를 작성했습니다");
         }
+
+        // 금칙어 검사
+        profanityFilterService.validateNoProfanity(reviewCreateDto.getContent(), "리뷰 내용");
 
         // 사용자 닉네임 조회
         User user = userRepository.findById(userId)
@@ -109,6 +114,11 @@ public class ReviewServiceImpl implements ReviewService {
         // ReviewEntity안에 있는(DB에 리뷰번호, 유저아이디 저장되어있으니까) 유저 아이디와 파라미터로 받은 유저 아이디가 같은지 검사해서 권한 확인
         if(!reviewEntity.getUserId().equals(userId)) {
             throw new IllegalArgumentException("리뷰 수정 권한이 없습니다");
+        }
+
+        // 금칙어 검사
+        if (reviewUpdateDto.getContent() != null) {
+            profanityFilterService.validateNoProfanity(reviewUpdateDto.getContent(), "리뷰 내용");
         }
 
         // 이미지 리스트 구성
@@ -164,8 +174,8 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = "accommodationReviews", key = "#accommodationsId")
-    public List<ReviewResponseDto> getReviewsByAccommodation(Long accommodationsId) {
-        return reviewMapper.selectReviewsByAccommodationId(accommodationsId);
+    public List<ReviewResponseDto> getReviewsByAccommodation(Long userId, Long accommodationsId) {
+        return reviewMapper.selectReviewsByAccommodationId(userId, accommodationsId);
     }
 
 
