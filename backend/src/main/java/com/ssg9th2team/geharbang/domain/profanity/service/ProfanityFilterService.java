@@ -51,7 +51,7 @@ public class ProfanityFilterService {
 
     public void validateNoProfanity(String text, String fieldName) {
         if (containsProfanity(text)) {
-            throw new IllegalArgumentException("부적절한 표현이 포함되어 있습니다.");
+            throw new IllegalArgumentException(fieldName + "에 부적절한 표현이 포함되어 있습니다.");
         }
     }
 
