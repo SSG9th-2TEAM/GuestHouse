@@ -107,4 +107,4 @@ task npmBuild(type: NpmTask) {
 	args = ["run", "build"]
 }
 
-// processResources.dependsOn npmBuild
+processResources.dependsOn npmBuild
