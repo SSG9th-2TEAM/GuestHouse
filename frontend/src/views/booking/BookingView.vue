@@ -28,6 +28,36 @@ onMounted(async () => {
   const accommodationsId = parseInt(props.accommodationsId) || parseInt(route.params.id)
   const roomId = parseInt(props.roomId) || parseInt(route.query.roomId)
   
+  // 체크인/체크아웃 날짜 검증 (오늘 이전 날짜 차단)
+  const checkinParam = props.checkin || route.query.checkin || route.query.checkIn
+  const checkoutParam = props.checkout || route.query.checkout || route.query.checkOut
+  
+  if (checkinParam) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const checkinDate = new Date(checkinParam)
+    checkinDate.setHours(0, 0, 0, 0)
+    
+    if (checkinDate.getTime() < today.getTime()) {
+      alert('과거 날짜로는 예약할 수 없습니다.\n날짜를 다시 선택해주세요.')
+      router.back()
+      return
+    }
+  }
+  
+  if (checkoutParam) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const checkoutDate = new Date(checkoutParam)
+    checkoutDate.setHours(0, 0, 0, 0)
+    
+    if (checkoutDate.getTime() <= today.getTime()) {
+      alert('체크아웃 날짜는 오늘 이후여야 합니다.\n날짜를 다시 선택해주세요.')
+      router.back()
+      return
+    }
+  }
+  
   if (accommodationsId) {
     try {
       const response = await fetchAccommodationDetail(accommodationsId)

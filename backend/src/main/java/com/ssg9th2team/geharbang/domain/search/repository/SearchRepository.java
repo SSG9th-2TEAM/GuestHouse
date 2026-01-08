@@ -74,7 +74,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
               AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
-            ORDER BY pa.accommodations_id DESC
+
             """, countQuery = """
             WITH room_stats AS (
                 SELECT accommodations_id,
@@ -237,7 +237,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                            THEN a.min_price
                        ELSE COALESCE(mp.min_price, a.min_price)
                     END) <= :maxPrice)
-            ORDER BY a.accommodations_id DESC
+
             """, countQuery = """
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
@@ -400,7 +400,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
               AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
-            ORDER BY pa.accommodations_id DESC
+
             """, countQuery = """
             WITH room_stats AS (
                 SELECT accommodations_id,
@@ -570,7 +570,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             ) rmax ON rmax.accommodations_id = pa.accommodations_id
             WHERE (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
-            ORDER BY pa.accommodations_id DESC
+
             """, countQuery = """
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
@@ -740,7 +740,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
               AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
               AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
-            ORDER BY pa.accommodations_id DESC
+
             """, countQuery = """
             WITH room_stats AS (
                 SELECT accommodations_id,
@@ -918,7 +918,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             ) rmax ON rmax.accommodations_id = pa.accommodations_id
             WHERE (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
-            ORDER BY pa.accommodations_id DESC
+
             """, countQuery = """
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date
@@ -1106,7 +1106,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                   AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
                   AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
                   AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
-                ORDER BY pa.accommodations_id DESC
+
                 """, countQuery = """
                 WITH room_stats AS (
                     SELECT accommodations_id,
@@ -1300,7 +1300,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             ) rmax ON rmax.accommodations_id = pa.accommodations_id
             WHERE (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
-            ORDER BY pa.accommodations_id DESC
+
             """, countQuery = """
             WITH RECURSIVE stay_dates (stay_date) AS (
                 SELECT CAST(:checkin AS DATE) AS stay_date

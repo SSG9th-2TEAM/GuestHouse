@@ -74,6 +74,9 @@ export async function searchList({
   if (Number.isFinite(maxPrice)) {
     params.maxPrice = String(maxPrice)
   }
+  if (sort) {
+    params.sort = sort
+  }
   if (bounds) {
     params.minLat = bounds.minLat
     params.maxLat = bounds.maxLat

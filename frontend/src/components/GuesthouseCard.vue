@@ -79,16 +79,18 @@ const emit = defineEmits(['toggle-favorite'])
       <div class="header-row">
         <h3 class="title">{{ title }}</h3>
       </div>
-      <p v-if="description" class="description">{{ description }}</p>
-      <p class="location">{{ location }}</p>
-      <div class="footer-row">
-        <span class="price">
-          <strong>&#8361;{{ price.toLocaleString() }}</strong> / 박
-        </span>
-        <span class="rating">
-          <span class="rating-value">&#9733; {{ formatRating(rating) }}</span>
-          <span v-if="hasReviewCount" class="rating-count">({{ formatReviewCount(reviewCount) }})</span>
-        </span>
+      <div class="card-bottom">
+        <p v-if="description" class="description">{{ description }}</p>
+        <p class="location">{{ location }}</p>
+        <div class="footer-row">
+          <span class="price">
+            <strong>&#8361;{{ price.toLocaleString() }}</strong> / 1박
+          </span>
+          <span class="rating">
+            <span class="rating-value">&#9733; {{ formatRating(rating) }}</span>
+            <span v-if="hasReviewCount" class="rating-count">({{ formatReviewCount(reviewCount) }})</span>
+          </span>
+        </div>
       </div>
     </div>
   </article>
@@ -181,10 +183,11 @@ const emit = defineEmits(['toggle-favorite'])
 }
 
 .card-content {
-  padding: 0.15rem 0.5rem;
+  padding: 0.15rem 0.5rem 0.35rem;
   display: flex;
   flex-direction: column;
   gap: 0.02rem;
+  flex: 1;
 }
 
 .header-row {
@@ -236,13 +239,19 @@ const emit = defineEmits(['toggle-favorite'])
   margin: 0;
 }
 
+.card-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.02rem;
+}
+
 .footer-row {
-  margin-top: 0.12rem;
+  margin-top: 0.15rem;
   margin-bottom: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 0.02rem;
 }
 
 .book-btn {
@@ -258,6 +267,28 @@ const emit = defineEmits(['toggle-favorite'])
 
 .book-btn:hover {
   opacity: 0.9;
+}
+
+/* Mobile specific styles */
+@media (max-width: 768px) {
+  .rating {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0;
+  }
+
+  .rating-value {
+    font-size: 0.85rem;
+  }
+
+  .rating-count {
+    font-size: 0.75rem;
+    color: var(--text-sub);
+  }
+
+  .footer-row {
+    align-items: flex-end;
+  }
 }
 </style>
 

@@ -19,5 +19,6 @@ public interface SearchService {
             LocalDateTime checkout,
             Integer guestCount,
             Integer minPrice,
-            Integer maxPrice);
+            Integer maxPrice,
+            String sort);
 }
