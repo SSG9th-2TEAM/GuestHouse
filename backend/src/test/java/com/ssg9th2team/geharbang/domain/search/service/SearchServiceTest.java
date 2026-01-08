@@ -48,10 +48,9 @@ class SearchServiceTest {
                 4.7,
                 12,
                 4,
-                "https://example.com/image.jpg"
-        );
+                "https://example.com/image.jpg");
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 24), 1);
-        when(searchRepository.searchPublicListNoDates(eq("부산"), isNull(), any(PageRequest.class)))
+        when(searchRepository.searchPublicListNoDates(eq("부산"), isNull(), isNull(), isNull(), any(PageRequest.class)))
                 .thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(
@@ -65,8 +64,9 @@ class SearchServiceTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                null,
+                null);
 
         assertThat(response.items()).hasSize(1);
         assertThat(response.items().get(0).getAccommodationsName()).isEqualTo("오션뷰 숙소");
@@ -90,10 +90,10 @@ class SearchServiceTest {
                 4.2,
                 5,
                 3,
-                "https://example.com/theme.jpg"
-        );
+                "https://example.com/theme.jpg");
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(1, 10), 11);
-        when(searchRepository.searchPublicListByThemeNoDates(eq(List.of(2L)), eq("오션뷰"), isNull(), any(PageRequest.class)))
+        when(searchRepository.searchPublicListByThemeNoDates(eq(List.of(2L)), eq("오션뷰"), isNull(), isNull(), isNull(),
+                any(PageRequest.class)))
                 .thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(
@@ -107,11 +107,13 @@ class SearchServiceTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                null,
+                null);
 
         assertThat(response.items()).hasSize(1);
-        verify(searchRepository).searchPublicListByThemeNoDates(eq(List.of(2L)), eq("오션뷰"), isNull(), any(PageRequest.class));
+        verify(searchRepository).searchPublicListByThemeNoDates(eq(List.of(2L)), eq("오션뷰"), isNull(), isNull(),
+                isNull(), any(PageRequest.class));
     }
 
     @Test
@@ -130,8 +132,7 @@ class SearchServiceTest {
                 4.1,
                 8,
                 2,
-                "https://example.com/map.jpg"
-        );
+                "https://example.com/map.jpg");
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 50), 1);
         when(searchRepository.searchPublicListByBoundsNoDates(
                 eq("부산"),
@@ -140,8 +141,9 @@ class SearchServiceTest {
                 eq(126.0),
                 eq(128.0),
                 isNull(),
-                any(PageRequest.class)
-        )).thenReturn(page);
+                isNull(),
+                isNull(),
+                any(PageRequest.class))).thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(
                 Collections.emptyList(),
@@ -154,8 +156,9 @@ class SearchServiceTest {
                 128.0,
                 null,
                 null,
-                null
-        );
+                null,
+                null,
+                null);
 
         assertThat(response.items()).hasSize(1);
         verify(searchRepository).searchPublicListByBoundsNoDates(
@@ -165,8 +168,9 @@ class SearchServiceTest {
                 eq(126.0),
                 eq(128.0),
                 isNull(),
-                any(PageRequest.class)
-        );
+                isNull(),
+                isNull(),
+                any(PageRequest.class));
     }
 
     @Test
@@ -185,12 +189,12 @@ class SearchServiceTest {
                 4.6,
                 9,
                 4,
-                "https://example.com/available.jpg"
-        );
+                "https://example.com/available.jpg");
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 10), 1);
         LocalDateTime checkin = LocalDateTime.of(2026, 1, 10, 15, 0);
         LocalDateTime checkout = LocalDateTime.of(2026, 1, 12, 11, 0);
-        when(searchRepository.searchPublicList(isNull(), eq(checkin), eq(checkout), eq(4), any(PageRequest.class)))
+        when(searchRepository.searchPublicList(isNull(), eq(checkin), eq(checkout), eq(4), isNull(), isNull(),
+                any(PageRequest.class)))
                 .thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(
@@ -204,11 +208,13 @@ class SearchServiceTest {
                 null,
                 checkin,
                 checkout,
-                4
-        );
+                4,
+                null,
+                null);
 
         assertThat(response.items()).hasSize(1);
-        verify(searchRepository).searchPublicList(isNull(), eq(checkin), eq(checkout), eq(4), any(PageRequest.class));
+        verify(searchRepository).searchPublicList(isNull(), eq(checkin), eq(checkout), eq(4), isNull(), isNull(),
+                any(PageRequest.class));
     }
 
     private static final class ListProjectionStub implements ListDtoProjection {
@@ -226,9 +232,10 @@ class SearchServiceTest {
         private final Integer maxGuests;
         private final String imageUrl;
 
-        private ListProjectionStub(Long accommodationsId, String accommodationsName, String shortDescription, String city,
-                                   String district, String township, Double latitude, Double longitude, Long minPrice,
-                                   Double rating, Integer reviewCount, Integer maxGuests, String imageUrl) {
+        private ListProjectionStub(Long accommodationsId, String accommodationsName, String shortDescription,
+                String city,
+                String district, String township, Double latitude, Double longitude, Long minPrice,
+                Double rating, Integer reviewCount, Integer maxGuests, String imageUrl) {
             this.accommodationsId = accommodationsId;
             this.accommodationsName = accommodationsName;
             this.shortDescription = shortDescription;
