@@ -176,3 +176,6 @@ docs/test-results-*.md
 
 # Downloaded Images for Migration
 downloaded_images/
+
+# PR Description (local only)
+PR_DESCRIPTION.md
