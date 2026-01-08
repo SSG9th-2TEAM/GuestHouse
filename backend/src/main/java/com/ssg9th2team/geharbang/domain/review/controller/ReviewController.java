@@ -7,6 +7,7 @@ import com.ssg9th2team.geharbang.domain.review.dto.ReviewResponseDto;
 import com.ssg9th2team.geharbang.domain.review.dto.ReviewTagDto;
 import com.ssg9th2team.geharbang.domain.review.dto.ReviewUpdateDto;
 import com.ssg9th2team.geharbang.domain.review.service.ReviewService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -31,10 +32,7 @@ public class ReviewController {
             Authentication authentication,
             @RequestBody ReviewCreateDto reviewCreateDto) {
 
-        // JWT에서 email 추출 → userId 조회
-        String email = authentication.getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
+        User user = getAuthenticatedUser(authentication);
 
         boolean couponIssued = reviewService.createReview(user.getId(), reviewCreateDto);
 
@@ -52,9 +50,7 @@ public class ReviewController {
             @PathVariable Long reviewId,  // url에 리뷰 아이디 /api/reviews/3
             @RequestBody ReviewUpdateDto reviewUpdateDto) {
 
-        String email = authentication.getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
+        User user = getAuthenticatedUser(authentication);
 
         reviewService.updateReview(user.getId(), reviewId, reviewUpdateDto);
 
@@ -67,9 +63,7 @@ public class ReviewController {
             Authentication authentication,
             @PathVariable Long reviewId) {
 
-        String email = authentication.getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
+        User user = getAuthenticatedUser(authentication);
 
         reviewService.deleteReview(user.getId(), reviewId);
 
@@ -84,16 +78,7 @@ public class ReviewController {
             Authentication authentication,
             @PathVariable Long accommodationsId) {
 
-        Long userId = null;
-        if (authentication != null
-                && authentication.isAuthenticated()
-                && !(authentication instanceof AnonymousAuthenticationToken)
-                && !"anonymousUser".equals(authentication.getName())) {
-            String email = authentication.getName();
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
-            userId = user.getId();
-        }
+        Long userId = resolveOptionalUserId(authentication);
 
         List<ReviewResponseDto> reviews = reviewService.getReviewsByAccommodation(userId, accommodationsId);
 
@@ -105,9 +90,7 @@ public class ReviewController {
     // 내 리뷰 조회
     @GetMapping("/my")
     public ResponseEntity<List<ReviewResponseDto>> getMyReviews(Authentication authentication) {
-        String email = authentication.getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
+        User user = getAuthenticatedUser(authentication);
 
         List<ReviewResponseDto> reviews = reviewService.getReviewsByUserId(user.getId());
         return ResponseEntity.ok(reviews);
@@ -121,5 +104,28 @@ public class ReviewController {
     public ResponseEntity<List<ReviewTagDto>> getAllReviewTags() {
         List<ReviewTagDto> tags = reviewService.getAllReviewTags();
         return ResponseEntity.ok(tags);
+    }
+
+    private User getAuthenticatedUser(Authentication authentication) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken
+                || "anonymousUser".equals(authentication.getName())) {
+            throw new EntityNotFoundException("인증된 사용자를 찾을 수 없습니다.");
+        }
+        return userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
+    }
+
+    private Long resolveOptionalUserId(Authentication authentication) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken
+                || "anonymousUser".equals(authentication.getName())) {
+            return null;
+        }
+        return userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."))
+                .getId();
     }
 }

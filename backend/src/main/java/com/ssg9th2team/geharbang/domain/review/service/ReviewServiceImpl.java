@@ -17,7 +17,6 @@ import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepositor
 import com.ssg9th2team.geharbang.domain.review.repository.mybatis.ReviewMapper;
 import com.ssg9th2team.geharbang.global.storage.ObjectStorageService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,7 +42,6 @@ public class ReviewServiceImpl implements ReviewService {
     // 리뷰 등록 (쿠폰 발급 여부 반환)
     @Override
     @Transactional
-    @CacheEvict(value = "accommodationReviews", key = "#reviewCreateDto.accommodationsId")
     public boolean createReview(Long userId, ReviewCreateDto reviewCreateDto) {
        // 해당 숙소 예약 내역 조회 (확정된 예약 + 체크아웃 완료된 것 중 가장 최근 1개)
         Reservation reservation = reservationJpaRepository.findFirstByUserIdAndAccommodationsIdAndReservationStatusAndCheckoutBeforeOrderByCheckoutDesc(
@@ -104,7 +102,6 @@ public class ReviewServiceImpl implements ReviewService {
     // 리뷰 수정
     @Override
     @Transactional
-    @CacheEvict(value = "accommodationReviews", allEntries = true)
     public void updateReview(Long userId, Long reviewId, ReviewUpdateDto reviewUpdateDto) {
         // 내가 쓴 리뷰 내용 조회
         ReviewEntity reviewEntity = reviewJpaRepository.findByReviewIdAndIsDeletedFalse(reviewId)
@@ -157,7 +154,6 @@ public class ReviewServiceImpl implements ReviewService {
     // 리뷰 삭제
     @Override
     @Transactional
-    @CacheEvict(value = "accommodationReviews", allEntries = true)
     public void deleteReview(Long userId, Long reviewId) {
         ReviewEntity reviewEntity = reviewJpaRepository.findByReviewIdAndIsDeletedFalse(reviewId)
                 .orElseThrow(() -> new IllegalArgumentException("리뷰를 찾을 수 없습니다."));
@@ -173,7 +169,6 @@ public class ReviewServiceImpl implements ReviewService {
     // 특정 숙소에 달린 '모든 리뷰 목록'을 조회
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "accommodationReviews", key = "#accommodationsId")
     public List<ReviewResponseDto> getReviewsByAccommodation(Long userId, Long accommodationsId) {
         return reviewMapper.selectReviewsByAccommodationId(userId, accommodationsId);
     }
