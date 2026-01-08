@@ -106,7 +106,10 @@ public class BaseMainService implements MainService {
         Map<Long, MainAccommodationListResponse> result = new LinkedHashMap<>();
         for (Long themeId : themeIds) {
             List<Accommodation> list = grouped.getOrDefault(themeId, Collections.emptyList());
-            List<ListDto> general = toListDtosWithMaps(list, imageById, maxGuestsById);
+            // 테마별 숙소 순서를 랜덤하게 섞어 같은 숙소가 여러 테마에서 항상 첫번째로 나오지 않도록 함
+            List<Accommodation> shuffledList = new ArrayList<>(list);
+            Collections.shuffle(shuffledList);
+            List<ListDto> general = toListDtosWithMaps(shuffledList, imageById, maxGuestsById);
             result.put(themeId, MainAccommodationListResponse.builder()
                     .recommendedAccommodations(Collections.emptyList())
                     .generalAccommodations(general)
