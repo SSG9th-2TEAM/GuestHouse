@@ -358,6 +358,7 @@ public class AiRecommendationService {
                 .rating(acc.getRating())
                 .reviewCount(acc.getReviewCount())
                 .thumbnailUrl(thumbnailUrl)
+                .minPrice(acc.getMinPrice())
                 .themes(themes)
                 .build();
     }
