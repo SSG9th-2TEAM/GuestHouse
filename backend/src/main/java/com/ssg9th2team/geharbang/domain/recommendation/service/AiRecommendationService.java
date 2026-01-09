@@ -250,12 +250,13 @@ public class AiRecommendationService {
         prompt.append("반드시 아래 JSON 형식으로만 응답하세요:\n");
         prompt.append(
                 "{\"themes\": [\"THEME1\"], \"keywords\": [\"키워드1\", \"키워드2\"], \"confidence\": 0.85, \"reasoning\": \"분석 이유\"}\n");
-        prompt.append("themes: 1~2개, keywords: 1~3개 (짧게)\n");
+        prompt.append("themes: 1~2개 (일치하는 테마가 없으면 빈 리스트 [] 가능), keywords: 1~3개 (짧게, 핵심 단어 위주)\n");
         prompt.append("예시:\n");
         prompt.append("- \"술 마시고 놀고 싶어\" -> themes: [\"PARTY\", \"FOOD\"], keywords: [\"파티\", \"술\", \"안주\"]\n");
         prompt.append(
                 "- \"헌팅하고 새로운 사람 만나고 싶어\" -> themes: [\"MEETING\", \"PARTY\"], keywords: [\"헌팅\", \"만남\", \"게스트하우스\"]\n");
-        prompt.append("- \"조용히 쉬고 싶어\" -> themes: [\"VIBE\", \"NATURE\"], keywords: [\"조용\", \"휴식\", \"힐링\"]");
+        prompt.append("- \"조용히 쉬고 싶어\" -> themes: [\"VIBE\", \"NATURE\"], keywords: [\"조용\", \"휴식\", \"힐링\"]\n");
+        prompt.append("- \"공항 근처 숙소\" -> themes: [], keywords: [\"공항\", \"근처\"]");
         return prompt.toString();
     }
 
@@ -339,8 +340,6 @@ public class AiRecommendationService {
             }
         }
 
-        if (matchedThemes.isEmpty())
-            matchedThemes.add("VIBE");
         if (extractedKeywords.isEmpty()) {
             String[] words = userQuery.split("\\s+");
             for (String word : words) {
