@@ -17,10 +17,10 @@ public class ReservationScheduler {
     private final ReservationService reservationService;
 
     /**
-     * 30분마다 오래된 대기 예약 삭제
-     * - 생성 후 30분이 지난 대기(0) 상태 예약을 삭제
+     * 10분마다 오래된 대기 예약 삭제
+     * - 생성 후 10분이 지난 대기(0) 상태 예약을 삭제
      */
-    @Scheduled(fixedRate = 30 * 60 * 1000) // 30분마다
+    @Scheduled(fixedRate = 10 * 60 * 1000) // 10분마다
     public void cleanupOldPendingReservations() {
         try {
             int deletedCount = reservationService.cleanupOldPendingReservations();
