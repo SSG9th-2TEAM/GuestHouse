@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AdminStatCard from '../../components/admin/AdminStatCard.vue'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
+import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal.vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
 import { fetchAdminUsers, fetchAdminUserSummary, approveHost, rejectHost, suspendUser, unsuspendUser } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
@@ -24,6 +25,14 @@ const route = useRoute()
 const router = useRouter()
 const summary = ref(null)
 const toast = ref(null)
+
+// 상세 모달 상태
+const detailModal = ref({
+  isOpen: false,
+  userId: null
+})
+
+// 액션 모달 상태 (승인, 반려, 정지 등)
 const actionModal = ref({
   open: false,
   title: '',
@@ -196,6 +205,28 @@ const showToast = (message, tone = 'success') => {
   }, 2200)
 }
 
+const openDetailModal = (user) => {
+  detailModal.value = {
+    isOpen: true,
+    userId: user.userId
+  }
+}
+
+const closeDetailModal = () => {
+  detailModal.value = {
+    isOpen: false,
+    userId: null
+  }
+}
+
+const handleDetailAction = (actionType, user) => {
+  closeDetailModal()
+  // 약간의 지연을 주어 모달 전환이 자연스럽게 보이도록 함
+  setTimeout(() => {
+    openActionModal(actionType, user)
+  }, 100)
+}
+
 const openActionModal = (actionType, user) => {
   const config = {
     approveHost: {
@@ -229,8 +260,7 @@ const openActionModal = (actionType, user) => {
       reasonLabel: '메모(선택)',
       reasonPlaceholder: '예) 소명 확인 완료 / 오탐 해제',
       reasonRequired: false
-    },
-    detail: { title: '회원 상세', confirmLabel: '닫기', description: '' }
+    }
   }[actionType]
   if (!config) return
   actionModal.value = {
@@ -284,10 +314,7 @@ const handleAction = async () => {
     return
   }
   reasonError.value = ''
-  if (actionType === 'detail') {
-    closeActionModal()
-    return
-  }
+
   isSubmitting.value = true
   let response = null
   const reasonPayload = trimmedReason.length > 0 ? trimmedReason : null
@@ -438,7 +465,7 @@ const changePage = (nextPage) => {
               <details class="admin-dropdown admin-dropdown--table">
                 <summary class="admin-btn admin-btn--ghost">관리</summary>
                 <div class="admin-dropdown__menu">
-                  <button class="admin-btn admin-btn--ghost admin-dropdown__item" type="button" @click="openActionModal('detail', user)">
+                  <button class="admin-btn admin-btn--ghost admin-dropdown__item" type="button" @click="openDetailModal(user)">
                     상세 보기
                   </button>
                   <button
@@ -491,6 +518,16 @@ const changePage = (nextPage) => {
       </div>
     </AdminTableCard>
 
+    <!-- 상세 모달 -->
+    <AdminUserDetailModal
+      v-if="detailModal.isOpen"
+      :user-id="detailModal.userId"
+      :is-open="detailModal.isOpen"
+      @close="closeDetailModal"
+      @action="handleDetailAction"
+    />
+
+    <!-- 액션 모달 -->
     <div v-if="actionModal.open" class="admin-modal" @click.self="closeActionModal">
       <div class="admin-modal__content">
         <div class="admin-modal__head">

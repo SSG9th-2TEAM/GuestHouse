@@ -47,6 +47,12 @@ export const fetchAdminBookings = (params = {}) => adminGet('/bookings', params)
 
 export const fetchAdminBookingDetail = (reservationId) => adminGet(`/bookings/${reservationId}`)
 
+export const refundBooking = (reservationId, payload) =>
+  adminRequest(`/bookings/${reservationId}/refund`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+
 export const fetchRefundQuote = (reservationId) => hostGet('/refunds/quote', { reservationId })
 
 export const fetchAdminPayments = (params = {}) => adminGet('/payments', params)

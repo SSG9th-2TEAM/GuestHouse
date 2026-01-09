@@ -1,17 +1,21 @@
 package com.ssg9th2team.geharbang.domain.admin.service;
 
+import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto;
+import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
+import com.ssg9th2team.geharbang.domain.admin.dto.*;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
-import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationDetail;
-import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationSummary;
-import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationMetrics;
 import com.ssg9th2team.geharbang.domain.admin.repository.mybatis.AdminAccommodationMapper;
-import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.log.AdminLogConstants;
+import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
+import com.ssg9th2team.geharbang.domain.room.dto.RoomResponseListDto;
+import com.ssg9th2team.geharbang.domain.room.entity.Room;
+import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
+import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomStats;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -19,8 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
-import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
-import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomStats;
 
 import java.util.List;
 import java.util.Map;
@@ -33,7 +35,8 @@ public class AdminAccommodationService {
 
     private final AccommodationJpaRepository accommodationRepository;
     private final UserRepository userRepository;
-    private final AdminAccommodationMapper accommodationMapper;
+    private final AdminAccommodationMapper adminAccommodationMapper;
+    private final AccommodationMapper accommodationMapper;
     private final RoomJpaRepository roomRepository;
     private final AdminLogService adminLogService;
 
@@ -66,16 +69,42 @@ public class AdminAccommodationService {
         return AdminPageResponse.of(items, page, size, totalElements, totalPages);
     }
 
-    public AdminAccommodationDetail getAccommodationDetail(Long accommodationId) {
+    public AdminAccommodationDetailResponse getAccommodationDetail(Long accommodationId) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
-        AdminAccommodationMetrics metrics = loadMetrics(List.of(accommodation))
-                .get(accommodation.getAccommodationsId());
-        return toDetail(accommodation, metrics);
+
+        // 호스트 정보 조회
+        User host = userRepository.findById(accommodation.getUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Host not found"));
+
+        // 상세 정보 조회 (이미지 등)
+        AccommodationResponseDto detailDto = accommodationMapper.selectAccommodationById(accommodationId);
+        
+        // 이미지 URL 리스트 추출
+        List<String> images = detailDto.getImages() != null
+                ? detailDto.getImages().stream().map(AccommodationImageDto::getImageUrl).toList()
+                : List.of();
+
+        // 편의시설 이름 리스트 추출 (AdminMapper 사용)
+        List<String> amenities = adminAccommodationMapper.selectAmenitiesByAccommodationId(accommodationId);
+
+        // 객실 목록 조회
+        List<Room> rooms = roomRepository.findByAccommodationsId(accommodationId);
+        List<AdminRoomResponse> roomResponses = rooms.stream()
+                .map(AdminRoomResponse::from)
+                .toList();
+
+        return AdminAccommodationDetailResponse.of(
+                accommodation,
+                host,
+                images,
+                amenities,
+                roomResponses
+        );
     }
 
     @Transactional
-    public AdminAccommodationDetail approveAccommodation(Long adminUserId, Long accommodationId) {
+    public AdminAccommodationDetailResponse approveAccommodation(Long adminUserId, Long accommodationId) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
         String beforeStatus = accommodation.getApprovalStatus() != null ? accommodation.getApprovalStatus().name() : null;
@@ -93,13 +122,11 @@ public class AdminAccommodationService {
                 null,
                 metadata
         );
-        AdminAccommodationMetrics metrics = loadMetrics(List.of(saved))
-                .get(saved.getAccommodationsId());
-        return toDetail(saved, metrics);
+        return getAccommodationDetail(saved.getAccommodationsId());
     }
 
     @Transactional
-    public AdminAccommodationDetail rejectAccommodation(Long adminUserId, Long accommodationId, String reason) {
+    public AdminAccommodationDetailResponse rejectAccommodation(Long adminUserId, Long accommodationId, String reason) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
         String beforeStatus = accommodation.getApprovalStatus() != null ? accommodation.getApprovalStatus().name() : null;
@@ -119,9 +146,7 @@ public class AdminAccommodationService {
                 reason,
                 metadata
         );
-        AdminAccommodationMetrics metrics = loadMetrics(List.of(saved))
-                .get(saved.getAccommodationsId());
-        return toDetail(saved, metrics);
+        return getAccommodationDetail(saved.getAccommodationsId());
     }
 
     private ApprovalStatus parseStatus(String status) {
@@ -179,50 +204,6 @@ public class AdminAccommodationService {
         );
     }
 
-    private AdminAccommodationDetail toDetail(Accommodation accommodation, AdminAccommodationMetrics metrics) {
-        MetricsSnapshot snapshot = MetricsSnapshot.from(metrics);
-        RoomStats roomStats = roomRepository.findRoomStats(accommodation.getAccommodationsId());
-        User host = accommodation.getUserId() != null
-                ? userRepository.findById(accommodation.getUserId()).orElse(null)
-                : null;
-
-        Integer minPrice = Optional.ofNullable(roomStats)
-                .map(RoomStats::getMinPrice)
-                .orElse(accommodation.getMinPrice());
-        Integer roomCount = Optional.ofNullable(roomStats)
-                .map(stats -> stats.getRoomCount() != null ? stats.getRoomCount().intValue() : null)
-                .orElse(null);
-        Integer maxGuests = Optional.ofNullable(roomStats)
-                .map(RoomStats::getMaxGuests)
-                .orElse(null);
-
-        return new AdminAccommodationDetail(
-                accommodation.getAccommodationsId(),
-                accommodation.getUserId(),
-                host != null ? host.getName() : null,
-                host != null ? host.getPhone() : null,
-                accommodation.getAccommodationsName(),
-                accommodation.getAccommodationsCategory() != null ? accommodation.getAccommodationsCategory().name() : null,
-                accommodation.getCity(),
-                accommodation.getDistrict(),
-                accommodation.getTownship(),
-                accommodation.getAddressDetail(),
-                accommodation.getApprovalStatus() != null ? accommodation.getApprovalStatus().name() : null,
-                accommodation.getAccommodationStatus(),
-                accommodation.getRejectionReason(),
-                accommodation.getCreatedAt(),
-                minPrice,
-                roomCount,
-                maxGuests,
-                accommodation.getRating(),
-                accommodation.getReviewCount(),
-                snapshot.reservationCount(),
-                snapshot.occupancyRate(),
-                snapshot.cancellationRate(),
-                snapshot.totalRevenue()
-        );
-    }
-
     private Map<Long, AdminAccommodationMetrics> loadMetrics(List<Accommodation> accommodations) {
         List<Long> ids = accommodations.stream()
                 .map(Accommodation::getAccommodationsId)
@@ -231,7 +212,7 @@ public class AdminAccommodationService {
         if (ids.isEmpty()) {
             return Map.of();
         }
-        return accommodationMapper.selectAccommodationMetrics(ids).stream()
+        return adminAccommodationMapper.selectAccommodationMetrics(ids).stream()
                 .collect(Collectors.toMap(AdminAccommodationMetrics::accommodationsId, metric -> metric));
     }
 

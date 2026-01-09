@@ -230,7 +230,7 @@ public class PaymentServiceImpl implements PaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "결제 완료 상태에서만 취소할 수 있습니다.");
         }
 
-        // 환불 금액 결정
+        // 환불 금액 결정 (정책 적용)
         Integer approvedAmount = payment.getApprovedAmount() != null ? payment.getApprovedAmount()
                 : payment.getRequestAmount();
         if (approvedAmount == null) {
@@ -245,13 +245,51 @@ public class PaymentServiceImpl implements PaymentService {
                 ? String.format("policy %s %d%%", policyResult.policyCode(), policyResult.refundRate())
                 : cancelReason.trim();
 
+        return processRefund(payment, reservation, actualRefundAmount, normalizedReason, approvedAmount);
+    }
+
+    @Override
+    @Transactional
+    public PaymentResponseDto adminRefundPayment(Long reservationId, String cancelReason, Integer refundAmount) {
+        log.info("관리자 강제 환불 요청: reservationId={}, refundAmount={}", reservationId, refundAmount);
+
+        Payment payment = paymentRepository.findByReservationId(reservationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "결제 정보를 찾을 수 없습니다."));
+
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다."));
+
+        if (payment.getPaymentStatus() == null || payment.getPaymentStatus() != 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "결제 완료 상태에서만 환불할 수 있습니다.");
+        }
+
+        Integer approvedAmount = payment.getApprovedAmount() != null ? payment.getApprovedAmount()
+                : payment.getRequestAmount();
+        
+        // 관리자가 입력한 금액 사용 (유효성 검사)
+        if (refundAmount == null || refundAmount < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "환불 금액이 유효하지 않습니다.");
+        }
+        if (refundAmount > approvedAmount) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "환불 금액이 결제 금액보다 클 수 없습니다.");
+        }
+
+        String normalizedReason = (cancelReason == null || cancelReason.trim().isEmpty())
+                ? "관리자 강제 환불"
+                : cancelReason.trim();
+
+        return processRefund(payment, reservation, refundAmount, normalizedReason, approvedAmount);
+    }
+
+    // 공통 환불 처리 로직
+    private PaymentResponseDto processRefund(Payment payment, Reservation reservation, Integer actualRefundAmount, String reason, Integer approvedAmount) {
         // 환불 기록 생성 (요청 상태)
         PaymentRefund paymentRefund = PaymentRefund.builder()
                 .paymentId(payment.getId())
                 .refundAmount(actualRefundAmount)
                 .refundStatus(0) // 0: 요청
-                .reasonMessage(normalizedReason)
-                .requestedBy("USER")
+                .reasonMessage(reason)
+                .requestedBy("SYSTEM") // or ADMIN/USER
                 .build();
 
         if (actualRefundAmount == 0) {
@@ -262,9 +300,9 @@ public class PaymentServiceImpl implements PaymentService {
             // 환불 금액이 0이어도 쿠폰은 복구
             if (reservation.getUserCouponId() != null) {
                 userCouponService.restoreCoupon(reservation.getUserId(), reservation.getUserCouponId());
-                log.info("쿠폰 복구 완료 (환불 불가 정책): userCouponId={}", reservation.getUserCouponId());
+                log.info("쿠폰 복구 완료 (환불 불가 정책/0원 환불): userCouponId={}", reservation.getUserCouponId());
             }
-            log.info("환불 불가 정책 적용: reservationId={}, refundAmount=0", reservationId);
+            log.info("0원 환불 처리 완료: reservationId={}", reservation.getId());
             return PaymentResponseDto.from(payment);
         }
 
@@ -282,7 +320,7 @@ public class PaymentServiceImpl implements PaymentService {
             headers.set("Authorization", "Basic " + encodedSecretKey);
 
             Map<String, Object> body = new HashMap<>();
-            body.put("cancelReason", normalizedReason);
+            body.put("cancelReason", reason);
             if (actualRefundAmount < approvedAmount) {
                 body.put("cancelAmount", actualRefundAmount); // 부분 취소
             }
@@ -313,7 +351,7 @@ public class PaymentServiceImpl implements PaymentService {
                 log.info("쿠폰 복구 완료: userCouponId={}", reservation.getUserCouponId());
             }
 
-            log.info("환불 처리 완료: reservationId={}, refundAmount={}", reservationId, actualRefundAmount);
+            log.info("환불 처리 완료: reservationId={}, refundAmount={}", reservation.getId(), actualRefundAmount);
 
             return PaymentResponseDto.from(payment);
 

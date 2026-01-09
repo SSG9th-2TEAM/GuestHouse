@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.admin.service;
 
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminUserDetailResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminUserSummary;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminUserSummaryResponse;
 import com.ssg9th2team.geharbang.domain.admin.log.AdminLogConstants;
@@ -64,6 +65,11 @@ public class AdminUserService {
                 (int) pageResult.getTotalElements(),
                 pageResult.getTotalPages()
         );
+    }
+
+    public AdminUserDetailResponse getUserDetail(Long userId) {
+        User user = findUser(userId);
+        return AdminUserDetailResponse.from(user);
     }
 
     public AdminUserSummaryResponse getUserSummary() {

@@ -2,6 +2,7 @@ package com.ssg9th2team.geharbang.domain.admin.controller;
 
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminRejectRequest;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminUserDetailResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminUserSummary;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminUserSummaryResponse;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminUserService;
@@ -43,6 +44,14 @@ public class AdminUserController {
                 size,
                 sort
         );
+    }
+
+    @GetMapping("/{userId}")
+    public AdminUserDetailResponse getUserDetail(
+            @AdminId Long adminId,
+            @PathVariable Long userId
+    ) {
+        return userService.getUserDetail(userId);
     }
 
     @GetMapping("/summary")
