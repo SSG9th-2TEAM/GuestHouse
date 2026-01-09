@@ -23,8 +23,16 @@ export default defineConfig({
       '/uploads': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+      },
+      '/ws-chat': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true,
       }
     }
+  },
+  define: {
+    global: 'window',
   },
   build: {
     outDir: '../backend/src/main/resources/static',

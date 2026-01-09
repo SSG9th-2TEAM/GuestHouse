@@ -2,7 +2,6 @@
 import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getAccessToken, getCurrentUser, saveUserInfo } from '../../api/authClient'
-import { requestAccommodationAiSuggestion } from '@/api/ai'
 
 const router = useRouter()
 const emit = defineEmits(['cancel', 'submit'])
@@ -20,7 +19,6 @@ const extractedText = ref('')
 const isExtracting = ref(false)
 const isVerifying = ref(false)
 const isSubmitting = ref(false)
-const isAiSuggesting = ref(false)
 
 const handleLicenseUpload = (event) => {
   const file = event.target.files[0]
@@ -867,89 +865,6 @@ const fileToBase64 = (file) => {
   })
 }
 
-const MAX_AI_IMAGE_COUNT = 5
-const AI_IMAGE_MAX_DIMENSION = 1024
-const AI_IMAGE_QUALITY = 0.85
-
-const blobToResizedBase64 = (blob) => {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    const objectUrl = URL.createObjectURL(blob)
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl)
-      const ratio = Math.min(AI_IMAGE_MAX_DIMENSION / image.width, AI_IMAGE_MAX_DIMENSION / image.height, 1)
-      const width = Math.round(image.width * ratio)
-      const height = Math.round(image.height * ratio)
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(image, 0, 0, width, height)
-      resolve(canvas.toDataURL('image/jpeg', AI_IMAGE_QUALITY))
-    }
-    image.onerror = (error) => {
-      URL.revokeObjectURL(objectUrl)
-      reject(error)
-    }
-    image.src = objectUrl
-  })
-}
-
-const getAllImageFiles = () => {
-  const images = []
-  if (form.value.bannerImageFile) {
-    images.push(form.value.bannerImageFile)
-  }
-  if (form.value.detailImageFiles && form.value.detailImageFiles.length > 0) {
-    images.push(...form.value.detailImageFiles)
-  }
-  return images
-}
-
-const applyAiSuggestion = async () => {
-  if (isAiSuggesting.value) return
-  const imageFiles = getAllImageFiles().slice(0, MAX_AI_IMAGE_COUNT)
-  if (imageFiles.length === 0) {
-    openModal('AI 추천을 사용하려면 먼저 배너 또는 상세 이미지를 업로드해주세요.')
-    return
-  }
-  isAiSuggesting.value = true
-  try {
-    const base64Images = await Promise.all(imageFiles.map(file => blobToResizedBase64(file)))
-    const payload = {
-      images: base64Images,
-      language: 'ko',
-      context: {
-        city: form.value.city,
-        district: form.value.district,
-        township: form.value.township,
-        stayType: form.value.type,
-        themes: form.value.themes,
-        existingName: form.value.name,
-        existingDescription: form.value.description
-      }
-    }
-    const result = await requestAccommodationAiSuggestion(payload)
-    if (!result.ok) {
-      const message = result?.data?.message || 'AI 추천을 불러오지 못했습니다.'
-      throw new Error(message)
-    }
-    const data = result.data || {}
-    if (data.name) {
-      form.value.name = data.name
-    }
-    if (data.description) {
-      form.value.description = data.description
-    }
-    openModal('AI 추천 결과를 적용했습니다.')
-  } catch (error) {
-    console.error('AI 추천 실패:', error)
-    openModal(`AI 추천 실패: ${error?.message || '잠시 후 다시 시도해주세요.'}`)
-  } finally {
-    isAiSuggesting.value = false
-  }
-}
-
 // 편의시설 ID 매핑 (프론트 id -> 백엔드 amenityId)
 const amenityIdMap = {
   'wifi': 1,
@@ -1204,44 +1119,6 @@ onMounted(() => {
         <p class="section-desc">숙소의 기본 정보를 입력해주세요.</p>
         
         <h3 class="subsection-title">기본정보</h3>
-
-        <!-- 이미지 업로드 (숙소명 바로 위) -->
-        <div class="form-group">
-          <label>배너 이미지 <span class="required">*</span></label>
-          <div class="upload-box" :class="{ 'upload-error': errors.bannerImage }">
-            <div class="upload-placeholder" v-if="!form.bannerImage">
-              <span class="upload-text">드래그하거나 클릭해 배너 이미지 추가</span>
-              <span class="upload-info">JPG, PNG, HEIC / 최대 20MB</span>
-              <span class="upload-hint">권장 크기: 1920x600px</span>
-            </div>
-            <img v-else :src="form.bannerImage" class="banner-preview" />
-            <input type="file" accept="image/*" @change="handleBannerUpload" />
-          </div>
-          <span v-if="errors.bannerImage" class="error-message">{{ errors.bannerImage }}</span>
-        </div>
-        
-        <div class="form-group">
-          <label>숙소 상세 이미지 (최대 5장) <span class="required">*</span></label>
-          <div class="detail-images-container">
-            <div class="detail-images-preview">
-              <div v-for="(img, idx) in form.detailImages" :key="idx" class="detail-image-item">
-                <img :src="img" />
-                <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
-              </div>
-              <label v-if="form.detailImages.length < 5" class="add-detail-image">
-                <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
-                <span>+</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="ai-helper">
-          <button type="button" class="ai-suggest-btn" @click="applyAiSuggestion" :disabled="isAiSuggesting">
-            {{ isAiSuggesting ? 'AI 추천 생성 중...' : 'AI로 숙소 소개 받기' }}
-          </button>
-          <p class="ai-helper-note">업로드한 이미지를 분석해 숙소명과 소개문을 추천해드려요.</p>
-        </div>
         
         <div class="form-group">
           <label>숙소명 <span class="required">*</span></label>
@@ -1468,6 +1345,41 @@ onMounted(() => {
             <span class="amenity-label">{{ amenity.label }}</span>
           </label>
         </div>
+      </section>
+
+      <!-- Section: 이미지 업로드 -->
+      <section class="form-section">
+        <h3 class="subsection-title">이미지</h3>
+
+        <div class="form-group">
+          <label>배너 이미지 <span class="required">*</span></label>
+          <div class="upload-box" :class="{ 'upload-error': errors.bannerImage }">
+            <div class="upload-placeholder" v-if="!form.bannerImage">
+              <span class="upload-text">드래그하거나 클릭해 배너 이미지 추가</span>
+              <span class="upload-info">JPG, PNG, HEIC / 최대 20MB</span>
+              <span class="upload-hint">권장 크기: 1920x600px</span>
+            </div>
+            <img v-else :src="form.bannerImage" class="banner-preview" />
+            <input type="file" accept="image/*" @change="handleBannerUpload" />
+          </div>
+          <span v-if="errors.bannerImage" class="error-message">{{ errors.bannerImage }}</span>
+        </div>
+        
+          <div class="form-group">
+            <label>숙소 상세 이미지 (최대 5장) <span class="required">*</span></label>
+            <div class="detail-images-container">
+               <div class="detail-images-preview">
+                  <div v-for="(img, idx) in form.detailImages" :key="idx" class="detail-image-item">
+                     <img :src="img" />
+                     <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
+                  </div>
+                  <label v-if="form.detailImages.length < 5" class="add-detail-image">
+                     <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
+                     <span>+</span>
+                  </label>
+               </div>
+            </div>
+          </div>
       </section>
 
       <!-- Section: 검색 최적화 정보 -->
@@ -2986,60 +2898,5 @@ input[type="number"]:focus {
   font-size: 1rem;
   padding: 0;
   line-height: 1;
-}
-
-.ai-helper {
-  margin: 1.5rem 0;
-  padding: 1.25rem;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  border-radius: 16px;
-  border: 1px solid #bae6fd;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.ai-suggest-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: none;
-  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-  color: white;
-  padding: 12px 24px;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
-  white-space: nowrap;
-}
-
-.ai-suggest-btn::before {
-  content: '\2728';
-  font-size: 1.1rem;
-}
-
-.ai-suggest-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.45);
-}
-
-.ai-suggest-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.ai-suggest-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.ai-helper-note {
-  margin: 0;
-  color: #0369a1;
-  font-size: 0.9rem;
-  line-height: 1.5;
 }
 </style>

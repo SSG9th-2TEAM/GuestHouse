@@ -104,7 +104,6 @@ coverage/
 
 # Spring Boot Secret Properties
 **/application-secret.properties
-**/application-secret.yml
 
 # NCP 관련 키/설정 (예시)
 ncp-credentials.json

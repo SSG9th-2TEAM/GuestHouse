@@ -15,10 +15,8 @@ public class CouponInventoryService {
     private final CouponInventoryRepository couponInventoryRepository;
 
     /**
-     * 선착순 제한이 있는 쿠폰이면 PESSIMISTIC_WRITE로 재고를 조회한 뒤
-     * 일일 재고를 리셋하고 1장을 차감한다.
-     *
-     * @return 재고가 남아 차감 성공 시 true, 모두 소진 시 false
+     * 선착순 제한이 있는 쿠폰이면 하루 수량을 확인하고 1장 차감한다.
+     * 수량이 모두 소진되면 false 반환.
      */
     @Transactional
     public boolean consumeSlotIfLimited(Long couponId) {
@@ -36,9 +34,7 @@ public class CouponInventoryService {
 
     /**
      * 매일 00시에 모든 선착순 쿠폰 재고를 초기화한다.
-     * JPA 배치 업데이트로 처리하여 대량 데이터를 메모리에 적재하지 않는다.
-     *
-     * @return 초기화된 레코드 수
+     * 재고 레코드 개수를 반환한다.
      */
     @Transactional
     public int resetDailyInventories() {
