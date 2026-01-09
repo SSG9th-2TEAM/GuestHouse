@@ -72,11 +72,11 @@ public class ReservationServiceImpl implements ReservationService {
                                 .orElseThrow(() -> new IllegalArgumentException(
                                                 "객실을 찾을 수 없습니다: " + requestDto.roomId()));
 
-                // Instant를 LocalDate로 변환 (시스템 기본 시간대 사용)
+                // Instant를 LocalDate로 변환 (UTC 기준 - 분산 락 키와 동일한 시간대 사용)
                 java.time.LocalDate checkinDate = java.time.LocalDateTime.ofInstant(
-                                requestDto.checkin(), java.time.ZoneId.systemDefault()).toLocalDate();
+                                requestDto.checkin(), java.time.ZoneOffset.UTC).toLocalDate();
                 java.time.LocalDate checkoutDate = java.time.LocalDateTime.ofInstant(
-                                requestDto.checkout(), java.time.ZoneId.systemDefault()).toLocalDate();
+                                requestDto.checkout(), java.time.ZoneOffset.UTC).toLocalDate();
 
                 // 시간 강제 설정: 체크인 15:00, 체크아웃 11:00
                 java.time.LocalDateTime checkinDateTime = checkinDate.atTime(15, 0);
