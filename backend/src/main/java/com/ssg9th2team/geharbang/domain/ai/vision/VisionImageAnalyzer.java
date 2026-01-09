@@ -19,7 +19,10 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -141,14 +144,22 @@ public class VisionImageAnalyzer {
         }
     }
 
-    private byte[] decode(String base64Image) {
-        if (base64Image == null || base64Image.isBlank()) return new byte[0];
+    private byte[] decode(String imagePayload) {
+        if (imagePayload == null || imagePayload.isBlank()) return new byte[0];
         try {
-            String data = base64Image;
-            if (data.contains(",")) {
-                data = data.substring(data.indexOf(",") + 1);
+            byte[] rawBytes;
+            if (isHttpUrl(imagePayload)) {
+                rawBytes = downloadRemoteImage(imagePayload);
+            } else {
+                String data = imagePayload;
+                if (data.contains(",")) {
+                    data = data.substring(data.indexOf(",") + 1);
+                }
+                rawBytes = Base64.getDecoder().decode(data);
             }
-            byte[] rawBytes = Base64.getDecoder().decode(data);
+            if (rawBytes.length == 0) {
+                return new byte[0];
+            }
             return imageResizeProcessor.resizeToJpeg(rawBytes, MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT);
         } catch (IllegalArgumentException ex) {
             log.warn("Failed to decode base64 image: {}", ex.getMessage());
@@ -178,6 +189,29 @@ public class VisionImageAnalyzer {
 
         public static ImageAnalysisResult success(String text, List<VisionLabel> labels) {
             return new ImageAnalysisResult(true, text == null ? "" : text, labels == null ? Collections.emptyList() : labels);
+        }
+    }
+
+    private boolean isHttpUrl(String value) {
+        if (value == null) {
+            return false;
+        }
+        String lower = value.toLowerCase();
+        return lower.startsWith("http://") || lower.startsWith("https://");
+    }
+
+    private byte[] downloadRemoteImage(String imageUrl) {
+        try (InputStream inputStream = new URL(imageUrl).openStream();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+            return outputStream.toByteArray();
+        } catch (IOException e) {
+            log.warn("Failed to download image from {}: {}", imageUrl, e.getMessage());
+            return new byte[0];
         }
     }
 }
