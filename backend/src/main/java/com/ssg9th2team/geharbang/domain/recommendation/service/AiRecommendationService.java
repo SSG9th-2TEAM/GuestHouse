@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AiRecommendationService {
 
     private final AccommodationJpaRepository accommodationRepository;
@@ -41,9 +40,26 @@ public class AiRecommendationService {
     private final AiSearchLogService searchLogService;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
-
-    @Qualifier("taskExecutor")
     private final Executor executor;
+
+    public AiRecommendationService(
+            AccommodationJpaRepository accommodationRepository,
+            AccommodationMapper accommodationMapper,
+            AccommodationThemeRepository accommodationThemeRepository,
+            ReviewJpaRepository reviewRepository,
+            AiSearchLogService searchLogService,
+            RestTemplate restTemplate,
+            ObjectMapper objectMapper,
+            @Qualifier("taskExecutor") Executor executor) {
+        this.accommodationRepository = accommodationRepository;
+        this.accommodationMapper = accommodationMapper;
+        this.accommodationThemeRepository = accommodationThemeRepository;
+        this.reviewRepository = reviewRepository;
+        this.searchLogService = searchLogService;
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
+        this.executor = executor;
+    }
 
     @Value("${GEMINI_API_KEY:}")
     private String geminiApiKey;
