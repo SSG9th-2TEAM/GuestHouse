@@ -27,4 +27,22 @@ public final class UserSpecifications {
                 cb.like(cb.lower(root.get("phone")), normalized)
         );
     }
+
+    public static Specification<User> suspendedEquals(Boolean suspended) {
+        if (suspended == null) {
+            return Specification.where(null);
+        }
+        return (root, query, cb) -> cb.equal(root.get("suspended"), suspended);
+    }
+
+    public static Specification<User> hostApprovedEquals(Boolean approved) {
+        if (approved == null) {
+            return Specification.where(null);
+        }
+        return (root, query, cb) -> cb.equal(root.get("hostApproved"), approved);
+    }
+
+    public static Specification<User> hostApprovedIsNull() {
+        return (root, query, cb) -> cb.isNull(root.get("hostApproved"));
+    }
 }

@@ -1,7 +1,7 @@
 package com.ssg9th2team.geharbang.domain.admin.controller;
 
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
-import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportDetail;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportDetailResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportResolveRequest;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportSummary;
 import com.ssg9th2team.geharbang.domain.admin.service.AdminReportService;
@@ -44,7 +44,7 @@ public class AdminReportController {
     }
 
     @GetMapping("/{reportId}")
-    public AdminReportDetail getReportDetail(
+    public AdminReportDetailResponse getReportDetail(
             @AdminId Long adminId,
             @PathVariable Long reportId
     ) {
@@ -52,7 +52,7 @@ public class AdminReportController {
     }
 
     @PostMapping("/{reportId}/resolve")
-    public AdminReportDetail resolveReport(
+    public AdminReportDetailResponse resolveReport(
             @AdminId Long adminId,
             @PathVariable Long reportId,
             @RequestBody AdminReportResolveRequest request

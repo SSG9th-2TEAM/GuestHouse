@@ -3,8 +3,9 @@ import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
+import AdminAccommodationDetailModal from '../../components/admin/AdminAccommodationDetailModal.vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
-import { fetchAdminAccommodations, fetchAdminAccommodationDetail, approveAccommodation, rejectAccommodation } from '../../api/adminApi'
+import { fetchAdminAccommodations, approveAccommodation, rejectAccommodation } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 
 const accommodationList = ref([])
@@ -16,10 +17,14 @@ const totalPages = ref(0)
 const totalElements = ref(0)
 const isLoading = ref(false)
 const loadError = ref('')
-const detailOpen = ref(false)
-const detailLoading = ref(false)
-const detailError = ref('')
-const detailData = ref(null)
+
+// 상세 모달 상태
+const detailModal = ref({
+  isOpen: false,
+  accommodationId: null
+})
+
+// 승인/반려 모달 상태
 const approveOpen = ref(false)
 const rejectOpen = ref(false)
 const actionLoading = ref(false)
@@ -113,17 +118,54 @@ const applyPendingFilter = () => {
   loadAccommodations()
 }
 
-const openApprove = (item) => {
+// 상세 모달 열기
+const openDetail = (item) => {
   if (!item?.accommodationsId) return
-  actionTarget.value = item
+  detailModal.value = {
+    isOpen: true,
+    accommodationId: item.accommodationsId
+  }
+}
+
+const closeDetail = () => {
+  detailModal.value = {
+    isOpen: false,
+    accommodationId: null
+  }
+}
+
+// 상세 모달에서 액션 발생 시 처리
+const handleDetailAction = (actionType, accommodation) => {
+  closeDetail()
+  // 모달 닫힘 애니메이션 후 액션 모달 열기
+  setTimeout(() => {
+    if (actionType === 'approve') openApprove(accommodation)
+    if (actionType === 'reject') openReject(accommodation)
+    if (actionType === 'suspend') {
+      // 판매 중지는 반려와 동일한 로직 사용 (사유 입력 필요 시) 또는 별도 처리
+      // 여기서는 반려 로직을 재사용하되 타이틀만 다르게 처리할 수도 있음
+      // 일단 반려 모달을 띄우되, 내부적으로 구분 가능
+      openReject(accommodation)
+    }
+  }, 100)
+}
+
+const openApprove = (item) => {
+  // item 구조가 목록/상세에 따라 다를 수 있으므로 ID 추출
+  const id = item.accommodationsId || item.accommodationId
+  if (!id) return
+
+  actionTarget.value = { ...item, accommodationsId: id }
   actionError.value = ''
   actionLoading.value = false
   approveOpen.value = true
 }
 
 const openReject = (item) => {
-  if (!item?.accommodationsId) return
-  actionTarget.value = item
+  const id = item.accommodationsId || item.accommodationId
+  if (!id) return
+
+  actionTarget.value = { ...item, accommodationsId: id }
   rejectReason.value = ''
   actionError.value = ''
   actionLoading.value = false
@@ -157,9 +199,6 @@ const confirmApprove = async () => {
   }
   closeApprove()
   await loadAccommodations()
-  if (detailOpen.value) {
-    await refreshDetail()
-  }
 }
 
 const confirmReject = async () => {
@@ -179,52 +218,6 @@ const confirmReject = async () => {
   }
   closeReject()
   await loadAccommodations()
-  if (detailOpen.value) {
-    await refreshDetail()
-  }
-}
-
-const openDetail = async (item) => {
-  if (!item?.accommodationsId) return
-  detailOpen.value = true
-  detailLoading.value = true
-  detailError.value = ''
-  const response = await fetchAdminAccommodationDetail(item.accommodationsId)
-  if (response.ok && response.data) {
-    detailData.value = response.data
-  } else {
-    detailError.value = '숙소 상세 정보를 불러오지 못했습니다.'
-  }
-  detailLoading.value = false
-}
-
-const closeDetail = () => {
-  detailOpen.value = false
-  detailError.value = ''
-  detailData.value = null
-}
-
-const refreshDetail = async () => {
-  if (!detailData.value?.accommodationsId) return
-  detailLoading.value = true
-  detailError.value = ''
-  const response = await fetchAdminAccommodationDetail(detailData.value.accommodationsId)
-  if (response.ok && response.data) {
-    detailData.value = response.data
-  } else {
-    detailError.value = '숙소 상세 정보를 불러오지 못했습니다.'
-  }
-  detailLoading.value = false
-}
-
-const handleDetailApprove = () => {
-  if (!detailData.value?.accommodationsId) return
-  openApprove(detailData.value)
-}
-
-const handleDetailReject = () => {
-  if (!detailData.value?.accommodationsId) return
-  openReject(detailData.value)
 }
 
 const downloadReport = (format) => {
@@ -282,12 +275,6 @@ const formatRating = (value) => {
 const formatDate = (value) => {
   if (!value) return '-'
   return String(value).slice(0, 10)
-}
-
-const accommodationStatusLabel = (value) => {
-  if (value === 1) return '운영중'
-  if (value === 0) return '운영정지'
-  return '-'
 }
 </script>
 
@@ -396,67 +383,16 @@ const accommodationStatusLabel = (value) => {
       </div>
     </AdminTableCard>
 
-    <div v-if="detailOpen" class="admin-modal">
-      <div class="admin-modal__backdrop" @click="closeDetail" />
-      <div class="admin-modal__panel" role="dialog" aria-modal="true">
-        <div class="admin-modal__header">
-          <div>
-            <p class="admin-modal__eyebrow">숙소 상세</p>
-            <h2 class="admin-modal__title">{{ detailData?.name ?? '-' }}</h2>
-          </div>
-          <button class="admin-btn admin-btn--ghost" type="button" @click="closeDetail">닫기</button>
-        </div>
+    <!-- 상세 모달 -->
+    <AdminAccommodationDetailModal
+      v-if="detailModal.isOpen"
+      :accommodation-id="detailModal.accommodationId"
+      :is-open="detailModal.isOpen"
+      @close="closeDetail"
+      @action="handleDetailAction"
+    />
 
-        <div v-if="detailLoading" class="admin-status">불러오는 중...</div>
-        <div v-else-if="detailError" class="admin-status">
-          <span>{{ detailError }}</span>
-          <button class="admin-btn admin-btn--ghost" type="button" @click="refreshDetail">다시 시도</button>
-        </div>
-        <div v-else class="admin-modal__body">
-          <div class="admin-modal__section">
-            <h3>기본 정보</h3>
-            <div class="admin-detail-grid">
-              <div><span>ID</span><strong>#{{ detailData?.accommodationsId ?? '-' }}</strong></div>
-              <div><span>호스트</span><strong>{{ detailData?.hostName ?? '-' }} ({{ detailData?.hostUserId ?? '-' }})</strong></div>
-              <div><span>연락처</span><strong>{{ detailData?.hostPhone ?? '-' }}</strong></div>
-              <div><span>주소</span><strong>{{ [detailData?.city, detailData?.district, detailData?.township, detailData?.addressDetail].filter(Boolean).join(' ') || '-' }}</strong></div>
-              <div><span>숙소 유형</span><strong>{{ detailData?.category ?? '-' }}</strong></div>
-              <div><span>등록일</span><strong>{{ formatDate(detailData?.createdAt) }}</strong></div>
-              <div><span>객실 수</span><strong>{{ formatCount(detailData?.roomCount) }}</strong></div>
-              <div><span>최대 인원</span><strong>{{ formatCount(detailData?.maxGuests) }}</strong></div>
-              <div><span>1박 최저가</span><strong>{{ formatCurrency(detailData?.minPrice) }}</strong></div>
-            </div>
-          </div>
-
-          <div class="admin-modal__section">
-            <h3>상태</h3>
-            <div class="admin-detail-grid">
-              <div><span>승인 상태</span><strong>{{ detailData?.approvalStatus ?? '-' }}</strong></div>
-              <div><span>운영 상태</span><strong>{{ accommodationStatusLabel(detailData?.accommodationStatus) }}</strong></div>
-              <div v-if="detailData?.rejectionReason"><span>반려 사유</span><strong>{{ detailData?.rejectionReason }}</strong></div>
-            </div>
-          </div>
-
-          <div class="admin-modal__section">
-            <h3>지표 요약</h3>
-            <div class="admin-detail-grid">
-              <div><span>평점</span><strong>{{ formatRating(detailData?.avgRating) }}</strong></div>
-              <div><span>리뷰 수</span><strong>{{ formatCount(detailData?.reviewCount) }}</strong></div>
-              <div><span>예약 수(확정)</span><strong>{{ formatCount(detailData?.reservationCount) }}</strong></div>
-              <div><span>가동률</span><strong>{{ formatPercent(detailData?.occupancyRate) }}</strong></div>
-              <div><span>취소율</span><strong>{{ formatPercent(detailData?.cancellationRate) }}</strong></div>
-              <div><span>총 매출(확정)</span><strong>{{ formatCurrency(detailData?.totalRevenue) }}</strong></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="admin-modal__actions" v-if="!detailLoading">
-          <button class="admin-btn admin-btn--primary" type="button" @click="handleDetailApprove">승인</button>
-          <button class="admin-btn admin-btn--muted" type="button" @click="handleDetailReject">반려</button>
-        </div>
-      </div>
-    </div>
-
+    <!-- 승인 모달 -->
     <div v-if="approveOpen" class="admin-modal">
       <div class="admin-modal__backdrop" @click="closeApprove" />
       <div class="admin-modal__panel" role="dialog" aria-modal="true">
@@ -469,8 +405,7 @@ const accommodationStatusLabel = (value) => {
         </div>
         <div class="admin-detail-grid">
           <div><span>숙소 ID</span><strong>#{{ actionTarget?.accommodationsId ?? '-' }}</strong></div>
-          <div><span>숙소명</span><strong>{{ actionTarget?.name ?? '-' }}</strong></div>
-          <div><span>호스트</span><strong>{{ actionTarget?.hostUserId ?? '-' }}</strong></div>
+          <div><span>숙소명</span><strong>{{ actionTarget?.name || actionTarget?.accommodationName || '-' }}</strong></div>
         </div>
         <div v-if="actionError" class="admin-status">{{ actionError }}</div>
         <div class="admin-modal__actions">
@@ -482,6 +417,7 @@ const accommodationStatusLabel = (value) => {
       </div>
     </div>
 
+    <!-- 반려 모달 -->
     <div v-if="rejectOpen" class="admin-modal">
       <div class="admin-modal__backdrop" @click="closeReject" />
       <div class="admin-modal__panel" role="dialog" aria-modal="true">
@@ -494,7 +430,7 @@ const accommodationStatusLabel = (value) => {
         </div>
         <div class="admin-detail-grid">
           <div><span>숙소 ID</span><strong>#{{ actionTarget?.accommodationsId ?? '-' }}</strong></div>
-          <div><span>숙소명</span><strong>{{ actionTarget?.name ?? '-' }}</strong></div>
+          <div><span>숙소명</span><strong>{{ actionTarget?.name || actionTarget?.accommodationName || '-' }}</strong></div>
         </div>
         <textarea
           v-model="rejectReason"
@@ -546,16 +482,6 @@ const accommodationStatusLabel = (value) => {
   color: #0b3b32;
 }
 
-.admin-sub {
-  color: #6b7280;
-}
-
-.admin-col {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
 .admin-status {
   display: flex;
   gap: 12px;
@@ -605,7 +531,7 @@ const accommodationStatusLabel = (value) => {
 
 .admin-modal__panel {
   position: relative;
-  width: min(860px, 100%);
+  width: min(600px, 100%);
   max-height: 90vh;
   overflow: auto;
   background: white;
@@ -635,18 +561,6 @@ const accommodationStatusLabel = (value) => {
   font-size: 1.5rem;
   font-weight: 900;
   color: #0b3b32;
-}
-
-.admin-modal__body {
-  display: grid;
-  gap: 1.25rem;
-}
-
-.admin-modal__section h3 {
-  margin: 0 0 0.65rem;
-  font-size: 1rem;
-  font-weight: 800;
-  color: #0f172a;
 }
 
 .admin-detail-grid {

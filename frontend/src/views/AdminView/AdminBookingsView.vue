@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
-import { fetchAdminBookings, fetchAdminBookingDetail, fetchRefundQuote } from '../../api/adminApi'
+import { fetchAdminBookings, fetchAdminBookingDetail, fetchRefundQuote, refundBooking } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
 import {
   RESERVATION_STATUS_OPTIONS,
@@ -39,6 +39,18 @@ const refundQuoteError = ref('')
 const refundQuote = ref(null)
 const route = useRoute()
 const router = useRouter()
+
+// 환불 모달 상태
+const refundModal = ref({
+  open: false,
+  booking: null,
+  amount: 0,
+  reason: '',
+  memo: '',
+  isManual: false, // 수동 입력 여부
+  loading: false,
+  error: ''
+})
 
 const loadBookings = async () => {
   isLoading.value = true
@@ -186,25 +198,120 @@ const loadRefundQuote = async (reservationId) => {
   if (response.ok && response.data) {
     refundQuote.value = response.data
   } else {
-    refundQuoteError.value = response?.data?.message || '환불 계산 불가'
+    // refundQuoteError.value = response?.data?.message || '환불 계산 불가'
+    // API가 없거나 실패해도 프론트 로직으로 계산 가능하도록 처리
+    refundQuote.value = null
   }
   refundQuoteLoading.value = false
 }
 
+// 환불 정책 계산 유틸리티
+const calculateRefundAmount = (paymentAmount, checkInDate) => {
+  if (!paymentAmount || !checkInDate) return { amount: 0, rate: 0 }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const checkIn = new Date(checkInDate)
+  checkIn.setHours(0, 0, 0, 0)
+
+  const diffTime = checkIn.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  let rate = 0
+  if (diffDays >= 7) rate = 1.0
+  else if (diffDays >= 5) rate = 0.7
+  else if (diffDays >= 3) rate = 0.5
+  else rate = 0
+
+  return {
+    amount: Math.floor(paymentAmount * rate),
+    rate: rate * 100
+  }
+}
+
+const openRefundModal = (booking) => {
+  if (!booking) return
+
+  // 결제 완료 상태 확인
+  if (booking.paymentStatus !== 1) { // 1: PAID
+    alert('결제 완료된 건만 환불 가능합니다.')
+    return
+  }
+
+  const { amount, rate } = calculateRefundAmount(booking.finalPaymentAmount, booking.checkin)
+
+  refundModal.value = {
+    open: true,
+    booking: booking,
+    amount: amount,
+    rate: rate,
+    reason: '고객 변심',
+    memo: '',
+    isManual: false,
+    loading: false,
+    error: ''
+  }
+}
+
+const closeRefundModal = () => {
+  refundModal.value.open = false
+  refundModal.value.booking = null
+}
+
+const handleRefundSubmit = async () => {
+  const { booking, amount, reason, memo } = refundModal.value
+  if (!booking) return
+
+  refundModal.value.loading = true
+  refundModal.value.error = ''
+
+  console.log('Refund Request:', {
+    reservationId: booking.reservationId,
+    refundAmount: amount,
+    reason: reason,
+    memo: memo
+  })
+
+  const response = await refundBooking(booking.reservationId, {
+    refundAmount: amount,
+    reason: `${reason} / ${memo}`
+  })
+
+  if (response.ok) {
+    alert('환불 처리가 완료되었습니다.')
+    closeRefundModal()
+    closeDetail()
+    await loadBookings()
+  } else {
+    refundModal.value.error = response.data?.message || '환불 처리에 실패했습니다.'
+  }
+  refundModal.value.loading = false
+}
+
 const refundRateLabel = computed(() => {
-  if (refundQuoteLoading.value) return '계산 중...'
-  if (refundQuoteError.value) return '계산 불가'
-  if (!refundQuote.value) return '-'
-  const days = Number(refundQuote.value.daysBefore)
-  const dayLabel = Number.isFinite(days) ? `D-${days}` : '-'
-  return `${refundQuote.value.refundRate}% (${dayLabel})`
+  if (refundQuote.value) {
+    const days = Number(refundQuote.value.daysBefore)
+    const dayLabel = Number.isFinite(days) ? `D-${days}` : '-'
+    return `${refundQuote.value.refundRate}% (${dayLabel})`
+  }
+  // 프론트 계산 로직 사용
+  if (detailData.value) {
+    const { rate } = calculateRefundAmount(detailData.value.finalPaymentAmount, detailData.value.checkin)
+    return `${rate}% (예상)`
+  }
+  return '-'
 })
 
 const refundAmountLabel = computed(() => {
-  if (refundQuoteLoading.value) return '계산 중...'
-  if (refundQuoteError.value) return '-'
-  if (!refundQuote.value) return '-'
-  return formatCurrency(refundQuote.value.refundAmount)
+  if (refundQuote.value) {
+    return formatCurrency(refundQuote.value.refundAmount)
+  }
+  // 프론트 계산 로직 사용
+  if (detailData.value) {
+    const { amount } = calculateRefundAmount(detailData.value.finalPaymentAmount, detailData.value.checkin)
+    return formatCurrency(amount)
+  }
+  return '-'
 })
 
 const formatCurrency = (value) => {
@@ -228,9 +335,15 @@ const effectiveReservationVariant = (reservationStatus, paymentStatus) => {
 }
 
 const canChange = (item) => canChangeReservation(item ?? {})
-const canRefund = (item) => canRefundReservation(item ?? {})
+const canRefund = (item) => {
+  // 결제 완료(1) 상태일 때만 환불 가능
+  return item?.paymentStatus === 1
+}
 const changeReason = (item) => changeBlockReason(item ?? {})
-const refundReason = (item) => refundBlockReason(item ?? {})
+const refundReason = (item) => {
+  if (item?.paymentStatus !== 1) return '결제 완료 건만 환불 가능'
+  return ''
+}
 
 const getRefundStatusLabel = (status) => {
   const value = Number(status)
@@ -330,42 +443,42 @@ const getRefundStatusLabel = (status) => {
         </colgroup>
         <thead>
           <tr>
-            <th>예약번호</th>
-            <th>숙소</th>
-            <th>게스트</th>
-            <th>체크인</th>
-            <th>체크아웃</th>
-            <th>인원</th>
-            <th>금액</th>
-            <th>상태</th>
-            <th>결제</th>
-            <th>등록일</th>
-            <th>관리</th>
+            <th class="admin-align-center">예약번호</th>
+            <th class="admin-align-center">숙소</th>
+            <th class="admin-align-center">게스트</th>
+            <th class="admin-align-center">체크인</th>
+            <th class="admin-align-center">체크아웃</th>
+            <th class="admin-align-center">인원</th>
+            <th class="admin-align-right">금액</th>
+            <th class="admin-align-center">상태</th>
+            <th class="admin-align-center">결제</th>
+            <th class="admin-align-center">등록일</th>
+            <th class="admin-align-center">관리</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in filteredBookings" :key="item.reservationId">
-            <td class="admin-strong">#{{ item.reservationId }}</td>
-            <td class="admin-ellipsis" :title="item.accommodationsId">{{ item.accommodationsId }}</td>
-            <td class="admin-ellipsis" :title="item.userId">{{ item.userId }}</td>
-            <td>{{ formatDate(item.checkin) }}</td>
-            <td>{{ formatDate(item.checkout) }}</td>
-            <td class="admin-nowrap">-</td>
+            <td class="admin-strong admin-align-center">#{{ item.reservationId }}</td>
+            <td class="admin-ellipsis admin-align-center" :title="item.accommodationsId">{{ item.accommodationsId }}</td>
+            <td class="admin-ellipsis admin-align-center" :title="item.userId">{{ item.userId }}</td>
+            <td class="admin-align-center">{{ formatDate(item.checkin) }}</td>
+            <td class="admin-align-center">{{ formatDate(item.checkout) }}</td>
+            <td class="admin-nowrap admin-align-center">{{ item.guestCount ?? '-' }}명</td>
             <td class="admin-align-right">{{ formatCurrency(item.finalPaymentAmount) }}</td>
-            <td>
+            <td class="admin-align-center">
               <AdminBadge
                 :text="effectiveReservationLabel(item.reservationStatus, item.paymentStatus)"
                 :variant="effectiveReservationVariant(item.reservationStatus, item.paymentStatus)"
               />
             </td>
-            <td>
+            <td class="admin-align-center">
               <AdminBadge
                 :text="getPaymentStatusLabel(item.paymentStatus)"
                 :variant="getPaymentStatusVariant(item.paymentStatus)"
               />
             </td>
-            <td>{{ formatDate(item.createdAt) }}</td>
-            <td>
+            <td class="admin-align-center">{{ formatDate(item.createdAt) }}</td>
+            <td class="admin-align-center">
               <div class="admin-inline-actions admin-inline-actions--nowrap">
                 <button class="admin-btn admin-btn--ghost" type="button" @click="openDetail(item)">상세</button>
                 <button
@@ -381,6 +494,7 @@ const getRefundStatusLabel = (status) => {
                   type="button"
                   :disabled="!canRefund(item)"
                   :title="refundReason(item)"
+                  @click="openRefundModal(item)"
                 >
                   환불
                 </button>
@@ -406,6 +520,7 @@ const getRefundStatusLabel = (status) => {
       </div>
     </AdminTableCard>
 
+    <!-- 상세 모달 -->
     <div v-if="detailOpen" class="admin-modal">
       <div class="admin-modal__backdrop" @click="closeDetail" />
       <div class="admin-modal__panel" role="dialog" aria-modal="true">
@@ -432,10 +547,11 @@ const getRefundStatusLabel = (status) => {
               <div><span>게스트 연락처</span><strong>{{ detailData?.guestPhone ?? '-' }}</strong></div>
               <div><span>체크인</span><strong>{{ formatDate(detailData?.checkin) }}</strong></div>
               <div><span>체크아웃</span><strong>{{ formatDate(detailData?.checkout) }}</strong></div>
-              <div><span>인원</span><strong>{{ detailData?.guestCount ?? '-' }}</strong></div>
+              <div><span>인원</span><strong>{{ detailData?.guestCount ?? '-' }}명</strong></div>
               <div><span>금액</span><strong>{{ formatCurrency(detailData?.finalPaymentAmount) }}</strong></div>
               <div><span>예약 상태</span><strong>{{ effectiveReservationLabel(detailData?.reservationStatus, detailData?.paymentStatus) }}</strong></div>
               <div><span>결제 상태</span><strong>{{ getPaymentStatusLabel(detailData?.paymentStatus) }}</strong></div>
+              <div><span>결제 수단</span><strong>{{ detailData?.paymentMethod ?? '-' }}</strong></div>
               <div><span>결제 금액</span><strong>{{ formatCurrency(detailData?.approvedAmount ?? detailData?.finalPaymentAmount) }}</strong></div>
               <div><span>결제일시</span><strong>{{ formatDate(detailData?.approvedAt) }}</strong></div>
               <div><span>환불율</span><strong>{{ refundRateLabel }}</strong></div>
@@ -457,7 +573,85 @@ const getRefundStatusLabel = (status) => {
 
         <div class="admin-modal__actions" v-if="!detailLoading">
           <button class="admin-btn admin-btn--muted" type="button" :disabled="!canChange(detailData)">변경</button>
-          <button class="admin-btn admin-btn--danger" type="button" :disabled="!canRefund(detailData)">환불</button>
+          <button
+            class="admin-btn admin-btn--danger"
+            type="button"
+            :disabled="!canRefund(detailData)"
+            @click="openRefundModal(detailData)"
+          >
+            환불
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 환불 모달 -->
+    <div v-if="refundModal.open" class="admin-modal">
+      <div class="admin-modal__backdrop" @click="closeRefundModal" />
+      <div class="admin-modal__panel" role="dialog" aria-modal="true">
+        <div class="admin-modal__header">
+          <div>
+            <p class="admin-modal__eyebrow">환불 처리</p>
+            <h2 class="admin-modal__title">환불 정보를 입력해주세요</h2>
+          </div>
+          <button class="admin-btn admin-btn--ghost" type="button" :disabled="refundModal.loading" @click="closeRefundModal">닫기</button>
+        </div>
+
+        <div class="admin-modal__body">
+          <div class="admin-detail-grid">
+            <div><span>예약번호</span><strong>#{{ refundModal.booking?.reservationId }}</strong></div>
+            <div><span>결제금액</span><strong>{{ formatCurrency(refundModal.booking?.finalPaymentAmount) }}</strong></div>
+            <div><span>정책 환불율</span><strong>{{ refundModal.rate }}%</strong></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">환불 금액</label>
+            <div class="refund-amount-input">
+              <input
+                type="number"
+                v-model="refundModal.amount"
+                class="admin-input"
+                :disabled="!refundModal.isManual || refundModal.loading"
+              />
+              <div class="refund-options">
+                <label>
+                  <input type="checkbox" v-model="refundModal.isManual"> 수동 입력 (강제 환불)
+                </label>
+              </div>
+            </div>
+            <p class="form-hint">정책 계산 금액: {{ formatCurrency(Math.floor(refundModal.booking?.finalPaymentAmount * (refundModal.rate / 100))) }}</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">환불 사유</label>
+            <select v-model="refundModal.reason" class="admin-select" :disabled="refundModal.loading">
+              <option value="고객 변심">고객 변심</option>
+              <option value="중복 예약">중복 예약</option>
+              <option value="업체 사정">업체 사정</option>
+              <option value="천재지변">천재지변</option>
+              <option value="기타">기타</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">관리자 메모</label>
+            <textarea
+              v-model="refundModal.memo"
+              class="admin-input"
+              rows="3"
+              placeholder="상세 사유를 입력하세요 (Audit Log 기록용)"
+              :disabled="refundModal.loading"
+            ></textarea>
+          </div>
+
+          <div v-if="refundModal.error" class="admin-status error">{{ refundModal.error }}</div>
+        </div>
+
+        <div class="admin-modal__actions">
+          <button class="admin-btn admin-btn--ghost" type="button" :disabled="refundModal.loading" @click="closeRefundModal">취소</button>
+          <button class="admin-btn admin-btn--danger" type="button" :disabled="refundModal.loading" @click="handleRefundSubmit">
+            {{ refundModal.loading ? '처리 중...' : '환불 실행' }}
+          </button>
         </div>
       </div>
     </div>
@@ -497,6 +691,10 @@ const getRefundStatusLabel = (status) => {
   color: var(--text-sub, #6b7280);
   font-weight: 700;
   margin-top: 12px;
+}
+
+.admin-status.error {
+  color: #e11d48;
 }
 
 .admin-pagination {
@@ -688,7 +886,7 @@ const getRefundStatusLabel = (status) => {
 }
 
 .booking-table th {
-  text-align: left;
+  text-align: center;
 }
 
 .admin-table--stretch {
@@ -708,6 +906,39 @@ const getRefundStatusLabel = (status) => {
 
 .admin-align-right {
   text-align: right;
+}
+
+.admin-align-center {
+  text-align: center;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  font-weight: 700;
+  color: #1f2937;
+  font-size: 0.9rem;
+}
+
+.form-hint {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.refund-amount-input {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.refund-options {
+  font-size: 0.9rem;
+  color: #4b5563;
 }
 
 @media (max-width: 768px) {

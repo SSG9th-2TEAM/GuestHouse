@@ -8,6 +8,7 @@ public record AdminBookingSummary(
         Long userId,
         LocalDateTime checkin,
         LocalDateTime checkout,
+        Integer guestCount,
         Integer reservationStatus,
         Integer paymentStatus,
         Integer finalPaymentAmount,

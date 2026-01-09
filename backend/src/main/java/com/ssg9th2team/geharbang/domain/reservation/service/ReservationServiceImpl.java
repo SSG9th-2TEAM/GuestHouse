@@ -93,7 +93,7 @@ public class ReservationServiceImpl implements ReservationService {
                 if (requestDto.guestCount() > remainingCapacity) {
                         throw new IllegalStateException(
                                         "정원 초과: 해당 날짜의 남은 정원은 " + remainingCapacity + "명입니다. (최대 정원: " + maxGuests
-                                                        + "명) 미결제 예약은 30분 후 자동 취소됩니다. 대기 목록에 등록하시면 빈자리 발생 시 이메일로 알려드립니다.");
+                                                        + "명) 미결제 예약은 10분 후 자동 취소됩니다. 대기 목록에 등록하시면 빈자리 발생 시 이메일로 알려드립니다.");
                 }
 
                 // 숙박 박수 계산
@@ -301,8 +301,8 @@ public class ReservationServiceImpl implements ReservationService {
         @Override
         @Transactional
         public int cleanupOldPendingReservations() {
-                // 30분 전 시간 계산
-                java.time.LocalDateTime cutoffTime = java.time.LocalDateTime.now().minusMinutes(30);
+                // 10분 전 시간 계산
+                java.time.LocalDateTime cutoffTime = java.time.LocalDateTime.now().minusMinutes(10);
 
                 // 삭제 대상 조회
                 List<Reservation> toBeDeleted = reservationRepository.findOldPendingReservations(cutoffTime);

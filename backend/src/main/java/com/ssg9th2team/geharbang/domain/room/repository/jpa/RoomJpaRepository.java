@@ -46,6 +46,8 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
         List<AccommodationGuestStats> findMaxGuestsByAccommodationIds(
                         @Param("accommodationIds") List<Long> accommodationIds);
 
+        List<Room> findByAccommodationsId(Long accommodationsId);
+
         /**
          * 특정 숙소의 예약 가능한 객실 ID 목록 조회
          * - 활성 상태 객실만 (room_status = 1)
@@ -98,6 +100,3 @@ public interface RoomJpaRepository extends JpaRepository<Room, Long> {
                 @Param("guestCount") Integer guestCount
         );
 }
-
-
-

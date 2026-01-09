@@ -3,6 +3,7 @@ package com.ssg9th2team.geharbang.domain.admin.service;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminBookingDetail;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminBookingSummary;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
+import com.ssg9th2team.geharbang.domain.admin.log.AdminLogConstants;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
@@ -11,10 +12,12 @@ import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
 import com.ssg9th2team.geharbang.domain.payment.entity.PaymentRefund;
 import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
 import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository;
+import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
@@ -22,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +36,8 @@ public class AdminBookingService {
     private final UserRepository userRepository;
     private final PaymentJpaRepository paymentRepository;
     private final PaymentRefundJpaRepository refundRepository;
+    private final AdminLogService adminLogService;
+    private final PaymentService paymentService;
 
     public AdminPageResponse<AdminBookingSummary> getBookings(
             String status,
@@ -61,6 +67,26 @@ public class AdminBookingService {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Reservation not found"));
         return toDetail(reservation);
+    }
+
+    @Transactional
+    public void processRefund(Long adminUserId, Long reservationId, Integer refundAmount, String reason) {
+        // 실제 PG사 환불 요청 (PaymentService 호출)
+        paymentService.adminRefundPayment(reservationId, reason, refundAmount);
+
+        // 로그 기록
+        Map<String, Object> metadata = Map.of(
+                "refundAmount", refundAmount,
+                "reason", reason
+        );
+        adminLogService.writeLog(
+                adminUserId,
+                AdminLogConstants.TARGET_RESERVATION,
+                reservationId,
+                AdminLogConstants.ACTION_REFUND,
+                reason,
+                metadata
+        );
     }
 
     private Sort resolveSort(String sort) {
@@ -110,6 +136,7 @@ public class AdminBookingService {
                 reservation.getUserId(),
                 reservation.getCheckin(),
                 reservation.getCheckout(),
+                reservation.getGuestCount(),
                 reservation.getReservationStatus(),
                 reservation.getPaymentStatus(),
                 reservation.getFinalPaymentAmount(),
@@ -168,6 +195,7 @@ public class AdminBookingService {
                 payment != null ? payment.getId() : null,
                 payment != null ? payment.getOrderId() : null,
                 payment != null ? payment.getPgPaymentKey() : null,
+                payment != null ? payment.getPaymentMethod() : null,
                 payment != null ? payment.getApprovedAmount() : null,
                 payment != null ? payment.getApprovedAt() : null,
                 refund != null ? refund.getRefundStatus() : null,

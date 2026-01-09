@@ -28,10 +28,12 @@ public class AdminLogController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String actionType,
+            @RequestParam(required = false) String targetType,
+            @RequestParam(required = false) Long targetIdExact,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return adminLogService.getLogs(startDate, endDate, actionType, keyword, page, size, MAX_SIZE);
+        return adminLogService.getLogs(startDate, endDate, actionType, targetType, targetIdExact, keyword, page, size, MAX_SIZE);
     }
 }
