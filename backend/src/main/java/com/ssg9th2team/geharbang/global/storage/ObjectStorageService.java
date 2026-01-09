@@ -1,6 +1,8 @@
 package com.ssg9th2team.geharbang.global.storage;
 
+import com.ssg9th2team.geharbang.global.image.ImageResizeProcessor;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -16,10 +18,13 @@ import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 
 import java.net.URI;
 import java.util.Base64;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ObjectStorageService {
 
     @Value("${ncloud.storage.endpoint:}")
@@ -36,6 +41,18 @@ public class ObjectStorageService {
 
     @Value("${ncloud.storage.secret-key:}")
     private String secretKey;
+
+    private static final int DISPLAY_MAX_WIDTH = 1600;
+    private static final int DISPLAY_MAX_HEIGHT = 1600;
+    private static final Set<String> RESIZE_TARGET_FOLDERS = Set.of("accommodations", "rooms");
+    private static final Map<String, String> CONTENT_TYPES = Map.of(
+            "jpg", "image/jpeg",
+            "png", "image/png",
+            "gif", "image/gif",
+            "webp", "image/webp"
+    );
+
+    private final ImageResizeProcessor imageResizeProcessor;
 
     private S3Client s3Client;
 
@@ -87,14 +104,19 @@ public class ObjectStorageService {
 
             byte[] imageBytes = Base64.getDecoder().decode(data);
 
-            // 확장자 결정
-            String extension = "jpg";
-            if (header.contains("png")) {
-                extension = "png";
-            } else if (header.contains("gif")) {
-                extension = "gif";
-            } else if (header.contains("webp")) {
-                extension = "webp";
+            String detectedExtension = detectExtension(header);
+            String normalizedExtension = normalizeExtension(detectedExtension);
+            if (shouldResize(folder) && normalizedExtension != null) {
+                imageBytes = imageResizeProcessor.resizeKeepingFormat(
+                        imageBytes,
+                        normalizedExtension,
+                        DISPLAY_MAX_WIDTH,
+                        DISPLAY_MAX_HEIGHT
+                );
+            }
+            String extension = normalizedExtension != null ? normalizedExtension : detectedExtension;
+            if (extension == null) {
+                extension = "jpg";
             }
             log.info("Detected extension: {}", extension);
 
@@ -102,7 +124,7 @@ public class ObjectStorageService {
             String fileName = folder + "/" + UUID.randomUUID() + "." + extension;
 
             // Content-Type 결정
-            String contentType = "image/" + extension;
+            String contentType = CONTENT_TYPES.getOrDefault(extension, "image/jpeg");
 
             // S3에 업로드
             PutObjectRequest putRequest = PutObjectRequest.builder()
@@ -154,5 +176,44 @@ public class ObjectStorageService {
         } catch (Exception e) {
             log.error("Failed to delete image: {}", imageUrl, e);
         }
+    }
+
+    private boolean shouldResize(String folder) {
+        if (folder == null) {
+            return false;
+        }
+        return RESIZE_TARGET_FOLDERS.contains(folder.toLowerCase());
+    }
+
+    private String detectExtension(String header) {
+        if (header == null) {
+            return null;
+        }
+        String lower = header.toLowerCase();
+        if (lower.contains("png")) {
+            return "png";
+        }
+        if (lower.contains("gif")) {
+            return "gif";
+        }
+        if (lower.contains("webp")) {
+            return "webp";
+        }
+        if (lower.contains("jpeg")) {
+            return "jpg";
+        }
+        return "jpg";
+    }
+
+    private String normalizeExtension(String extension) {
+        if (extension == null) {
+            return null;
+        }
+        return switch (extension.toLowerCase()) {
+            case "jpg", "jpeg" -> "jpg";
+            case "png" -> "png";
+            case "gif" -> "gif";
+            default -> null;
+        };
     }
 }

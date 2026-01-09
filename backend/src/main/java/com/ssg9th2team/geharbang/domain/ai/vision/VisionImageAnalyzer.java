@@ -10,6 +10,7 @@ import com.google.cloud.vision.v1.ImageAnnotatorClient;
 import com.google.cloud.vision.v1.ImageAnnotatorSettings;
 import com.google.protobuf.ByteString;
 import com.ssg9th2team.geharbang.domain.ai.vision.dto.VisionLabel;
+import com.ssg9th2team.geharbang.global.image.ImageResizeProcessor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,11 +19,6 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
-import javax.imageio.ImageIO;
-import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -38,8 +34,12 @@ public class VisionImageAnalyzer {
     @Value("${google.cloud.credentials.location:}")
     private Resource credentialsResource;
 
+    private final ImageResizeProcessor imageResizeProcessor;
+
     private ImageAnnotatorSettings visionSettings;
     private boolean enabled = false;
+    private static final int MAX_IMAGE_WIDTH = 1024;
+    private static final int MAX_IMAGE_HEIGHT = 1024;
 
     @PostConstruct
     public void init() {
@@ -139,9 +139,6 @@ public class VisionImageAnalyzer {
         }
     }
 
-    private static final int MAX_IMAGE_WIDTH = 1024;
-    private static final int MAX_IMAGE_HEIGHT = 1024;
-
     private byte[] decode(String base64Image) {
         if (base64Image == null || base64Image.isBlank()) return new byte[0];
         try {
@@ -150,51 +147,10 @@ public class VisionImageAnalyzer {
                 data = data.substring(data.indexOf(",") + 1);
             }
             byte[] rawBytes = Base64.getDecoder().decode(data);
-            return resizeIfNeeded(rawBytes);
+            return imageResizeProcessor.resizeToJpeg(rawBytes, MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT);
         } catch (IllegalArgumentException ex) {
             log.warn("Failed to decode base64 image: {}", ex.getMessage());
             return new byte[0];
-        }
-    }
-
-    private byte[] resizeIfNeeded(byte[] imageBytes) {
-        try {
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
-            BufferedImage originalImage = ImageIO.read(inputStream);
-            if (originalImage == null) {
-                log.warn("Failed to read image for resizing");
-                return imageBytes;
-            }
-
-            int originalWidth = originalImage.getWidth();
-            int originalHeight = originalImage.getHeight();
-
-            if (originalWidth <= MAX_IMAGE_WIDTH && originalHeight <= MAX_IMAGE_HEIGHT) {
-                return imageBytes;
-            }
-
-            double scaleX = (double) MAX_IMAGE_WIDTH / originalWidth;
-            double scaleY = (double) MAX_IMAGE_HEIGHT / originalHeight;
-            double scale = Math.min(scaleX, scaleY);
-
-            int newWidth = (int) (originalWidth * scale);
-            int newHeight = (int) (originalHeight * scale);
-
-            BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
-            Graphics2D g2d = resizedImage.createGraphics();
-            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2d.drawImage(originalImage, 0, 0, newWidth, newHeight, null);
-            g2d.dispose();
-
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(resizedImage, "jpg", outputStream);
-            log.debug("Image resized from {}x{} to {}x{}", originalWidth, originalHeight, newWidth, newHeight);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            log.warn("Image resize failed, using original: {}", e.getMessage());
-            return imageBytes;
         }
     }
 

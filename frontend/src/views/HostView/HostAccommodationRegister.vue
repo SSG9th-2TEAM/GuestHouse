@@ -3,6 +3,7 @@ import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getAccessToken, getCurrentUser, saveUserInfo } from '../../api/authClient'
 import { requestAccommodationAiSuggestion } from '@/api/ai'
+import { resizeImage } from '@/utils/imageUtils'
 
 const router = useRouter()
 const emit = defineEmits(['cancel', 'submit'])
@@ -1174,6 +1175,72 @@ onMounted(() => {
       <section class="form-section">
         <h2 class="section-title">숙소 등록</h2>
         <p class="section-desc">숙소의 기본 정보를 입력해주세요.</p>
+
+
+    <!-- Image & AI Section -->
+    <div class="image-ai-container">
+      <!-- Section: Images (Restructured) -->
+      <section class="form-section image-section">
+        <h3 class="subsection-title">숙소 이미지 <span class="required">*</span></h3>
+        <p class="section-desc">멋진 숙소 사진을 올려주세요. AI가 사진을 분석해 소개글을 만들어드려요.</p>
+
+        <div class="image-grid-layout">
+          <!-- Banner Image (Large) -->
+          <div class="banner-upload-area" :class="{ 'has-error': errors.bannerImage }">
+            <div v-if="form.bannerImage" class="banner-preview-wrapper">
+              <img :src="form.bannerImage" class="banner-preview" />
+              <button type="button" class="remove-btn" @click="handleRemoveBanner">
+                <i class="fas fa-times"></i>
+              </button>
+              <span class="badge-banner">대표 이미지</span>
+            </div>
+            <label v-else class="upload-placeholder banner-placeholder">
+              <input type="file" accept="image/*" @change="handleBannerUpload" hidden />
+              <div class="placeholder-content">
+                <span class="icon">📷</span>
+                <span class="text">대표 이미지 업로드</span>
+                <span class="sub-text">1920x600 권장</span>
+              </div>
+            </label>
+          </div>
+
+          <!-- Detail Images (Grid) -->
+          <div class="detail-upload-grid">
+            <div v-for="(img, idx) in form.detailImages" :key="idx" class="detail-image-item">
+              <img :src="img" />
+              <button type="button" class="remove-btn" @click="removeDetailImage(idx)">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <label v-if="form.detailImages.length < 5" class="upload-placeholder detail-placeholder">
+              <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" hidden />
+              <div class="placeholder-content">
+                <span class="icon">＋</span>
+                <span class="text">추가</span>
+              </div>
+            </label>
+          </div>
+        </div>
+        <span v-if="errors.bannerImage" class="error-text">{{ errors.bannerImage }}</span>
+      </section>
+
+      <!-- AI Suggestion Button (Clean & Simple) -->
+      <div class="ai-action-area">
+        <button 
+          type="button" 
+          class="ai-magic-btn" 
+          @click="applyAiSuggestion" 
+          :disabled="isAiSuggesting"
+          :class="{ 'is-loading': isAiSuggesting }"
+        >
+          <span class="icon">✨</span>
+          <span class="label">{{ isAiSuggesting ? 'AI가 분석중...' : 'AI로 소개글 완성하기' }}</span>
+        </button>
+        <p class="ai-hint">이미지를 올리고 버튼을 누르면 제목과 소개를 자동으로 작성해드려요.</p>
+      </div>
+    </div>
+
         
         <h3 class="subsection-title">기본정보</h3>
         
@@ -1402,48 +1469,6 @@ onMounted(() => {
             <span class="amenity-label">{{ amenity.label }}</span>
           </label>
         </div>
-      </section>
-
-      <!-- Section: 이미지 업로드 -->
-      <section class="form-section">
-        <h3 class="subsection-title">이미지</h3>
-
-        <div class="form-group">
-          <label>배너 이미지 <span class="required">*</span></label>
-          <div class="upload-box" :class="{ 'upload-error': errors.bannerImage }">
-            <div class="upload-placeholder" v-if="!form.bannerImage">
-              <span class="upload-text">드래그하거나 클릭해 배너 이미지 추가</span>
-              <span class="upload-info">JPG, PNG, HEIC / 최대 20MB</span>
-              <span class="upload-hint">권장 크기: 1920x600px</span>
-            </div>
-            <img v-else :src="form.bannerImage" class="banner-preview" />
-            <input type="file" accept="image/*" @change="handleBannerUpload" />
-          </div>
-          <span v-if="errors.bannerImage" class="error-message">{{ errors.bannerImage }}</span>
-        </div>
-        
-          <div class="form-group">
-            <label>숙소 상세 이미지 (최대 5장) <span class="required">*</span></label>
-            <div class="detail-images-container">
-               <div class="detail-images-preview">
-                  <div v-for="(img, idx) in form.detailImages" :key="idx" class="detail-image-item">
-                     <img :src="img" />
-                     <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)">✕</button>
-                  </div>
-                  <label v-if="form.detailImages.length < 5" class="add-detail-image">
-                     <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" />
-                     <span>+</span>
-                  </label>
-               </div>
-            </div>
-          </div>
-
-          <div class="ai-helper">
-            <button type="button" class="ai-suggest-btn" @click="applyAiSuggestion" :disabled="isAiSuggesting">
-              {{ isAiSuggesting ? 'AI 추천 생성 중...' : 'AI로 숙소 소개 받기' }}
-            </button>
-            <p class="ai-helper-note">업로드한 이미지를 분석해 숙소명과 소개문을 추천해드려요.</p>
-          </div>
       </section>
 
       <!-- Section: 검색 최적화 정보 -->
@@ -2945,77 +2970,188 @@ input[type="number"]:focus {
   display: none;
 }
 
-.remove-image-btn {
+/* Image AI Layout */
+.image-ai-container {
+  margin-bottom: 2rem;
+}
+
+.image-grid-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+  .image-grid-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Banner Area */
+.banner-upload-area {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  transition: all 0.2s;
+}
+
+.banner-upload-area:hover {
+  border-color: #94a3b8;
+  background-color: #f1f5f9;
+}
+
+.banner-upload-area.has-error {
+  border-color: #ef4444;
+}
+
+.banner-preview-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.banner-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.badge-banner {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.5);
+  top: 12px;
+  left: 12px;
+  background: rgba(0,0,0,0.6);
   color: white;
-  border: none;
-  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* Detail Grid */
+.detail-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 10px;
+  height: 100%;
+}
+
+.detail-image-item {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1; /* Square */
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.detail-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Placeholders */
+.upload-placeholder {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
-  padding: 0;
-  line-height: 1;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  color: #64748b;
 }
-</style>
 
-.ai-helper {
-  margin: 1.5rem 0;
-  padding: 1.25rem;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  border-radius: 16px;
-  border: 1px solid #bae6fd;
+.banner-placeholder {
+  height: 100%;
+}
+
+.detail-placeholder {
+  background-color: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  aspect-ratio: 1;
+  transition: all 0.2s;
+}
+
+.detail-placeholder:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.placeholder-content {
+  text-align: center;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 4px;
 }
 
-.ai-suggest-btn {
+.placeholder-content .icon {
+  font-size: 1.5rem;
+  margin-bottom: 4px;
+}
+
+.placeholder-content .text {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.placeholder-content .sub-text {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+/* AI Action Area */
+.ai-action-area {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ai-magic-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: none;
-  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); /* Indigo theme */
   color: white;
-  padding: 12px 24px;
+  border: none;
+  padding: 12px 20px;
   border-radius: 12px;
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
-  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.ai-suggest-btn::before {
-  content: '\2728';
-  font-size: 1.1rem;
-}
-
-.ai-suggest-btn:hover:not(:disabled) {
+.ai-magic-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.45);
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
 }
 
-.ai-suggest-btn:active:not(:disabled) {
-  transform: translateY(0);
+.ai-magic-btn:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
-.ai-suggest-btn:disabled {
+.ai-magic-btn:disabled {
   opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
+  cursor: wait;
 }
 
-.ai-helper-note {
-  margin: 0;
-  color: #0369a1;
-  font-size: 0.9rem;
-  line-height: 1.5;
+.ai-hint {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-left: 4px;
 }
+
+</style>

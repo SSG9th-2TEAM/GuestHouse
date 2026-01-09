@@ -61,17 +61,7 @@ public class GeminiTextClient {
         }
         try {
             Map<String, Object> generationConfig = Map.of(
-                    "temperature", 0.5,
-                    "responseMimeType", "application/json",
-                    "responseSchema", Map.of(
-                            "type", "OBJECT",
-                            "properties", Map.of(
-                                    "name", Map.of("type", "STRING"),
-                                    "description", Map.of("type", "STRING"),
-                                    "confidence", Map.of("type", "NUMBER")
-                            ),
-                            "required", List.of("name", "description")
-                    )
+                    "temperature", 0.5
             );
 
             Map<String, Object> body = Map.of(
@@ -119,7 +109,8 @@ public class GeminiTextClient {
         if (contentNode.isMissingNode()) {
             throw new IllegalStateException("Gemini response missing content");
         }
-        SuggestionPayload payload = objectMapper.readValue(contentNode.asText(), SuggestionPayload.class);
+        String payloadText = extractJsonPayload(contentNode.asText());
+        SuggestionPayload payload = objectMapper.readValue(payloadText, SuggestionPayload.class);
         JsonNode usageNode = root.path("usageMetadata");
         long promptTokens = usageNode.path("promptTokenCount").asLong(0);
         long completionTokens = usageNode.path("candidatesTokenCount").asLong(0);
@@ -132,6 +123,21 @@ public class GeminiTextClient {
                 new TokenUsage(promptTokens, completionTokens, totalTokens),
                 ZonedDateTime.now(KST).toString()
         );
+    }
+
+    private String extractJsonPayload(String responseText) {
+        if (responseText == null) {
+            throw new IllegalStateException("Gemini response text is null");
+        }
+        String trimmed = responseText.trim();
+        if (trimmed.startsWith("```")) {
+            int start = trimmed.indexOf('{');
+            int end = trimmed.lastIndexOf('}');
+            if (start >= 0 && end > start) {
+                return trimmed.substring(start, end + 1);
+            }
+        }
+        return trimmed;
     }
 
     @Getter
