@@ -7,8 +7,52 @@ import { fetchThemes, fetchUserThemes } from '@/api/theme'
 import { fetchList, fetchListBulk } from '@/api/list'
 import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
 import { isAuthenticated, getUserId } from '@/api/authClient'
-import { fetchRecommendations } from '@/api/recommendation'
+import { fetchRecommendations, fetchAiRecommendations } from '@/api/recommendation'
 import { useSearchStore } from '@/stores/search'
+
+// AI 추천 관련
+const aiSearchQuery = ref('')
+const aiRecommendations = ref([])
+const aiAnalysis = ref(null)
+const isAiLoading = ref(false)
+const aiError = ref('')
+
+const handleAiSearch = async () => {
+  if (!aiSearchQuery.value.trim()) return
+  
+  isAiLoading.value = true
+  aiError.value = ''
+  aiRecommendations.value = []
+  aiAnalysis.value = null
+  
+  try {
+    const response = await fetchAiRecommendations(aiSearchQuery.value)
+    if (response.ok && response.data) {
+      aiAnalysis.value = {
+        themes: response.data.matchedThemes || [],
+        reasoning: response.data.reasoning || '',
+        confidence: response.data.confidence || 0
+      }
+      aiRecommendations.value = (response.data.accommodations || []).map(acc => ({
+        id: acc.accommodationsId,
+        title: acc.accommodationsName,
+        description: '',
+        rating: acc.rating,
+        reviewCount: acc.reviewCount,
+        location: [acc.city, acc.district].filter(Boolean).join(' '),
+        price: 0,
+        imageUrl: acc.thumbnailUrl || 'https://placehold.co/400x300'
+      }))
+    } else {
+      aiError.value = '추천 결과를 불러오지 못했습니다.'
+    }
+  } catch (e) {
+    console.error('AI Recommendation failed:', e)
+    aiError.value = 'AI 추천 중 오류가 발생했습니다.'
+  } finally {
+    isAiLoading.value = false
+  }
+}
 
 const router = useRouter()
 const sections = ref([])
@@ -221,6 +265,66 @@ onMounted(() => {
         <h1 class="banner-title">지금, 이곳</h1>
       </div>
     </div>
+
+    <!-- AI 자연어 추천 검색 섹션 -->
+    <section class="ai-search-section">
+      <div class="ai-search-header">
+        <h2 class="ai-search-title">🤖 AI에게 추천받기</h2>
+        <p class="ai-search-subtitle">원하는 여행 스타일을 자유롭게 입력해보세요!</p>
+      </div>
+      <div class="ai-search-input-wrapper">
+        <input
+          v-model="aiSearchQuery"
+          type="text"
+          class="ai-search-input"
+          placeholder="예: 조용한 곳에서 풍경 보면서 힐링하고 싶어"
+          @keydown.enter="handleAiSearch"
+          :disabled="isAiLoading"
+        />
+        <button
+          class="ai-search-button"
+          @click="handleAiSearch"
+          :disabled="isAiLoading || !aiSearchQuery.trim()"
+        >
+          <span v-if="isAiLoading" class="loading-spinner"></span>
+          <span v-else>✨ 추천받기</span>
+        </button>
+      </div>
+      
+      <!-- AI 분석 결과 -->
+      <div v-if="aiAnalysis" class="ai-result-info">
+        <div class="ai-themes">
+          <span class="ai-theme-label">분석된 테마:</span>
+          <span v-for="theme in aiAnalysis.themes" :key="theme" class="ai-theme-tag">{{ theme }}</span>
+        </div>
+        <p v-if="aiAnalysis.reasoning" class="ai-reasoning">💡 {{ aiAnalysis.reasoning }}</p>
+      </div>
+      
+      <!-- AI 추천 결과 -->
+      <div v-if="aiRecommendations.length > 0" class="ai-recommendations">
+        <div class="row-scroll">
+          <GuesthouseCard 
+            v-for="item in aiRecommendations" 
+            :key="item.id"
+            :id="item.id"
+            :title="item.title"
+            :description="item.description"
+            :rating="item.rating"
+            :review-count="item.reviewCount"
+            :location="item.location"
+            :price="item.price"
+            :image-url="item.imageUrl"
+            :is-favorite="wishlistIds.has(item.id)"
+            @toggle-favorite="toggleWishlist"
+            @click="router.push(`/room/${item.id}`)"
+            class="row-card"
+          />
+        </div>
+      </div>
+      
+      <!-- 에러 메시지 -->
+      <div v-if="aiError" class="ai-error">{{ aiError }}</div>
+    </section>
 
     <!-- 맞춤 추천 섹션 (로그인 사용자만) -->
     <section v-if="recommendations.length > 0" class="theme-section recommendation-section">
@@ -558,4 +662,147 @@ onMounted(() => {
     transform: translateX(100%);
   }
 }
+
+/* AI 검색 섹션 스타일 */
+.ai-search-section {
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  padding: 1.5rem;
+  border-radius: 16px;
+  margin-bottom: 2rem;
+}
+
+.ai-search-header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.ai-search-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0369a1;
+  margin: 0 0 0.5rem;
+}
+
+.ai-search-subtitle {
+  font-size: 0.95rem;
+  color: #0c4a6e;
+  margin: 0;
+}
+
+.ai-search-input-wrapper {
+  display: flex;
+  gap: 0.75rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.ai-search-input {
+  flex: 1;
+  padding: 1rem 1.25rem;
+  font-size: 1rem;
+  border: 2px solid #7dd3fc;
+  border-radius: 50px;
+  background: white;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ai-search-input:focus {
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+}
+
+.ai-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.ai-search-button {
+  padding: 1rem 2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
+  background: linear-gradient(135deg, #0ea5e9, #0369a1);
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  white-space: nowrap;
+}
+
+.ai-search-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
+}
+
+.ai-search-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ai-result-info {
+  max-width: 800px;
+  margin: 1rem auto 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+}
+
+.ai-themes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.ai-theme-label {
+  font-weight: 600;
+  color: #0369a1;
+}
+
+.ai-theme-tag {
+  padding: 0.25rem 0.75rem;
+  background: #0ea5e9;
+  color: white;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ai-reasoning {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.ai-recommendations {
+  margin-top: 1.5rem;
+}
+
+.ai-error {
+  max-width: 800px;
+  margin: 1rem auto 0;
+  padding: 1rem;
+  background: #fef2f2;
+  color: #dc2626;
+  border-radius: 8px;
+  text-align: center;
+}
 </style>
+
