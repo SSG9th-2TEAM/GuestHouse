@@ -250,7 +250,12 @@ public class AiRecommendationService {
         prompt.append("반드시 아래 JSON 형식으로만 응답하세요:\n");
         prompt.append(
                 "{\"themes\": [\"THEME1\"], \"keywords\": [\"키워드1\", \"키워드2\"], \"confidence\": 0.85, \"reasoning\": \"분석 이유\"}\n");
-        prompt.append("themes: 1~2개, keywords: 1~3개 (짧게)");
+        prompt.append("themes: 1~2개, keywords: 1~3개 (짧게)\n");
+        prompt.append("예시:\n");
+        prompt.append("- \"술 마시고 놀고 싶어\" -> themes: [\"PARTY\", \"FOOD\"], keywords: [\"파티\", \"술\", \"안주\"]\n");
+        prompt.append(
+                "- \"헌팅하고 새로운 사람 만나고 싶어\" -> themes: [\"MEETING\", \"PARTY\"], keywords: [\"헌팅\", \"만남\", \"게스트하우스\"]\n");
+        prompt.append("- \"조용히 쉬고 싶어\" -> themes: [\"VIBE\", \"NATURE\"], keywords: [\"조용\", \"휴식\", \"힐링\"]");
         return prompt.toString();
     }
 
@@ -313,8 +318,8 @@ public class AiRecommendationService {
                 "NATURE", List.of("자연", "산", "숲", "풍경", "경치", "바다", "해변"),
                 "VIBE", List.of("조용", "힐링", "분위기", "로맨틱", "감성"),
                 "ACTIVITY", List.of("스포츠", "레저", "서핑", "등산"),
-                "PARTY", List.of("파티", "모임", "축제"),
-                "MEETING", List.of("커플", "친구", "가족"),
+                "PARTY", List.of("파티", "모임", "축제", "술", "주점", "클럽", "포차"),
+                "MEETING", List.of("커플", "친구", "가족", "헌팅", "만남", "이성", "짝", "새로운 사람"),
                 "PERSONA", List.of("반려동물", "펫", "강아지"),
                 "FACILITY", List.of("수영장", "바베큐", "온천"),
                 "FOOD", List.of("맛집", "조식", "음식"),
