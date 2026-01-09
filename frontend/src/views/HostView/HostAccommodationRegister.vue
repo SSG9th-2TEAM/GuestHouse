@@ -2,6 +2,7 @@
 import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getAccessToken, getCurrentUser, saveUserInfo } from '../../api/authClient'
+import { requestAccommodationAiSuggestion } from '@/api/ai'
 
 const router = useRouter()
 const emit = defineEmits(['cancel', 'submit'])
@@ -19,6 +20,7 @@ const extractedText = ref('')
 const isExtracting = ref(false)
 const isVerifying = ref(false)
 const isSubmitting = ref(false)
+const isAiSuggesting = ref(false)
 
 const handleLicenseUpload = (event) => {
   const file = event.target.files[0]
@@ -865,6 +867,61 @@ const fileToBase64 = (file) => {
   })
 }
 
+const getAllImageFiles = () => {
+  const images = []
+  if (form.value.bannerImageFile) {
+    images.push(form.value.bannerImageFile)
+  }
+  if (form.value.detailImageFiles && form.value.detailImageFiles.length > 0) {
+    images.push(...form.value.detailImageFiles)
+  }
+  return images
+}
+
+const applyAiSuggestion = async () => {
+  if (isAiSuggesting.value) return
+  const imageFiles = getAllImageFiles()
+  if (imageFiles.length === 0) {
+    openModal('AI 추천을 사용하려면 먼저 배너 또는 상세 이미지를 업로드해주세요.')
+    return
+  }
+  isAiSuggesting.value = true
+  try {
+    const base64Images = await Promise.all(imageFiles.map(file => fileToBase64(file)))
+    const payload = {
+      images: base64Images,
+      language: 'ko',
+      context: {
+        city: form.value.city,
+        district: form.value.district,
+        township: form.value.township,
+        stayType: form.value.type,
+        themes: form.value.themes,
+        existingName: form.value.name,
+        existingDescription: form.value.description
+      }
+    }
+    const result = await requestAccommodationAiSuggestion(payload)
+    if (!result.ok) {
+      const message = result?.data?.message || 'AI 추천을 불러오지 못했습니다.'
+      throw new Error(message)
+    }
+    const data = result.data || {}
+    if (data.name) {
+      form.value.name = data.name
+    }
+    if (data.description) {
+      form.value.description = data.description
+    }
+    openModal('AI 추천 결과를 적용했습니다.')
+  } catch (error) {
+    console.error('AI 추천 실패:', error)
+    openModal(`AI 추천 실패: ${error?.message || '잠시 후 다시 시도해주세요.'}`)
+  } finally {
+    isAiSuggesting.value = false
+  }
+}
+
 // 편의시설 ID 매핑 (프론트 id -> 백엔드 amenityId)
 const amenityIdMap = {
   'wifi': 1,
@@ -1379,6 +1436,13 @@ onMounted(() => {
                   </label>
                </div>
             </div>
+          </div>
+
+          <div class="ai-helper">
+            <button type="button" class="ai-suggest-btn" @click="applyAiSuggestion" :disabled="isAiSuggesting">
+              {{ isAiSuggesting ? 'AI 추천 생성 중...' : 'AI로 숙소 소개 받기' }}
+            </button>
+            <p class="ai-helper-note">업로드한 이미지를 분석해 숙소명과 소개문을 추천해드려요.</p>
           </div>
       </section>
 
@@ -2900,3 +2964,58 @@ input[type="number"]:focus {
   line-height: 1;
 }
 </style>
+
+.ai-helper {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 16px;
+  border: 1px solid #bae6fd;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ai-suggest-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+  white-space: nowrap;
+}
+
+.ai-suggest-btn::before {
+  content: '\2728';
+  font-size: 1.1rem;
+}
+
+.ai-suggest-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.45);
+}
+
+.ai-suggest-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.ai-suggest-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ai-helper-note {
+  margin: 0;
+  color: #0369a1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
