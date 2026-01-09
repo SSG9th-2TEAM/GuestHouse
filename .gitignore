@@ -165,6 +165,7 @@ Icon?
 
 # 백업 파일
 *.bak
+*.backup
 *.orig
 *.old
 *~
