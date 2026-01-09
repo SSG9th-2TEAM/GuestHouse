@@ -9,15 +9,13 @@ import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationRequestDto;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
-import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
 import com.ssg9th2team.geharbang.domain.room.entity.Room;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
+import com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatRoomRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
@@ -73,6 +71,8 @@ class ConcurrencyTest extends com.ssg9th2team.geharbang.config.IntegrationTestCo
         PaymentJpaRepository paymentJpaRepository;
         @MockBean
         WaitlistService waitlistService;
+        @MockBean
+        RealtimeChatRoomRepository realtimeChatRoomRepository;
 
         @Bean
         public ReservationService reservationService(
@@ -84,7 +84,8 @@ class ConcurrencyTest extends com.ssg9th2team.geharbang.config.IntegrationTestCo
                 PaymentService paymentService,
                 RoomJpaRepository roomJpaRepository,
                 PaymentJpaRepository paymentJpaRepository,
-                WaitlistService waitlistService) {
+                WaitlistService waitlistService,
+                RealtimeChatRoomRepository realtimeChatRoomRepository) {
             return new ReservationServiceImpl(
                     reservationRepository,
                     accommodationRepository,
@@ -94,7 +95,8 @@ class ConcurrencyTest extends com.ssg9th2team.geharbang.config.IntegrationTestCo
                     paymentService,
                     roomJpaRepository,
                     paymentJpaRepository,
-                    waitlistService);
+                    waitlistService,
+                    realtimeChatRoomRepository);
         }
     }
 
