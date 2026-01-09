@@ -330,6 +330,25 @@
         LIMIT 1
     </select>
 
+    <!-- 여러 숙소의 대표 이미지 배치 조회 -->
+    <select id="selectMainImagesByAccommodationIds" resultType="com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto">
+        SELECT 
+            ai.accommodations_id AS accommodationsId,
+            ai.image_url AS imageUrl,
+            ai.image_type AS imageType,
+            ai.sort_order AS sortOrder
+        FROM accommodation_image ai
+        INNER JOIN (
+            SELECT accommodations_id, MIN(sort_order) AS min_sort
+            FROM accommodation_image
+            WHERE accommodations_id IN
+            <foreach collection="accommodationIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+            GROUP BY accommodations_id
+        ) sub ON ai.accommodations_id = sub.accommodations_id AND ai.sort_order = sub.min_sort
+    </select>
+
     <!-- Host 숙소 목록/단건 DTO (constructor 기반 매핑: immutable DTO 지원) -->
     <resultMap id="HostAccommodationSummaryResult"
                type="com.ssg9th2team.geharbang.domain.accommodation.dto.HostAccommodationSummaryResponse">
