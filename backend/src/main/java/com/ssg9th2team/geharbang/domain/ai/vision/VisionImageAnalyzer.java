@@ -120,12 +120,14 @@ public class VisionImageAnalyzer {
                         textBuilder.append(text);
                     }
                 }
+                
+                java.util.Set<String> seenDescriptions = new java.util.HashSet<>();
                 result.getLabelAnnotationsList().forEach(entity -> {
                     VisionLabel label = VisionLabel.builder()
                             .description(entity.getDescription())
                             .score(entity.getScore())
                             .build();
-                    if (allLabels.stream().noneMatch(l -> l.getDescription().equals(label.getDescription()))) {
+                    if (seenDescriptions.add(label.getDescription())) {
                         allLabels.add(label);
                     }
                 });

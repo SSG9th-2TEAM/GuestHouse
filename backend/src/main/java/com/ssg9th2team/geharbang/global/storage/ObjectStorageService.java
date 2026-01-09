@@ -105,7 +105,7 @@ public class ObjectStorageService {
             byte[] imageBytes = Base64.getDecoder().decode(data);
 
             String detectedExtension = detectExtension(header);
-            String normalizedExtension = normalizeExtension(detectedExtension);
+            String normalizedExtension = imageResizeProcessor.normalizeFormat(detectedExtension);
             if (shouldResize(folder) && normalizedExtension != null) {
                 imageBytes = imageResizeProcessor.resizeKeepingFormat(
                         imageBytes,
@@ -205,15 +205,4 @@ public class ObjectStorageService {
         return "jpg";
     }
 
-    private String normalizeExtension(String extension) {
-        if (extension == null) {
-            return null;
-        }
-        return switch (extension.toLowerCase()) {
-            case "jpg", "jpeg" -> "jpg";
-            case "png" -> "png";
-            case "gif" -> "gif";
-            default -> null;
-        };
-    }
 }

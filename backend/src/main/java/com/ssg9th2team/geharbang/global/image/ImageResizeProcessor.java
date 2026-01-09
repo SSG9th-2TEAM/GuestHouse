@@ -33,7 +33,7 @@ public class ImageResizeProcessor {
         return resize(imageBytes, "jpg", maxWidth, maxHeight, true);
     }
 
-    private String normalizeFormat(String format) {
+    public String normalizeFormat(String format) {
         if (format == null) return "jpg";
         String lower = format.toLowerCase();
         return switch (lower) {

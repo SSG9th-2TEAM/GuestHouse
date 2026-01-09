@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import com.ssg9th2team.geharbang.domain.ai.gemini.exception.GeminiApiException;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -80,13 +81,13 @@ public class GeminiTextClient {
             return parseResponse(response.getBody());
         } catch (HttpStatusCodeException ex) {
             log.warn("Gemini text request failed: status={} body={}", ex.getStatusCode(), ex.getResponseBodyAsString());
-            throw new IllegalStateException("Gemini request failed", ex);
+            throw new GeminiApiException("Gemini request failed", ex);
         } catch (RestClientException ex) {
             log.warn("Gemini text request failed: {}", ex.getMessage());
-            throw new IllegalStateException("Gemini request failed", ex);
+            throw new GeminiApiException("Gemini request failed", ex);
         } catch (JsonProcessingException ex) {
             log.warn("Gemini text parsing failed: {}", ex.getMessage());
-            throw new IllegalStateException("Gemini response parsing failed", ex);
+            throw new GeminiApiException("Gemini response parsing failed", ex);
         }
     }
 
