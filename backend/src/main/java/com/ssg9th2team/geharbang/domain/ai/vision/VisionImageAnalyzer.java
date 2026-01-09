@@ -27,8 +27,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -105,6 +106,7 @@ public class VisionImageAnalyzer {
 
             StringBuilder textBuilder = new StringBuilder();
             List<VisionLabel> allLabels = new ArrayList<>();
+            Set<String> seenDescriptions = new HashSet<>();
 
             for (AnnotateImageResponse result : response.getResponsesList()) {
                 if (result.hasError()) {
@@ -121,12 +123,17 @@ public class VisionImageAnalyzer {
                     }
                 }
                 result.getLabelAnnotationsList().forEach(entity -> {
-                    VisionLabel label = VisionLabel.builder()
-                            .description(entity.getDescription())
-                            .score(entity.getScore())
-                            .build();
-                    if (allLabels.stream().noneMatch(l -> l.getDescription().equals(label.getDescription()))) {
-                        allLabels.add(label);
+                    String description = entity.getDescription();
+                    if (description == null || description.isBlank()) {
+                        return;
+                    }
+                    if (seenDescriptions.add(description)) {
+                        allLabels.add(
+                                VisionLabel.builder()
+                                        .description(description)
+                                        .score(entity.getScore())
+                                        .build()
+                        );
                     }
                 });
             }

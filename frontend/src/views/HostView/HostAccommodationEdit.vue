@@ -1035,56 +1035,78 @@ const fileToBase64 = (file) => {
   })
 }
 
-const fetchImageAsBase64 = async (url) => {
+const MAX_AI_IMAGE_COUNT = 5
+const AI_IMAGE_MAX_DIMENSION = 1024
+const AI_IMAGE_QUALITY = 0.85
+
+const blobToResizedBase64 = (blob) => {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    const objectUrl = URL.createObjectURL(blob)
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      const ratio = Math.min(AI_IMAGE_MAX_DIMENSION / image.width, AI_IMAGE_MAX_DIMENSION / image.height, 1)
+      const width = Math.round(image.width * ratio)
+      const height = Math.round(image.height * ratio)
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(image, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/jpeg', AI_IMAGE_QUALITY))
+    }
+    image.onerror = (error) => {
+      URL.revokeObjectURL(objectUrl)
+      reject(error)
+    }
+    image.src = objectUrl
+  })
+}
+
+const fetchImageBlob = async (url) => {
   if (!url) return null
   const absoluteUrl = getFullImageUrl(url)
   const response = await fetch(absoluteUrl)
   if (!response.ok) {
-    throw new Error('이미지를 불러오지 못했습니다.')
+    console.warn('이미지를 불러오지 못했습니다:', absoluteUrl)
+    return null
   }
-  const blob = await response.blob()
-  return await fileToBase64(blob)
+  return await response.blob()
 }
 
-const resolveAllAiImageBase64 = async () => {
-  const base64Images = []
+const collectAiImageBlobs = async () => {
+  const blobs = []
 
-  // 배너 이미지
   if (bannerFile.value) {
-    base64Images.push(await fileToBase64(bannerFile.value))
+    blobs.push(bannerFile.value)
   } else if (form.value.bannerImage) {
-    try {
-      base64Images.push(await fetchImageAsBase64(form.value.bannerImage))
-    } catch (error) {
-      console.warn('배너 이미지 다운로드 실패:', error)
-    }
+    const blob = await fetchImageBlob(form.value.bannerImage)
+    if (blob) blobs.push(blob)
   }
 
-  // 상세 이미지들
   for (const item of displayImages.value) {
+    if (blobs.length >= MAX_AI_IMAGE_COUNT) break
     if (item.file) {
-      base64Images.push(await fileToBase64(item.file))
+      blobs.push(item.file)
     } else if (item.url) {
-      try {
-        base64Images.push(await fetchImageAsBase64(item.url))
-      } catch (error) {
-        console.warn('상세 이미지 다운로드 실패:', error)
-      }
+      const blob = await fetchImageBlob(item.url)
+      if (blob) blobs.push(blob)
     }
   }
 
-  return base64Images
+  return blobs.slice(0, MAX_AI_IMAGE_COUNT)
 }
 
 const applyAiSuggestion = async () => {
   if (isAiSuggesting.value) return
   try {
-    const base64Images = await resolveAllAiImageBase64()
-    if (base64Images.length === 0) {
+    const blobs = await collectAiImageBlobs()
+    if (blobs.length === 0) {
       openModal('AI 추천을 사용하려면 먼저 이미지를 업로드하거나 기존 이미지를 유지해주세요.')
       return
     }
     isAiSuggesting.value = true
+    const base64Images = await Promise.all(blobs.map(blob => blobToResizedBase64(blob)))
     const payload = {
       images: base64Images,
       language: 'ko',

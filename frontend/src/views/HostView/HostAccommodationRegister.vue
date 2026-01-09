@@ -867,6 +867,34 @@ const fileToBase64 = (file) => {
   })
 }
 
+const MAX_AI_IMAGE_COUNT = 5
+const AI_IMAGE_MAX_DIMENSION = 1024
+const AI_IMAGE_QUALITY = 0.85
+
+const blobToResizedBase64 = (blob) => {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    const objectUrl = URL.createObjectURL(blob)
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      const ratio = Math.min(AI_IMAGE_MAX_DIMENSION / image.width, AI_IMAGE_MAX_DIMENSION / image.height, 1)
+      const width = Math.round(image.width * ratio)
+      const height = Math.round(image.height * ratio)
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(image, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/jpeg', AI_IMAGE_QUALITY))
+    }
+    image.onerror = (error) => {
+      URL.revokeObjectURL(objectUrl)
+      reject(error)
+    }
+    image.src = objectUrl
+  })
+}
+
 const getAllImageFiles = () => {
   const images = []
   if (form.value.bannerImageFile) {
@@ -880,14 +908,14 @@ const getAllImageFiles = () => {
 
 const applyAiSuggestion = async () => {
   if (isAiSuggesting.value) return
-  const imageFiles = getAllImageFiles()
+  const imageFiles = getAllImageFiles().slice(0, MAX_AI_IMAGE_COUNT)
   if (imageFiles.length === 0) {
     openModal('AI 추천을 사용하려면 먼저 배너 또는 상세 이미지를 업로드해주세요.')
     return
   }
   isAiSuggesting.value = true
   try {
-    const base64Images = await Promise.all(imageFiles.map(file => fileToBase64(file)))
+    const base64Images = await Promise.all(imageFiles.map(file => blobToResizedBase64(file)))
     const payload = {
       images: base64Images,
       language: 'ko',

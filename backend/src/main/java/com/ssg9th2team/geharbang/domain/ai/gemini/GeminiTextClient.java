@@ -37,7 +37,7 @@ public class GeminiTextClient {
 
     public GeminiTextClient(
             @Value("${GEMINI_API_KEY:}") String apiKey,
-            @Value("${GEMINI_MODEL:gemini-1.5-flash-latest}") String model,
+            @Value("${GEMINI_MODEL:gemini-2.0-flash}") String model,
             @Value("${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}") String baseUrl,
             @Value("${ai.summary.connect-timeout-ms:5000}") int connectTimeoutMs,
             @Value("${ai.summary.read-timeout-ms:8000}") int readTimeoutMs
@@ -62,16 +62,7 @@ public class GeminiTextClient {
         try {
             Map<String, Object> generationConfig = Map.of(
                     "temperature", 0.5,
-                    "responseMimeType", "application/json",
-                    "responseSchema", Map.of(
-                            "type", "OBJECT",
-                            "properties", Map.of(
-                                    "name", Map.of("type", "STRING"),
-                                    "description", Map.of("type", "STRING"),
-                                    "confidence", Map.of("type", "NUMBER")
-                            ),
-                            "required", List.of("name", "description")
-                    )
+                    "maxOutputTokens", 2048
             );
 
             Map<String, Object> body = Map.of(
@@ -101,11 +92,25 @@ public class GeminiTextClient {
     }
 
     private String buildPrompt(String contextPrompt, String languageTag) {
-        return "당신은 게스트하우스 기획 담당자입니다. 아래 힌트를 참고하여 숙소 이름과 소개문을 JSON으로 작성하세요.\n"
-                + "출력 형식은 {\"name\":string,\"description\":string,\"confidence\":number} 입니다.\n"
-                + "confidence는 0과 1 사이 숫자입니다.\n"
-                + "소개문(description)은 최소 8문장 이상으로 상세하게 작성하세요. 숙소의 분위기, 위치적 장점, 주변 관광지, 편의시설, 특별한 서비스, 추천 대상, 계절별 매력 등을 풍부하게 포함해주세요.\n"
-                + "응답 언어: " + languageTag + "\n\n"
+        return "당신은 전문 숙소 카피라이터입니다. 아래 힌트를 참고하여 숙소 이름과 매력적인 소개문을 작성하세요.\n\n"
+                + "## 규칙\n"
+                + "1. 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요.\n"
+                + "2. description은 반드시 10~15문장으로 풍부하고 상세하게 작성하세요.\n"
+                + "3. 다음 내용을 모두 포함하세요:\n"
+                + "   - 숙소의 첫인상과 전체적인 분위기\n"
+                + "   - 인테리어 특징과 감성적인 포인트\n"
+                + "   - 위치적 장점 (교통, 접근성)\n"
+                + "   - 주변 관광지, 맛집, 명소 소개\n"
+                + "   - 제공되는 편의시설과 서비스\n"
+                + "   - 추천 여행객 유형 (커플, 가족, 친구, 비즈니스 등)\n"
+                + "   - 계절별 매력 또는 특별한 경험\n"
+                + "   - 호스트의 환대와 마무리 멘트\n"
+                + "4. 감성적이고 따뜻한 톤으로 작성하세요.\n"
+                + "5. confidence는 0과 1 사이 숫자입니다.\n"
+                + "6. 응답 언어: " + languageTag + "\n\n"
+                + "## 출력 형식 (이 형식만 출력)\n"
+                + "{\"name\":\"숙소이름\",\"description\":\"소개문\",\"confidence\":0.9}\n\n"
+                + "## 힌트\n"
                 + contextPrompt;
     }
 
@@ -119,7 +124,34 @@ public class GeminiTextClient {
         if (contentNode.isMissingNode()) {
             throw new IllegalStateException("Gemini response missing content");
         }
-        SuggestionPayload payload = objectMapper.readValue(contentNode.asText(), SuggestionPayload.class);
+
+        String text = contentNode.asText().trim();
+
+        // ```json ... ``` 블록 처리
+        if (text.contains("```json")) {
+            int start = text.indexOf("```json") + 7;
+            int end = text.indexOf("```", start);
+            if (end > start) {
+                text = text.substring(start, end).trim();
+            }
+        } else if (text.contains("```")) {
+            int start = text.indexOf("```") + 3;
+            int end = text.indexOf("```", start);
+            if (end > start) {
+                text = text.substring(start, end).trim();
+            }
+        }
+
+        // JSON 객체만 추출 (앞뒤 텍스트 제거)
+        int jsonStart = text.indexOf("{");
+        int jsonEnd = text.lastIndexOf("}");
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+            text = text.substring(jsonStart, jsonEnd + 1);
+        }
+
+        log.debug("Parsed JSON text: {}", text);
+        SuggestionPayload payload = objectMapper.readValue(text, SuggestionPayload.class);
+
         JsonNode usageNode = root.path("usageMetadata");
         long promptTokens = usageNode.path("promptTokenCount").asLong(0);
         long completionTokens = usageNode.path("candidatesTokenCount").asLong(0);
