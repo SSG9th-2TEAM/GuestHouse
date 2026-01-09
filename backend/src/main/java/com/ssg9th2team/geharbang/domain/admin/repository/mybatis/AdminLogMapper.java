@@ -13,15 +13,18 @@ public interface AdminLogMapper {
             @Param("targetId") Long targetId,
             @Param("actionType") String actionType,
             @Param("reason") String reason,
-            @Param("metadataJson") String metadataJson
+            @Param("metadataJson") String metadataJson,
+            @Param("requestIp") String requestIp,
+            @Param("userAgent") String userAgent
     );
 
     List<com.ssg9th2team.geharbang.domain.admin.dto.AdminLogRow> selectAdminLogs(
             @Param("start") java.time.LocalDateTime start,
             @Param("end") java.time.LocalDateTime end,
             @Param("actionType") String actionType,
+            @Param("targetType") String targetType,
+            @Param("targetIdExact") Long targetIdExact,
             @Param("keyword") String keyword,
-            @Param("keywordTargetId") Long keywordTargetId,
             @Param("size") int size,
             @Param("offset") int offset
     );
@@ -30,7 +33,8 @@ public interface AdminLogMapper {
             @Param("start") java.time.LocalDateTime start,
             @Param("end") java.time.LocalDateTime end,
             @Param("actionType") String actionType,
-            @Param("keyword") String keyword,
-            @Param("keywordTargetId") Long keywordTargetId
+            @Param("targetType") String targetType,
+            @Param("targetIdExact") Long targetIdExact,
+            @Param("keyword") String keyword
     );
 }

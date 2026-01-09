@@ -14,6 +14,9 @@ const loadError = ref('')
 const router = useRouter()
 
 const formatCurrency = (value) => formatKRW(value)
+const formatCount = (value, unit = '건') => `${Number(value ?? 0).toLocaleString()}${unit}`
+const formatPeople = (value) => `${Number(value ?? 0).toLocaleString()}명`
+const formatUnits = (value) => `${Number(value ?? 0).toLocaleString()}개`
 const formatDateOnly = (value) => (value ? String(value).slice(0, 10) : '')
 
 const loadReport = async () => {
@@ -34,58 +37,58 @@ const stats = computed(() => {
   const rangeQuery = from && to ? { from, to } : {}
   return [
     {
-      label: '예약 수',
-      value: `${report.value.reservationCount ?? 0}건`,
-      sub: '선택 기간',
+      label: '예약 생성',
+      value: formatCount(report.value.reservationCount),
+      sub: '예약 생성(선택 기간)',
       tone: 'primary',
       to: { path: '/admin/bookings', query: rangeQuery }
     },
     {
       label: '결제 성공',
-      value: `${report.value.paymentSuccessCount ?? 0}건`,
-      sub: '완료 기준',
+      value: formatCount(report.value.paymentSuccessCount),
+      sub: '결제 성공(완료 기준)',
       tone: 'success',
       to: { path: '/admin/payments', query: { status: 'SUCCESS', ...rangeQuery } }
     },
     {
       label: '취소',
-      value: `${report.value.cancelCount ?? 0}건`,
-      sub: '예약 취소',
+      value: formatCount(report.value.cancelCount),
+      sub: '예약 취소(완료 기준)',
       tone: 'neutral',
       to: { path: '/admin/bookings', query: { status: 'canceled', ...rangeQuery } }
     },
     {
       label: '환불',
-      value: `${report.value.refundCount ?? 0}건`,
-      sub: formatCurrency(report.value.refundAmount),
+      value: formatCount(report.value.refundCount),
+      sub: `환불 금액 ${formatCurrency(report.value.refundAmount)}`,
       tone: 'warning',
       to: { path: '/admin/payments', query: { status: 'REFUNDED', type: 'REFUND', ...rangeQuery } }
     },
     {
       label: '신규 가입자',
-      value: `${report.value.newUsers ?? 0}명`,
-      sub: '전체 계정',
+      value: formatPeople(report.value.newUsers),
+      sub: '신규 가입(전체 계정)',
       tone: 'accent',
       to: { path: '/admin/users', query: rangeQuery }
     },
     {
       label: '신규 숙소',
-      value: `${report.value.newAccommodations ?? 0}개`,
-      sub: '등록 완료',
+      value: formatUnits(report.value.newAccommodations),
+      sub: '숙소 등록(완료 기준)',
       tone: 'primary',
       to: { path: '/admin/accommodations', query: rangeQuery }
     },
     {
       label: '승인 대기 숙소',
-      value: `${report.value.pendingAccommodations ?? 0}개`,
-      sub: '심사 대기',
+      value: formatUnits(report.value.pendingAccommodations),
+      sub: '승인 대기(심사 기준)',
       tone: 'warning',
       to: { path: '/admin/accommodations', query: { status: 'PENDING', ...rangeQuery } }
     },
     {
       label: '신규 호스트',
-      value: `${report.value.newHosts ?? 0}명`,
-      sub: '전환 기준',
+      value: formatPeople(report.value.newHosts),
+      sub: '호스트 전환(승인 기준)',
       tone: 'success',
       to: { path: '/admin/users', query: { role: 'HOST', ...rangeQuery } }
     }
@@ -129,13 +132,13 @@ const exportDailyCsv = () => {
     revenue: item.value ?? 0
   }))
   exportCSV({
-    filename: `admin-weekly-report-${report.value.from}-to-${report.value.to}.csv`,
+    filename: `weekly-report_${report.value.from}_${report.value.to}.csv`,
     sheets: [
       {
         name: '일별 매출',
         columns: [
           { key: 'date', label: '날짜' },
-          { key: 'revenue', label: '매출' }
+          { key: 'revenue', label: '매출(원)' }
         ],
         rows
       }
@@ -191,7 +194,7 @@ const handleStatClick = (card) => {
     <div class="admin-card admin-report-card">
       <div class="admin-card__head">
         <div>
-          <p class="admin-card__eyebrow">일별 매출</p>
+          <p class="admin-card__eyebrow">일별 매출(원)</p>
           <h3 class="admin-card__title">
             {{ report?.from ?? '-' }} ~ {{ report?.to ?? '-' }}
           </h3>
@@ -205,6 +208,8 @@ const handleStatClick = (card) => {
           :labels="chartLabels"
           :values="chartValues"
           :height="260"
+          format="currency"
+          tooltip-label="매출"
           :max-x-ticks="chartMaxXTicks"
         />
       </div>

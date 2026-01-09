@@ -18,6 +18,28 @@ export const rejectAccommodation = (accommodationId, reason) =>
   })
 
 export const fetchAdminUsers = (params = {}) => adminGet('/users', params)
+export const fetchAdminUserSummary = () => adminGet('/users/summary')
+
+export const approveHost = (userId, reason) =>
+  adminRequest(`/users/${userId}/host/approve`, {
+    method: 'POST',
+    body: reason ? JSON.stringify({ reason }) : undefined
+  })
+export const rejectHost = (userId, reason) =>
+  adminRequest(`/users/${userId}/host/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason })
+  })
+export const suspendUser = (userId, reason) =>
+  adminRequest(`/users/${userId}/suspend`, {
+    method: 'POST',
+    body: JSON.stringify({ reason })
+  })
+export const unsuspendUser = (userId, reason) =>
+  adminRequest(`/users/${userId}/unsuspend`, {
+    method: 'POST',
+    body: reason ? JSON.stringify({ reason }) : undefined
+  })
 
 export const fetchAdminUserDetail = (userId) => adminGet(`/users/${userId}`)
 

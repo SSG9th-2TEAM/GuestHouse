@@ -78,15 +78,20 @@ public class AdminAccommodationService {
     public AdminAccommodationDetail approveAccommodation(Long adminUserId, Long accommodationId) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
+        String beforeStatus = accommodation.getApprovalStatus() != null ? accommodation.getApprovalStatus().name() : null;
         accommodation.updateApprovalStatus(ApprovalStatus.APPROVED, null);
         promoteUserToHost(accommodation.getUserId());
         Accommodation saved = accommodationRepository.save(accommodation);
+        java.util.Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        metadata.put("before", java.util.Map.of("approvalStatus", beforeStatus));
+        metadata.put("after", java.util.Map.of("approvalStatus", ApprovalStatus.APPROVED.name()));
         adminLogService.writeLog(
                 adminUserId,
                 AdminLogConstants.TARGET_ACCOMMODATION,
                 accommodationId,
                 AdminLogConstants.ACTION_APPROVE,
-                null
+                null,
+                metadata
         );
         AdminAccommodationMetrics metrics = loadMetrics(List.of(saved))
                 .get(saved.getAccommodationsId());
@@ -97,14 +102,22 @@ public class AdminAccommodationService {
     public AdminAccommodationDetail rejectAccommodation(Long adminUserId, Long accommodationId, String reason) {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accommodation not found"));
+        String beforeStatus = accommodation.getApprovalStatus() != null ? accommodation.getApprovalStatus().name() : null;
         accommodation.reject(reason);
         Accommodation saved = accommodationRepository.save(accommodation);
+        java.util.Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        metadata.put("before", java.util.Map.of("approvalStatus", beforeStatus));
+        metadata.put("after", java.util.Map.of("approvalStatus", ApprovalStatus.REJECTED.name()));
+        if (StringUtils.hasText(reason)) {
+            metadata.put("reason", reason);
+        }
         adminLogService.writeLog(
                 adminUserId,
                 AdminLogConstants.TARGET_ACCOMMODATION,
                 accommodationId,
                 AdminLogConstants.ACTION_REJECT,
-                reason
+                reason,
+                metadata
         );
         AdminAccommodationMetrics metrics = loadMetrics(List.of(saved))
                 .get(saved.getAccommodationsId());

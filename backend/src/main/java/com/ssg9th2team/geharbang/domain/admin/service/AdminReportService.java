@@ -54,17 +54,26 @@ public class AdminReportService {
     public AdminReportDetail resolveReport(Long adminUserId, Long reportId, String action, String memo) {
         ReviewReport report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found"));
+        String beforeState = report.getState();
         if (StringUtils.hasText(action)) {
             report.updateState(action.trim().toUpperCase());
         }
         ReviewReport saved = reportRepository.save(report);
         Long targetId = saved.getReviewId() != null ? saved.getReviewId() : saved.getReportId();
+        java.util.Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        metadata.put("before", java.util.Map.of("state", beforeState));
+        metadata.put("after", java.util.Map.of("state", saved.getState()));
+        metadata.put("reportId", saved.getReportId());
+        if (saved.getReviewId() != null) {
+            metadata.put("reviewId", saved.getReviewId());
+        }
         adminLogService.writeLog(
                 adminUserId,
                 AdminLogConstants.TARGET_REVIEW,
                 targetId,
                 AdminLogConstants.ACTION_RESOLVE,
-                memo
+                memo,
+                metadata
         );
         return toDetail(saved);
     }
