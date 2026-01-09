@@ -40,7 +40,7 @@ const handleAiSearch = async () => {
         rating: acc.rating,
         reviewCount: acc.reviewCount,
         location: [acc.city, acc.district].filter(Boolean).join(' '),
-        price: 0,
+        price: acc.minPrice ?? 0,
         imageUrl: acc.thumbnailUrl || 'https://placehold.co/400x300'
       }))
     } else {
