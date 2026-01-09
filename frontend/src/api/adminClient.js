@@ -92,3 +92,11 @@ export async function hostGet(path, params = {}) {
   const fullPath = query ? `${path}?${query}` : path
   return hostRequest(fullPath, { method: 'GET' })
 }
+
+export async function hostPost(path, body = {}) {
+  return hostRequest(path, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  })
+}
+
