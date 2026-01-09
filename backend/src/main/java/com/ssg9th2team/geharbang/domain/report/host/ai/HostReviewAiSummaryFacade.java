@@ -3,6 +3,7 @@ package com.ssg9th2team.geharbang.domain.report.host.ai;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewAiSummaryRequest;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewAiSummaryResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportSummaryResponse;
+import com.ssg9th2team.geharbang.domain.report.host.ai.HostReportAiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,6 +42,7 @@ public class HostReviewAiSummaryFacade implements AiSummaryClient {
             log.info("AI summary provider=RULE fallback=none");
             return ruleBasedSummaryClient.generate(summary, request);
         }
+
         int reviewCount = summary.getReviewCount() != null ? summary.getReviewCount() : 0;
         if (reviewCount == 0) {
             log.info("AI summary provider=OPENAI fallback=RULE reason=insufficient_data");

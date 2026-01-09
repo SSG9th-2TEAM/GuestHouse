@@ -398,8 +398,10 @@ public class HostAiInsightService {
     private Provider parseProvider(String raw) {
         if (raw == null || raw.isBlank()) return Provider.RULE;
         try {
-            return Provider.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+            Provider parsed = Provider.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+            return parsed;
         } catch (IllegalArgumentException ex) {
+            log.info("AI insight provider defaulting to RULE (unknown or unsupported provider: {})", raw);
             return Provider.RULE;
         }
     }

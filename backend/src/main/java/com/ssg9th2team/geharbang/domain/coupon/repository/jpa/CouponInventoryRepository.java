@@ -25,6 +25,10 @@ public interface CouponInventoryRepository extends JpaRepository<CouponInventory
     @Query("select ci from CouponInventory ci where ci.couponId = :couponId")
     Optional<CouponInventory> findWithLockByCouponId(@Param("couponId") Long couponId);
 
+    /**
+     * 모든 선착순 쿠폰의 일일 재고를 한 번에 초기화한다.
+     * 일자 비교는 DB에서 수행하므로 애플리케이션이 전체 데이터를 읽지 않는다.
+     */
     @Modifying(clearAutomatically = true)
     @Query("update CouponInventory ci set ci.availableToday = ci.dailyLimit, ci.lastResetDate = :today "
             + "where ci.lastResetDate is null or ci.lastResetDate < :today")
