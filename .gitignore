@@ -198,6 +198,6 @@ scripts/load_test.sh
 scripts/test_email.sh
 
 # Frontend Build Artifacts
-src/main/resources/static/assets/
+**/src/main/resources/static/assets/
 src/main/resources/static/index.html
 ######
