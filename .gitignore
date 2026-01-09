@@ -86,6 +86,9 @@ dist-ssr/
 .nuxt/
 .next/
 
+# Backend에 복사된 프론트엔드 빌드 결과물
+backend/src/main/resources/static/assets/
+
 # Vite / Webpack 등
 .vite/
 coverage/
