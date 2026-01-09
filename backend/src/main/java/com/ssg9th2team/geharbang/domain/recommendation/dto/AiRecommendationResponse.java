@@ -25,6 +25,7 @@ public class AiRecommendationResponse {
         private Double rating;
         private Integer reviewCount;
         private String thumbnailUrl;
+        private Integer minPrice;
         private List<String> themes; // 숙소의 테마 목록
     }
 }
