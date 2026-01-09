@@ -53,7 +53,7 @@ public class DistributedLockAspect {
 
             if (!acquired) {
                 log.warn("분산 락 획득 실패: {} (대기 시간 초과)", lockKey);
-                throw new IllegalStateException(
+                throw new LockAcquisitionException(
                         "다른 사용자가 예약 중입니다. 잠시 후 다시 시도해주세요.");
             }
 
