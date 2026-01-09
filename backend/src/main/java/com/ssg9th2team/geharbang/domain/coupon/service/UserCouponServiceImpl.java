@@ -12,6 +12,8 @@ import com.ssg9th2team.geharbang.domain.coupon.repository.mybatis.UserCouponMapp
 import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,16 +21,20 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserCouponServiceImpl implements UserCouponService {
 
     private final UserCouponJpaRepository userCouponJpaRepository;
     private final CouponJpaRepository couponJpaRepository;
-    private final UserCouponMapper userCouponMapper;
-    private final ReviewJpaRepository reviewJpaRepository;
-    private final ReservationJpaRepository reservationJpaRepository;
     private final CouponInventoryService couponInventoryService;
+    private final UserCouponMapper userCouponMapper;
+    private final ReservationJpaRepository reservationJpaRepository;
+    private final ReviewJpaRepository reviewJpaRepository;
+    private final StringRedisTemplate redisTemplate;
+    
+    private static final String COUPON_ISSUED_KEY_PREFIX = "coupon:issued:";
 
     // 쿠폰 발급 (수동 - 숙소 상세페이지에서 쿠폰 받기 등)
     @Override
@@ -115,8 +121,22 @@ public class UserCouponServiceImpl implements UserCouponService {
     @Override
     @Transactional
     public CouponIssueResult issueToUser(Long userId, Coupon coupon) {
-        // 1. 중복 체크
+        // 1. Redis Set으로 중복 체크 (O(1))
+        String redisKey = COUPON_ISSUED_KEY_PREFIX + coupon.getCouponId();
+        Long addCount = redisTemplate.opsForSet().add(redisKey, userId.toString());
+        
+        if (addCount != null && addCount == 0) {
+            // Redis에 이미 존재 → 중복 발급
+            log.debug("쿠폰 {} 중복 발급 차단 - userId: {}", coupon.getCouponId(), userId);
+            return CouponIssueResult.DUPLICATED;
+        }
+        
+        // DB에도 확인 (Redis 장애 대비 이중 체크)
         if (userCouponJpaRepository.existsByUserIdAndCouponId(userId, coupon.getCouponId())) {
+            // Redis에는 없었지만 DB에 있음 → Redis 동기화 필요
+            log.warn("쿠폰 {} Redis-DB 불일치 감지 - userId: {}", coupon.getCouponId(), userId);
+            // Redis에서 제거 (동기화)
+            redisTemplate.opsForSet().remove(redisKey, userId.toString());
             return CouponIssueResult.DUPLICATED;
         }
 
@@ -223,5 +243,45 @@ public class UserCouponServiceImpl implements UserCouponService {
     @Transactional(readOnly = true)
     public Set<Long> getMyCouponIds(Long userId) {
         return userCouponJpaRepository.findCouponIdsByUserId(userId);
+    }
+
+    /**
+     * Redis Set 초기화 - DB의 발급 이력을 Redis에 동기화
+     * 애플리케이션 시작 시 또는 스케줄러에서 호출
+     */
+    public void initializeRedisIssuedCoupons() {
+        // 모든 발급된 쿠폰 조회
+        List<UserCoupon> allIssuedCoupons = userCouponJpaRepository.findAll();
+        
+        int syncCount = 0;
+        for (UserCoupon userCoupon : allIssuedCoupons) {
+            String redisKey = COUPON_ISSUED_KEY_PREFIX + userCoupon.getCouponId();
+            redisTemplate.opsForSet().add(redisKey, userCoupon.getUserId().toString());
+            syncCount++;
+        }
+        
+        log.info("Redis 쿠폰 발급 이력 초기화 완료: {}건", syncCount);
+    }
+
+    /**
+     * 특정 쿠폰의 발급 이력을 Redis에 동기화
+     */
+    public void syncRedisIssuedCoupon(Long couponId) {
+        // 해당 쿠폰을 발급받은 모든 사용자 조회
+        List<UserCoupon> issuedCoupons = userCouponJpaRepository.findAll()
+            .stream()
+            .filter(uc -> uc.getCouponId().equals(couponId))
+            .toList();
+        
+        String redisKey = COUPON_ISSUED_KEY_PREFIX + couponId;
+        // 기존 Set 삭제
+        redisTemplate.delete(redisKey);
+        
+        // 재생성
+        for (UserCoupon userCoupon : issuedCoupons) {
+            redisTemplate.opsForSet().add(redisKey, userCoupon.getUserId().toString());
+        }
+        
+        log.info("쿠폰 {} Redis 발급 이력 동기화: {}건", couponId, issuedCoupons.size());
     }
 }
