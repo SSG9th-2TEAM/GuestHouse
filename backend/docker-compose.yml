@@ -1,4 +1,14 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: guesthouse-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - mysql_default
+    command: redis-server --appendonly yes
+
   backend:
     build: .
     container_name: guesthouse-backend
@@ -7,10 +17,14 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      - REDIS_HOST=redis
     networks:
       - mysql_default
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
 
 networks:
   mysql_default:

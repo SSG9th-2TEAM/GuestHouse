@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.global.error;
 
 import com.ssg9th2team.geharbang.global.dto.ErrorResponse;
+import com.ssg9th2team.geharbang.global.lock.LockAcquisitionException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -31,6 +32,13 @@ public class GlobalExceptionHandler {
         log.warn("EntityNotFoundException: {}", ex.getMessage());
         ErrorResponse response = new ErrorResponse(ex.getMessage());
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(LockAcquisitionException.class)
+    public ResponseEntity<ErrorResponse> handleLockAcquisitionException(LockAcquisitionException ex) {
+        log.warn("LockAcquisitionException: {}", ex.getMessage());
+        ErrorResponse response = new ErrorResponse(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT); // 409 Conflict
     }
 
     @ExceptionHandler(RuntimeException.class)

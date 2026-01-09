@@ -14,6 +14,7 @@ import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
+import com.ssg9th2team.geharbang.global.lock.DistributedLock;
 import com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatRoomRepository;
 import com.ssg9th2team.geharbang.domain.chat.RealtimeChatRoom;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +49,7 @@ public class ReservationServiceImpl implements ReservationService {
         private final RealtimeChatRoomRepository realtimeChatRoomRepository;
 
         @Override
+        @DistributedLock(key = "'reservation:room:' + #requestDto.roomId() + ':date:' + #requestDto.checkin().toString().substring(0,10)")
         @Transactional
         public ReservationResponseDto createReservation(ReservationRequestDto requestDto) {
                 // JWT 토큰에서 인증된 사용자 정보 추출
@@ -64,17 +66,17 @@ public class ReservationServiceImpl implements ReservationService {
                         throw new IllegalArgumentException("Room ID is required for reservation.");
                 }
 
-                // [동시성 제어] 비관적 락(Pessimistic Lock)으로 Room 선점
+                // [동시성 제어] Redis 분산 락으로 동시성 제어 (메서드 레벨 @DistributedLock)
                 com.ssg9th2team.geharbang.domain.room.entity.Room room = roomJpaRepository
-                                .findByIdWithLock(requestDto.roomId())
+                                .findById(requestDto.roomId())
                                 .orElseThrow(() -> new IllegalArgumentException(
                                                 "객실을 찾을 수 없습니다: " + requestDto.roomId()));
 
-                // Instant를 LocalDate로 변환 (시스템 기본 시간대 사용)
+                // Instant를 LocalDate로 변환 (UTC 기준 - 분산 락 키와 동일한 시간대 사용)
                 java.time.LocalDate checkinDate = java.time.LocalDateTime.ofInstant(
-                                requestDto.checkin(), java.time.ZoneId.systemDefault()).toLocalDate();
+                                requestDto.checkin(), java.time.ZoneOffset.UTC).toLocalDate();
                 java.time.LocalDate checkoutDate = java.time.LocalDateTime.ofInstant(
-                                requestDto.checkout(), java.time.ZoneId.systemDefault()).toLocalDate();
+                                requestDto.checkout(), java.time.ZoneOffset.UTC).toLocalDate();
 
                 // 시간 강제 설정: 체크인 15:00, 체크아웃 11:00
                 java.time.LocalDateTime checkinDateTime = checkinDate.atTime(15, 0);
@@ -129,7 +131,7 @@ public class ReservationServiceImpl implements ReservationService {
 
                 // 채팅방 자동 생성 (별도 트랜잭션으로 분리)
                 Accommodation accommodation = accommodationRepository.findById(requestDto.accommodationsId())
-                        .orElseThrow(() -> new IllegalArgumentException("숙소를 찾을 수 없습니다."));
+                                .orElseThrow(() -> new IllegalArgumentException("숙소를 찾을 수 없습니다."));
                 createChatRoomForReservation(saved, accommodation, userId);
 
                 // Accommodation 정보 조회 (이름/주소 반환을 위해)
@@ -141,28 +143,30 @@ public class ReservationServiceImpl implements ReservationService {
         }
 
         @Transactional(propagation = Propagation.REQUIRES_NEW)
-        public void createChatRoomForReservation(Reservation reservation, Accommodation accommodation, Long guestUserId) {
-            try {
-                String imageUrl = accommodationMapper.selectMainImageUrl(accommodation.getAccommodationsId());
+        public void createChatRoomForReservation(Reservation reservation, Accommodation accommodation,
+                        Long guestUserId) {
+                try {
+                        String imageUrl = accommodationMapper.selectMainImageUrl(accommodation.getAccommodationsId());
 
-                RealtimeChatRoom chatRoom = RealtimeChatRoom.builder()
-                        .reservationId(reservation.getId())
-                        .accommodationId(accommodation.getAccommodationsId())
-                        .accommodationName(accommodation.getAccommodationsName())
-                        .accommodationImage(imageUrl)
-                        .hostUserId(accommodation.getUserId())
-                        .guestUserId(guestUserId)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
-                        .build();
+                        RealtimeChatRoom chatRoom = RealtimeChatRoom.builder()
+                                        .reservationId(reservation.getId())
+                                        .accommodationId(accommodation.getAccommodationsId())
+                                        .accommodationName(accommodation.getAccommodationsName())
+                                        .accommodationImage(imageUrl)
+                                        .hostUserId(accommodation.getUserId())
+                                        .guestUserId(guestUserId)
+                                        .createdAt(LocalDateTime.now())
+                                        .updatedAt(LocalDateTime.now())
+                                        .build();
 
-                realtimeChatRoomRepository.save(chatRoom);
-                log.info("채팅방 생성 완료. reservationId={}, chatRoomId={}", reservation.getId(), chatRoom.getId());
+                        realtimeChatRoomRepository.save(chatRoom);
+                        log.info("채팅방 생성 완료. reservationId={}, chatRoomId={}", reservation.getId(), chatRoom.getId());
 
-            } catch (Exception e) {
-                log.error("CRITICAL: 채팅방 자동 생성에 실패했습니다. 예약은 정상적으로 완료되었습니다. reservationId={}", reservation.getId(), e);
-                // 필요시 알림 서비스 호출
-            }
+                } catch (Exception e) {
+                        log.error("CRITICAL: 채팅방 자동 생성에 실패했습니다. 예약은 정상적으로 완료되었습니다. reservationId={}",
+                                        reservation.getId(), e);
+                        // 필요시 알림 서비스 호출
+                }
         }
 
         @Override
