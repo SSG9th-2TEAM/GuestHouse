@@ -14,6 +14,7 @@ import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
+import com.ssg9th2team.geharbang.global.lock.DistributedLock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,6 +41,7 @@ public class ReservationServiceImpl implements ReservationService {
         private final WaitlistService waitlistService;
 
         @Override
+        @DistributedLock(key = "'reservation:room:' + #requestDto.roomId() + ':date:' + #requestDto.checkin().toString().substring(0,10)")
         @Transactional
         public ReservationResponseDto createReservation(ReservationRequestDto requestDto) {
                 // JWT 토큰에서 인증된 사용자 정보 추출
@@ -56,10 +58,9 @@ public class ReservationServiceImpl implements ReservationService {
                         throw new IllegalArgumentException("Room ID is required for reservation.");
                 }
 
-                // [동시성 제어] 비관적 락(Pessimistic Lock)으로 Room 선점
-                // 먼저 조회하는 트랜잭션이 락을 획득하고, 후속 요청은 대기함 (직렬화)
+                // [동시성 제어] Redis 분산 락으로 동시성 제어 (메서드 레벨 @DistributedLock)
                 com.ssg9th2team.geharbang.domain.room.entity.Room room = roomJpaRepository
-                                .findByIdWithLock(requestDto.roomId())
+                                .findById(requestDto.roomId())
                                 .orElseThrow(() -> new IllegalArgumentException(
                                                 "객실을 찾을 수 없습니다: " + requestDto.roomId()));
 
