@@ -64,7 +64,7 @@ public class AiRecommendationService {
     @Value("${GEMINI_API_KEY:}")
     private String geminiApiKey;
 
-    @Value("${GEMINI_MODEL:gemini-1.5-flash-latest}")
+    @Value("${GEMINI_MODEL:gemini-1.5-flash}")
     private String geminiModel;
 
     @Value("${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}")
