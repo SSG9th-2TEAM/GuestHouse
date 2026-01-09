@@ -6,6 +6,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface UserCouponJpaRepository extends JpaRepository<UserCoupon, Long> {
 
@@ -19,4 +23,7 @@ public interface UserCouponJpaRepository extends JpaRepository<UserCoupon, Long>
     List<UserCoupon> findByUserIdAndStatus(Long userId, UserCouponStatus status);
 
     void deleteAllByUserId(Long userId);
+
+    @Query("select uc.couponId from UserCoupon uc where uc.userId = :userId")
+    Set<Long> findCouponIdsByUserId(@Param("userId") Long userId);
 }

@@ -70,6 +70,7 @@ const emit = defineEmits(['toggle-favorite'])
         class="favorite-btn"
         :class="{ active: isFavorite }"
         @click.stop="$emit('toggle-favorite', id)"
+        aria-label="위시리스트 추가"
       >
         <span v-if="isFavorite">&#9829;</span>
         <span v-else>&#9825;</span>
@@ -79,16 +80,18 @@ const emit = defineEmits(['toggle-favorite'])
       <div class="header-row">
         <h3 class="title">{{ title }}</h3>
       </div>
-      <p v-if="description" class="description">{{ description }}</p>
-      <p class="location">{{ location }}</p>
-      <div class="footer-row">
-        <span class="price">
-          <strong>&#8361;{{ price.toLocaleString() }}</strong> / 박
-        </span>
-        <span class="rating">
-          <span class="rating-value">&#9733; {{ formatRating(rating) }}</span>
-          <span v-if="hasReviewCount" class="rating-count">({{ formatReviewCount(reviewCount) }})</span>
-        </span>
+      <div class="card-bottom">
+        <p v-if="description" class="description">{{ description }}</p>
+        <p class="location">{{ location }}</p>
+        <div class="footer-row">
+          <span class="price">
+            <strong>&#8361;{{ price.toLocaleString() }}</strong> / 1박
+          </span>
+          <span class="rating">
+            <span class="rating-value">&#9733; {{ formatRating(rating) }}</span>
+            <span v-if="hasReviewCount" class="rating-count">({{ formatReviewCount(reviewCount) }})</span>
+          </span>
+        </div>
       </div>
     </div>
   </article>
@@ -143,21 +146,26 @@ const emit = defineEmits(['toggle-favorite'])
   position: absolute;
   top: 10px;
   right: 10px;
-  background: rgba(255,255,255,0.8);
+  background: rgba(255, 255, 255, 0.95);
   border-radius: 50%;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
   cursor: pointer;
-  border: none;
-  transition: color 0.2s, transform 0.1s;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #9ca3af;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1);
+  transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
 }
 
 .favorite-btn.active {
-  color: #ef4444; /* Red Heart */
+  color: #ef4444;
+  background: rgba(254, 242, 242, 0.95);
+  border-color: rgba(248, 113, 113, 0.5);
+  box-shadow: 0 3px 12px rgba(248, 113, 113, 0.2);
 }
 
 .inactive-badge {
@@ -180,11 +188,18 @@ const emit = defineEmits(['toggle-favorite'])
   transform: scale(0.9);
 }
 
+.favorite-btn:not(.active):hover {
+  color: #ef4444;
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
 .card-content {
-  padding: 0.15rem 0.5rem;
+  padding: 0.15rem 0.5rem 0.35rem;
   display: flex;
   flex-direction: column;
   gap: 0.02rem;
+  flex: 1;
 }
 
 .header-row {
@@ -236,13 +251,19 @@ const emit = defineEmits(['toggle-favorite'])
   margin: 0;
 }
 
+.card-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.02rem;
+}
+
 .footer-row {
-  margin-top: 0.12rem;
+  margin-top: 0.15rem;
   margin-bottom: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 0.02rem;
 }
 
 .book-btn {
@@ -258,6 +279,28 @@ const emit = defineEmits(['toggle-favorite'])
 
 .book-btn:hover {
   opacity: 0.9;
+}
+
+/* Mobile specific styles */
+@media (max-width: 768px) {
+  .rating {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0;
+  }
+
+  .rating-value {
+    font-size: 0.85rem;
+  }
+
+  .rating-count {
+    font-size: 0.75rem;
+    color: var(--text-sub);
+  }
+
+  .footer-row {
+    align-items: flex-end;
+  }
 }
 </style>
 

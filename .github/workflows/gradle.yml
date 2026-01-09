@@ -58,6 +58,8 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
     steps:
+    - uses: actions/checkout@v4
+    
     - name: Download JAR artifact
       uses: actions/download-artifact@v4
       with:
@@ -73,14 +75,14 @@ jobs:
 
     - name: Deploy to Private Server via Public Server
       run: |
-        # Public 서버로 JAR 전송
-        scp -o StrictHostKeyChecking=no ./geharbang-0.0.1-SNAPSHOT.jar ${{ secrets.SSH_USERNAME }}@${{ secrets.PUBLIC_SERVER_IP }}:/tmp/
+        # Public 서버로 JAR 및 설정 파일 전송
+        scp -o StrictHostKeyChecking=no ./geharbang-0.0.1-SNAPSHOT.jar backend/Dockerfile backend/docker-compose.yml ${{ secrets.SSH_USERNAME }}@${{ secrets.PUBLIC_SERVER_IP }}:/tmp/
         
-        # Public 서버에서 Private 서버로 JAR 전송 및 Docker 재시작
+        # Public 서버에서 Private 서버로 전송 및 Docker 재시작
         ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.PUBLIC_SERVER_IP }} << 'EOF'
-          scp /tmp/geharbang-0.0.1-SNAPSHOT.jar root@${{ secrets.PRIVATE_SERVER_IP }}:~/applications/thismo/
+          scp /tmp/geharbang-0.0.1-SNAPSHOT.jar /tmp/Dockerfile /tmp/docker-compose.yml root@${{ secrets.PRIVATE_SERVER_IP }}:~/applications/thismo/
           ssh root@${{ secrets.PRIVATE_SERVER_IP }} "cd ~/applications/thismo && docker-compose up -d --build"
-          rm /tmp/geharbang-0.0.1-SNAPSHOT.jar
+          rm /tmp/geharbang-0.0.1-SNAPSHOT.jar /tmp/Dockerfile /tmp/docker-compose.yml
         EOF
 
     - name: Deployment Complete

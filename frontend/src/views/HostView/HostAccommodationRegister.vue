@@ -1048,6 +1048,14 @@ onMounted(() => {
       <div class="header-top">
         <div class="title-area">
           <h1>숙소 등록</h1>
+          <RouterLink
+            class="policy-link"
+            :to="{ path: '/policy', query: { tab: 'host' } }"
+            target="_blank"
+            rel="noopener"
+          >
+            숙소등록 이용약관 바로가기
+          </RouterLink>
         </div>
       </div>
       
@@ -1712,6 +1720,17 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.policy-link {
+  font-size: 0.9rem;
+  color: #00875a;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.policy-link:hover {
+  text-decoration: underline;
 }
 
 .logo-badge {

@@ -7,11 +7,11 @@ services:
       - "8080:8080"
     env_file:
       - .env
-    environment:
-      - OAUTH2_REDIRECT_BASE_URL=${OAUTH2_REDIRECT_BASE_URL}
-      - OAUTH2_FRONTEND_BASE_URL=${OAUTH2_FRONTEND_BASE_URL}
-      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+    networks:
+      - mysql_default
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+networks:
+  mysql_default:
+    external: true

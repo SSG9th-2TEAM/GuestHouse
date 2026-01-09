@@ -37,6 +37,7 @@ public class ReservationServiceImpl implements ReservationService {
         private final PaymentService paymentService;
         private final RoomJpaRepository roomJpaRepository;
         private final PaymentJpaRepository paymentRepository;
+        private final WaitlistService waitlistService;
 
         @Override
         @Transactional
@@ -83,7 +84,7 @@ public class ReservationServiceImpl implements ReservationService {
                 if (requestDto.guestCount() > remainingCapacity) {
                         throw new IllegalStateException(
                                         "정원 초과: 해당 날짜의 남은 정원은 " + remainingCapacity + "명입니다. (최대 정원: " + maxGuests
-                                                        + "명)");
+                                                        + "명) 미결제 예약은 30분 후 자동 취소됩니다. 대기 목록에 등록하시면 빈자리 발생 시 이메일로 알려드립니다.");
                 }
 
                 // 숙박 박수 계산
@@ -182,7 +183,8 @@ public class ReservationServiceImpl implements ReservationService {
                 Long userId = user.getId();
 
                 // 사용자의 예약 목록 조회 (숙소 정보 + 이미지 + 리뷰 작성 여부 포함)
-                return reservationRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                // DB 레벨에서 결제 완료된 예약만 조회 (reservationStatus >= 2: 확정 이상)
+                return reservationRepository.findCompletedReservationsByUserIdOrderByCreatedAtDesc(userId)
                                 .stream()
                                 .map(reservation -> {
                                         Accommodation accommodation = accommodationRepository
@@ -266,7 +268,20 @@ public class ReservationServiceImpl implements ReservationService {
         public int cleanupOldPendingReservations() {
                 // 30분 전 시간 계산
                 java.time.LocalDateTime cutoffTime = java.time.LocalDateTime.now().minusMinutes(30);
-                return reservationRepository.deleteOldPendingReservations(cutoffTime);
+
+                // 삭제 대상 조회
+                List<Reservation> toBeDeleted = reservationRepository.findOldPendingReservations(cutoffTime);
+
+                int deletedCount = reservationRepository.deleteOldPendingReservations(cutoffTime);
+
+                // 대기자 알림 발송
+                if (deletedCount > 0 && !toBeDeleted.isEmpty()) {
+                        for (Reservation r : toBeDeleted) {
+                                waitlistService.notifyWaitingUsers(r.getRoomId(), r.getCheckin(), r.getCheckout());
+                        }
+                }
+
+                return deletedCount;
         }
 
         // 객실별 예약 조회

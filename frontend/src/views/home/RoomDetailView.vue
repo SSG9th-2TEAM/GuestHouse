@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
+import { useHolidayStore } from '@/stores/holiday'
 import { useListingFilters } from '@/composables/useListingFilters'
 import { fetchThemes } from '@/api/theme'
 import { fetchAccommodationDetail, fetchAccommodationAvailability } from '@/api/accommodation'
@@ -17,10 +18,12 @@ import DetailSkeleton from '@/components/DetailSkeleton.vue'
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
+const holidayStore = useHolidayStore()
 const { applyRouteFilters } = useListingFilters()
 
 const DEFAULT_IMAGE = 'https://placehold.co/800x600'
 const DEFAULT_HOST_IMAGE = 'https://picsum.photos/seed/host/100/100'
+
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value)
@@ -50,7 +53,7 @@ const getAccommodationId = () => {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-const buildMapQuery = () => {
+const buildFilterQuery = () => {
   const query = {}
   const minValue = route.query.min ?? route.query.minPrice
   const maxValue = route.query.max ?? route.query.maxPrice
@@ -60,12 +63,19 @@ const buildMapQuery = () => {
   if (route.query.guestCount) query.guestCount = String(route.query.guestCount)
   if (route.query.checkin) query.checkin = String(route.query.checkin)
   if (route.query.checkout) query.checkout = String(route.query.checkout)
+  if (route.query.keyword) query.keyword = String(route.query.keyword)
+  if (route.query.sort) query.sort = String(route.query.sort)
   return query
 }
 
 const goBack = () => {
-  if (route.query.from === 'map') {
-    router.push({ path: '/map', query: buildMapQuery() })
+  const from = route.query.from
+  if (from === 'map') {
+    router.push({ path: '/map', query: buildFilterQuery() })
+    return
+  }
+  if (from === 'list') {
+    router.push({ path: '/list', query: buildFilterQuery() })
     return
   }
   router.back()
@@ -73,6 +83,7 @@ const goBack = () => {
 
 const createEmptyGuesthouse = (id = null) => ({
   id,
+  category: '',
   name: '',
   rating: '-',
   reviewCount: 0,
@@ -190,8 +201,12 @@ const normalizeDetail = (data) => {
   const fallbackPrice = toNumber(data?.minPrice ?? 0, 0)
   const ratingValue = Number(data?.rating)
   const reviews = normalizeReviews(data?.reviews)
+  // Fallback to snake_case if camelCase is missing
+  const category = data?.accommodationsCategory || data?.accommodations_category || ''
+  
   return {
     id: data?.accommodationsId ?? null,
+    category,
     name: data?.accommodationsName ?? '',
     rating: Number.isFinite(ratingValue) ? ratingValue.toFixed(2) : '-',
     reviewCount: toNumber(data?.reviewCount ?? reviews.length, 0),
@@ -239,6 +254,27 @@ const isUnavailableModalOpen = ref(false)
 
 const canBook = computed(() => {
   return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
+})
+
+// 숙박 일수 계산
+const stayNights = computed(() => {
+  if (!searchStore.startDate || !searchStore.endDate) return 1
+  const diffTime = searchStore.endDate.getTime() - searchStore.startDate.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  return diffDays > 0 ? diffDays : 1
+})
+
+// 총 가격 계산 (객실 가격 × 숙박 일수)
+const totalPrice = computed(() => {
+  if (!selectedRoom.value) return 0
+  let price = selectedRoom.value.price * stayNights.value
+  
+  const category = (guesthouse.value.category || '').toUpperCase()
+  if (category === 'GUESTHOUSE' || category === '게스트하우스') {
+    const count = Number(searchStore.guestCount)
+    price *= Math.max(1, Number.isFinite(count) ? count : 1)
+  }
+  return price
 })
 
 const hasDateRange = computed(() => Boolean(searchStore.startDate && searchStore.endDate))
@@ -295,28 +331,22 @@ const isDateInRange = (date) => {
   return time > searchStore.startDate.getTime() && time < searchStore.endDate.getTime()
 }
 
-const HOLIDAYS = [
-  '2024-01-01', '2024-02-09', '2024-02-10', '2024-02-11', '2024-02-12',
-  '2024-03-01', '2024-04-10', '2024-05-05', '2024-05-06', '2024-05-15',
-  '2024-06-06', '2024-08-15', '2024-09-16', '2024-09-17', '2024-09-18',
-  '2024-10-03', '2024-10-09', '2024-12-25',
-  '2025-01-01', '2025-01-27', '2025-01-28', '2025-01-29', '2025-01-30',
-  '2025-03-01', '2025-03-03', '2025-05-05', '2025-05-06', '2025-06-06',
-  '2025-08-15', '2025-10-03', '2025-10-05', '2025-10-06', '2025-10-07', '2025-10-08', '2025-10-09', '2025-12-25'
-]
-
-const isHoliday = (date) => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return HOLIDAYS.includes(`${y}-${m}-${d}`)
+const toDateKey = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
+
+const getHolidayInfo = (date) => holidayStore.getHolidayInfo(toDateKey(date))
 
 const getCalendarDays = (year, month) => {
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
   const daysInMonth = lastDay.getDate()
   const startingDay = firstDay.getDay()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
   const days = []
   for (let i = 0; i < startingDay; i += 1) {
@@ -329,6 +359,7 @@ const getCalendarDays = (year, month) => {
     const isEndDate = searchStore.endDate && isSameDay(date, searchStore.endDate)
     const isInRange = isDateInRange(date)
     const hasEndDate = searchStore.endDate !== null
+    const isDisabled = date.getTime() < today.getTime()
 
     days.push({
       day,
@@ -337,11 +368,12 @@ const getCalendarDays = (year, month) => {
       isToday: isSameDay(date, new Date()),
       isSaturday: dayOfWeek === 6,
       isSunday: dayOfWeek === 0,
-      isHoliday: isHoliday(date),
+      isHoliday: Boolean(getHolidayInfo(date)),
       isStartDate,
       isEndDate,
       isInRange,
-      hasEndDate
+      hasEndDate,
+      isDisabled
     })
   }
   return days
@@ -363,7 +395,7 @@ const nextMonth = () => {
 }
 
 const selectDate = (dayObj) => {
-  if (dayObj.isEmpty) return
+  if (dayObj.isEmpty || dayObj.isDisabled) return
 
   const clickedDate = dayObj.date
   if (!searchStore.startDate || (searchStore.startDate && searchStore.endDate)) {
@@ -372,10 +404,11 @@ const selectDate = (dayObj) => {
     return
   }
 
-  if (clickedDate.getTime() < searchStore.startDate.getTime()) {
-    searchStore.setEndDate(searchStore.startDate)
+  // Must be AFTER start date (not same day)
+  if (clickedDate.getTime() <= searchStore.startDate.getTime()) {
+    // If clicked date is same or before start date, set as new start date
     searchStore.setStartDate(clickedDate)
-    isCalendarOpen.value = false
+    searchStore.setEndDate(null)
     return
   }
 
@@ -539,6 +572,8 @@ const getSnsLabel = (type, url) => {
     return '링크'
   }
 }
+
+
 
 const buildSnsLinks = (sns) => {
   if (!sns) return []
@@ -705,6 +740,14 @@ watch(
       applyRouteFilters(query)
     }
   }
+)
+watch(
+  [currentYear, currentMonth],
+  () => {
+    holidayStore.loadMonth(currentYear.value, currentMonth.value + 1)
+    holidayStore.loadMonth(nextMonthYear.value, nextMonthMonth.value + 1)
+  },
+  { immediate: true }
 )
 watch(
   () => [route.params.id, searchStore.startDate, searchStore.endDate, searchStore.guestCount],
@@ -907,7 +950,12 @@ watch(filteredRooms, (rooms) => {
                 <div class="calendar-month">
                   <div class="calendar-month-title">{{ currentYear }}년 {{ monthNames[currentMonth] }}</div>
                   <div class="calendar-weekdays">
-                    <span v-for="day in weekDays" :key="'current-' + day" class="weekday">{{ day }}</span>
+                    <span
+                      v-for="(day, index) in weekDays"
+                      :key="'current-' + day"
+                      class="weekday"
+                      :class="{ sunday: index === 0, saturday: index === 6 }"
+                    >{{ day }}</span>
                   </div>
                   <div class="calendar-days">
                     <span
@@ -916,6 +964,7 @@ watch(filteredRooms, (rooms) => {
                       class="calendar-day"
                       :class="{
                         empty: dayObj.isEmpty,
+                        disabled: dayObj.isDisabled,
                         today: dayObj.isToday,
                         'weekend-sat': dayObj.isSaturday,
                         'weekend-sun': dayObj.isSunday,
@@ -935,7 +984,12 @@ watch(filteredRooms, (rooms) => {
                 <div class="calendar-month">
                   <div class="calendar-month-title">{{ nextMonthYear }}년 {{ monthNames[nextMonthMonth] }}</div>
                   <div class="calendar-weekdays">
-                    <span v-for="day in weekDays" :key="'next-' + day" class="weekday">{{ day }}</span>
+                    <span
+                      v-for="(day, index) in weekDays"
+                      :key="'next-' + day"
+                      class="weekday"
+                      :class="{ sunday: index === 0, saturday: index === 6 }"
+                    >{{ day }}</span>
                   </div>
                   <div class="calendar-days">
                     <span
@@ -944,6 +998,7 @@ watch(filteredRooms, (rooms) => {
                       class="calendar-day"
                       :class="{
                         empty: dayObj.isEmpty,
+                        disabled: dayObj.isDisabled,
                         today: dayObj.isToday,
                         'weekend-sat': dayObj.isSaturday,
                         'weekend-sun': dayObj.isSunday,
@@ -1051,7 +1106,13 @@ watch(filteredRooms, (rooms) => {
       <div class="selection-summary">
         <span v-if="selectedRoom">선택한 객실: {{ selectedRoom.name }}</span>
         <span v-else>객실을 선택해주세요</span>
-        <div class="total-price" v-if="selectedRoom">₩{{ formatPrice(selectedRoom.price) }}</div>
+        <div class="total-price" v-if="selectedRoom">
+          <span class="price-detail" v-if="hasDateRange">
+            ₩{{ formatPrice(selectedRoom.price) }} × {{ stayNights }}박<span v-if="['GUESTHOUSE', '게스트하우스'].includes((guesthouse.category || '').toUpperCase())"> × {{ searchStore.guestCount }}명</span> =
+          </span>
+          <span class="price-amount">₩{{ formatPrice(hasDateRange ? totalPrice : selectedRoom.price) }}</span>
+          <span class="price-nights" v-if="!hasDateRange"> / 1박</span>
+        </div>
       </div>
       <button class="book-btn" :disabled="!canBook" @click="goToBooking">예약하기</button>
     </div>
@@ -1411,30 +1472,58 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   left: 0;
   z-index: 50;
   background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  border: 1px solid #f0f0f0;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   padding: 1rem;
   width: 100%;
+  font-family: 'Noto Sans KR', sans-serif;
+  animation: calendarFadeIn 0.2s ease;
+}
+@keyframes calendarFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .calendar-container {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
+  gap: 8px;
 }
 .calendar-month {
-  width: 220px;
+  flex: 1;
+  min-width: 0;
 }
 .calendar-month-title {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1f36;
+  text-align: center;
+  margin-bottom: 16px;
 }
 .calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  font-size: 0.75rem;
-  color: var(--text-sub);
-  margin-bottom: 0.25rem;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  padding: 8px 0;
+}
+.weekday.sunday {
+  color: #ef4444;
+}
+.weekday.saturday {
+  color: #2563eb;
 }
 .calendar-days {
   display: grid;
@@ -1442,43 +1531,97 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   gap: 4px;
 }
 .calendar-day {
-  width: 28px;
-  height: 28px;
-  line-height: 28px;
   text-align: center;
-  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  padding: 12px 0;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 0.8rem;
+  position: relative;
+  transition: all 0.2s ease;
+}
+.calendar-day.disabled {
+  color: #b4b8bf;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 .calendar-day.empty {
   visibility: hidden;
   cursor: default;
 }
-.calendar-day.today {
-  border: 1px solid var(--primary);
+.calendar-day.today:not(.range-start):not(.range-end):not(.in-range) {
+  color: #6DC3BB;
+  font-weight: 700;
 }
-.calendar-day.weekend-sat {
+.calendar-day.weekend-sat:not(.range-start):not(.range-end):not(.disabled) {
   color: #2563eb;
 }
-.calendar-day.weekend-sun {
-  color: #dc2626;
+.calendar-day.weekend-sun:not(.range-start):not(.range-end):not(.disabled) {
+  color: #ef4444;
+}
+.calendar-day.holiday:not(.range-start):not(.range-end):not(.disabled) {
+  color: #ef4444;
+  font-weight: 600;
+}
+.calendar-day:not(.empty):not(.disabled):hover {
+  background-color: #f0f7f6;
+  color: #6DC3BB;
 }
 .calendar-day.in-range {
-  background: #e6f4f1;
+  background-color: #BFE7DF;
+  color: #2d7a73;
+  border-radius: 0;
 }
 .calendar-day.range-start,
 .calendar-day.range-end {
-  background: var(--primary);
-  color: #000;
-  font-weight: 600;
+  background-color: #5CC5B3;
+  color: #fff;
+  font-weight: 700;
+  position: relative;
+}
+.calendar-day.range-start.has-end::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 100%;
+  background-color: #BFE7DF;
+  z-index: -1;
+}
+.calendar-day.range-end::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background-color: #BFE7DF;
+  z-index: -1;
+}
+.calendar-day.range-start:hover,
+.calendar-day.range-end:hover {
+  background-color: #49B5A3;
+  color: #fff;
 }
 .calendar-nav-btn {
-  background: none;
+  background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 1.4rem;
-  padding: 0.25rem 0.5rem;
-  color: var(--text-main);
+  padding: 8px;
+  border-radius: 8px;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.calendar-nav-btn:hover {
+  background-color: #f0f7f6;
+  color: #6DC3BB;
 }
 
 /* Room Card */
@@ -1611,11 +1754,34 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 2rem;
   box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
   z-index: 100;
 }
-.selection-summary { display: flex; flex-direction: column; }
-.total-price { font-weight: bold; font-size: 1.2rem; }
+.selection-summary { display: flex; flex-direction: column; gap: 0.25rem; }
+.total-price { 
+  font-weight: bold; 
+  font-size: 1.2rem;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.price-detail {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-sub);
+}
+.price-amount {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.price-nights {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-sub);
+}
 .book-btn {
   background: var(--primary);
   color: #004d40;

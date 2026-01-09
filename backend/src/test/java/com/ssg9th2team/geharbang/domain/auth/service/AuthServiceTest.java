@@ -43,6 +43,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 public class AuthServiceTest {
 
     @InjectMocks
@@ -62,6 +63,8 @@ public class AuthServiceTest {
     private EmailService emailService;
     @Mock
     private VerificationCodeService verificationCodeService;
+    @Mock
+    private com.ssg9th2team.geharbang.domain.coupon.service.UserCouponService userCouponService;
 
     private User testUser;
     private Admin testAdmin;
@@ -84,7 +87,7 @@ public class AuthServiceTest {
                 .username("admin@example.com")
                 .password("adminEncodedPassword")
                 .build();
-        ReflectionTestUtils.setField(testAdmin, "adminId", 99L); // Manually set ID for admin
+        ReflectionTestUtils.setField(testAdmin, "id", 99L); // Manually set ID for admin
 
         // Mock Themes
         testTheme1 = Theme.builder().themeName("테마1").themeCategory("카테고리1").build();
@@ -263,7 +266,7 @@ public class AuthServiceTest {
         // then
         assertThat(response).isNotNull();
         assertThat(response.getEmail()).isEqualTo(testUser.getEmail());
-        verify(testUser, times(1)).completeSocialSignup(true, new HashSet<>(List.of(testTheme1)));
+        // verify(testUser, times(1)).completeSocialSignup(true, new HashSet<>(List.of(testTheme1))); // testUser is not a mock
         verify(userRepository, times(1)).save(testUser);
         assertThat(testUser.getSocialSignupCompleted()).isTrue(); // Verify state change
     }
@@ -342,7 +345,9 @@ public class AuthServiceTest {
     @Test
     @DisplayName("이메일 인증 코드 확인 성공")
     void verifyEmailCode_Success() {
+        com.ssg9th2team.geharbang.domain.auth.dto.VerifyCodeRequest request = 
+            new com.ssg9th2team.geharbang.domain.auth.dto.VerifyCodeRequest("test@example.com", "123456");
         when(verificationCodeService.verifyCode(anyString(), anyString())).thenReturn(true);
-        assertThat(authService.verifyEmailCode(mock(com.ssg9th2team.geharbang.domain.auth.dto.VerifyCodeRequest.class))).isTrue();
+        assertThat(authService.verifyEmailCode(request)).isTrue();
     }
 }

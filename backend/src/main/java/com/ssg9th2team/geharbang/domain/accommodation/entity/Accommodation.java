@@ -7,7 +7,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "accommodation")
+@Table(name = "accommodation", indexes = {
+        @Index(name = "idx_accommodation_rating", columnList = "rating"),
+        @Index(name = "idx_accommodation_review_count", columnList = "review_count"),
+        @Index(name = "idx_accommodation_min_price", columnList = "min_price"),
+        @Index(name = "idx_accommodation_status", columnList = "accommodation_status, approval_status"),
+        @Index(name = "idx_accommodation_lat_lng", columnList = "latitude, longitude")
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -32,16 +38,16 @@ public class Accommodation {
     @Column(name = "accommodations_category", nullable = false)
     private AccommodationsCategory accommodationsCategory;
 
-    @Column(name = "accommodations_description", columnDefinition = "TEXT" ,nullable = false)
+    @Column(name = "accommodations_description", columnDefinition = "TEXT", nullable = false)
     private String accommodationsDescription;
 
-    @Column(name = "short_description", length = 100 , nullable = false)
+    @Column(name = "short_description", length = 100, nullable = false)
     private String shortDescription;
 
     @Column(name = "city", length = 50, nullable = false)
     private String city;
 
-    @Column(name = "district", length = 50 , nullable = false)
+    @Column(name = "district", length = 50, nullable = false)
     private String district;
 
     @Column(name = "township", length = 50, nullable = false)
@@ -59,20 +65,20 @@ public class Accommodation {
     @Column(name = "transport_info", columnDefinition = "TEXT", nullable = false)
     private String transportInfo;
 
-    @Column(name = "accommodation_status", nullable = false)  // 숙소 운영 상태
+    @Column(name = "accommodation_status", nullable = false) // 숙소 운영 상태
     private Integer accommodationStatus;
 
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "approval_status", nullable = false)   // 숙소 승인 상태
+    @Column(name = "approval_status", nullable = false) // 숙소 승인 상태
     private ApprovalStatus approvalStatus;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "phone" , nullable = false)
+    @Column(name = "phone", nullable = false)
     private String phone;
 
     @Column(name = "business_registration_number", length = 20, nullable = false)
@@ -110,20 +116,17 @@ public class Accommodation {
         this.approvalStatus = ApprovalStatus.PENDING;
     }
 
-
-
-
     // ========================= JPA 사용할 때 사용 할 메서드 ==============================
     // 수정 메서드 (변경 가능한 필드만)
     public void update(String accommodationsDescription,
-                       String shortDescription,
-                       String transportInfo,
-                       Integer accommodationStatus,
-                       String parkingInfo,
-                       String sns,
-                       String phone,
-                       String checkInTime,
-                       String checkOutTime) {
+            String shortDescription,
+            String transportInfo,
+            Integer accommodationStatus,
+            String parkingInfo,
+            String sns,
+            String phone,
+            String checkInTime,
+            String checkOutTime) {
         this.accommodationsDescription = accommodationsDescription;
         this.shortDescription = shortDescription;
         this.transportInfo = transportInfo;
@@ -150,12 +153,11 @@ public class Accommodation {
         this.rejectionReason = reason;
     }
 
-
     // 관리자 승인/반려 메서드
     public void updateApprovalStatus(ApprovalStatus status, String rejectionReason) {
         this.approvalStatus = status;
         this.rejectionReason = rejectionReason;
-        
+
         // 승인 시 운영 상태를 1(운영 중)로 변경
         if (status == ApprovalStatus.APPROVED) {
             this.accommodationStatus = 1;

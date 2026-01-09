@@ -1,5 +1,5 @@
 -- Add theme_image_url column to theme table
-ALTER TABLE theme ADD COLUMN theme_image_url VARCHAR(500);
+-- ALTER TABLE theme ADD COLUMN theme_image_url VARCHAR(500);
 
 -- Update theme image URLs for AROUND_THEME category
 UPDATE theme SET theme_image_url = 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=500' WHERE theme_name = '바닷가';

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { createReservation } from '@/api/reservationApi'
 import { fetchAccommodationDetail } from '@/api/accommodation'
@@ -27,6 +27,36 @@ const isDataLoading = ref(true)
 onMounted(async () => {
   const accommodationsId = parseInt(props.accommodationsId) || parseInt(route.params.id)
   const roomId = parseInt(props.roomId) || parseInt(route.query.roomId)
+  
+  // 체크인/체크아웃 날짜 검증 (오늘 이전 날짜 차단)
+  const checkinParam = props.checkin || route.query.checkin || route.query.checkIn
+  const checkoutParam = props.checkout || route.query.checkout || route.query.checkOut
+  
+  if (checkinParam) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const checkinDate = new Date(checkinParam)
+    checkinDate.setHours(0, 0, 0, 0)
+    
+    if (checkinDate.getTime() < today.getTime()) {
+      alert('과거 날짜로는 예약할 수 없습니다.\n날짜를 다시 선택해주세요.')
+      router.back()
+      return
+    }
+  }
+  
+  if (checkoutParam) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const checkoutDate = new Date(checkoutParam)
+    checkoutDate.setHours(0, 0, 0, 0)
+    
+    if (checkoutDate.getTime() <= today.getTime()) {
+      alert('체크아웃 날짜는 오늘 이후여야 합니다.\n날짜를 다시 선택해주세요.')
+      router.back()
+      return
+    }
+  }
   
   if (accommodationsId) {
     try {
@@ -164,6 +194,13 @@ const booking = computed(() => {
 })
 
 const coupons = ref([])
+const eligibleCoupons = computed(() => {
+  const totalPrice = booking.value?.price || 0
+  return coupons.value.filter((coupon) => {
+    const min = coupon?.minPrice ?? 0
+    return totalPrice >= min
+  })
+})
 
 const selectedCoupon = ref(null)
 const isLoading = ref(false)
@@ -186,6 +223,15 @@ const couponDiscount = computed(() => {
 
 const finalPrice = computed(() => {
   return booking.value.price - couponDiscount.value
+})
+
+watch(eligibleCoupons, (newList) => {
+  if (
+    selectedCoupon.value &&
+    !newList.some((coupon) => coupon?.id === selectedCoupon.value?.id)
+  ) {
+    selectedCoupon.value = null
+  }
 })
 
 const goBack = () => router.back()
@@ -309,7 +355,11 @@ const handlePayment = async () => {
             </div>
             <select v-model="selectedCoupon" class="coupon-select">
               <option :value="null">쿠폰 선택 안함</option>
-              <option v-for="coupon in coupons" :key="coupon.id" :value="coupon">
+              <option
+                v-for="coupon in eligibleCoupons"
+                :key="coupon.id"
+                :value="coupon"
+              >
                 {{ coupon.name }} ({{ coupon.discountType === 'PERCENT' ? coupon.discountValue + '%' : coupon.discountValue.toLocaleString() + '원' }} 할인)
               </option>
             </select>

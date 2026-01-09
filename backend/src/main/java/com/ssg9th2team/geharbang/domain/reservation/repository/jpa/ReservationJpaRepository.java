@@ -3,10 +3,13 @@ package com.ssg9th2team.geharbang.domain.reservation.repository.jpa;
 import com.ssg9th2team.geharbang.domain.reservation.entity.Reservation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import jakarta.persistence.LockModeType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +39,12 @@ public interface ReservationJpaRepository
         // roomId로 예약 조회
         @Query("SELECT r FROM Reservation r WHERE r.roomId = :roomId AND r.isDeleted = false")
         List<Reservation> findByRoomId(@Param("roomId") Long roomId);
+
+        /**
+         * 30분이 지난 대기(0) 상태 예약 조회
+         */
+        @Query("SELECT r FROM Reservation r WHERE r.reservationStatus = 0 AND r.createdAt < :cutoffTime")
+        List<Reservation> findOldPendingReservations(@Param("cutoffTime") LocalDateTime cutoffTime);
 
         /**
          * 30분 이상 경과한 대기(0) 상태 예약 삭제 (물리적 삭제 유지)
@@ -92,7 +101,9 @@ public interface ReservationJpaRepository
          * [동시성 제어] 특정 객실, 특정 날짜 범위에 예약된 총 인원 수 조회
          * - 취소(9) 및 삭제된 예약 제외
          * - 날짜 겹침 조건: 새 체크인 < 기존 체크아웃 AND 새 체크아웃 > 기존 체크인
+         * - PESSIMISTIC_READ 락으로 동시 예약 시 정확한 인원 수 조회 보장
          */
+        @Lock(LockModeType.PESSIMISTIC_READ)
         @Query("SELECT COALESCE(SUM(r.guestCount), 0) FROM Reservation r " +
                         "WHERE r.roomId = :roomId " +
                         "AND r.isDeleted = false " +
@@ -111,4 +122,11 @@ public interface ReservationJpaRepository
         List<Reservation> findAllByUserId(Long userId);
 
         long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+        /**
+         * 결제 완료된 예약 조회 (reservationStatus >= 2: 확정, 체크인완료 포함)
+         * 성능 최적화: 메모리 필터링 대신 DB 레벨에서 필터링
+         */
+        @Query("SELECT r FROM Reservation r WHERE r.userId = :userId AND r.isDeleted = false AND r.reservationStatus >= 2 ORDER BY r.createdAt DESC")
+        List<Reservation> findCompletedReservationsByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
 }

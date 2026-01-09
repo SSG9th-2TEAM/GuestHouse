@@ -81,9 +81,18 @@ export async function getDownloadableCoupons(accommodationId) {
     return response.data
 }
 
+export async function getMyCouponIds() {
+    const response = await authenticatedRequest('/api/coupons/my/ids')
+    if (!response.ok) {
+        throw new Error(`쿠폰 ID 조회 실패: ${response.status}`)
+    }
+    return response.data || []
+}
+
 export default {
     getMyCoupons,
     issueCoupon,
     useCoupon,
-    getDownloadableCoupons
+    getDownloadableCoupons,
+    getMyCouponIds
 }

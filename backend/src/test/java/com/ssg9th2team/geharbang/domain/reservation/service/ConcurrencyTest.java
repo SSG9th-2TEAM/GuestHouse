@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
 import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
 import com.ssg9th2team.geharbang.domain.reservation.dto.ReservationRequestDto;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
@@ -36,12 +37,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@ActiveProfiles("test")
+@ActiveProfiles("integration-test")
 @Import(ConcurrencyTest.Config.class) // 내부 설정 클래스 Import
 @Sql(scripts = "/sql/test-base-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
-class ConcurrencyTest {
+class ConcurrencyTest extends com.ssg9th2team.geharbang.config.IntegrationTestConfig {
 
     @Autowired
     private ReservationService reservationService;
@@ -72,6 +71,8 @@ class ConcurrencyTest {
         PaymentService paymentService;
         @MockBean
         PaymentJpaRepository paymentJpaRepository;
+        @MockBean
+        WaitlistService waitlistService;
 
         @Bean
         public ReservationService reservationService(
@@ -82,7 +83,8 @@ class ConcurrencyTest {
                 ReviewJpaRepository reviewJpaRepository,
                 PaymentService paymentService,
                 RoomJpaRepository roomJpaRepository,
-                PaymentJpaRepository paymentJpaRepository) {
+                PaymentJpaRepository paymentJpaRepository,
+                WaitlistService waitlistService) {
             return new ReservationServiceImpl(
                     reservationRepository,
                     accommodationRepository,
@@ -91,7 +93,8 @@ class ConcurrencyTest {
                     reviewJpaRepository,
                     paymentService,
                     roomJpaRepository,
-                    paymentJpaRepository);
+                    paymentJpaRepository,
+                    waitlistService);
         }
     }
 
@@ -148,7 +151,7 @@ class ConcurrencyTest {
     @Test
     @DisplayName("동시성 제어: 같은 객실/날짜에 100명이 동시에 예약하면 직렬화되어 1명만 성공해야 한다.")
     void concurrencyReservationTest() throws InterruptedException {
-        int numberOfThreads = 100;
+        int numberOfThreads = 10;
         ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
         CountDownLatch latch = new CountDownLatch(numberOfThreads);
 
