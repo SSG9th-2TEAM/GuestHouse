@@ -268,10 +268,6 @@ onMounted(() => {
 
     <!-- AI 자연어 추천 검색 섹션 -->
     <section class="ai-search-section">
-      <div class="ai-search-header">
-        <h2 class="ai-search-title">🤖 AI에게 추천받기</h2>
-        <p class="ai-search-subtitle">원하는 여행 스타일을 자유롭게 입력해보세요!</p>
-      </div>
       <div class="ai-search-input-wrapper">
         <input
           v-model="aiSearchQuery"
@@ -665,10 +661,8 @@ onMounted(() => {
 
 /* AI 검색 섹션 스타일 */
 .ai-search-section {
-  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
-  padding: 1.5rem;
-  border-radius: 16px;
-  margin-bottom: 2rem;
+  padding: 0.5rem 0;
+  margin-bottom: 0.5rem;
 }
 
 .ai-search-header {
@@ -700,7 +694,7 @@ onMounted(() => {
   flex: 1;
   padding: 1rem 1.25rem;
   font-size: 1rem;
-  border: 2px solid #7dd3fc;
+  border: 2px solid var(--brand-primary, #BFE7DF);
   border-radius: 50px;
   background: white;
   outline: none;
@@ -708,8 +702,8 @@ onMounted(() => {
 }
 
 .ai-search-input:focus {
-  border-color: #0ea5e9;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+  border-color: var(--brand-primary-strong, #6DC3BB);
+  box-shadow: 0 0 0 3px rgba(109, 195, 187, 0.2);
 }
 
 .ai-search-input::placeholder {
@@ -720,18 +714,19 @@ onMounted(() => {
   padding: 1rem 2rem;
   font-size: 1rem;
   font-weight: 700;
-  color: white;
-  background: linear-gradient(135deg, #0ea5e9, #0369a1);
-  border: none;
+  color: #0f172a;
+  background: var(--brand-primary, #BFE7DF);
+  border: 1px solid var(--brand-primary-strong, #6DC3BB);
   border-radius: 50px;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
   white-space: nowrap;
 }
 
 .ai-search-button:hover:not(:disabled) {
+  background: var(--brand-primary-strong, #6DC3BB);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
+  box-shadow: 0 4px 12px rgba(109, 195, 187, 0.3);
 }
 
 .ai-search-button:disabled {
