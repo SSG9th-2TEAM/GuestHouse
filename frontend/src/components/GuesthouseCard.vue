@@ -80,17 +80,17 @@ const emit = defineEmits(['toggle-favorite'])
       <div class="header-row">
         <h3 class="title">{{ title }}</h3>
       </div>
+      <p v-if="description" class="description">{{ description }}</p>
       <div class="card-bottom">
-        <p v-if="description" class="description">{{ description }}</p>
-        <p class="location">{{ location }}</p>
-        <div class="footer-row">
+        <div class="info-left">
+          <p class="location">{{ location }}</p>
           <span class="price">
             <strong>&#8361;{{ price.toLocaleString() }}</strong> / 1박
           </span>
-          <span class="rating">
-            <span class="rating-value">&#9733; {{ formatRating(rating) }}</span>
-            <span v-if="hasReviewCount" class="rating-count">({{ formatReviewCount(reviewCount) }})</span>
-          </span>
+        </div>
+        <div class="info-right">
+          <span class="rating-value">&#9733; {{ formatRating(rating) }}</span>
+          <span v-if="hasReviewCount" class="rating-count">({{ formatReviewCount(reviewCount) }})</span>
         </div>
       </div>
     </div>
@@ -195,10 +195,10 @@ const emit = defineEmits(['toggle-favorite'])
 }
 
 .card-content {
-  padding: 0.15rem 0.5rem 0.35rem;
+  padding: 0.15rem 0.5rem 0;
   display: flex;
   flex-direction: column;
-  gap: 0.02rem;
+  gap: 0;
   flex: 1;
 }
 
@@ -216,8 +216,9 @@ const emit = defineEmits(['toggle-favorite'])
   margin: 0;
   flex: 1;
   min-width: 0;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rating {
@@ -253,17 +254,23 @@ const emit = defineEmits(['toggle-favorite'])
 
 .card-bottom {
   margin-top: auto;
+  padding-top: 0.4rem;
   display: flex;
-  flex-direction: column;
-  gap: 0.02rem;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
-.footer-row {
-  margin-top: 0.15rem;
-  margin-bottom: 0;
+.info-left {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0;
+}
+
+.info-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
 }
 
 .book-btn {

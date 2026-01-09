@@ -461,6 +461,17 @@ onMounted(() => {
   cursor: pointer;
 }
 
+/* 모바일에서 카드 크기 축소 */
+@media (max-width: 768px) {
+  .row-scroll {
+    gap: 0.75rem;
+  }
+  
+  .row-card {
+    flex: 0 0 230px;
+  }
+}
+
 .more-card {
   border: 1px dashed #cbd5f5;
   background: #f8fafc;
@@ -471,7 +482,6 @@ onMounted(() => {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 1.5rem;
-  min-height: 360px;
   border-radius: 16px;
   transition: background-color 0.2s, transform 0.2s;
 }
