@@ -22,24 +22,17 @@ const DEFAULT_IMAGE = 'https://placehold.co/400x300?text=No+Image'
 
 const thumbnailUrl = computed(() => {
   if (!props.imageUrl) return DEFAULT_IMAGE
-  
-  // Object Storage URL인 경우 썸네일 폴더로 변경
-  if (props.imageUrl.includes('ncloudstorage.com')) {
-    // accommodation_image -> accommodation_image_thumb
-    // room -> room_thumb
-    let thumbUrl = props.imageUrl
-      .replace('/accommodation_image/', '/accommodation_image_thumb/')
-      .replace('/room/', '/room_thumb/')
-    
-    // 확장자를 .jpg로 변경 (썸네일은 모두 jpg)
-    thumbUrl = thumbUrl.replace(/\.(png|gif|webp)$/i, '.jpg')
-    
-    return thumbUrl
-  }
-  
-  // 다른 URL은 원본 그대로 사용
+  // 썸네일 전용 버킷을 별도로 두지 않아 원본을 그대로 사용한다.
+  // (추후 썸네일 경로가 준비되면 여기서 조건 분기)
   return props.imageUrl
 })
+
+const handleImageError = (event) => {
+  if (event?.target) {
+    event.target.onerror = null
+    event.target.src = DEFAULT_IMAGE
+  }
+}
 
 const formatRating = (value) => {
   const numeric = Number(value)
@@ -64,7 +57,7 @@ const emit = defineEmits(['toggle-favorite'])
 <template>
   <article class="card" :class="{ inactive: !isActive }">
     <div class="image-container">
-      <img :src="thumbnailUrl" :alt="title" class="card-image" />
+      <img :src="thumbnailUrl" :alt="title" class="card-image" @error="handleImageError" />
       <span v-if="!isActive" class="inactive-badge">사용 중지</span>
       <button
         class="favorite-btn"

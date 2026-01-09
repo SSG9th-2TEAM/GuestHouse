@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 public interface CouponInventoryRepository extends JpaRepository<CouponInventory, Long> {
 
@@ -29,4 +30,8 @@ public interface CouponInventoryRepository extends JpaRepository<CouponInventory
     @Query("update CouponInventory ci set ci.availableToday = ci.dailyLimit, ci.lastResetDate = :today "
             + "where ci.lastResetDate is null or ci.lastResetDate < :today")
     int resetAllInventories(@Param("today") LocalDate today);
+
+    // [MEDIUM] 확장성 고려: 전체 조회 시 Stream 사용
+    @Query("select ci from CouponInventory ci")
+    Stream<CouponInventory> streamAll();
 }
