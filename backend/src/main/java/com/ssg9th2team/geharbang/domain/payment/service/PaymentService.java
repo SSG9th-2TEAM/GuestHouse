@@ -25,14 +25,24 @@ public interface PaymentService {
     PaymentResponseDto getPaymentByReservationId(Long reservationId);
 
     /**
-     * 결제 취소 (환불)
+     * 결제 취소 (환불) - 사용자용 (환불 정책 적용)
      * 
+     * @param reservationId 예약 ID
+     * @param cancelReason  취소 사유
+     * @param refundAmount  환불 금액 (사용되지 않음, 정책에 따라 자동 계산됨)
+     * @return 환불 처리 결과
+     */
+    PaymentResponseDto cancelPayment(Long reservationId, String cancelReason, Integer refundAmount);
+
+    /**
+     * 관리자 강제 환불 (정책 무시, 입력된 금액으로 환불)
+     *
      * @param reservationId 예약 ID
      * @param cancelReason  취소 사유
      * @param refundAmount  환불 금액
      * @return 환불 처리 결과
      */
-    PaymentResponseDto cancelPayment(Long reservationId, String cancelReason, Integer refundAmount);
+    PaymentResponseDto adminRefundPayment(Long reservationId, String cancelReason, Integer refundAmount);
 
     /**
      * 전체 환불 내역 조회 (관리자용)

@@ -16,14 +16,27 @@ const props = defineProps({
   labels: { type: Array, required: true },
   values: { type: Array, required: true },
   height: { type: Number, default: 260 },
+  format: { type: String, default: '' },
   currency: { type: Boolean, default: true },
+  unitLabel: { type: String, default: '' },
+  tooltipLabel: { type: String, default: '' },
   maxXTicks: { type: Number, default: null }
 })
 
+const resolvedFormat = computed(() => props.format || (props.currency ? 'currency' : 'count'))
+
 const formatValue = (value) => {
   const numeric = Number(value ?? 0)
-  if (!props.currency) return numeric.toLocaleString()
+  if (resolvedFormat.value === 'count') {
+    const unit = props.unitLabel || '건'
+    return unit ? `${numeric.toLocaleString()}${unit}` : numeric.toLocaleString()
+  }
   return `₩${numeric.toLocaleString()}`
+}
+
+const formatTooltipLabel = (value) => {
+  const prefix = props.tooltipLabel?.trim()
+  return prefix ? `${prefix}: ${formatValue(value)}` : formatValue(value)
 }
 
 const formatXAxisLabel = (label) => {
@@ -82,7 +95,7 @@ const chartOptions = computed(() => ({
     tooltip: {
       callbacks: {
         title: (items) => items?.[0]?.label ?? '',
-        label: (item) => formatValue(item.parsed?.y ?? 0)
+        label: (item) => formatTooltipLabel(item.parsed?.y ?? 0)
       }
     }
   },
