@@ -71,7 +71,7 @@ public class EmailServiceImpl implements EmailService {
                     "<p><strong>날짜:</strong> " + checkin + " ~ " + checkout + "</p>" +
                     "</div>" +
                     "<p style='color: #e11d48;'><strong>⚠️ 다른 분들도 대기 중일 수 있으니 서둘러 예약하세요!</strong></p>" +
-                    "<p>미결제 예약은 30분 후 자동 취소되므로 빈자리가 생길 수 있습니다.</p>" +
+                    "<p>미결제 예약은 10분 후 자동 취소되므로 빈자리가 생길 수 있습니다.</p>" +
                     "<p>감사합니다.</p>" +
                     "</body>" +
                     "</html>";
