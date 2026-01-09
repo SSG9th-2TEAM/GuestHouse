@@ -150,7 +150,11 @@ onMounted(() => {
           v-for="coupon in coupons"
           :key="coupon.id"
           class="coupon-card"
-          :class="{ expired: activeTab === 'EXPIRED', used: activeTab === 'USED' }"
+          :class="{
+            available: activeTab === 'ISSUED',
+            expired: activeTab === 'EXPIRED',
+            used: activeTab === 'USED'
+          }"
         >
           <div class="coupon-icon">🏷️</div>
           <div class="coupon-info">
@@ -300,6 +304,20 @@ onMounted(() => {
 .coupon-card.expired,
 .coupon-card.used {
   opacity: 0.6;
+}
+
+.coupon-card.available {
+  opacity: 1;
+}
+
+.coupon-card.available .coupon-name {
+  color: #333;
+  font-weight: 600;
+}
+
+.coupon-card.available .coupon-condition,
+.coupon-card.available .coupon-expiry {
+  color: #555;
 }
 
 .coupon-icon {
