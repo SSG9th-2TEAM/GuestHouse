@@ -1,1 +1,0 @@
-const n=t=>Array.isArray(t)?t:t?.items??t?.content??t?.data??[],a=t=>{const e=t?.page??{};return{page:e?.number??t?.page??0,size:e?.size??t?.size??20,totalElements:e?.totalElements??t?.totalElements??0,totalPages:e?.totalPages??t?.totalPages??0}},c=t=>{const e={};return Object.entries(t).forEach(([s,r])=>{r==null||r===""||r==="all"||(e[s]=r)}),e};export{a,n as e,c as t};
