@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -107,19 +108,27 @@ public class CouponInventoryService {
      * 모든 선착순 쿠폰의 Redis 재고를 DB와 동기화
      * 애플리케이션 시작 시 또는 스케줄러에서 호출
      */
+    /**
+     * 모든 선착순 쿠폰의 Redis 재고를 DB와 동기화
+     * 애플리케이션 시작 시 또는 스케줄러에서 호출
+     * [MEDIUM] 확장성 고려: Stream 사용
+     */
+    @Transactional
     public void initializeAllRedisStock() {
-        List<CouponInventory> inventories = couponInventoryRepository.findAll();
-        
-        for (CouponInventory inventory : inventories) {
-            inventory.resetIfNeeded(LocalDate.now());
-            String redisKey = COUPON_STOCK_KEY_PREFIX + inventory.getCouponId();
-            redisTemplate.opsForValue().set(redisKey, String.valueOf(inventory.getAvailableToday()));
-            
-            log.debug("Redis 재고 초기화: couponId={}, stock={}", 
-                    inventory.getCouponId(), inventory.getAvailableToday());
+        try (Stream<CouponInventory> stream = couponInventoryRepository.streamAll()) {
+            stream.forEach(inventory -> {
+                // 필요 시 DB 상태 업데이트 (Dirty Checking)
+                inventory.resetIfNeeded(LocalDate.now());
+                
+                String redisKey = COUPON_STOCK_KEY_PREFIX + inventory.getCouponId();
+                redisTemplate.opsForValue().set(redisKey, String.valueOf(inventory.getAvailableToday()));
+                
+                log.debug("Redis 재고 초기화: couponId={}, stock={}", 
+                        inventory.getCouponId(), inventory.getAvailableToday());
+            });
         }
         
-        log.info("Redis 쿠폰 재고 초기화 완료: {}건", inventories.size());
+        log.info("Redis 쿠폰 재고 초기화 완료 (Stream 처리)");
     }
 
     /**
