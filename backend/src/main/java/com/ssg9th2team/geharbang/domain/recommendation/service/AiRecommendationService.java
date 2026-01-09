@@ -3,15 +3,19 @@ package com.ssg9th2team.geharbang.domain.recommendation.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
+import com.ssg9th2team.geharbang.domain.accommodation.entity.ApprovalStatus;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
+import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
+import com.ssg9th2team.geharbang.domain.accommodation_theme.entity.AccommodationTheme;
+import com.ssg9th2team.geharbang.domain.accommodation_theme.repository.AccommodationThemeRepository;
 import com.ssg9th2team.geharbang.domain.recommendation.dto.AiRecommendationResponse;
 import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
 import com.ssg9th2team.geharbang.domain.theme.entity.ThemeCategory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.api.RBucket;
-import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -20,11 +24,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,17 +35,15 @@ import java.util.stream.Collectors;
 public class AiRecommendationService {
 
     private final AccommodationJpaRepository accommodationRepository;
+    private final AccommodationMapper accommodationMapper;
+    private final AccommodationThemeRepository accommodationThemeRepository;
     private final ReviewJpaRepository reviewRepository;
     private final AiSearchLogService searchLogService;
-    private final RedissonClient redissonClient;
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
-    // 병렬 쿼리용 스레드 풀
-    private final ExecutorService executor = Executors.newFixedThreadPool(4);
-
-    private static final String CACHE_PREFIX = "ai:recommend:";
-    private static final Duration CACHE_TTL = Duration.ofMinutes(30);
+    @Qualifier("taskExecutor")
+    private final Executor executor;
 
     @Value("${GEMINI_API_KEY:}")
     private String geminiApiKey;
@@ -59,35 +59,29 @@ public class AiRecommendationService {
 
     /**
      * 사용자 자연어 입력을 분석하여 숙소 추천
-     * 캐싱 + 병렬 쿼리로 최적화
      */
     public AiRecommendationResponse recommend(String userQuery) {
         long startTime = System.currentTimeMillis();
 
-        // 1. 캐시 확인
-        String cacheKey = CACHE_PREFIX + hashQuery(userQuery);
-        RBucket<AiRecommendationResponse> cache = redissonClient.getBucket(cacheKey);
-        AiRecommendationResponse cached = cache.get();
-        if (cached != null) {
-            log.info("캐시 히트! 쿼리: {}, 소요시간: {}ms", userQuery, System.currentTimeMillis() - startTime);
-            return cached;
-        }
-
-        // 2. Gemini API로 테마 + 키워드 분석
+        // 1. Gemini API로 테마 + 키워드 분석
         AnalysisResult analysisResult = analyzeUserIntent(userQuery);
         log.info("Gemini 분석 완료: {}ms", System.currentTimeMillis() - startTime);
 
-        // 3. 병렬 검색: 테마 + 키워드(설명/리뷰) 동시 실행
+        // 2. 병렬 검색: 테마 + 키워드(설명/리뷰) 동시 실행
         Set<Long> matchedIds = executeParallelSearch(analysisResult);
         log.info("병렬 검색 완료: {}ms, 결과 수: {}", System.currentTimeMillis() - startTime, matchedIds.size());
 
-        // 4. 결과 조합 및 중복 제거
-        List<Accommodation> finalResults = matchedIds.stream()
+        // 3. N+1 문제 해결: findAllById 사용
+        List<Long> idsToFetch = matchedIds.stream()
                 .limit(MAX_RECOMMENDATIONS * 2)
-                .map(accommodationRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .filter(acc -> acc.getApprovalStatus().name().equals("APPROVED"))
+                .collect(Collectors.toList());
+
+        List<Accommodation> accommodations = accommodationRepository.findAllById(idsToFetch);
+
+        // 4. 필터링 및 정렬
+        List<Accommodation> finalResults = accommodations.stream()
+                .filter(acc -> acc.getApprovalStatus() == ApprovalStatus.APPROVED)
+                .filter(acc -> acc.getAccommodationStatus() != null && acc.getAccommodationStatus() == 1)
                 .sorted((a, b) -> {
                     Double ratingA = a.getRating() != null ? a.getRating() : 0.0;
                     Double ratingB = b.getRating() != null ? b.getRating() : 0.0;
@@ -96,29 +90,69 @@ public class AiRecommendationService {
                 .limit(MAX_RECOMMENDATIONS)
                 .collect(Collectors.toList());
 
-        // 5. Redis에 검색 로그 저장
-        searchLogService.logSearch(userQuery, analysisResult.themes(), analysisResult.confidence());
-
-        // 6. 응답 생성
-        List<AiRecommendationResponse.AccommodationSummary> summaries = finalResults.stream()
-                .map(this::toAccommodationSummary)
+        // 5. 숙소별 테마 정보 조회 (배치)
+        List<Long> resultIds = finalResults.stream()
+                .map(Accommodation::getAccommodationsId)
                 .collect(Collectors.toList());
 
-        AiRecommendationResponse response = AiRecommendationResponse.builder()
+        Map<Long, List<String>> themesByAccommodation = fetchThemesForAccommodations(resultIds);
+
+        // 6. 숙소별 이미지 URL 조회 (배치)
+        Map<Long, String> imagesByAccommodation = fetchThumbnailsForAccommodations(resultIds);
+
+        // 7. Redis에 검색 로그 저장
+        searchLogService.logSearch(userQuery, analysisResult.themes(), analysisResult.confidence());
+
+        // 8. 응답 생성
+        List<AiRecommendationResponse.AccommodationSummary> summaries = finalResults.stream()
+                .map(acc -> toAccommodationSummary(acc,
+                        themesByAccommodation.getOrDefault(acc.getAccommodationsId(), List.of()),
+                        imagesByAccommodation.get(acc.getAccommodationsId())))
+                .collect(Collectors.toList());
+
+        log.info("AI 추천 완료! 쿼리: {}, 총 소요시간: {}ms", userQuery, System.currentTimeMillis() - startTime);
+
+        return AiRecommendationResponse.builder()
                 .query(userQuery)
                 .matchedThemes(analysisResult.themes())
                 .reasoning(analysisResult.reasoning())
                 .confidence(analysisResult.confidence())
                 .accommodations(summaries)
                 .build();
+    }
 
-        // 7. 결과 캐싱
-        if (!summaries.isEmpty()) {
-            cache.set(response, CACHE_TTL);
+    /**
+     * 숙소별 테마 정보 배치 조회
+     */
+    private Map<Long, List<String>> fetchThemesForAccommodations(List<Long> accommodationIds) {
+        if (accommodationIds.isEmpty()) {
+            return Map.of();
         }
 
-        log.info("AI 추천 완료! 쿼리: {}, 총 소요시간: {}ms", userQuery, System.currentTimeMillis() - startTime);
-        return response;
+        List<AccommodationTheme> themes = accommodationThemeRepository.findByAccommodationIds(accommodationIds);
+
+        return themes.stream()
+                .collect(Collectors.groupingBy(
+                        at -> at.getAccommodation().getAccommodationsId(),
+                        Collectors.mapping(at -> at.getTheme().getThemeName(), Collectors.toList())));
+    }
+
+    /**
+     * 숙소별 대표 이미지 URL 배치 조회
+     */
+    private Map<Long, String> fetchThumbnailsForAccommodations(List<Long> accommodationIds) {
+        if (accommodationIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<AccommodationImageDto> images = accommodationMapper.selectMainImagesByAccommodationIds(accommodationIds);
+
+        return images.stream()
+                .filter(img -> img.getAccommodationsId() != null && img.getImageUrl() != null)
+                .collect(Collectors.toMap(
+                        AccommodationImageDto::getAccommodationsId,
+                        AccommodationImageDto::getImageUrl,
+                        (first, second) -> first));
     }
 
     /**
@@ -139,7 +173,7 @@ public class AiRecommendationService {
             }, executor));
         }
 
-        // 2. 키워드 기반 검색 - 설명 (비동기, 각 키워드 병렬)
+        // 2. 키워드 기반 검색 - 설명 (비동기)
         for (String keyword : analysisResult.keywords()) {
             futures.add(CompletableFuture.runAsync(() -> {
                 List<Accommodation> keywordMatched = accommodationRepository.findByKeywordInDescription(keyword);
@@ -149,7 +183,7 @@ public class AiRecommendationService {
             }, executor));
         }
 
-        // 3. 키워드 기반 검색 - 리뷰 (비동기, 각 키워드 병렬)
+        // 3. 키워드 기반 검색 - 리뷰 (비동기)
         for (String keyword : analysisResult.keywords()) {
             futures.add(CompletableFuture.runAsync(() -> {
                 List<Long> reviewMatchedIds = reviewRepository.findAccommodationIdsByKeywordInContent(keyword);
@@ -171,14 +205,7 @@ public class AiRecommendationService {
     }
 
     /**
-     * 쿼리 해시 생성 (캐시 키용)
-     */
-    private String hashQuery(String query) {
-        return Integer.toHexString(query.toLowerCase().trim().hashCode());
-    }
-
-    /**
-     * Gemini API를 호출하여 사용자 의도 분석 (테마 + 키워드)
+     * Gemini API를 호출하여 사용자 의도 분석
      */
     private AnalysisResult analyzeUserIntent(String userQuery) {
         if (geminiApiKey == null || geminiApiKey.isBlank()) {
@@ -305,7 +332,8 @@ public class AiRecommendationService {
         return new AnalysisResult(matchedThemes, extractedKeywords, 0.6, "키워드 매칭 결과");
     }
 
-    private AiRecommendationResponse.AccommodationSummary toAccommodationSummary(Accommodation acc) {
+    private AiRecommendationResponse.AccommodationSummary toAccommodationSummary(Accommodation acc,
+            List<String> themes, String thumbnailUrl) {
         return AiRecommendationResponse.AccommodationSummary.builder()
                 .accommodationsId(acc.getAccommodationsId())
                 .accommodationsName(acc.getAccommodationsName())
@@ -313,8 +341,8 @@ public class AiRecommendationService {
                 .district(acc.getDistrict())
                 .rating(acc.getRating())
                 .reviewCount(acc.getReviewCount())
-                .thumbnailUrl(null)
-                .themes(List.of())
+                .thumbnailUrl(thumbnailUrl)
+                .themes(themes)
                 .build();
     }
 

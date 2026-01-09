@@ -33,10 +33,12 @@ public interface AccommodationJpaRepository
 
         /**
          * 테마 카테고리에 해당하는 승인된 숙소 검색
+         * AccommodationTheme 중간 테이블을 통해 JOIN
          */
         @Query("""
                         SELECT DISTINCT a FROM Accommodation a
-                        LEFT JOIN a.themes t
+                        JOIN com.ssg9th2team.geharbang.domain.accommodation_theme.entity.AccommodationTheme at ON at.accommodation = a
+                        JOIN at.theme t
                         WHERE t.themeCategory IN :themeCategories
                         AND a.accommodationStatus = 1
                         AND a.approvalStatus = 'APPROVED'
