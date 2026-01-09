@@ -19,6 +19,7 @@ public record AdminBookingDetail(
         Long paymentId,
         String orderId,
         String pgPaymentKey,
+        String paymentMethod,
         Integer approvedAmount,
         LocalDateTime approvedAt,
         Integer refundStatus,

@@ -1,11 +1,15 @@
 package com.ssg9th2team.geharbang.domain.admin.service;
 
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
-import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportDetail;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportDetailResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminReportSummary;
 import com.ssg9th2team.geharbang.domain.admin.log.AdminLogConstants;
+import com.ssg9th2team.geharbang.domain.auth.entity.User;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.report.entity.ReviewReport;
 import com.ssg9th2team.geharbang.domain.report.repository.jpa.ReviewReportJpaRepository;
+import com.ssg9th2team.geharbang.domain.review.entity.ReviewEntity;
+import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -21,6 +25,8 @@ import java.util.List;
 public class AdminReportService {
 
     private final ReviewReportJpaRepository reportRepository;
+    private final ReviewJpaRepository reviewRepository;
+    private final UserRepository userRepository;
     private final AdminLogService adminLogService;
 
     public AdminPageResponse<AdminReportSummary> getReports(String status, String type, String query, int page, int size, String sort) {
@@ -44,29 +50,58 @@ public class AdminReportService {
         return AdminPageResponse.of(items, page, size, totalElements, totalPages);
     }
 
-    public AdminReportDetail getReportDetail(Long reportId) {
+    public AdminReportDetailResponse getReportDetail(Long reportId) {
         ReviewReport report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found"));
-        return toDetail(report);
+        
+        User reporter = userRepository.findById(report.getUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Reporter not found"));
+
+        ReviewEntity review = reviewRepository.findById(report.getReviewId()).orElse(null);
+
+        return AdminReportDetailResponse.from(report, reporter, review);
     }
 
     @Transactional
-    public AdminReportDetail resolveReport(Long adminUserId, Long reportId, String action, String memo) {
+    public AdminReportDetailResponse resolveReport(Long adminUserId, Long reportId, String action, String memo) {
         ReviewReport report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found"));
+        
+        String beforeState = report.getState();
         if (StringUtils.hasText(action)) {
-            report.updateState(action.trim().toUpperCase());
+            String newState = action.trim().toUpperCase();
+            report.updateState(newState);
+            
+            // 리뷰 블라인드 처리 (BLIND 액션 시)
+            if ("BLIND".equals(newState) || "PROCESSED".equals(newState)) {
+                ReviewEntity review = reviewRepository.findById(report.getReviewId()).orElse(null);
+                if (review != null) {
+                    review.softDelete(); // isDeleted = true
+                    reviewRepository.save(review);
+                }
+            }
         }
+        
         ReviewReport saved = reportRepository.save(report);
-        Long targetId = saved.getReviewId() != null ? saved.getReviewId() : saved.getReportId();
+        
+        java.util.Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        metadata.put("before", java.util.Map.of("state", beforeState));
+        metadata.put("after", java.util.Map.of("state", saved.getState()));
+        metadata.put("reportId", saved.getReportId());
+        if (saved.getReviewId() != null) {
+            metadata.put("reviewId", saved.getReviewId());
+        }
+        
         adminLogService.writeLog(
                 adminUserId,
                 AdminLogConstants.TARGET_REVIEW,
-                targetId,
+                saved.getReviewId(),
                 AdminLogConstants.ACTION_RESOLVE,
-                memo
+                memo,
+                metadata
         );
-        return toDetail(saved);
+        
+        return getReportDetail(saved.getReportId());
     }
 
     private boolean matchesStatus(ReviewReport report, String status) {
@@ -99,19 +134,6 @@ public class AdminReportService {
                 report.getState(),
                 report.getReason(),
                 report.getCreatedAt()
-        );
-    }
-
-    private AdminReportDetail toDetail(ReviewReport report) {
-        return new AdminReportDetail(
-                report.getReportId(),
-                report.getReviewId(),
-                report.getUserId(),
-                "REVIEW",
-                report.getState(),
-                report.getReason(),
-                report.getCreatedAt(),
-                report.getUpdatedAt()
         );
     }
 }

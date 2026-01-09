@@ -1,7 +1,7 @@
 package com.ssg9th2team.geharbang.domain.admin.controller;
 
 import com.ssg9th2team.geharbang.domain.accommodation.service.AccommodationGeoService;
-import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationDetail;
+import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationDetailResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminAccommodationSummary;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminPageResponse;
 import com.ssg9th2team.geharbang.domain.admin.dto.AdminRejectRequest;
@@ -45,7 +45,7 @@ public class AdminAccommodationController {
     }
 
     @GetMapping("/{accommodationId}")
-    public AdminAccommodationDetail getAccommodationDetail(
+    public AdminAccommodationDetailResponse getAccommodationDetail(
             @AdminId Long adminId,
             @PathVariable Long accommodationId
     ) {
@@ -53,7 +53,7 @@ public class AdminAccommodationController {
     }
 
     @PostMapping("/{accommodationId}/approve")
-    public AdminAccommodationDetail approveAccommodation(
+    public AdminAccommodationDetailResponse approveAccommodation(
             @AdminId Long adminId,
             @PathVariable Long accommodationId
     ) {
@@ -61,7 +61,7 @@ public class AdminAccommodationController {
     }
 
     @PostMapping("/{accommodationId}/reject")
-    public AdminAccommodationDetail rejectAccommodation(
+    public AdminAccommodationDetailResponse rejectAccommodation(
             @AdminId Long adminId,
             @PathVariable Long accommodationId,
             @RequestBody AdminRejectRequest request

@@ -62,6 +62,9 @@ public class User {
     @Column(name = "host_approved")
     private Boolean hostApproved; // 호스트 숙소 등록 승인 상태 (1: 승인됨, 0: 승인 거절, NULL: 일반 USER)
 
+    @Column(name = "is_suspended", nullable = false)
+    private Boolean suspended = false; // 계정 정지 여부
+
     @Column(name = "social_signup_completed")
     private Boolean socialSignupCompleted; // 소셜 로그인 회원가입 완료 여부 (true: 완료, false: 미완료, NULL: 일반 회원가입)
 
@@ -92,6 +95,7 @@ public class User {
         this.role = role != null ? role : UserRole.USER;
         this.marketingAgreed = marketingAgreed != null ? marketingAgreed : false;
         this.hostApproved = hostApproved;
+        this.suspended = false;
         this.socialSignupCompleted = socialSignupCompleted;
         this.themes = themes;
         this.socialProvider = socialProvider;
@@ -125,6 +129,10 @@ public class User {
     // 호스트 승인 상태 변경
     public void updateHostApproved(Boolean approved) {
         this.hostApproved = approved;
+    }
+
+    public void updateSuspended(Boolean suspended) {
+        this.suspended = suspended != null ? suspended : false;
     }
 
     // 소셜 회원가입 완료 처리

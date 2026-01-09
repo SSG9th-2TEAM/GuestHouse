@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AdminStatCard from '../../components/admin/AdminStatCard.vue'
 import AdminBadge from '../../components/admin/AdminBadge.vue'
 import AdminTableCard from '../../components/admin/AdminTableCard.vue'
+import AdminBarChart from '../../components/admin/AdminBarChart.vue'
 import { exportCSV, exportXLSX } from '../../utils/reportExport'
 import { fetchAdminPayments, fetchAdminPaymentDetail, fetchAdminPaymentMetrics, fetchAdminPaymentSummary, refundPayment } from '../../api/adminApi'
 import { extractItems, extractPageMeta, toQueryParams } from '../../utils/adminData'
@@ -120,16 +121,6 @@ const applySummaryStats = () => {
 }
 
 const loadPaymentMetrics = async () => {
-  const requestInfo = {
-    url: '/api/admin/payments/metrics',
-    params: {
-      mode: transactionMode.value,
-      year: transactionYear.value,
-      status: statusFilter.value,
-      type: typeFilter.value,
-      keyword: searchQuery.value || undefined
-    }
-  }
   chartLoading.value = true
   chartError.value = ''
   const params = {
@@ -143,30 +134,11 @@ const loadPaymentMetrics = async () => {
     const response = await fetchAdminPaymentMetrics(params)
     if (response.ok && Array.isArray(response.data)) {
       transactionSeries.value = response.data
-    } else if (response.ok) {
-      const error = new Error('Invalid metrics response shape')
-      console.error('[AdminPaymentsView] metrics response shape error', {
-        request: requestInfo,
-        status: response?.status,
-        responseBody: response?.data,
-        error
-      })
-      chartError.value = '차트를 불러오지 못했습니다.'
-      transactionSeries.value = []
     } else {
-      console.error('[AdminPaymentsView] metrics request failed', {
-        request: requestInfo,
-        status: response?.status,
-        responseBody: response?.data
-      })
       chartError.value = '차트를 불러오지 못했습니다.'
       transactionSeries.value = []
     }
   } catch (error) {
-    console.error('[AdminPaymentsView] metrics exception', {
-      request: requestInfo,
-      error
-    })
     chartError.value = '차트를 불러오지 못했습니다.'
     transactionSeries.value = []
   }
@@ -208,12 +180,6 @@ const setTransactionMode = (mode) => {
   loadPaymentSummary()
 }
 
-const transactionMax = computed(() => {
-  const values = transactionSeries.value.map((item) => Number(item?.totalAmount ?? 0))
-  return values.length ? Math.max(...values, 1) : 1
-})
-const transactionHeight = (value) => `${(value / transactionMax.value) * 100}%`
-
 const chartTitle = computed(() => {
   if (transactionMode.value === 'monthly') {
     return `${transactionYear.value}년 월별 거래액`
@@ -224,6 +190,10 @@ const chartTitle = computed(() => {
 const hasChartData = computed(() => {
   return transactionSeries.value.some((item) => Number(item?.totalAmount ?? 0) > 0)
 })
+
+// Chart Data Processing
+const chartLabels = computed(() => transactionSeries.value.map(item => item.label))
+const chartValues = computed(() => transactionSeries.value.map(item => item.totalAmount))
 
 const filteredPayments = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -250,7 +220,7 @@ const getRefundStatusLabel = (status) => {
 
 const formatDate = (value) => {
   if (!value) return '-'
-  return String(value).replace('T', ' ').slice(0, 16)
+  return String(value).replace('T', ' ').slice(0, 19)
 }
 
 const formatCurrency = (value) => {
@@ -285,6 +255,9 @@ const confirmRefund = async () => {
     closeRefund()
     loadPayments()
     loadPaymentMetrics()
+    if (detailOpen.value) {
+      refreshDetail()
+    }
     return
   }
   refundError.value = response?.data?.message || '환불 처리에 실패했습니다.'
@@ -329,6 +302,18 @@ const refreshDetail = async () => {
     detailError.value = '결제 상세 정보를 불러오지 못했습니다.'
   }
   detailLoading.value = false
+}
+
+const handleDetailRefund = () => {
+  if (!detailData.value) return
+  // detailData 구조를 list item 구조로 변환하거나 필요한 필드만 추출
+  const target = {
+    paymentId: detailData.value.paymentId,
+    approvedAmount: detailData.value.approvedAmount,
+    paymentStatus: detailData.value.paymentStatus,
+    // 필요한 다른 필드들...
+  }
+  handleRefund(target)
 }
 
 watch([searchQuery, statusFilter], () => {
@@ -478,64 +463,50 @@ const downloadReport = (format) => {
         <button class="admin-btn admin-btn--ghost" type="button" @click="loadPaymentMetrics">다시 시도</button>
       </div>
       <div v-else-if="!hasChartData" class="admin-chart-status">선택 조건의 거래 데이터가 없습니다.</div>
-      <div v-else class="admin-transaction-bars">
-        <div
-          v-for="item in transactionSeries"
-          :key="item.label"
-          class="admin-transaction-bar"
-        >
-          <div class="admin-transaction-bar__fill" :style="{ height: transactionHeight(item.totalAmount) }" />
-          <span class="admin-transaction-bar__value">{{ item.label }}</span>
-          <span class="admin-transaction-bar__amount">{{ item.totalAmount.toLocaleString() }}원</span>
-        </div>
+      <div v-else class="admin-chart-area">
+        <AdminBarChart
+          :labels="chartLabels"
+          :values="chartValues"
+          :height="240"
+          color="#0f766e"
+        />
       </div>
     </div>
 
     <AdminTableCard title="결제 내역">
       <table class="admin-table--nowrap admin-table--tight admin-table--stretch">
         <colgroup>
-          <col style="width:140px"/>
+          <col style="width:100px"/>
           <col style="width:220px"/>
-          <col style="width:120px"/>
+          <col style="width:100px"/>
           <col style="width:140px"/>
-          <col style="width:120px"/>
-          <col style="width:140px"/>
-          <col style="width:200px"/>
+          <col style="width:100px"/>
+          <col style="width:160px"/>
+          <col style="width:100px"/>
         </colgroup>
         <thead>
           <tr>
-            <th>거래ID</th>
-            <th>주문번호</th>
-            <th>예약ID</th>
-            <th>거래액</th>
-            <th>상태</th>
-            <th>날짜</th>
-            <th class="admin-align-right">관리</th>
+            <th class="admin-align-center">거래ID</th>
+            <th class="admin-align-left">주문번호</th>
+            <th class="admin-align-center">예약ID</th>
+            <th class="admin-align-right">거래액</th>
+            <th class="admin-align-center">상태</th>
+            <th class="admin-align-center">날짜</th>
+            <th class="admin-align-center">관리</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in filteredPayments" :key="item.paymentId">
-            <td class="admin-strong">#{{ item.paymentId }}</td>
-            <td class="admin-ellipsis" :title="item.orderId">{{ item.orderId ?? '-' }}</td>
-            <td>#{{ item.reservationId ?? '-' }}</td>
+            <td class="admin-strong admin-align-center">#{{ item.paymentId }}</td>
+            <td class="admin-ellipsis admin-align-left" :title="item.orderId">{{ item.orderId ?? '-' }}</td>
+            <td class="admin-align-center">#{{ item.reservationId ?? '-' }}</td>
             <td class="admin-align-right">₩{{ item.approvedAmount?.toLocaleString?.() ?? '0' }}</td>
-            <td>
+            <td class="admin-align-center">
               <AdminBadge :text="getPaymentStatusLabel(item.paymentStatus)" :variant="getPaymentStatusVariant(item.paymentStatus)" />
             </td>
-            <td>{{ item.createdAt?.slice?.(0, 10) ?? '-' }}</td>
-            <td>
-              <div class="admin-inline-actions admin-inline-actions--nowrap admin-actions-right">
-                <button class="admin-btn admin-btn--ghost" type="button" @click="openDetail(item)">상세</button>
-                <button
-                  class="admin-btn admin-btn--danger"
-                  type="button"
-                  :disabled="!canRefund(item)"
-                  :title="refundBlockMessage(item)"
-                  @click="handleRefund(item)"
-                >
-                  환불 처리
-                </button>
-              </div>
+            <td class="admin-align-center">{{ item.createdAt?.replace('T', ' ').slice(0, 19) ?? '-' }}</td>
+            <td class="admin-align-center">
+              <button class="admin-btn admin-btn--ghost" type="button" @click="openDetail(item)">상세</button>
             </td>
           </tr>
         </tbody>
@@ -558,7 +529,8 @@ const downloadReport = (format) => {
     </AdminTableCard>
 
     <div v-if="detailOpen" class="admin-modal">
-      <div class="admin-modal__card">
+      <div class="admin-modal__backdrop" @click="closeDetail" />
+      <div class="admin-modal__panel" role="dialog" aria-modal="true">
         <div class="admin-modal__header">
           <div>
             <p class="admin-modal__eyebrow">결제 상세</p>
@@ -571,56 +543,91 @@ const downloadReport = (format) => {
           <span>{{ detailError }}</span>
           <button class="admin-btn admin-btn--ghost" type="button" @click="refreshDetail">다시 시도</button>
         </div>
-        <div v-else class="admin-detail-grid">
-          <div><span>예약 ID</span><strong>#{{ detailData?.reservationId ?? '-' }}</strong></div>
-          <div><span>숙소 ID</span><strong>#{{ detailData?.accommodationsId ?? '-' }}</strong></div>
-          <div><span>게스트 ID</span><strong>#{{ detailData?.userId ?? '-' }}</strong></div>
-          <div><span>예약 상태</span><strong>{{ detailData?.reservationStatus ?? '-' }}</strong></div>
-          <div><span>주문번호</span><strong>{{ detailData?.orderId ?? '-' }}</strong></div>
-          <div><span>PG 키</span><strong>{{ detailData?.pgPaymentKey ?? '-' }}</strong></div>
-          <div><span>요청 금액</span><strong>{{ formatCurrency(detailData?.requestAmount) }}</strong></div>
-          <div><span>승인 금액</span><strong>{{ formatCurrency(detailData?.approvedAmount) }}</strong></div>
-          <div><span>결제 상태</span><strong>{{ getPaymentStatusLabel(detailData?.paymentStatus) }}</strong></div>
-          <div><span>결제 승인일</span><strong>{{ formatDate(detailData?.approvedAt) }}</strong></div>
-          <div><span>환불 상태</span><strong>{{ getRefundStatusLabel(detailData?.refundStatus) }}</strong></div>
-          <div><span>환불 금액</span><strong>{{ formatCurrency(detailData?.refundAmount) }}</strong></div>
-          <div><span>환불일시</span><strong>{{ formatDate(detailData?.refundApprovedAt) }}</strong></div>
-          <div><span>환불 사유</span><strong>{{ detailData?.refundReason ?? '-' }}</strong></div>
-          <div><span>생성일</span><strong>{{ formatDate(detailData?.createdAt) }}</strong></div>
+        <div v-else class="admin-modal__body">
+          <div class="admin-modal__section">
+            <h3>결제 정보</h3>
+            <div class="admin-detail-grid">
+              <div><span>거래금액</span><strong>{{ formatCurrency(detailData?.approvedAmount) }}</strong></div>
+              <div><span>공급가액</span><strong>{{ formatCurrency(Math.floor((detailData?.approvedAmount || 0) / 1.1)) }}</strong></div>
+              <div><span>부가세</span><strong>{{ formatCurrency((detailData?.approvedAmount || 0) - Math.floor((detailData?.approvedAmount || 0) / 1.1)) }}</strong></div>
+              <div><span>결제수단</span><strong>{{ detailData?.paymentMethod || '카드' }}</strong></div>
+              <div><span>결제상태</span><strong>{{ getPaymentStatusLabel(detailData?.paymentStatus) }}</strong></div>
+              <div><span>승인일시</span><strong>{{ formatDate(detailData?.approvedAt) }}</strong></div>
+            </div>
+          </div>
+
+          <div class="admin-modal__section">
+            <h3>PG사 정보</h3>
+            <div class="admin-detail-grid">
+              <div><span>주문번호(OID)</span><strong>{{ detailData?.orderId ?? '-' }}</strong></div>
+              <div><span>거래고유번호(TID)</span><strong>{{ detailData?.pgPaymentKey ?? '-' }}</strong></div>
+              <div><span>PG사</span><strong>{{ detailData?.pgProviderCode || 'TOSS' }}</strong></div>
+            </div>
+          </div>
+
+          <div class="admin-modal__section">
+            <h3>주문자/예약 정보</h3>
+            <div class="admin-detail-grid">
+              <div><span>예약번호</span><strong>#{{ detailData?.reservationId ?? '-' }}</strong></div>
+              <div><span>숙소 ID</span><strong>#{{ detailData?.accommodationsId ?? '-' }}</strong></div>
+              <div><span>게스트 ID</span><strong>#{{ detailData?.userId ?? '-' }}</strong></div>
+            </div>
+          </div>
+
+          <div v-if="detailData?.refundStatus !== null" class="admin-modal__section">
+            <h3>환불 정보</h3>
+            <div class="admin-detail-grid">
+              <div><span>환불상태</span><strong>{{ getRefundStatusLabel(detailData?.refundStatus) }}</strong></div>
+              <div><span>환불금액</span><strong>{{ formatCurrency(detailData?.refundAmount) }}</strong></div>
+              <div><span>환불일시</span><strong>{{ formatDate(detailData?.refundApprovedAt) }}</strong></div>
+              <div><span>환불사유</span><strong>{{ detailData?.refundReason ?? '-' }}</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-modal__actions" v-if="!detailLoading">
+          <button
+            v-if="canRefund(detailData)"
+            class="admin-btn admin-btn--danger"
+            type="button"
+            @click="handleDetailRefund"
+          >
+            결제 취소
+          </button>
         </div>
       </div>
     </div>
 
     <div v-if="refundOpen" class="admin-modal">
-      <div class="admin-modal__card admin-modal__card--small">
+      <div class="admin-modal__backdrop" @click="closeRefund" />
+      <div class="admin-modal__panel admin-modal__panel--small" role="dialog" aria-modal="true">
         <div class="admin-modal__header">
           <div>
-            <p class="admin-modal__eyebrow">환불 처리</p>
-            <h2 class="admin-modal__title">정말 환불 처리하시겠습니까?</h2>
+            <p class="admin-modal__eyebrow">결제 취소</p>
+            <h2 class="admin-modal__title">정말 취소하시겠습니까?</h2>
           </div>
+          <button class="admin-btn admin-btn--ghost" type="button" :disabled="refundLoading" @click="closeRefund">닫기</button>
         </div>
         <div class="admin-detail-grid admin-detail-grid--compact">
           <div><span>거래ID</span><strong>#{{ refundTarget?.paymentId ?? '-' }}</strong></div>
-          <div><span>거래액</span><strong>{{ formatCurrency(refundTarget?.approvedAmount) }}</strong></div>
-          <div><span>상태</span><strong>{{ getPaymentStatusLabel(refundTarget?.paymentStatus) }}</strong></div>
+          <div><span>취소금액</span><strong>{{ formatCurrency(refundTarget?.approvedAmount) }}</strong></div>
         </div>
         <div class="admin-form">
-          <label class="admin-form__label" for="refund-reason">환불 사유 (선택)</label>
+          <label class="admin-form__label" for="refund-reason">취소 사유</label>
           <textarea
             id="refund-reason"
             v-model="refundReason"
             class="admin-input"
             rows="3"
-            placeholder="예) 고객 요청으로 환불 처리"
+            placeholder="예) 고객 요청, 중복 결제 등"
             :disabled="refundLoading"
           />
         </div>
-        <p class="admin-modal__note">V1에서는 실제 PG 환불이 아닌 상태 변경 처리입니다.</p>
-        <div v-if="refundError" class="admin-status">{{ refundError }}</div>
+        <div v-if="refundError" class="admin-status error">{{ refundError }}</div>
         <div class="admin-modal__actions">
-          <button class="admin-btn admin-btn--ghost" type="button" :disabled="refundLoading" @click="closeRefund">취소</button>
+          <button class="admin-btn admin-btn--ghost" type="button" :disabled="refundLoading" @click="closeRefund">닫기</button>
           <button class="admin-btn admin-btn--danger" type="button" :disabled="refundLoading" @click="confirmRefund">
-            {{ refundLoading ? '처리 중...' : '환불 처리' }}
+            {{ refundLoading ? '처리 중...' : '결제 취소' }}
           </button>
         </div>
       </div>
@@ -667,6 +674,10 @@ const downloadReport = (format) => {
   color: var(--text-sub, #6b7280);
   font-weight: 700;
   margin-top: 12px;
+}
+
+.admin-status.error {
+  color: #e11d48;
 }
 
 .admin-pagination {
@@ -751,39 +762,6 @@ const downloadReport = (format) => {
   color: #ecfdf3;
 }
 
-.admin-transaction-bars {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
-  gap: 10px;
-  align-items: end;
-  height: 200px;
-}
-
-.admin-transaction-bar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.admin-transaction-bar__fill {
-  width: 100%;
-  background: linear-gradient(180deg, #0f766e, #34d399);
-  border-radius: 12px 12px 6px 6px;
-  min-height: 0;
-}
-
-.admin-transaction-bar__value {
-  font-weight: 800;
-  color: #0b3b32;
-}
-
-.admin-transaction-bar__amount {
-  font-size: 0.75rem;
-  color: #64748b;
-  font-weight: 700;
-}
-
 .admin-chart-status {
   display: flex;
   align-items: center;
@@ -791,6 +769,13 @@ const downloadReport = (format) => {
   color: var(--text-sub, #6b7280);
   font-weight: 700;
   padding: 12px 0;
+  justify-content: center;
+  height: 200px;
+}
+
+.admin-chart-area {
+  height: 240px;
+  width: 100%;
 }
 
 .admin-table--stretch {
@@ -802,39 +787,49 @@ const downloadReport = (format) => {
   text-align: right;
 }
 
+.admin-align-left {
+  text-align: left;
+}
+
+.admin-align-center {
+  text-align: center;
+}
+
 .admin-ellipsis {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.admin-actions-right {
-  justify-content: flex-end;
-}
-
 .admin-modal {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 40;
-  padding: 16px;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
 }
 
-.admin-modal__card {
-  background: #fff;
-  border-radius: 18px;
-  padding: 20px;
+.admin-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.admin-modal__panel {
+  position: relative;
   width: min(720px, 100%);
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.2);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  max-height: 90vh;
+  overflow: auto;
+  background: white;
+  border-radius: 16px;
+  padding: 1.4rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+  display: grid;
+  gap: 1.1rem;
 }
 
-.admin-modal__card--small {
+.admin-modal__panel--small {
   width: min(520px, 100%);
 }
 
@@ -859,17 +854,22 @@ const downloadReport = (format) => {
   color: #0b3b32;
 }
 
-.admin-modal__note {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--text-sub, #6b7280);
-  font-weight: 600;
+.admin-modal__body {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.admin-modal__section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
 }
 
 .admin-detail-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+  gap: 0.65rem 1rem;
   font-size: 0.95rem;
 }
 
