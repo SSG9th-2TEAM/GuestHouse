@@ -15,12 +15,18 @@ import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJp
 import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
 import com.ssg9th2team.geharbang.global.lock.DistributedLock;
+import com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatRoomRepository;
+import com.ssg9th2team.geharbang.domain.chat.RealtimeChatRoom;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,6 +36,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class ReservationServiceImpl implements ReservationService {
 
+        private static final Logger log = LoggerFactory.getLogger(ReservationServiceImpl.class);
         private final ReservationJpaRepository reservationRepository;
         private final AccommodationJpaRepository accommodationRepository;
         private final AccommodationMapper accommodationMapper;
@@ -39,6 +46,7 @@ public class ReservationServiceImpl implements ReservationService {
         private final RoomJpaRepository roomJpaRepository;
         private final PaymentJpaRepository paymentRepository;
         private final WaitlistService waitlistService;
+        private final RealtimeChatRoomRepository realtimeChatRoomRepository;
 
         @Override
         @DistributedLock(key = "'reservation:room:' + #requestDto.roomId() + ':date:' + #requestDto.checkin().toString().substring(0,10)")
@@ -51,7 +59,7 @@ public class ReservationServiceImpl implements ReservationService {
                                 .orElseThrow(() -> new IllegalStateException("인증된 사용자를 찾을 수 없습니다: " + email));
                 Long userId = user.getId();
 
-                System.out.println("DEBUG: createReservation called for user: " + email + " (ID: " + userId + ")");
+                log.debug("DEBUG: createReservation called for user: {} (ID: {})", email, userId);
 
                 // Room ID 필수 확인
                 if (requestDto.roomId() == null) {
@@ -121,18 +129,44 @@ public class ReservationServiceImpl implements ReservationService {
 
                 Reservation saved = reservationRepository.save(reservation);
 
-                // Accommodation 정보 조회 (이름/주소 반환을 위해)
-                com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation accommodation = accommodationRepository
-                                .findById(saved.getAccommodationsId())
-                                .orElse(null);
+                // 채팅방 자동 생성 (별도 트랜잭션으로 분리)
+                Accommodation accommodation = accommodationRepository.findById(requestDto.accommodationsId())
+                                .orElseThrow(() -> new IllegalArgumentException("숙소를 찾을 수 없습니다."));
+                createChatRoomForReservation(saved, accommodation, userId);
 
-                String accName = (accommodation != null) ? accommodation.getAccommodationsName() : null;
-                String accAddress = (accommodation != null)
-                                ? accommodation.getCity() + " " + accommodation.getDistrict() + " "
-                                                + accommodation.getAddressDetail()
-                                : null;
+                // Accommodation 정보 조회 (이름/주소 반환을 위해)
+                String accName = accommodation.getAccommodationsName();
+                String accAddress = accommodation.getCity() + " " + accommodation.getDistrict() + " "
+                                + accommodation.getAddressDetail();
 
                 return ReservationResponseDto.from(saved, accName, accAddress);
+        }
+
+        @Transactional(propagation = Propagation.REQUIRES_NEW)
+        public void createChatRoomForReservation(Reservation reservation, Accommodation accommodation,
+                        Long guestUserId) {
+                try {
+                        String imageUrl = accommodationMapper.selectMainImageUrl(accommodation.getAccommodationsId());
+
+                        RealtimeChatRoom chatRoom = RealtimeChatRoom.builder()
+                                        .reservationId(reservation.getId())
+                                        .accommodationId(accommodation.getAccommodationsId())
+                                        .accommodationName(accommodation.getAccommodationsName())
+                                        .accommodationImage(imageUrl)
+                                        .hostUserId(accommodation.getUserId())
+                                        .guestUserId(guestUserId)
+                                        .createdAt(LocalDateTime.now())
+                                        .updatedAt(LocalDateTime.now())
+                                        .build();
+
+                        realtimeChatRoomRepository.save(chatRoom);
+                        log.info("채팅방 생성 완료. reservationId={}, chatRoomId={}", reservation.getId(), chatRoom.getId());
+
+                } catch (Exception e) {
+                        log.error("CRITICAL: 채팅방 자동 생성에 실패했습니다. 예약은 정상적으로 완료되었습니다. reservationId={}",
+                                        reservation.getId(), e);
+                        // 필요시 알림 서비스 호출
+                }
         }
 
         @Override
