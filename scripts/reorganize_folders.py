@@ -2,16 +2,22 @@
 DB에서 폴더 구조를 읽어서 로컬에 폴더 구조 재생성
 """
 
-import mysql.connector
 import os
 import shutil
+import mysql.connector
+
+def required_env(name):
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"Missing required env var: {name}")
+    return value
 
 DB_CONFIG = {
-    'host': '127.0.0.1',
-    'port': 13306,
-    'user': 'thismo',
-    'password': 'thismo1234',
-    'database': 'guesthouse'
+    'host': os.environ.get('DB_HOST', '127.0.0.1'),
+    'port': int(os.environ.get('DB_PORT', 13306)),
+    'user': required_env('DB_USER'),
+    'password': required_env('DB_PASSWORD'),
+    'database': os.environ.get('DB_NAME', 'guesthouse')
 }
 
 SOURCE_DIR = 'resized_images/resizing_accommodation'

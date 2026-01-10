@@ -16,12 +16,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -37,6 +40,7 @@ public class UserCouponServiceImpl implements UserCouponService {
     private final ReservationJpaRepository reservationJpaRepository;
     private final ReviewJpaRepository reviewJpaRepository;
     private final StringRedisTemplate redisTemplate;
+    private final CacheManager cacheManager;
     
     private static final String COUPON_ISSUED_KEY_PREFIX = "coupon:issued:";
 
@@ -241,17 +245,31 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     // 만료된 쿠폰 상태 변경 (스케줄러에서 호출)
     @Override
-    @CacheEvict(value = "userCoupons", allEntries = true)
     @Transactional
     public int expireOverdueCoupons() {
         List<UserCoupon> expiredCoupons = userCouponJpaRepository
                 .findByStatusAndExpiredAtBefore(UserCouponStatus.ISSUED, LocalDateTime.now());
 
+        Set<Long> affectedUserIds = new HashSet<>();
         for (UserCoupon coupon : expiredCoupons) {
             coupon.expire();
+            affectedUserIds.add(coupon.getUserId());
         }
 
+        evictUserCouponCaches(affectedUserIds);
+
         return expiredCoupons.size();
+    }
+
+    private void evictUserCouponCaches(Set<Long> userIds) {
+        Cache cache = cacheManager.getCache("userCoupons");
+        if (cache == null || userIds.isEmpty()) {
+            return;
+        }
+        for (Long userId : userIds) {
+            cache.evict(userId + "_ISSUED");
+            cache.evict(userId + "_EXPIRED");
+        }
     }
 
     @Override

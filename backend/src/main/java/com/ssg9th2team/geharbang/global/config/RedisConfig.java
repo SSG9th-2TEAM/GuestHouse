@@ -1,8 +1,8 @@
 package com.ssg9th2team.geharbang.global.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,8 +23,8 @@ import java.time.Duration;
 public class RedisConfig {
 
     @Bean
-    public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
-        GenericJackson2JsonRedisSerializer valueSerializer = redisValueSerializer();
+    public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory, ObjectMapper objectMapper) {
+        GenericJackson2JsonRedisSerializer valueSerializer = redisValueSerializer(objectMapper);
         // 기본 설정 (10분 TTL)
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(10))
@@ -55,8 +55,8 @@ public class RedisConfig {
         return new org.springframework.data.redis.core.StringRedisTemplate(connectionFactory);
     }
 
-    private GenericJackson2JsonRedisSerializer redisValueSerializer() {
-        ObjectMapper mapper = new ObjectMapper();
+    private GenericJackson2JsonRedisSerializer redisValueSerializer(ObjectMapper objectMapper) {
+        ObjectMapper mapper = objectMapper.copy();
         mapper.registerModule(new JavaTimeModule());
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         return new GenericJackson2JsonRedisSerializer(mapper);
