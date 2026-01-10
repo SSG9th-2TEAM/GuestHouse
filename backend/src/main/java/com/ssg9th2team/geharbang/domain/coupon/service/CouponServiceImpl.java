@@ -5,6 +5,7 @@ import com.ssg9th2team.geharbang.domain.coupon.entity.Coupon;
 import com.ssg9th2team.geharbang.domain.coupon.entity.CouponTriggerType;
 import com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ public class CouponServiceImpl implements CouponService {
     private final CouponJpaRepository couponJpaRepository;
 
     @Override
+    @Cacheable(value = "downloadableCoupons", key = "#accommodationId")
     @Transactional(readOnly = true)
     public List<CouponResponseDto> getDownloadableCoupons(Long accommodationId) {
         // DOWNLOAD 타입이면서, (전체 공개 OR 해당 숙소 전용)인 활성 쿠폰 조회

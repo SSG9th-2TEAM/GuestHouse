@@ -8,12 +8,13 @@
 """
 
 import mysql.connector
-import boto3
 import requests
 import urllib.parse
 import uuid
 import time
-from botocore.config import Config
+from io import BytesIO
+from PIL import Image, ImageFilter
+import os
 
 # ========== 설정 ==========
 DB_CONFIG = {
@@ -24,23 +25,11 @@ DB_CONFIG = {
     'database': 'guesthouse'
 }
 
-NCLOUD_CONFIG = {
-    'endpoint': 'https://kr.object.ncloudstorage.com',
-    'region': 'kr-standard',
-    'bucket': 'gusethouse',
-    'access_key': 'ACCESS_KEY',
-    'secret_key': 'SECRET_KEY'
-}
-
-# ========== S3 클라이언트 초기화 ==========
-s3_client = boto3.client(
-    's3',
-    endpoint_url=NCLOUD_CONFIG['endpoint'],
-    region_name=NCLOUD_CONFIG['region'],
-    aws_access_key_id=NCLOUD_CONFIG['access_key'],
-    aws_secret_access_key=NCLOUD_CONFIG['secret_key'],
-    config=Config(signature_version='s3v4')
-)
+# 이미지 리사이징 옵션 (선명도를 위해 해상도 상한을 넉넉하게 잡음)
+MAX_WIDTH = 2600
+MAX_HEIGHT = 2600
+RESIZE_TARGET_FOLDERS = {'accommodation_image', 'room', 'resizing_accommodation', 'resizing_room'}
+LOCAL_SAVE_DIR = 'resized_images'
 
 def extract_original_url(naver_cdn_url):
     """네이버 CDN URL에서 원본 이미지 URL 추출"""
@@ -90,26 +79,48 @@ def get_extension(url, content_type=None):
     
     return 'jpg'
 
-def upload_to_storage(image_data, folder, extension='jpg'):
-    """Naver Object Storage에 업로드"""
+def resize_image_if_needed(image_data, extension):
+    """Pillow로 크기를 제한(최대 해상도 유지)하고 샤프닝을 적용한다."""
+    if extension not in ('jpg', 'png', 'webp'):
+        return image_data
+
     try:
-        filename = f"{folder}/{uuid.uuid4()}.{extension}"
-        content_type = f"image/{extension}"
-        
-        s3_client.put_object(
-            Bucket=NCLOUD_CONFIG['bucket'],
-            Key=filename,
-            Body=image_data,
-            ContentType=content_type
-            # ACL 제거 - 버킷 정책에서 공개 설정되어 있으면 별도 ACL 불필요
-        )
-        
-        # 공개 URL 반환
-        public_url = f"{NCLOUD_CONFIG['endpoint']}/{NCLOUD_CONFIG['bucket']}/{filename}"
-        return public_url
+        with Image.open(BytesIO(image_data)) as img:
+            width, height = img.size
+            if width <= MAX_WIDTH and height <= MAX_HEIGHT:
+                return image_data
+
+            ratio = min(MAX_WIDTH / width, MAX_HEIGHT / height)
+            new_size = (int(width * ratio), int(height * ratio))
+
+            # JPEG 저장 시에는 RGB로 변환
+            if extension == 'jpg' and img.mode not in ('RGB', 'L'):
+                img = img.convert('RGB')
+            elif extension in ('png', 'webp') and img.mode == 'P':
+                img = img.convert('RGBA')
+
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
+            img = img.filter(ImageFilter.SHARPEN)
+            buffer = BytesIO()
+            save_format = 'JPEG' if extension == 'jpg' else extension.upper()
+            save_kwargs = {'optimize': True}
+            if save_format == 'JPEG':
+                save_kwargs['quality'] = 98  # 선명도 우선
+
+            img.save(buffer, format=save_format, **save_kwargs)
+            return buffer.getvalue()
     except Exception as e:
-        print(f"  업로드 실패: {e}")
-        return None
+        print(f"  리사이징 실패 (원본 유지): {e}")
+        return image_data
+
+def save_locally(image_data, folder, filename):
+    """권한 없이 로컬에만 저장"""
+    output_dir = os.path.join(LOCAL_SAVE_DIR, folder)
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, filename)
+    with open(path, 'wb') as f:
+        f.write(image_data)
+    return path
 
 def migrate_table(cursor, conn, table_name, id_column, url_column, folder):
     """테이블의 이미지 마이그레이션"""
@@ -117,12 +128,11 @@ def migrate_table(cursor, conn, table_name, id_column, url_column, folder):
     print(f"테이블: {table_name}")
     print(f"{'='*50}")
     
-    # 네이버 CDN URL만 선택 (이미 마이그레이션된 것 제외)
+    # NCP에 이미 있는 이미지를 재처리하여 로컬로 저장
     cursor.execute(f"""
         SELECT {id_column}, {url_column} 
         FROM {table_name} 
-        WHERE {url_column} LIKE '%pstatic.net%'
-        OR {url_column} LIKE '%search.pstatic.net%'
+        WHERE {url_column} LIKE '%kr.object.ncloudstorage.com%'
     """)
     
     rows = cursor.fetchall()
@@ -155,22 +165,18 @@ def migrate_table(cursor, conn, table_name, id_column, url_column, folder):
         
         # 확장자 결정
         ext = get_extension(original_url)
+
+        # accommodation_image/room 폴더는 업로드 전에 리사이징
+        if folder in RESIZE_TARGET_FOLDERS:
+            image_data = resize_image_if_needed(image_data, ext)
         
-        # 업로드
-        new_url = upload_to_storage(image_data, folder, ext)
-        if not new_url:
-            fail_count += 1
-            continue
+        parsed = urllib.parse.urlparse(original_url)
+        basename = os.path.basename(parsed.path)
+        if not basename:
+            basename = f"{uuid.uuid4()}.{ext}"
+        saved_path = save_locally(image_data, folder, basename)
         
-        # DB 업데이트
-        cursor.execute(f"""
-            UPDATE {table_name} 
-            SET {url_column} = %s 
-            WHERE {id_column} = %s
-        """, (new_url, row_id))
-        conn.commit()
-        
-        print(f"  ✓ 완료: {new_url[:60]}...")
+        print(f"  ✓ 저장 완료: {saved_path}")
         success_count += 1
         
         # Rate limiting
@@ -199,7 +205,7 @@ def main():
             table_name='accommodation_image',
             id_column='image_id',
             url_column='image_url',
-            folder='accommodation_image'
+            folder='resizing_accommodation'
         )
         total_success += s
         total_fail += f
@@ -210,7 +216,7 @@ def main():
             table_name='room',
             id_column='room_id',
             url_column='main_image_url',
-            folder='room'
+            folder='resizing_room'
         )
         total_success += s
         total_fail += f

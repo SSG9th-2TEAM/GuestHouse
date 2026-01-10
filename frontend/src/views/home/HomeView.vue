@@ -9,6 +9,7 @@ import { fetchWishlistIds, addWishlist, removeWishlist } from '@/api/wishlist'
 import { isAuthenticated, getUserId } from '@/api/authClient'
 import { fetchRecommendations, fetchAiRecommendations } from '@/api/recommendation'
 import { useSearchStore } from '@/stores/search'
+import EventCarousel from '@/components/EventCarousel.vue'
 
 // AI 추천 관련
 const aiSearchQuery = ref('')
@@ -258,13 +259,8 @@ onMounted(() => {
 
 <template>
   <main class="container main-content">
-    <div class="bannner">
-      <img src="@/assets/home-banner.png" alt="Home banner" class="banner-image" />
-      <div class="banner-text">
-        <h2 class="banner-caption">좋은 사람, 좋은 장소, 좋은 시간</h2>
-        <h1 class="banner-title">지금, 이곳</h1>
-      </div>
-    </div>
+    <!-- 이벤트 배너 캐러셀 -->
+    <EventCarousel />
 
     <!-- AI 자연어 추천 검색 섹션 -->
     <section class="ai-search-section">
