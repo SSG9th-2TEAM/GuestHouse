@@ -725,9 +725,23 @@ watch(
 /* Filter Button Styles */
 .filter-btn-wrapper {
   position: fixed;
-  top: 84px;
+  top: 95px;
   right: 1rem;
   z-index: 120;
+}
+
+/* PC 웹에서 컨테이너 안쪽에 위치 */
+@media (min-width: 769px) {
+  .filter-btn-wrapper {
+    right: max(24px, calc((100vw - 1400px) / 2 + 24px));
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-btn-wrapper {
+    top: calc(112px + env(safe-area-inset-top));
+    right: 12px;
+  }
 }
 
 .filter-floating-btn {
@@ -746,13 +760,6 @@ watch(
 
 .filter-floating-btn:hover {
   background-color: #f5f5f5;
-}
-
-@media (max-width: 768px) {
-  .filter-btn-wrapper {
-    top: calc(112px + env(safe-area-inset-top));
-    right: 12px;
-  }
 }
 
 .map-card {

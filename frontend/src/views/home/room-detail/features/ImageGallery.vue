@@ -28,6 +28,13 @@ const currentModalImage = computed(() => {
   return imagesList.value[selectedImageIndex.value] || imagesList.value[0]
 })
 
+const currentScale = ref(1)
+
+const handleWheel = (event) => {
+  const delta = event.deltaY > 0 ? -0.2 : 0.2
+  currentScale.value = Math.max(1, Math.min(currentScale.value + delta, 5))
+}
+
 const openImageModal = (index) => {
   const maxIndex = Math.max(0, imagesList.value.length - 1)
   selectedImageIndex.value = Math.min(Math.max(index, 0), maxIndex)
@@ -36,18 +43,21 @@ const openImageModal = (index) => {
 
 const closeImageModal = () => {
   isImageModalOpen.value = false
+  currentScale.value = 1
 }
 
 const showPrevImage = () => {
   const total = imagesList.value.length
   if (!total) return
   selectedImageIndex.value = (selectedImageIndex.value - 1 + total) % total
+  currentScale.value = 1
 }
 
 const showNextImage = () => {
   const total = imagesList.value.length
   if (!total) return
   selectedImageIndex.value = (selectedImageIndex.value + 1) % total
+  currentScale.value = 1
 }
 
 watch(
@@ -55,6 +65,7 @@ watch(
   () => {
     selectedImageIndex.value = 0
     isImageModalOpen.value = false
+    currentScale.value = 1
   }
 )
 </script>
@@ -98,7 +109,13 @@ watch(
         >
           ‹
         </button>
-        <img :src="currentModalImage" :alt="name" class="image-modal-image" />
+        <img 
+          :src="currentModalImage" 
+          :alt="name" 
+          class="image-modal-image"
+          @wheel.prevent="handleWheel"
+          :style="{ transform: `scale(${currentScale})`, transition: 'transform 0.1s ease-out' }"
+        />
         <button
           v-if="imagesList.length > 1"
           type="button"
@@ -168,21 +185,21 @@ watch(
   border-radius: inherit;
 }
 .sub-img:nth-child(3)::after {
-  content: '+';
+  content: '+ 사진 크게보기';
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 28px;
+  font-size: 1.1rem;
   font-weight: 700;
 }
 
 .image-modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.85); /* 배경 더 어둡게 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -190,16 +207,17 @@ watch(
   padding: 0;
 }
 .image-modal-content {
-  background: #fff;
+  background: transparent; /* 배경 투명 */
   border-radius: 0;
   padding: 0;
-  width: 100%;
-  max-width: 100%;
-  max-height: 100vh;
+  width: auto;
+  max-width: 90vw;
+  max-height: 90vh;
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 0;
+  align-items: center;
 }
 .image-modal-body {
   display: flex;
@@ -212,35 +230,36 @@ watch(
 .image-modal-header {
   display: flex;
   justify-content: flex-end;
-  padding: 0.5rem 0.75rem;
-  background: rgba(255, 255, 255, 0.92);
+  padding: 0 0 10px 0;
+  background: transparent; /* 헤더 배경 제거 */
+  width: 100%;
 }
 .image-modal-image {
-  width: 100%;
+  width: auto; /* width 자동 */
   max-width: 100%;
-  max-height: 70vh;
+  max-height: 80vh;
   object-fit: contain;
-  border-radius: 0;
-  background: #f3f4f6;
+  border-radius: 8px; /* 둥근 모서리 */
+  background: #fff;
   display: block;
 }
 .image-modal-close {
-  background: #BFE7DF;
-  border: 1px solid #8FCFC1;
-  color: #0f4c44;
-  font-weight: 700;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  color: #333;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 8px; /* 버튼 스타일 통일 */
   cursor: pointer;
 }
 .image-modal-nav {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: none;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(255, 255, 255, 0.2);
   color: #fff;
-  font-size: 1.4rem;
+  font-size: 1.8rem;
   line-height: 1;
   cursor: pointer;
   display: inline-flex;
@@ -249,18 +268,22 @@ watch(
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
+  transition: background 0.2s;
+}
+.image-modal-nav:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 .image-modal-nav.prev {
-  left: 8px;
+  left: -50px; /* 이미지 밖으로 */
 }
 .image-modal-nav.next {
-  right: 8px;
+  right: -50px; /* 이미지 밖으로 */
 }
 .image-modal-caption {
   text-align: center;
-  color: var(--text-sub);
-  font-size: 0.85rem;
-  padding: 0.5rem 0;
+  color: #fff; /* 캡션 흰색 */
+  font-size: 0.9rem;
+  padding: 1rem 0 0 0;
 }
 
 @media (max-width: 768px) {
@@ -312,15 +335,17 @@ watch(
   }
 
   .sub-img:nth-child(3)::after {
-    content: '+';
+    content: '+ 사진\A크게보기';
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #fff;
-    font-size: 26px;
+    font-size: 0.9rem;
     font-weight: 700;
+    white-space: pre;
+    text-align: center;
   }
 
   .image-modal-content {

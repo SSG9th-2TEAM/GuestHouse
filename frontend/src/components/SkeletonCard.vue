@@ -17,53 +17,58 @@
 <style scoped>
 .skeleton-card {
   flex: 0 0 var(--card-width, 280px);
-  background: #fff;
-  border-radius: 16px;
+  background: transparent;
+  border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* 모바일에서 카드 크기 축소 */
+@media (max-width: 768px) {
+  .skeleton-card {
+    flex: 0 0 230px;
+  }
 }
 
 .skeleton-image {
   width: 100%;
-  height: 200px;
+  aspect-ratio: 1 / 1;
   background: #e5e7eb;
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--radius-md);
 }
 
 .skeleton-content {
-  padding: 1rem;
+  padding: 0.15rem 0.5rem 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.2rem;
 }
 
 .skeleton-title {
-  height: 1.25rem;
-  width: 70%;
+  height: 0.95rem;
+  width: 80%;
   background: #e5e7eb;
   border-radius: 4px;
 }
 
 .skeleton-location {
-  height: 0.875rem;
+  height: 0.86rem;
   width: 50%;
   background: #e5e7eb;
   border-radius: 4px;
 }
 
 .skeleton-rating {
-  height: 0.875rem;
+  height: 0.85rem;
   width: 30%;
   background: #e5e7eb;
   border-radius: 4px;
 }
 
 .skeleton-price {
-  height: 1.125rem;
+  height: 0.9rem;
   width: 40%;
   background: #e5e7eb;
   border-radius: 4px;
-  margin-top: 0.5rem;
 }
 
 /* 쉬머 애니메이션 효과 */
