@@ -91,6 +91,12 @@ const getKeywordFromRoute = () => {
   return raw ?? ''
 }
 
+// URL에서 페이지 번호 추출 헬퍼 함수
+const getPageFromRoute = () => {
+  const savedPage = parseInt(route.query.page, 10)
+  return Number.isFinite(savedPage) && savedPage >= 0 ? savedPage : 0
+}
+
 const applyRouteKeyword = () => {
   const nextKeyword = getKeywordFromRoute()
   if (nextKeyword !== searchStore.keyword) {
@@ -330,10 +336,7 @@ onMounted(async () => {
   applyRouteFilters(route.query)
   applyRouteKeyword()
   applyRouteSort()
-  // URL에서 페이지 번호 복원
-  const savedPage = parseInt(route.query.page, 10)
-  const initialPage = Number.isFinite(savedPage) && savedPage >= 0 ? savedPage : 0
-  loadList({ page: initialPage, reset: true })
+  loadList({ page: getPageFromRoute(), reset: true })
   await nextTick()
   refreshObserver()
   setupPaginationObserver()
@@ -397,10 +400,7 @@ watch(
     applyRouteFilters(route.query)
     applyRouteKeyword()
     applyRouteSort()
-    // URL에서 페이지 번호 복원
-    const savedPage = parseInt(route.query.page, 10)
-    const targetPage = Number.isFinite(savedPage) && savedPage >= 0 ? savedPage : 0
-    loadList({ page: targetPage, reset: true })
+    loadList({ page: getPageFromRoute(), reset: true })
   }
 )
 

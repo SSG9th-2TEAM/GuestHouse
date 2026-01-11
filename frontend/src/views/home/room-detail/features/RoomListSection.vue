@@ -31,16 +31,6 @@ const formatPrice = (price) => {
   return Number(price).toLocaleString()
 }
 
-const selectRoom = (room) => {
-  if (!room.available) {
-    isUnavailableModalOpen.value = true
-    return
-  }
-  // 이미 선택된 룸이면 해제 불가능? 아니면 토글? 기존 로직은 선택만 함.
-  // 상위 update:selectedRoom 처리
-  emit('update:selectedRoom', room)
-}
-
 const handleRoomClick = (room) => {
   if (!room.available) {
     isUnavailableModalOpen.value = true
@@ -90,8 +80,8 @@ const closeRoomImageModal = () => {
         <div class="room-content">
           <div class="room-info">
             <h3>{{ room.name }}</h3>
-            <p>{{ room.description }}</p>
-            <span class="capacity">기준 {{ room.capacity }}명 / 최대 {{ room.maxCapacity }}명</span>
+            <p>{{ room.desc }}</p>
+            <span class="capacity">최대 {{ room.capacity }}명</span>
           </div>
           <div class="room-action">
             <div class="price">₩{{ formatPrice(room.price) }}</div>

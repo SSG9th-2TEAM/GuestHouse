@@ -106,7 +106,19 @@ button {
     outline-offset: 2px;
 }
 
-/* 캘린더는 기존 폰트 유지 */
+/*
+ * 캘린더 폰트 통일을 위한 스타일
+ * 
+ * !important 사용 사유:
+ * - body에 TMoneyDungunbaram 폰트가 기본으로 설정되어 있으나,
+ *   캘린더 UI에는 NanumSquareRound가 더 가독성이 좋아 별도 폰트를 적용
+ * - TheHeader.vue, RoomDetailCalendar.vue 등 여러 컴포넌트에 분산된
+ *   캘린더 관련 요소들의 폰트를 일관되게 통일하기 위해 전역 스타일에서 적용
+ * - 컴포넌트 scoped 스타일 명시도를 override 하기 위해 !important 사용
+ * 
+ * TODO: 장기적으로 캘린더를 공통 컴포넌트로 분리하고,
+ *       해당 컴포넌트 내부에서 폰트를 관리하는 것이 권장됨
+ */
 .calendar-popup,
 .mobile-calendar-popup,
 .calendar-container,

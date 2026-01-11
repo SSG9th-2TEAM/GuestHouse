@@ -609,6 +609,7 @@ const handleDownloadCoupon = async (coupon) => {
   } catch (error) {
     if (error.message.includes('이미 발급')) {
       downloadedCouponIds.value.add(cId)
+      alert('이미 발급받은 쿠폰입니다. 마이페이지에서 확인하세요!')
       // 내 쿠폰 목록 조회 (모든 상태: ISSUED, USED, EXPIRED 등)
       try {
         const myCoupons = await getMyCoupons('ALL')
