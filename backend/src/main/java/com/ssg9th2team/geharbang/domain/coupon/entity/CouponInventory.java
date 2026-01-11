@@ -30,6 +30,7 @@ public class CouponInventory {
     @Column(name = "last_reset_date")
     private LocalDate lastResetDate;
 
+    // 하루가 지났다면 일일 재고와 마지막 초기화 날짜를 오늘로 갱신한다.
     public void resetIfNeeded(LocalDate today) {
         if (lastResetDate == null || lastResetDate.isBefore(today)) {
             this.availableToday = dailyLimit;
@@ -37,10 +38,12 @@ public class CouponInventory {
         }
     }
 
+    // 오늘 남은 재고가 있는지 확인한다.
     public boolean hasAvailable() {
         return availableToday != null && availableToday > 0;
     }
 
+    // 재고가 존재하면 1개 소진한다.
     public void consumeOne() {
         if (availableToday != null && availableToday > 0) {
             this.availableToday -= 1;

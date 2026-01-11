@@ -13,12 +13,18 @@ import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepositor
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -34,6 +40,7 @@ public class UserCouponServiceImpl implements UserCouponService {
     private final ReservationJpaRepository reservationJpaRepository;
     private final ReviewJpaRepository reviewJpaRepository;
     private final StringRedisTemplate redisTemplate;
+    private final CacheManager cacheManager;
     
     private static final String COUPON_ISSUED_KEY_PREFIX = "coupon:issued:";
 
@@ -120,6 +127,7 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     // 공통 발급 로직 (만료일 자동 계산)
     @Override
+    @CacheEvict(value = "userCoupons", key = "#userId + '_ISSUED'")
     @Transactional
     public CouponIssueResult issueToUser(Long userId, Coupon coupon) {
         // 1. Redis Set으로 중복 체크 (O(1))
@@ -161,6 +169,7 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     // 사용 가능 쿠폰, 만료 쿠폰, 사용 완료한 쿠폰 조회
     @Override
+    @Cacheable(value = "userCoupons", key = "#userId + '_' + #status")
     @Transactional(readOnly = true)
     public List<UserCouponResponseDto> getMyCouponsByStatus(Long userId, String status) {
         //  DTO 리스트 반환
@@ -172,6 +181,10 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     // 쿠폰 사용 처리
     @Override
+    @Caching(evict = {
+        @CacheEvict(value = "userCoupons", key = "#userId + '_ISSUED'"),
+        @CacheEvict(value = "userCoupons", key = "#userId + '_USED'")
+    })
     @Transactional
     public void useCoupon(Long userId, Long userCouponId) {
         // 쿠폰 조회
@@ -199,6 +212,10 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     // 쿠폰 복구 처리 (예약 취소 시 호출)
     @Override
+    @Caching(evict = {
+        @CacheEvict(value = "userCoupons", key = "#userId + '_ISSUED'"),
+        @CacheEvict(value = "userCoupons", key = "#userId + '_USED'")
+    })
     @Transactional
     public void restoreCoupon(Long userId, Long userCouponId) {
         // 쿠폰 조회
@@ -233,11 +250,26 @@ public class UserCouponServiceImpl implements UserCouponService {
         List<UserCoupon> expiredCoupons = userCouponJpaRepository
                 .findByStatusAndExpiredAtBefore(UserCouponStatus.ISSUED, LocalDateTime.now());
 
+        Set<Long> affectedUserIds = new HashSet<>();
         for (UserCoupon coupon : expiredCoupons) {
             coupon.expire();
+            affectedUserIds.add(coupon.getUserId());
         }
 
+        evictUserCouponCaches(affectedUserIds);
+
         return expiredCoupons.size();
+    }
+
+    private void evictUserCouponCaches(Set<Long> userIds) {
+        Cache cache = cacheManager.getCache("userCoupons");
+        if (cache == null || userIds.isEmpty()) {
+            return;
+        }
+        for (Long userId : userIds) {
+            cache.evict(userId + "_ISSUED");
+            cache.evict(userId + "_EXPIRED");
+        }
     }
 
     @Override
@@ -246,10 +278,7 @@ public class UserCouponServiceImpl implements UserCouponService {
         return userCouponJpaRepository.findCouponIdsByUserId(userId);
     }
 
-    /**
-     * Redis Set 초기화 - DB의 발급 이력을 Redis에 동기화
-     * 애플리케이션 시작 시 또는 스케줄러에서 호출
-     */
+
     /**
      * Redis Set 초기화 - DB의 발급 이력을 Redis에 동기화
      * 애플리케이션 시작 시 또는 스케줄러에서 호출

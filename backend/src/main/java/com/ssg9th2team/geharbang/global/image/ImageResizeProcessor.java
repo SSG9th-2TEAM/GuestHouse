@@ -4,11 +4,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.IIOImage;
+import javax.imageio.stream.ImageOutputStream;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Iterator;
 
 @Component
 @Slf4j
@@ -82,11 +87,38 @@ public class ImageResizeProcessor {
             g2d.dispose();
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(resizedImage, format, outputStream);
+            
+            // JPEG 품질 설정 (흐릿함 방지)
+            if ("jpg".equals(format)) {
+                writeJpegWithQuality(resizedImage, outputStream, 0.95f);
+            } else {
+                ImageIO.write(resizedImage, format, outputStream);
+            }
+            
             return outputStream.toByteArray();
         } catch (IOException e) {
             log.warn("Image resizing failed: {}", e.getMessage());
             return imageBytes;
+        }
+    }
+    
+    private void writeJpegWithQuality(BufferedImage image, ByteArrayOutputStream outputStream, float quality) throws IOException {
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpg");
+        if (!writers.hasNext()) {
+            ImageIO.write(image, "jpg", outputStream);
+            return;
+        }
+        
+        ImageWriter writer = writers.next();
+        ImageWriteParam writeParam = writer.getDefaultWriteParam();
+        writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        writeParam.setCompressionQuality(quality);
+        
+        try (ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream)) {
+            writer.setOutput(ios);
+            writer.write(null, new IIOImage(image, null, null), writeParam);
+        } finally {
+            writer.dispose();
         }
     }
 

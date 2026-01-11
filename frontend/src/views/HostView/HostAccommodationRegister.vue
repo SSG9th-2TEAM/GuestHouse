@@ -622,6 +622,14 @@ const handleBannerUpload = (event) => {
   }
 }
 
+const handleRemoveBanner = () => {
+  if (form.value.bannerImage) {
+    URL.revokeObjectURL(form.value.bannerImage)
+  }
+  form.value.bannerImage = null
+  form.value.bannerImageFile = null
+}
+
 const handleDetailImagesUpload = (event) => {
   const files = Array.from(event.target.files)
   const remainingSlots = 5 - form.value.detailImages.length
@@ -637,6 +645,10 @@ const handleDetailImagesUpload = (event) => {
 }
 
 const removeDetailImage = (index) => {
+  const previewUrl = form.value.detailImages[index]
+  if (previewUrl) {
+    URL.revokeObjectURL(previewUrl)
+  }
   form.value.detailImages.splice(index, 1)
   form.value.detailImageFiles.splice(index, 1)
 }
@@ -1189,8 +1201,8 @@ onMounted(() => {
           <div class="banner-upload-area" :class="{ 'has-error': errors.bannerImage }">
             <div v-if="form.bannerImage" class="banner-preview-wrapper">
               <img :src="form.bannerImage" class="banner-preview" />
-              <button type="button" class="remove-btn" @click="handleRemoveBanner">
-                <i class="fas fa-times"></i>
+              <button type="button" class="remove-image-btn" @click="handleRemoveBanner" aria-label="대표 이미지 삭제">
+                ×
               </button>
               <span class="badge-banner">대표 이미지</span>
             </div>
@@ -1208,8 +1220,8 @@ onMounted(() => {
           <div class="detail-upload-grid">
             <div v-for="(img, idx) in form.detailImages" :key="idx" class="detail-image-item">
               <img :src="img" />
-              <button type="button" class="remove-btn" @click="removeDetailImage(idx)">
-                <i class="fas fa-times"></i>
+              <button type="button" class="remove-image-btn" @click="removeDetailImage(idx)" aria-label="상세 이미지 삭제">
+                ×
               </button>
             </div>
             
@@ -2284,19 +2296,21 @@ select {
 
 .remove-image-btn {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 24px;
-  height: 24px;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: rgba(0,0,0,0.5);
-  color: white;
+  background: rgba(15, 23, 42, 0.7);
+  color: #fff;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  z-index: 2;
 }
 
 /* Theme Categories */
