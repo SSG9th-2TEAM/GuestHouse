@@ -38,11 +38,10 @@ public class GeminiTextClient {
 
     public GeminiTextClient(
             @Value("${GEMINI_API_KEY:}") String apiKey,
-            @Value("${GEMINI_MODEL:gemini-1.5-flash-latest}") String model,
+            @Value("${GEMINI_MODEL:gemini-1.5-flash}") String model,
             @Value("${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}") String baseUrl,
             @Value("${ai.summary.connect-timeout-ms:5000}") int connectTimeoutMs,
-            @Value("${ai.summary.read-timeout-ms:8000}") int readTimeoutMs
-    ) {
+            @Value("${ai.summary.read-timeout-ms:8000}") int readTimeoutMs) {
         this.apiKey = apiKey;
         this.model = model;
         this.baseUrl = baseUrl.replaceAll("/$", "");
@@ -62,16 +61,13 @@ public class GeminiTextClient {
         }
         try {
             Map<String, Object> generationConfig = Map.of(
-                    "temperature", 0.5
-            );
+                    "temperature", 0.5);
 
             Map<String, Object> body = Map.of(
                     "contents", List.of(Map.of(
                             "role", "user",
-                            "parts", List.of(Map.of("text", buildPrompt(prompt, languageTag)))
-                    )),
-                    "generationConfig", generationConfig
-            );
+                            "parts", List.of(Map.of("text", buildPrompt(prompt, languageTag))))),
+                    "generationConfig", generationConfig);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -122,8 +118,7 @@ public class GeminiTextClient {
                 payload.getConfidence(),
                 model,
                 new TokenUsage(promptTokens, completionTokens, totalTokens),
-                ZonedDateTime.now(KST).toString()
-        );
+                ZonedDateTime.now(KST).toString());
     }
 
     private String extractJsonPayload(String responseText) {
@@ -150,7 +145,8 @@ public class GeminiTextClient {
         private final TokenUsage tokenUsage;
         private final String generatedAt;
 
-        public TextCompletionResult(String name, String description, Double confidence, String model, TokenUsage tokenUsage, String generatedAt) {
+        public TextCompletionResult(String name, String description, Double confidence, String model,
+                TokenUsage tokenUsage, String generatedAt) {
             this.name = name;
             this.description = description;
             this.confidence = confidence;

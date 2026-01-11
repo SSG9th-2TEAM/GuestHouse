@@ -42,4 +42,10 @@ public interface UserCouponService {
 
     // 사용자 보유 쿠폰 ID 목록 조회
     Set<Long> getMyCouponIds(Long userId);
+    
+    // Redis 발급 이력 초기화
+    void initializeRedisIssuedCoupons();
+    
+    // 특정 쿠폰 Redis 발급 이력 동기화
+    void syncRedisIssuedCoupon(Long couponId);
 }

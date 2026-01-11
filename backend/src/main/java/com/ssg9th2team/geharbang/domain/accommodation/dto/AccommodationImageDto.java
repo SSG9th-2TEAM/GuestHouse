@@ -8,7 +8,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class AccommodationImageDto {
+    private Long accommodationsId; // 배치 조회용
     private String imageUrl;
-    private String imageType;      // banner, detail
+    private String imageType; // banner, detail
     private Integer sortOrder;
 }

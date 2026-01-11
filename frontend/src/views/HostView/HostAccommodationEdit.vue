@@ -1052,6 +1052,7 @@ const resolveAllAiImageBase64 = async () => {
 
   // 배너 이미지
   if (bannerFile.value) {
+    // 새로 업로드한 파일은 리사이즈하여 Base64로 변환
     try {
       base64Images.push(await resizeImage(bannerFile.value))
     } catch (e) {
@@ -1059,16 +1060,14 @@ const resolveAllAiImageBase64 = async () => {
       base64Images.push(await fileToBase64(bannerFile.value))
     }
   } else if (form.value.bannerImage) {
-    try {
-      base64Images.push(await fetchImageAsBase64(form.value.bannerImage))
-    } catch (error) {
-      console.warn('배너 이미지 다운로드 실패:', error)
-    }
+    // 기존 이미지는 URL을 그대로 전달 (백엔드가 다운로드 처리)
+    base64Images.push(form.value.bannerImage)
   }
 
   // 상세 이미지들
   for (const item of displayImages.value) {
     if (item.file) {
+      // 새로 업로드한 파일은 리사이즈하여 Base64로 변환
       try {
         base64Images.push(await resizeImage(item.file))
       } catch (e) {
@@ -1076,11 +1075,8 @@ const resolveAllAiImageBase64 = async () => {
         base64Images.push(await fileToBase64(item.file))
       }
     } else if (item.url) {
-      try {
-        base64Images.push(await fetchImageAsBase64(item.url))
-      } catch (error) {
-        console.warn('상세 이미지 다운로드 실패:', error)
-      }
+      // 기존 이미지는 URL을 그대로 전달 (백엔드가 다운로드 처리)
+      base64Images.push(item.url)
     }
   }
 
@@ -1230,52 +1226,59 @@ onMounted(async () => {
     <!-- ========== Form Content ========== -->
     <div v-if="!isLoading" class="form-content">
       
-      <!-- Section: 이미지 & AI 소개 -->
-      <section class="form-section image-section">
-        <h3 class="subsection-title">숙소 이미지 & AI 소개</h3>
-        <p class="section-desc">이미지를 수정하고 AI에게 새로운 소개글을 요청해보세요.</p>
+      <!-- Section: 숙소 수정 -->
+      <section class="form-section">
+        <h2 class="section-title">숙소 수정</h2>
+        <p class="section-desc">숙소의 정보를 수정해주세요.</p>
 
+        <!-- Image & AI Section -->
         <div class="image-ai-container">
-          <div class="image-grid-layout">
-            <!-- Banner Image -->
-            <div class="banner-upload-area" :class="{ 'has-error': false }">
-              <div v-if="bannerPreview || form.bannerImage" class="banner-preview-wrapper">
-                <img :src="bannerPreview ? bannerPreview : form.bannerImage" class="banner-preview" />
-                <button type="button" class="remove-btn" @click="removeBannerImage">
-                  <i class="fas fa-times"></i>
-                </button>
-                <span class="badge-banner">대표 이미지</span>
-              </div>
-              <label v-else class="upload-placeholder banner-placeholder">
-                <input type="file" accept="image/*" @change="handleBannerUpload" hidden />
-                <div class="placeholder-content">
-                  <span class="icon">📷</span>
-                  <span class="text">대표 이미지 업로드</span>
-                  <span class="sub-text">1920x600 권장</span>
-                </div>
-              </label>
-            </div>
+          <!-- Section: Images (Restructured) -->
+          <section class="form-section image-section">
+            <h3 class="subsection-title">숙소 이미지 <span class="required">*</span></h3>
+            <p class="section-desc">멋진 숙소 사진을 올려주세요. AI가 사진을 분석해 소개글을 만들어드려요.</p>
 
-            <!-- Detail Images -->
-            <div class="detail-upload-grid">
-              <div v-for="(img, idx) in displayImages" :key="img.id || idx" class="detail-image-item">
-                <img :src="img.url" />
-                <button type="button" class="remove-btn" @click="removeDetailImage(idx)">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-              
-              <label v-if="displayImages.length < 5" class="upload-placeholder detail-placeholder">
-                <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" hidden />
-                <div class="placeholder-content">
-                  <span class="icon">＋</span>
-                  <span class="text">추가</span>
+            <div class="image-grid-layout">
+              <!-- Banner Image (Large) -->
+              <div class="banner-upload-area" :class="{ 'has-error': false }">
+                <div v-if="bannerPreview || form.bannerImage" class="banner-preview-wrapper">
+                  <img :src="bannerPreview ? bannerPreview : form.bannerImage" class="banner-preview" />
+                  <button type="button" class="remove-btn" @click="removeBannerImage">
+                    <i class="fas fa-times"></i>
+                  </button>
+                  <span class="badge-banner">대표 이미지</span>
                 </div>
-              </label>
-            </div>
-          </div>
+                <label v-else class="upload-placeholder banner-placeholder">
+                  <input type="file" accept="image/*" @change="handleBannerUpload" hidden />
+                  <div class="placeholder-content">
+                    <span class="icon">📷</span>
+                    <span class="text">대표 이미지 업로드</span>
+                    <span class="sub-text">1920x600 권장</span>
+                  </div>
+                </label>
+              </div>
 
-          <!-- AI Action -->
+              <!-- Detail Images (Grid) -->
+              <div class="detail-upload-grid">
+                <div v-for="(img, idx) in displayImages" :key="img.id || idx" class="detail-image-item">
+                  <img :src="img.url" />
+                  <button type="button" class="remove-btn" @click="removeDetailImage(idx)">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                
+                <label v-if="displayImages.length < 5" class="upload-placeholder detail-placeholder">
+                  <input type="file" accept="image/*" multiple @change="handleDetailImagesUpload" hidden />
+                  <div class="placeholder-content">
+                    <span class="icon">＋</span>
+                    <span class="text">추가</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- AI Suggestion Button (Clean & Simple) -->
           <div class="ai-action-area">
             <button 
               type="button" 
@@ -1287,13 +1290,10 @@ onMounted(async () => {
               <span class="icon">✨</span>
               <span class="label">{{ isAiSuggesting ? 'AI가 분석중...' : 'AI로 소개글 완성하기' }}</span>
             </button>
-            <p class="ai-hint">변경한 이미지를 바탕으로 제목과 소개를 다시 작성해드려요.</p>
+            <p class="ai-hint">이미지를 올리고 버튼을 누르면 제목과 소개를 자동으로 작성해드려요.</p>
           </div>
         </div>
-      </section>
 
-      <!-- Section: 기본정보 -->
-      <section class="form-section">
         <h3 class="subsection-title">기본정보</h3>
 
         <div class="form-group">

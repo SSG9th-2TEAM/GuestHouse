@@ -35,7 +35,6 @@ export default defineConfig({
     global: 'window',
   },
   build: {
-    outDir: '../backend/src/main/resources/static',
     emptyOutDir: true,
   }
 })
