@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchMyWishlist, removeWishlist } from '@/api/wishlist'
+import wishlistActiveIcon from '@/assets/wishlist1.png'
 
 const router = useRouter()
 const wishlist = ref([])
@@ -78,7 +79,7 @@ onMounted(() => {
         <div class="card-image-wrapper">
           <img :src="item.image" alt="thumbnail" class="card-img" />
           <button class="heart-btn" @click="(e) => handleRemove(e, item.id)">
-            <span class="heart-icon">♥</span>
+            <img :src="wishlistActiveIcon" alt="찜한 숙소" class="heart-icon" />
           </button>
         </div>
         
@@ -173,9 +174,9 @@ onMounted(() => {
 }
 
 .heart-icon {
-  color: #ef4444; /* Red Heart */
-  font-size: 1.2rem;
-  line-height: 1;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .card-info {

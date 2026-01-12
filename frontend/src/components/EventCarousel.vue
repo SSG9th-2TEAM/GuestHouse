@@ -150,38 +150,43 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+
 .event-carousel {
   width: 100%;
   margin-bottom: 2rem;
+  overflow: hidden; /* 추가: 최상위에서도 overflow 차단 */
 }
 
 .carousel-container {
   position: relative;
   width: 100%;
+  max-width: 100%; /* 추가: 너비 제한 명확화 */
   overflow: hidden;
+  overflow-x: hidden; /* 추가: 가로 스크롤 명시적 차단 */
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+
 .carousel-track {
   display: flex;
   transition: transform 0.5s ease-in-out;
+  width: 100%; /* 추가 */
 }
 
 .carousel-slide {
   min-width: 100%;
+  width: 100%; /* 명시적 너비 추가 */
+  max-width: 100%; /* 최대 너비 제한 */
   flex-shrink: 0;
   position: relative;
+  overflow: hidden; /* 슬라이드 자체에서도 차단 */
 }
 
 .carousel-slide.clickable {
   cursor: pointer;
 }
 
-.carousel-slide.clickable:hover .banner-image {
-  opacity: 0.9;
-  transition: opacity 0.3s ease;
-}
 
 /* 텍스트 오버레이 스타일 */
 .banner-overlay {

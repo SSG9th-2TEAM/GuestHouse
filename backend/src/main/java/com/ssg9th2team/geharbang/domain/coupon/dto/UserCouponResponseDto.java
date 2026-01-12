@@ -30,5 +30,6 @@ public class UserCouponResponseDto {
     private int discountValue;
     private int minPrice;
     private Integer maxDiscount;
+    private Long accommodationsId;
 
 }
