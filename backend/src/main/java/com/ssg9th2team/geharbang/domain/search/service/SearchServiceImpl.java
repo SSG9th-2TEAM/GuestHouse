@@ -3,6 +3,7 @@ package com.ssg9th2team.geharbang.domain.search.service;
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
+import com.ssg9th2team.geharbang.domain.search.dto.SearchSuggestionResponse;
 import com.ssg9th2team.geharbang.domain.search.repository.SearchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -177,6 +178,37 @@ public class SearchServiceImpl implements SearchService {
                 .toList();
 
         return PublicListResponse.of(items, resultPage);
+    }
+
+    @Override
+    public List<SearchSuggestionResponse> suggestPublicSearch(String keyword, int limit) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        if (normalizedKeyword == null || normalizedKeyword.length() < 2) {
+            return List.of();
+        }
+        if (limit <= 0) {
+            return List.of();
+        }
+        int safeLimit = Math.min(limit, 20);
+        int accommodationLimit = (safeLimit + 1) / 2;
+        int regionLimit = safeLimit / 2;
+
+        List<String> accommodationNames = searchRepository.suggestAccommodationNames(
+                normalizedKeyword,
+                PageRequest.of(0, accommodationLimit));
+        List<String> regions = regionLimit > 0
+                ? searchRepository.suggestRegions(normalizedKeyword, PageRequest.of(0, regionLimit))
+                : List.of();
+
+        List<SearchSuggestionResponse> suggestions = new java.util.ArrayList<>();
+        accommodationNames.stream()
+                .filter(name -> name != null && !name.trim().isEmpty())
+                .forEach(name -> suggestions.add(SearchSuggestionResponse.accommodation(name)));
+        regions.stream()
+                .filter(region -> region != null && !region.trim().isEmpty())
+                .forEach(region -> suggestions.add(SearchSuggestionResponse.region(region)));
+
+        return suggestions;
     }
 
     private String normalizeKeyword(String keyword) {

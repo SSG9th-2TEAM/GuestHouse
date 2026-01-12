@@ -86,3 +86,16 @@ export async function searchList({
   }
   return hostGet('/public/search', params)
 }
+
+export async function fetchSearchSuggestions(keyword, limit = 10) {
+  const normalizedKeyword = String(keyword ?? '').trim()
+  if (!normalizedKeyword) {
+    return { ok: true, status: 200, data: [] }
+  }
+  const normalizedLimit = Number(limit)
+  const params = { keyword: normalizedKeyword }
+  if (Number.isFinite(normalizedLimit) && normalizedLimit > 0) {
+    params.limit = normalizedLimit
+  }
+  return hostGet('/public/search/suggest', params)
+}

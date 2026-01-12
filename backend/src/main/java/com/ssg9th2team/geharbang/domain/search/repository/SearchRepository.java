@@ -13,6 +13,35 @@ import java.util.List;
 
 public interface SearchRepository extends JpaRepository<Accommodation, Long> {
     @Query(value = """
+            SELECT DISTINCT a.accommodations_name
+            FROM accommodation a
+            WHERE a.accommodation_status = 1
+              AND a.approval_status = 'APPROVED'
+              AND a.accommodations_name IS NOT NULL
+              AND a.accommodations_name <> ''
+              AND (:keyword IS NULL OR :keyword = ''
+                   OR LOWER(a.accommodations_name) LIKE CONCAT('%', LOWER(:keyword), '%'))
+            ORDER BY a.accommodations_name
+            """, nativeQuery = true)
+    List<String> suggestAccommodationNames(
+            @Param("keyword") String keyword,
+            Pageable pageable);
+
+    @Query(value = """
+            SELECT DISTINCT TRIM(CONCAT_WS(' ', a.city, a.district, a.township)) AS region
+            FROM accommodation a
+            WHERE a.accommodation_status = 1
+              AND a.approval_status = 'APPROVED'
+              AND TRIM(CONCAT_WS(' ', a.city, a.district, a.township)) <> ''
+              AND (:keyword IS NULL OR :keyword = ''
+                   OR LOWER(CONCAT_WS(' ', a.city, a.district, a.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
+            ORDER BY region
+            """, nativeQuery = true)
+    List<String> suggestRegions(
+            @Param("keyword") String keyword,
+            Pageable pageable);
+
+    @Query(value = """
             WITH room_stats AS (
                 SELECT accommodations_id,
                        MAX(max_guests) AS maxGuests,

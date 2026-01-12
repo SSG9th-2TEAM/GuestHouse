@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.search.controller;
 
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
+import com.ssg9th2team.geharbang.domain.search.dto.SearchSuggestionResponse;
 import com.ssg9th2team.geharbang.domain.search.service.SearchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -59,5 +60,12 @@ public class SearchController {
                 minPrice,
                 maxPrice,
                 sort);
+    }
+
+    @GetMapping("/search/suggest")
+    public List<SearchSuggestionResponse> suggest(
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "limit", defaultValue = "10") int limit) {
+        return searchService.suggestPublicSearch(keyword, limit);
     }
 }
