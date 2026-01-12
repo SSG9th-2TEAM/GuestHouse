@@ -27,7 +27,7 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException exception) throws IOException, ServletException {
 
-        log.warn("OAuth2 Authentication Failed: {}", exception.getMessage());
+        log.warn("OAuth2 Authentication Failed: {}", exception.getMessage(), exception);
 
         // OAuth2 인증 요청 관련 쿠키 정리
         httpCookieOAuth2AuthorizationRequestRepository.removeAuthorizationRequestCookies(request, response);
