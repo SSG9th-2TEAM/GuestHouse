@@ -14,8 +14,10 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 public class CookieUtils {
@@ -104,7 +106,9 @@ public class CookieUtils {
             // scopes 처리
             Object scopesObj = data.get("scopes");
             if (scopesObj instanceof Iterable) {
-                builder.scopes(set -> ((Iterable<String>) scopesObj).forEach(set::add));
+                Set<String> scopes = new HashSet<>();
+                ((Iterable<?>) scopesObj).forEach(s -> scopes.add((String) s));
+                builder.scopes(scopes);
             }
 
             // attributes 처리
