@@ -96,10 +96,15 @@ const isReviewLong = (content) => {
   return String(content ?? '').length > 120
 }
 
-const renderStars = (rating) => {
-  const safeRating = Math.min(Math.max(Number(rating) || 0, 0), 5)
-  return '★'.repeat(safeRating) + '☆'.repeat(5 - safeRating)
+const clampRating = (rating) => {
+  const value = Number(rating)
+  if (!Number.isFinite(value)) return 0
+  return Math.min(Math.max(value, 0), 5)
 }
+
+const getStarFillWidth = (rating) => `${(clampRating(rating) / 5) * 100}%`
+
+const formatRatingLabel = (rating) => clampRating(rating).toFixed(1)
 
 const isReviewImageModalOpen = ref(false)
 const selectedReviewImageIndex = ref(0)
@@ -197,7 +202,16 @@ watch(
           <span class="author">{{ review.author }}</span>
           <span class="date">{{ review.date }}</span>
         </div>
-        <div class="stars">{{ renderStars(review.rating) }}</div>
+        <div class="stars" role="img" :aria-label="`별점 ${formatRatingLabel(review.rating)}`">
+          <span class="stars-base" aria-hidden="true">★★★★★</span>
+          <span
+            class="stars-fill"
+            :style="{ width: getStarFillWidth(review.rating) }"
+            aria-hidden="true"
+          >
+            ★★★★★
+          </span>
+        </div>
         <div v-if="review.images && review.images.length" class="review-images">
           <img
             v-for="(img, idx) in review.images.slice(0, 5)"
@@ -339,6 +353,22 @@ h2 {
 }
 .stars {
   margin-bottom: 0.5rem;
+  position: relative;
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+}
+.stars-base {
+  color: #e5e7eb;
+}
+.stars-fill {
+  color: #f59e0b;
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 0;
 }
 .review-tag-summary {
   display: flex;

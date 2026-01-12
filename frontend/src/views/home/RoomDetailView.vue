@@ -178,7 +178,9 @@ const normalizeReviews = (reviews) => {
   if (!Array.isArray(reviews)) return []
   return reviews.map((review) => {
     const ratingValue = Number(review?.rating)
-    const rating = Number.isFinite(ratingValue) ? Math.round(ratingValue) : 0
+    const rating = Number.isFinite(ratingValue)
+      ? Math.min(Math.max(Math.round(ratingValue * 2) / 2, 0), 5)
+      : 0
     const images = Array.isArray(review?.images) ? review.images : []
     const imageUrls = images
       .map((image) => image?.imageUrl ?? image)
