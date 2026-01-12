@@ -56,11 +56,23 @@ public class RealtimeChatService {
                 .collect(Collectors.toSet());
         log.info("상대방 사용자 이름 조회를 위한 ID 목록: {}", otherUserIds);
 
-
         Map<Long, User> userMap = userRepository.findAllById(otherUserIds).stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
-      log.info("상대방 사용자 정보 {}건을 찾았습니다.", userMap.size());
+        log.info("상대방 사용자 정보 {}건을 찾았습니다.", userMap.size());
 
+        // N+1 문제 해결: 모든 숙소의 대표 이미지를 한 번에 조회
+        List<Long> accommodationIds = rooms.stream()
+                .map(RealtimeChatRoom::getAccommodationId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, String> imageMap = accommodationMapper.selectMainImagesByAccommodationIds(accommodationIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        img -> img.getAccommodationsId(),
+                        img -> img.getImageUrl(),
+                        (existing, replacement) -> existing // 중복 시 첫 번째 값 유지
+                ));
+        log.info("숙소 대표 이미지 {}건을 일괄 조회했습니다.", imageMap.size());
 
         List<ChatRoomDto> chatRoomDtos = rooms.stream().map(room -> {
             Long otherUserId;
@@ -78,7 +90,7 @@ public class RealtimeChatService {
             User otherUser = userMap.get(otherUserId);
             otherUserName = (otherUser != null) ? otherUser.getNickname() : "알 수 없는 사용자";
 
-            String currentImageUrl = accommodationMapper.selectMainImageUrl(room.getAccommodationId());
+            String currentImageUrl = imageMap.get(room.getAccommodationId());
 
             return ChatRoomDto.builder()
                 .id(room.getId())

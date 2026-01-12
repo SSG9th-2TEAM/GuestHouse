@@ -22,7 +22,7 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException exception) throws IOException, ServletException {
         
-        log.warn("OAuth2 Authentication Failed: {}", exception.getMessage());
+        log.warn("OAuth2 Authentication Failed: {}", exception.getMessage(), exception);
         
         // 로그인 페이지로 리다이렉트 (에러 메시지는 선택적)
         String targetUrl = failureRedirectUri;
