@@ -351,7 +351,7 @@ onMounted(() => {
         <div class="skeleton-section-title shimmer"></div>
       </div>
       <div class="row-scroll">
-        <SkeletonCard v-for="n in 4" :key="n" />
+        <SkeletonCard v-for="n in 5" :key="n" />
       </div>
     </section>
     <section v-if="isLoading" class="theme-section skeleton-section">
@@ -359,7 +359,7 @@ onMounted(() => {
         <div class="skeleton-section-title shimmer"></div>
       </div>
       <div class="row-scroll">
-        <SkeletonCard v-for="n in 4" :key="n" />
+        <SkeletonCard v-for="n in 5" :key="n" />
       </div>
     </section>
 
