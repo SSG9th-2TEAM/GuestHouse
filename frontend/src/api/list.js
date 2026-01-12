@@ -99,3 +99,11 @@ export async function fetchSearchSuggestions(keyword, limit = 10) {
   }
   return hostGet('/public/search/suggest', params)
 }
+
+export async function resolveSearchAccommodation(keyword) {
+  const normalizedKeyword = String(keyword ?? '').trim()
+  if (!normalizedKeyword) {
+    return { ok: true, status: 200, data: null }
+  }
+  return hostGet('/public/search/resolve', { keyword: normalizedKeyword })
+}

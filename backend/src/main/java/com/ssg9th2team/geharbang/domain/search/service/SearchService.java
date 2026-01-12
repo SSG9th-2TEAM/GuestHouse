@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.search.service;
 
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
+import com.ssg9th2team.geharbang.domain.search.dto.SearchResolveResponse;
 import com.ssg9th2team.geharbang.domain.search.dto.SearchSuggestionResponse;
 
 import java.time.LocalDateTime;
@@ -24,4 +25,6 @@ public interface SearchService {
             String sort);
 
     List<SearchSuggestionResponse> suggestPublicSearch(String keyword, int limit);
+
+    SearchResolveResponse resolvePublicAccommodation(String keyword);
 }

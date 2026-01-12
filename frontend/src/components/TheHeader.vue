@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { useHolidayStore } from '@/stores/holiday'
 import { useCalendarStore } from '@/stores/calendar'
-import { fetchSearchSuggestions } from '@/api/list'
+import { fetchSearchSuggestions, resolveSearchAccommodation } from '@/api/list'
 import { isAuthenticated, logout, validateToken, getUserInfo, getAccessToken, getCurrentUser, saveUserInfo } from '@/api/authClient'
 
 const router = useRouter()
@@ -95,12 +95,39 @@ const closeSuggestions = () => {
   resetSuggestions()
 }
 
-const selectSuggestion = (suggestion) => {
+const resolveAccommodation = async (value) => {
+  const keyword = String(value ?? '').trim()
+  if (!keyword) return null
+  try {
+    const response = await resolveSearchAccommodation(keyword)
+    if (response.ok && response.data?.accommodationsId) {
+      return response.data
+    }
+  } catch (error) {
+    console.error('Failed to resolve accommodation', error)
+  }
+  return null
+}
+
+const isAccommodationSuggestion = (suggestion) => {
+  return String(suggestion?.type || '').toUpperCase() === 'ACCOMMODATION'
+}
+
+const selectSuggestion = async (suggestion) => {
   if (!suggestion?.value) return
   const nextValue = String(suggestion.value)
   searchKeyword.value = nextValue
   suggestKeyword.value = nextValue
   searchStore.setKeyword(nextValue)
+  if (isAccommodationSuggestion(suggestion)) {
+    const resolved = await resolveAccommodation(nextValue)
+    if (resolved?.accommodationsId) {
+      closeSuggestions()
+      isSearchExpanded.value = false
+      router.push({ path: `/room/${resolved.accommodationsId}` })
+      return
+    }
+  }
   closeSuggestions()
 }
 
@@ -408,7 +435,20 @@ const buildSearchQuery = () => {
   return query
 }
 
-const handleSearch = () => {
+const handleSearch = async () => {
+  const keyword = String(searchKeyword.value ?? '').trim()
+  if (keyword) {
+    const resolved = await resolveAccommodation(keyword)
+    if (resolved?.accommodationsId) {
+      searchStore.setKeyword(keyword)
+      searchKeyword.value = keyword
+      isSearchExpanded.value = false
+      closeSuggestions()
+      router.push({ path: `/room/${resolved.accommodationsId}` })
+      return
+    }
+  }
+
   const targetPath = isMapContext() ? '/map' : '/list'
   router.push({ path: targetPath, query: buildSearchQuery() })
   isSearchExpanded.value = false

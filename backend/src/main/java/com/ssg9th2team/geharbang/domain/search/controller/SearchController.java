@@ -1,10 +1,12 @@
 package com.ssg9th2team.geharbang.domain.search.controller;
 
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
+import com.ssg9th2team.geharbang.domain.search.dto.SearchResolveResponse;
 import com.ssg9th2team.geharbang.domain.search.dto.SearchSuggestionResponse;
 import com.ssg9th2team.geharbang.domain.search.service.SearchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -67,5 +69,15 @@ public class SearchController {
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "limit", defaultValue = "10") int limit) {
         return searchService.suggestPublicSearch(keyword, limit);
+    }
+
+    @GetMapping("/search/resolve")
+    public ResponseEntity<SearchResolveResponse> resolveAccommodation(
+            @RequestParam(name = "keyword", required = false) String keyword) {
+        SearchResolveResponse resolved = searchService.resolvePublicAccommodation(keyword);
+        if (resolved == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(resolved);
     }
 }

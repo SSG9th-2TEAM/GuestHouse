@@ -3,8 +3,10 @@ package com.ssg9th2team.geharbang.domain.search.service;
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
+import com.ssg9th2team.geharbang.domain.search.dto.SearchResolveResponse;
 import com.ssg9th2team.geharbang.domain.search.dto.SearchSuggestionResponse;
 import com.ssg9th2team.geharbang.domain.search.repository.SearchRepository;
+import com.ssg9th2team.geharbang.domain.search.repository.SearchResolveProjection;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -209,6 +211,22 @@ public class SearchServiceImpl implements SearchService {
                 .forEach(region -> suggestions.add(SearchSuggestionResponse.region(region)));
 
         return suggestions;
+    }
+
+    @Override
+    public SearchResolveResponse resolvePublicAccommodation(String keyword) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        if (normalizedKeyword == null) {
+            return null;
+        }
+
+        List<SearchResolveProjection> matches = searchRepository.resolveAccommodationByName(normalizedKeyword);
+        if (matches.size() != 1) {
+            return null;
+        }
+
+        SearchResolveProjection match = matches.get(0);
+        return SearchResolveResponse.of(match.getAccommodationsId(), match.getAccommodationsName());
     }
 
     private String normalizeKeyword(String keyword) {

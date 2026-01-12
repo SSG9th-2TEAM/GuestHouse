@@ -42,6 +42,18 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             Pageable pageable);
 
     @Query(value = """
+            SELECT a.accommodations_id AS accommodationsId,
+                   a.accommodations_name AS accommodationsName
+            FROM accommodation a
+            WHERE a.accommodation_status = 1
+              AND a.approval_status = 'APPROVED'
+              AND LOWER(a.accommodations_name) = LOWER(:keyword)
+            ORDER BY a.accommodations_id
+            LIMIT 2
+            """, nativeQuery = true)
+    List<SearchResolveProjection> resolveAccommodationByName(@Param("keyword") String keyword);
+
+    @Query(value = """
             WITH room_stats AS (
                 SELECT accommodations_id,
                        MAX(max_guests) AS maxGuests,
