@@ -76,6 +76,8 @@ public class CouponController {
         return ResponseEntity.ok("쿠폰이 사용되었습니다");
     }
 
+
+
     @GetMapping("/my/ids")
     public ResponseEntity<List<Long>> getMyCouponIds(Authentication authentication) {
         String email = authentication.getName();
