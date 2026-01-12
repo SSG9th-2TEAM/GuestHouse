@@ -119,8 +119,14 @@ log.info("신규 사용자 생성 완료: {}", user.getEmail());
                 .providerUid(providerId)
                 .email(email)
                 .build();
-        userSocialRepository.save(newUserSocial);
-        log.info("소셜 로그인 정보 저장 완료: provider={}, uid={}", socialProvider, providerId);
+        
+        // 이미 해당 소셜 정보가 연동되어 있는지 확인 (중복 저장 방지)
+        if (!userSocialRepository.existsByUserAndProvider(user, socialProvider)) {
+            userSocialRepository.save(newUserSocial);
+            log.info("소셜 로그인 정보 저장 완료: provider={}, uid={}", socialProvider, providerId);
+        } else {
+            log.info("이미 연동된 소셜 계정입니다. 저장 생략: provider={}, email={}", socialProvider, email);
+        }
 
         return user;
     }
