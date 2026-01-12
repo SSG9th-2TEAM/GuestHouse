@@ -200,9 +200,7 @@ const eligibleCoupons = computed(() => {
   return coupons.value.filter((coupon) => {
     const min = coupon?.minPrice ?? 0
     const couponAccommodationId =
-      coupon?.accommodationsId === null || coupon?.accommodationsId === undefined
-        ? null
-        : Number(coupon.accommodationsId)
+      coupon?.accommodationsId == null ? null : Number(coupon.accommodationsId)
     const isEligibleAccommodation =
       couponAccommodationId === null || couponAccommodationId === bookingAccommodationId
     return totalPrice >= min && isEligibleAccommodation

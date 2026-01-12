@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -202,6 +203,8 @@ public class UserCouponServiceImpl implements UserCouponService {
         }
 
         userCoupon.use();
+        evictUserCouponCache(userId, "ISSUED");
+        evictUserCouponCache(userId, "USED");
     }
 
 
@@ -231,6 +234,10 @@ public class UserCouponServiceImpl implements UserCouponService {
         else {
             userCoupon.expire();
         }
+
+        evictUserCouponCache(userId, "ISSUED");
+        evictUserCouponCache(userId, "USED");
+        evictUserCouponCache(userId, "EXPIRED");
     }
 
 
@@ -251,8 +258,15 @@ public class UserCouponServiceImpl implements UserCouponService {
         List<UserCoupon> expiredCoupons = userCouponJpaRepository
                 .findByStatusAndExpiredAtBefore(UserCouponStatus.ISSUED, LocalDateTime.now());
 
+        Set<Long> affectedUserIds = new HashSet<>();
         for (UserCoupon coupon : expiredCoupons) {
             coupon.expire();
+            affectedUserIds.add(coupon.getUserId());
+        }
+
+        for (Long userId : affectedUserIds) {
+            evictUserCouponCache(userId, "ISSUED");
+            evictUserCouponCache(userId, "EXPIRED");
         }
 
         return expiredCoupons.size();
