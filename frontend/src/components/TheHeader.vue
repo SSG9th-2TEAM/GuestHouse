@@ -468,6 +468,10 @@ onMounted(async () => {
   // 페이지 이동 후 로그인 상태 업데이트
   router.afterEach(() => {
     isLoggedIn.value = isAuthenticated()
+    if (isMobile()) {
+      isSearchExpanded.value = false
+      closeSuggestions()
+    }
   })
 })
 
@@ -570,16 +574,21 @@ onUnmounted(() => {
                     v-for="(suggestion, idx) in suggestions"
                     :key="`${suggestion.type}-${suggestion.value}-${idx}`"
                     type="button"
-                    class="search-suggestion"
+                    :class="[
+                      'search-suggestion',
+                      String(suggestion.type || '').toUpperCase() === 'REGION'
+                        ? 'search-suggestion--region'
+                        : 'search-suggestion--accommodation'
+                    ]"
                     @mousedown.prevent="selectSuggestion(suggestion)"
                   >
+                    <span class="suggestion-text">{{ suggestion.value }}</span>
                     <span
                       class="suggestion-tag"
                       :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
                     >
                       {{ getSuggestionLabel(suggestion.type) }}
                     </span>
-                    <span class="suggestion-text">{{ suggestion.value }}</span>
                   </button>
                     <div v-if="hasSuggestFetched && !suggestions.length" class="suggestion-empty">검색 결과 없음</div>
                 </template>
@@ -699,16 +708,21 @@ onUnmounted(() => {
                     v-for="(suggestion, idx) in suggestions"
                     :key="`${suggestion.type}-${suggestion.value}-${idx}`"
                     type="button"
-                    class="search-suggestion"
+                    :class="[
+                      'search-suggestion',
+                      String(suggestion.type || '').toUpperCase() === 'REGION'
+                        ? 'search-suggestion--region'
+                        : 'search-suggestion--accommodation'
+                    ]"
                     @mousedown.prevent="selectSuggestion(suggestion)"
                   >
+                    <span class="suggestion-text">{{ suggestion.value }}</span>
                     <span
                       class="suggestion-tag"
                       :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
                     >
                       {{ getSuggestionLabel(suggestion.type) }}
                     </span>
-                    <span class="suggestion-text">{{ suggestion.value }}</span>
                   </button>
                     <div v-if="hasSuggestFetched && !suggestions.length" class="suggestion-empty">검색 결과 없음</div>
                 </template>
@@ -956,76 +970,101 @@ onUnmounted(() => {
   width: min(560px, calc(100vw - 32px));
   min-width: 100%;
   font-family: sans-serif;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
-  border: 1px solid rgba(109, 195, 187, 0.28);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 14px;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
   z-index: 300;
-  max-height: 260px;
+  max-height: 280px;
   overflow-y: auto;
-  padding: 8px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  padding: 6px;
   overscroll-behavior: contain;
   animation: suggestionDrop 0.16s ease-out;
 }
 
 .search-suggestion {
+  --suggest-accent: #0f766e;
   width: 100%;
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.7);
+  background: #ffffff;
   text-align: left;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   cursor: pointer;
-  font-size: 13px;
-  color: #0f172a;
+  font-size: 14px;
+  color: #111827;
   border-radius: 10px;
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+}
+
+.search-suggestion + .search-suggestion {
+  margin-top: 4px;
+}
+
+.search-suggestion::before {
+  content: '';
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--suggest-accent);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.search-suggestion--region {
+  --suggest-accent: #2563eb;
+}
+
+.search-suggestion--accommodation {
+  --suggest-accent: #0f766e;
 }
 
 .search-suggestion:hover,
 .search-suggestion:focus-visible {
-  background: #f2fbf9;
-  border-color: rgba(109, 195, 187, 0.45);
-  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.12);
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
   outline: none;
 }
 
 .suggestion-tag {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   padding: 3px 8px;
   border-radius: 999px;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   flex-shrink: 0;
-  border: 1px solid transparent;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  background: #f8fafc;
+  margin-left: auto;
 }
 
-.suggestion-tag--accommodation {
-  background: rgba(109, 195, 187, 0.18);
+.search-suggestion--accommodation .suggestion-tag {
+  background: #ecfdf5;
   color: #0f766e;
-  border-color: rgba(109, 195, 187, 0.45);
+  border-color: #99f6e4;
 }
 
-.suggestion-tag--region {
-  background: rgba(59, 130, 246, 0.12);
+.search-suggestion--region .suggestion-tag {
+  background: #eff6ff;
   color: #1d4ed8;
-  border-color: rgba(59, 130, 246, 0.35);
+  border-color: #bfdbfe;
 }
 
 .suggestion-text {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: #111827;
 }
 
 .suggestion-empty,
 .suggestion-loading {
-  padding: 12px 8px;
-  font-size: 12px;
+  padding: 14px 8px;
+  font-size: 13px;
   color: #6b7280;
   text-align: center;
 }
