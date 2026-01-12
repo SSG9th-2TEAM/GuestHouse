@@ -54,23 +54,6 @@ export const useRealtimeChatStore = defineStore('realtimeChat', {
                             }, 100);
                         }
 
-                        // Subscribe to user-specific notifications
-                        this.stompClient.subscribe('/user/topic/notifications', (message) => {
-                            const notification = JSON.parse(message.body);
-                            console.log('Received notification:', notification);
-                            if (notification.type === 'MESSAGES_READ' && notification.roomId === this.currentRoomId) {
-                                const currentUser = getUserInfo();
-                                if (currentUser) {
-                                    // Mark all messages sent by current user as read by recipient
-                                    this.messages.forEach(msg => {
-                                        if (msg.senderUserId === currentUser.userId) {
-                                            msg.readByRecipient = true;
-                                        }
-                                    });
-                                }
-                            }
-                        });
-
                         resolve();
                     },
                     onStompError: (frame) => {
@@ -123,11 +106,30 @@ export const useRealtimeChatStore = defineStore('realtimeChat', {
                     `/topic/chatroom/${roomId}`,
                     (message) => {
                         console.log('Received message:', message);
-                        const receivedMessage = JSON.parse(message.body);
+                        const data = JSON.parse(message.body);
                         const currentUser = getUserInfo();
+
+                        // 읽음 알림 처리 (type이 MESSAGES_READ인 경우)
+                        if (data.type === 'MESSAGES_READ') {
+                            console.log('Received read receipt:', data);
+                            // 읽은 사람이 나 자신이 아닌 경우에만 처리 (상대방이 읽었을 때)
+                            if (currentUser && data.readerId !== currentUser.userId) {
+                                // 내가 보낸 메시지들을 읽음 처리 - 배열을 새로 생성하여 반응성 트리거
+                                this.messages = this.messages.map(msg => {
+                                    if (msg.senderUserId === currentUser.userId) {
+                                        return { ...msg, readByRecipient: true };
+                                    }
+                                    return msg;
+                                });
+                                console.log('Updated messages with read status');
+                            }
+                            return;
+                        }
+
+                        // 일반 메시지 처리
                         // Initialize readByRecipient for new messages
-                        receivedMessage.readByRecipient = receivedMessage.senderUserId === currentUser?.userId ? false : undefined;
-                        this.messages.push(receivedMessage);
+                        data.readByRecipient = data.senderUserId === currentUser?.userId ? false : undefined;
+                        this.messages.push(data);
                     },
                     (error) => {
                         console.error('Subscription error:', error);

@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.chat.service;
 
+import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
 import com.ssg9th2team.geharbang.domain.chat.RealtimeChatMessage;
 import com.ssg9th2team.geharbang.domain.chat.RealtimeChatRoom;
 import com.ssg9th2team.geharbang.domain.chat.dto.ChatMessageDto;
@@ -31,6 +32,7 @@ public class RealtimeChatService {
     private final RealtimeChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final AccommodationMapper accommodationMapper;
 
     // 유저의 채팅방 목록 조회
     @Transactional(readOnly = true)
@@ -76,7 +78,21 @@ public class RealtimeChatService {
             User otherUser = userMap.get(otherUserId);
             otherUserName = (otherUser != null) ? otherUser.getNickname() : "알 수 없는 사용자";
 
-            return ChatRoomDto.of(room, otherUserName, unreadCount);
+            String currentImageUrl = accommodationMapper.selectMainImageUrl(room.getAccommodationId());
+
+            return ChatRoomDto.builder()
+                .id(room.getId())
+                .reservationId(room.getReservationId())
+                .accommodationId(room.getAccommodationId())
+                .accommodationName(room.getAccommodationName())
+                .accommodationImage(currentImageUrl) // Use the fresh URL
+                .hostUserId(room.getHostUserId())
+                .guestUserId(room.getGuestUserId())
+                .otherParticipantName(otherUserName)
+                .lastMessage(room.getLastMessage())
+                .lastMessageTime(room.getLastMessageTime())
+                .unreadCount(unreadCount)
+                .build();
         }).collect(Collectors.toList());
 
         log.info("사용자 ID {}에게 {}개의 채팅방 DTO를 반환합니다.", userId, chatRoomDtos.size());
@@ -158,22 +174,15 @@ public class RealtimeChatService {
         }
         chatRoomRepository.save(chatRoom);
 
-        // 상대방에게 읽음 알림 전송
-        Long otherUserId = chatRoom.getHostUserId().equals(readerUserId) ? chatRoom.getGuestUserId() : chatRoom.getHostUserId();
-        User otherUser = userRepository.findById(otherUserId)
-                .orElse(null);
-
-        if (otherUser != null) {
-            log.info("Sending read receipt to user {} for room {}", otherUser.getEmail(), roomId);
-            messagingTemplate.convertAndSendToUser(
-                    otherUser.getEmail(), // Spring Security의 User principal 이름
-                    "/topic/notifications",
-                    Map.of(
-                            "type", "MESSAGES_READ",
-                            "roomId", roomId,
-                            "readerId", readerUserId
-                    )
-            );
-        }
+        // 채팅방 전체에 읽음 알림 브로드캐스트 (해당 방을 구독 중인 모든 사용자가 수신)
+        log.info("Broadcasting read receipt to room {} by user {}", roomId, readerUserId);
+        messagingTemplate.convertAndSend(
+                "/topic/chatroom/" + roomId,
+                Map.of(
+                        "type", "MESSAGES_READ",
+                        "roomId", roomId,
+                        "readerId", readerUserId
+                )
+        );
     }
 }
