@@ -201,23 +201,23 @@ public class SearchServiceImpl implements SearchService {
             return List.of();
         }
         int safeLimit = Math.min(limit, 20);
-        int accommodationLimit = (safeLimit + 1) / 2;
-        int regionLimit = safeLimit / 2;
+        int regionLimit = (safeLimit + 1) / 2;
+        int accommodationLimit = safeLimit / 2;
 
-        List<String> accommodationNames = searchRepository.suggestAccommodationNames(
-                normalizedKeyword,
-                PageRequest.of(0, accommodationLimit));
         List<String> regions = regionLimit > 0
                 ? searchRepository.suggestRegions(normalizedKeyword, PageRequest.of(0, regionLimit))
                 : List.of();
+        List<String> accommodationNames = searchRepository.suggestAccommodationNames(
+                normalizedKeyword,
+                PageRequest.of(0, accommodationLimit));
 
         List<SearchSuggestionResponse> suggestions = new java.util.ArrayList<>();
-        accommodationNames.stream()
-                .filter(name -> name != null && !name.trim().isEmpty())
-                .forEach(name -> suggestions.add(SearchSuggestionResponse.accommodation(name)));
         regions.stream()
                 .filter(region -> region != null && !region.trim().isEmpty())
                 .forEach(region -> suggestions.add(SearchSuggestionResponse.region(region)));
+        accommodationNames.stream()
+                .filter(name -> name != null && !name.trim().isEmpty())
+                .forEach(name -> suggestions.add(SearchSuggestionResponse.accommodation(name)));
 
         return suggestions;
     }

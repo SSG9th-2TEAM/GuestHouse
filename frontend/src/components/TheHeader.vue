@@ -128,6 +128,9 @@ const selectSuggestion = async (suggestion) => {
       return
     }
   }
+  const targetPath = isMapContext() ? '/map' : '/list'
+  router.push({ path: targetPath, query: buildSearchQuery() })
+  isSearchExpanded.value = false
   closeSuggestions()
 }
 
