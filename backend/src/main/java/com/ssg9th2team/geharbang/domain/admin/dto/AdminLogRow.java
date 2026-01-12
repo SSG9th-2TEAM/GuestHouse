@@ -10,10 +10,13 @@ import java.time.LocalDateTime;
 public class AdminLogRow {
     private Long logId;
     private Long adminId;
+    private String adminUsername;
     private String targetType;
     private Long targetId;
     private String actionType;
     private String reason;
     private String metadataJson;
+    private String requestIp;
+    private String userAgent;
     private LocalDateTime createdAt;
 }

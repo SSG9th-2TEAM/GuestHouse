@@ -86,6 +86,9 @@ dist-ssr/
 .nuxt/
 .next/
 
+# Frontend build output copied to backend
+backend/src/main/resources/static/
+
 # Vite / Webpack 등
 .vite/
 coverage/
@@ -104,6 +107,8 @@ coverage/
 
 # Spring Boot Secret Properties
 **/application-secret.properties
+**/application-secret.yml
+**/application-secret.yaml
 
 # NCP 관련 키/설정 (예시)
 ncp-credentials.json
@@ -195,3 +200,7 @@ scripts/concurrency_test.sh
 scripts/load_test.sh
 scripts/test_email.sh
 
+# Frontend Build Artifacts
+**/src/main/resources/static/assets/
+src/main/resources/static/index.html
+######

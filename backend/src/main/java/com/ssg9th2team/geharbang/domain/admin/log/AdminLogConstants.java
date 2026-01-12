@@ -5,6 +5,7 @@ public final class AdminLogConstants {
     public static final String TARGET_PAYMENT = "PAY";
     public static final String TARGET_USER = "USER";
     public static final String TARGET_REVIEW = "REVIEW";
+    public static final String TARGET_RESERVATION = "RESERVATION";
 
     public static final String ACTION_APPROVE = "APPROVE";
     public static final String ACTION_REJECT = "REJECT";

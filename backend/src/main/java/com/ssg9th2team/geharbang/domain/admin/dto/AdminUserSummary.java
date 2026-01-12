@@ -8,6 +8,7 @@ public record AdminUserSummary(
         String role,
         String phone,
         Boolean hostApproved,
+        Boolean suspended,
         LocalDateTime createdAt
 ) {
 }

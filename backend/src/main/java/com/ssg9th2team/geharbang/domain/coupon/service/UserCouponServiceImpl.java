@@ -12,23 +12,37 @@ import com.ssg9th2team.geharbang.domain.coupon.repository.mybatis.UserCouponMapp
 import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Stream;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserCouponServiceImpl implements UserCouponService {
 
     private final UserCouponJpaRepository userCouponJpaRepository;
     private final CouponJpaRepository couponJpaRepository;
-    private final UserCouponMapper userCouponMapper;
-    private final ReviewJpaRepository reviewJpaRepository;
-    private final ReservationJpaRepository reservationJpaRepository;
     private final CouponInventoryService couponInventoryService;
+    private final UserCouponMapper userCouponMapper;
+    private final ReservationJpaRepository reservationJpaRepository;
+    private final ReviewJpaRepository reviewJpaRepository;
+    private final StringRedisTemplate redisTemplate;
+    private final CacheManager cacheManager;
+    
+    private static final String COUPON_ISSUED_KEY_PREFIX = "coupon:issued:";
 
     // 쿠폰 발급 (수동 - 숙소 상세페이지에서 쿠폰 받기 등)
     @Override
@@ -113,10 +127,25 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     // 공통 발급 로직 (만료일 자동 계산)
     @Override
+    @CacheEvict(value = "userCoupons", key = "#userId + '_ISSUED'")
     @Transactional
     public CouponIssueResult issueToUser(Long userId, Coupon coupon) {
-        // 1. 중복 체크
+        // 1. Redis Set으로 중복 체크 (O(1))
+        String redisKey = COUPON_ISSUED_KEY_PREFIX + coupon.getCouponId();
+        Long addCount = redisTemplate.opsForSet().add(redisKey, userId.toString());
+        
+        if (addCount != null && addCount == 0) {
+            // Redis에 이미 존재 → 중복 발급
+            log.debug("쿠폰 {} 중복 발급 차단 - userId: {}", coupon.getCouponId(), userId);
+            return CouponIssueResult.DUPLICATED;
+        }
+        
+        // DB에도 확인 (Redis 장애 대비 이중 체크)
         if (userCouponJpaRepository.existsByUserIdAndCouponId(userId, coupon.getCouponId())) {
+            // Redis에는 없었지만 DB에 있음 → Redis 동기화 필요
+            log.warn("쿠폰 {} Redis-DB 불일치 감지 - userId: {}", coupon.getCouponId(), userId);
+            // Redis에서 제거 (동기화)
+            redisTemplate.opsForSet().remove(redisKey, userId.toString());
             return CouponIssueResult.DUPLICATED;
         }
 
@@ -140,6 +169,7 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     // 사용 가능 쿠폰, 만료 쿠폰, 사용 완료한 쿠폰 조회
     @Override
+    @Cacheable(value = "userCoupons", key = "#userId + '_' + #status")
     @Transactional(readOnly = true)
     public List<UserCouponResponseDto> getMyCouponsByStatus(Long userId, String status) {
         //  DTO 리스트 반환
@@ -151,6 +181,10 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     // 쿠폰 사용 처리
     @Override
+    @Caching(evict = {
+        @CacheEvict(value = "userCoupons", key = "#userId + '_ISSUED'"),
+        @CacheEvict(value = "userCoupons", key = "#userId + '_USED'")
+    })
     @Transactional
     public void useCoupon(Long userId, Long userCouponId) {
         // 쿠폰 조회
@@ -178,6 +212,10 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     // 쿠폰 복구 처리 (예약 취소 시 호출)
     @Override
+    @Caching(evict = {
+        @CacheEvict(value = "userCoupons", key = "#userId + '_ISSUED'"),
+        @CacheEvict(value = "userCoupons", key = "#userId + '_USED'")
+    })
     @Transactional
     public void restoreCoupon(Long userId, Long userCouponId) {
         // 쿠폰 조회
@@ -212,16 +250,73 @@ public class UserCouponServiceImpl implements UserCouponService {
         List<UserCoupon> expiredCoupons = userCouponJpaRepository
                 .findByStatusAndExpiredAtBefore(UserCouponStatus.ISSUED, LocalDateTime.now());
 
+        Set<Long> affectedUserIds = new HashSet<>();
         for (UserCoupon coupon : expiredCoupons) {
             coupon.expire();
+            affectedUserIds.add(coupon.getUserId());
         }
 
+        evictUserCouponCaches(affectedUserIds);
+
         return expiredCoupons.size();
+    }
+
+    private void evictUserCouponCaches(Set<Long> userIds) {
+        Cache cache = cacheManager.getCache("userCoupons");
+        if (cache == null || userIds.isEmpty()) {
+            return;
+        }
+        for (Long userId : userIds) {
+            cache.evict(userId + "_ISSUED");
+            cache.evict(userId + "_EXPIRED");
+        }
     }
 
     @Override
     @Transactional(readOnly = true)
     public Set<Long> getMyCouponIds(Long userId) {
         return userCouponJpaRepository.findCouponIdsByUserId(userId);
+    }
+
+
+    /**
+     * Redis Set 초기화 - DB의 발급 이력을 Redis에 동기화
+     * 애플리케이션 시작 시 또는 스케줄러에서 호출
+     * [HIGH] OOM 방지: Stream 사용 + ReadOnly 트랜잭션
+     */
+    @Transactional(readOnly = true)
+    public void initializeRedisIssuedCoupons() {
+        int syncCount = 0;
+        
+        try (Stream<UserCoupon> stream = userCouponJpaRepository.streamAll()) {
+            // Stream은 한 번만 순회 가능하므로 forEach 내부에서 카운팅이 어려움
+            // 여기서는 단순 반복 처리
+            stream.forEach(userCoupon -> {
+                String redisKey = COUPON_ISSUED_KEY_PREFIX + userCoupon.getCouponId();
+                redisTemplate.opsForSet().add(redisKey, userCoupon.getUserId().toString());
+            });
+        }
+        
+        // 정확한 카운트는 별도 쿼리로 조회하거나 AtomicInteger 사용 가능하나, 로그용이므로 생략하거나 대략적 처리
+        log.info("Redis 쿠폰 발급 이력 초기화 완료 (Stream 처리)");
+    }
+
+    /**
+     * 특정 쿠폰의 발급 이력을 Redis에 동기화
+     */
+    public void syncRedisIssuedCoupon(Long couponId) {
+        // [HIGH] 성능 최적화: couponId로 직접 조회 (전체 스캔 방지)
+        List<UserCoupon> issuedCoupons = userCouponJpaRepository.findAllByCouponId(couponId);
+        
+        String redisKey = COUPON_ISSUED_KEY_PREFIX + couponId;
+        // 기존 Set 삭제
+        redisTemplate.delete(redisKey);
+        
+        // 재생성
+        for (UserCoupon userCoupon : issuedCoupons) {
+            redisTemplate.opsForSet().add(redisKey, userCoupon.getUserId().toString());
+        }
+        
+        log.info("쿠폰 {} Redis 발급 이력 동기화: {}건", couponId, issuedCoupons.size());
     }
 }

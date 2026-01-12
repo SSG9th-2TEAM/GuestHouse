@@ -13,7 +13,10 @@ import { isAuthenticated } from '@/api/authClient'
 import ImageGallery from './room-detail/features/ImageGallery.vue'
 import ReviewSection from './room-detail/features/ReviewSection.vue'
 import MapSection from './room-detail/features/MapSection.vue'
+import RoomDetailCalendar from './room-detail/features/RoomDetailCalendar.vue'
+import RoomListSection from './room-detail/features/RoomListSection.vue'
 import DetailSkeleton from '@/components/DetailSkeleton.vue'
+import { useCalendarStore } from '@/stores/calendar'
 
 const router = useRouter()
 const route = useRoute()
@@ -75,7 +78,9 @@ const goBack = () => {
     return
   }
   if (from === 'list') {
-    router.push({ path: '/list', query: buildFilterQuery() })
+    // page 파라미터도 함께 전달하여 이전 페이지 유지
+    const pageParam = route.query.page
+    router.push({ path: '/list', query: { ...buildFilterQuery(), page: pageParam } })
     return
   }
   router.back()
@@ -238,10 +243,13 @@ const guesthouse = ref(createEmptyGuesthouse(getAccommodationId()))
 const selectedRoom = ref(null)
 const availableRoomIds = ref(null)
 const isAvailabilityLoading = ref(false)
-const isCalendarOpen = ref(false)
+const calendarStore = useCalendarStore()
+const isCalendarOpen = computed(() => calendarStore.activeCalendar === 'room-detail')
 const showFullDescription = ref(false)
-const showAllRooms = ref(false)
-const currentDate = ref(new Date())
+const isDescriptionLong = computed(() => { 
+  return guesthouse.value.description && guesthouse.value.description.length > 150 
+})
+// showAllRooms, currentDate removed
 const datePickerRef = ref(null)
 let availabilityRequestId = 0
 const availableCoupons = ref([])
@@ -250,7 +258,7 @@ const downloadedCouponIds = ref(new Set())
 const themeCatalog = ref([])
 const isThemeCatalogLoading = ref(false)
 const isDataLoading = ref(true)
-const isUnavailableModalOpen = ref(false)
+// isUnavailableModalOpen removed
 
 const canBook = computed(() => {
   return Boolean(selectedRoom.value && searchStore.startDate && searchStore.endDate)
@@ -292,129 +300,16 @@ const filteredRooms = computed(() => {
   })
 })
 
-const visibleRooms = computed(() => {
-  const rooms = filteredRooms.value
-  return showAllRooms.value ? rooms : rooms.slice(0, 4)
-})
 
-const hasMoreRooms = computed(() => {
-  return filteredRooms.value.length > 4
-})
-
-const showNoAvailability = computed(() => {
-  const hasFilter = hasDateRange.value || searchStore.guestCount > 0
-  return hasFilter && !isAvailabilityLoading.value && filteredRooms.value.length === 0
-})
-
-const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
-const weekDays = ['일', '월', '화', '수', '목', '금', '토']
-
-const currentYear = computed(() => currentDate.value.getFullYear())
-const currentMonth = computed(() => currentDate.value.getMonth())
-const nextMonthDate = computed(() => new Date(currentYear.value, currentMonth.value + 1, 1))
-const nextMonthYear = computed(() => nextMonthDate.value.getFullYear())
-const nextMonthMonth = computed(() => nextMonthDate.value.getMonth())
-
-const isDescriptionLong = computed(() => {
-  return (guesthouse.value.description || '').length > 120
-})
-
-const isSameDay = (date1, date2) => {
-  return date1.getFullYear() === date2.getFullYear()
-    && date1.getMonth() === date2.getMonth()
-    && date1.getDate() === date2.getDate()
-}
-
-const isDateInRange = (date) => {
-  if (!searchStore.startDate || !searchStore.endDate) return false
-  const time = date.getTime()
-  return time > searchStore.startDate.getTime() && time < searchStore.endDate.getTime()
-}
-
-const toDateKey = (date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-const getHolidayInfo = (date) => holidayStore.getHolidayInfo(toDateKey(date))
-
-const getCalendarDays = (year, month) => {
-  const firstDay = new Date(year, month, 1)
-  const lastDay = new Date(year, month + 1, 0)
-  const daysInMonth = lastDay.getDate()
-  const startingDay = firstDay.getDay()
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const days = []
-  for (let i = 0; i < startingDay; i += 1) {
-    days.push({ day: '', isEmpty: true })
-  }
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const date = new Date(year, month, day)
-    const dayOfWeek = date.getDay()
-    const isStartDate = searchStore.startDate && isSameDay(date, searchStore.startDate)
-    const isEndDate = searchStore.endDate && isSameDay(date, searchStore.endDate)
-    const isInRange = isDateInRange(date)
-    const hasEndDate = searchStore.endDate !== null
-    const isDisabled = date.getTime() < today.getTime()
-
-    days.push({
-      day,
-      isEmpty: false,
-      date,
-      isToday: isSameDay(date, new Date()),
-      isSaturday: dayOfWeek === 6,
-      isSunday: dayOfWeek === 0,
-      isHoliday: Boolean(getHolidayInfo(date)),
-      isStartDate,
-      isEndDate,
-      isInRange,
-      hasEndDate,
-      isDisabled
-    })
-  }
-  return days
-}
-
-const calendarDays = computed(() => getCalendarDays(currentYear.value, currentMonth.value))
-const nextMonthDays = computed(() => getCalendarDays(nextMonthYear.value, nextMonthMonth.value))
 
 const toggleCalendar = () => {
-  isCalendarOpen.value = !isCalendarOpen.value
+    if (isCalendarOpen.value) {
+        calendarStore.closeCalendar('room-detail')
+    } else {
+        calendarStore.openCalendar('room-detail')
+    }
 }
-
-const prevMonth = () => {
-  currentDate.value = new Date(currentYear.value, currentMonth.value - 1, 1)
-}
-
-const nextMonth = () => {
-  currentDate.value = new Date(currentYear.value, currentMonth.value + 1, 1)
-}
-
-const selectDate = (dayObj) => {
-  if (dayObj.isEmpty || dayObj.isDisabled) return
-
-  const clickedDate = dayObj.date
-  if (!searchStore.startDate || (searchStore.startDate && searchStore.endDate)) {
-    searchStore.setStartDate(clickedDate)
-    searchStore.setEndDate(null)
-    return
-  }
-
-  // Must be AFTER start date (not same day)
-  if (clickedDate.getTime() <= searchStore.startDate.getTime()) {
-    // If clicked date is same or before start date, set as new start date
-    searchStore.setStartDate(clickedDate)
-    searchStore.setEndDate(null)
-    return
-  }
-
-  searchStore.setEndDate(clickedDate)
-  isCalendarOpen.value = false
-}
+// Calendar logic moved to RoomDetailCalendar.vue
 
 const loadAvailability = async () => {
   const accommodationsId = getAccommodationId()
@@ -481,7 +376,6 @@ const loadAccommodation = async () => {
   availableRoomIds.value = null
   isAvailabilityLoading.value = false
   showFullDescription.value = false
-  showAllRooms.value = false
   guesthouse.value = createEmptyGuesthouse(accommodationsId)
   downloadedCouponIds.value = new Set() // Reset set
 
@@ -675,14 +569,33 @@ const openCalendarFromHint = (event) => {
   if (datePickerRef.value?.scrollIntoView) {
     datePickerRef.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
-  isCalendarOpen.value = true
+  calendarStore.openCalendar('room-detail')
 }
 
 const handleClickOutside = (event) => {
   if (event.target.closest('.date-picker-wrapper')) return
   if (event.target.closest('.booking-hint')) return
-  isCalendarOpen.value = false
+  calendarStore.closeCalendar('room-detail')
 }
+
+// Top Button Logic
+const showTopBtn = ref(false)
+
+const handleScroll = () => {
+  showTopBtn.value = window.scrollY > 300
+}
+
+const scrollToTop = () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
+})
 
 const handleDownloadCoupon = async (coupon) => {
   const cId = String(coupon.couponId)
@@ -695,25 +608,29 @@ const handleDownloadCoupon = async (coupon) => {
     alert('쿠폰이 발급되었습니다. 마이페이지에서 확인하세요!')
   } catch (error) {
     if (error.message.includes('이미 발급')) {
-       downloadedCouponIds.value.add(cId)
-       // 내 쿠폰 목록 조회 (모든 상태: ISSUED, USED, EXPIRED 등)
-    try {
-      const myCoupons = await getMyCoupons('ALL')
-      // 내 쿠폰 중, 현재 다운로드 가능한 쿠폰과 ID가 같은 것들을 찾아 Set에 추가
-      myCoupons.forEach(userCoupon => {
-         // UserCouponResponseDto는 flatten된 구조 (couponId)
-         // Type mismatch 방지를 위해 String으로 변환하여 저장
-         if (userCoupon.couponId) {
-             downloadedCouponIds.value.add(String(userCoupon.couponId))
-         }
-      })
-    } catch (e) {
-      console.warn('내 쿠폰 목록 조회 실패 (비로그인 상태일 수 있음):', e)
+      downloadedCouponIds.value.add(cId)
+      alert('이미 발급받은 쿠폰입니다. 마이페이지에서 확인하세요!')
+      // 내 쿠폰 목록 조회 (모든 상태: ISSUED, USED, EXPIRED 등)
+      try {
+        const myCoupons = await getMyCoupons('ALL')
+        // 내 쿠폰 중, 현재 다운로드 가능한 쿠폰과 ID가 같은 것들을 찾아 Set에 추가
+        myCoupons.forEach(userCoupon => {
+          // UserCouponResponseDto는 flatten된 구조 (couponId)
+          // Type mismatch 방지를 위해 String으로 변환하여 저장
+          if (userCoupon.couponId) {
+            downloadedCouponIds.value.add(String(userCoupon.couponId))
+          }
+        })
+      } catch (e) {
+        console.warn('내 쿠폰 목록 조회 실패 (비로그인 상태일 수 있음):', e)
+      }
+    } else {
+      console.error('쿠폰 발급 실패:', error)
+      alert('쿠폰 발급에 실패했습니다. 다시 시도해 주세요.')
     }
-    }
-    alert(error.message)
   }
 }
+
 
 const formatDate = (dateStr) => {
     if(!dateStr) return '';
@@ -727,10 +644,6 @@ onMounted(() => {
   if (hasFilterQuery(route.query)) {
     applyRouteFilters(route.query)
   }
-  document.addEventListener('click', handleClickOutside)
-})
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
 })
 watch(() => route.params.id, loadAccommodation)
 watch(
@@ -741,14 +654,7 @@ watch(
     }
   }
 )
-watch(
-  [currentYear, currentMonth],
-  () => {
-    holidayStore.loadMonth(currentYear.value, currentMonth.value + 1)
-    holidayStore.loadMonth(nextMonthYear.value, nextMonthMonth.value + 1)
-  },
-  { immediate: true }
-)
+// watch logic for calendar removed
 watch(
   () => [route.params.id, searchStore.startDate, searchStore.endDate, searchStore.guestCount],
   () => {
@@ -941,85 +847,7 @@ watch(filteredRooms, (rooms) => {
               {{ searchStore.checkInOutText }}
             </button>
 
-            <div class="calendar-popup" v-if="isCalendarOpen">
-              <div class="calendar-container">
-                <button class="calendar-nav-btn nav-prev" type="button" @click="prevMonth">
-                  ‹
-                </button>
-
-                <div class="calendar-month">
-                  <div class="calendar-month-title">{{ currentYear }}년 {{ monthNames[currentMonth] }}</div>
-                  <div class="calendar-weekdays">
-                    <span
-                      v-for="(day, index) in weekDays"
-                      :key="'current-' + day"
-                      class="weekday"
-                      :class="{ sunday: index === 0, saturday: index === 6 }"
-                    >{{ day }}</span>
-                  </div>
-                  <div class="calendar-days">
-                    <span
-                      v-for="(dayObj, index) in calendarDays"
-                      :key="'current-day-' + index"
-                      class="calendar-day"
-                      :class="{
-                        empty: dayObj.isEmpty,
-                        disabled: dayObj.isDisabled,
-                        today: dayObj.isToday,
-                        'weekend-sat': dayObj.isSaturday,
-                        'weekend-sun': dayObj.isSunday,
-                        'holiday': dayObj.isHoliday,
-                        'range-start': dayObj.isStartDate,
-                        'range-end': dayObj.isEndDate,
-                        'in-range': dayObj.isInRange,
-                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
-                      }"
-                      @click="selectDate(dayObj)"
-                    >
-                      {{ dayObj.day }}
-                    </span>
-                  </div>
-                </div>
-
-                <div class="calendar-month">
-                  <div class="calendar-month-title">{{ nextMonthYear }}년 {{ monthNames[nextMonthMonth] }}</div>
-                  <div class="calendar-weekdays">
-                    <span
-                      v-for="(day, index) in weekDays"
-                      :key="'next-' + day"
-                      class="weekday"
-                      :class="{ sunday: index === 0, saturday: index === 6 }"
-                    >{{ day }}</span>
-                  </div>
-                  <div class="calendar-days">
-                    <span
-                      v-for="(dayObj, index) in nextMonthDays"
-                      :key="'next-day-' + index"
-                      class="calendar-day"
-                      :class="{
-                        empty: dayObj.isEmpty,
-                        disabled: dayObj.isDisabled,
-                        today: dayObj.isToday,
-                        'weekend-sat': dayObj.isSaturday,
-                        'weekend-sun': dayObj.isSunday,
-                        'holiday': dayObj.isHoliday,
-                        'range-start': dayObj.isStartDate,
-                        'range-end': dayObj.isEndDate,
-                        'in-range': dayObj.isInRange,
-                        'has-end': dayObj.isStartDate && dayObj.hasEndDate
-                      }"
-                      @click="selectDate(dayObj)"
-                    >
-                      {{ dayObj.day }}
-                    </span>
-                  </div>
-                </div>
-
-                <button class="calendar-nav-btn nav-next" type="button" @click="nextMonth">
-                  ›
-                </button>
-              </div>
-            </div>
+            <RoomDetailCalendar />
           </div>
           <div class="picker-field">
             <label>투숙 인원</label>
@@ -1036,42 +864,11 @@ watch(filteredRooms, (rooms) => {
       </div>
 
       <!-- Room List -->
-      <div v-if="showNoAvailability" class="room-empty">
-        예약 가능한 객실이 없습니다. 날짜나 인원수를 변경해 주세요.
-      </div>
-      <div v-else class="room-list">
-        <div v-for="room in visibleRooms" :key="room.id"
-             class="room-card"
-             :class="{ selected: selectedRoom?.id === room.id, unavailable: !room.available }"
-             @click="room.available && selectRoom(room)">
-          <div class="room-media">
-            <img :src="room.thumbnailUrl" :alt="room.name" loading="lazy" />
-            <span v-if="!room.available" class="room-unavailable-badge">사용 중지</span>
-          </div>
-          <div class="room-content">
-            <div class="room-info">
-              <h3>{{ room.name }}</h3>
-              <p>{{ room.desc }}</p>
-              <span class="capacity">최대 {{ room.capacity }}명</span>
-            </div>
-            <div class="room-action">
-              <div class="price">₩{{ formatPrice(room.price) }}</div>
-              <button
-                class="select-btn"
-                :class="{ active: selectedRoom?.id === room.id, unavailable: !room.available }"
-                @click.stop="!room.available ? isUnavailableModalOpen = true : selectRoom(room)"
-              >
-                {{ !room.available ? '마감' : (selectedRoom?.id === room.id ? '선택됨' : '객실') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div v-if="hasMoreRooms" class="room-toggle-row">
-        <button type="button" class="room-toggle-btn" @click="showAllRooms = !showAllRooms">
-          {{ showAllRooms ? '접기' : '더보기' }}
-        </button>
-      </div>
+      <RoomListSection 
+        :rooms="filteredRooms" 
+        :selected-room="selectedRoom"
+        @update:selected-room="selectedRoom = $event"
+      />
     </section>
 
     <hr />
@@ -1084,6 +881,7 @@ watch(filteredRooms, (rooms) => {
       :latitude="guesthouse.latitude"
       :longitude="guesthouse.longitude"
       :address="guesthouse.address"
+      :name="guesthouse.name"
       :transport-info="guesthouse.transportInfo"
     />
 
@@ -1157,15 +955,17 @@ watch(filteredRooms, (rooms) => {
       </div>
     </div>
 
-    <!-- Unavailable Modal -->
-    <div v-if="isUnavailableModalOpen" class="modal-overlay" @click.self="isUnavailableModalOpen = false">
-      <div class="modal-content unavailable-modal">
-        <div class="modal-icon">🚫</div>
-        <h3>예약 불가능</h3>
-        <p class="modal-desc">선택하신 날짜에는 이미 예약이 완료된 객실입니다.<br>다른 날짜나 객실을 선택해주세요.</p>
-        <button class="close-modal-btn" @click="isUnavailableModalOpen = false">확인</button>
-      </div>
-    </div>
+    <!-- Unavailable Modal and Room Image Modal moved to properties/RoomListSection -->
+
+    <!-- Top Button -->
+    <button 
+      v-show="showTopBtn" 
+      class="top-btn" 
+      @click="scrollToTop" 
+      aria-label="맨 위로"
+    >
+      ↑
+    </button>
     </template>
   </div>
 </template>
@@ -1466,273 +1266,9 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   background: white;
 }
 
-.calendar-popup {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 50;
-  background: #fff;
-  border: 1px solid #f0f0f0;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-  padding: 1rem;
-  width: 100%;
-  font-family: 'Noto Sans KR', sans-serif;
-  animation: calendarFadeIn 0.2s ease;
-}
-@keyframes calendarFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.calendar-container {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-.calendar-month {
-  flex: 1;
-  min-width: 0;
-}
-.calendar-month-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1a1f36;
-  text-align: center;
-  margin-bottom: 16px;
-}
-.calendar-weekdays {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  margin-bottom: 8px;
-}
-.weekday {
-  text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: #9ca3af;
-  padding: 8px 0;
-}
-.weekday.sunday {
-  color: #ef4444;
-}
-.weekday.saturday {
-  color: #2563eb;
-}
-.calendar-days {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-}
-.calendar-day {
-  text-align: center;
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-  padding: 12px 0;
-  border-radius: 8px;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.2s ease;
-}
-.calendar-day.disabled {
-  color: #b4b8bf;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-.calendar-day.empty {
-  visibility: hidden;
-  cursor: default;
-}
-.calendar-day.today:not(.range-start):not(.range-end):not(.in-range) {
-  color: #6DC3BB;
-  font-weight: 700;
-}
-.calendar-day.weekend-sat:not(.range-start):not(.range-end):not(.disabled) {
-  color: #2563eb;
-}
-.calendar-day.weekend-sun:not(.range-start):not(.range-end):not(.disabled) {
-  color: #ef4444;
-}
-.calendar-day.holiday:not(.range-start):not(.range-end):not(.disabled) {
-  color: #ef4444;
-  font-weight: 600;
-}
-.calendar-day:not(.empty):not(.disabled):hover {
-  background-color: #f0f7f6;
-  color: #6DC3BB;
-}
-.calendar-day.in-range {
-  background-color: #BFE7DF;
-  color: #2d7a73;
-  border-radius: 0;
-}
-.calendar-day.range-start,
-.calendar-day.range-end {
-  background-color: #5CC5B3;
-  color: #fff;
-  font-weight: 700;
-  position: relative;
-}
-.calendar-day.range-start.has-end::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 50%;
-  height: 100%;
-  background-color: #BFE7DF;
-  z-index: -1;
-}
-.calendar-day.range-end::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 50%;
-  height: 100%;
-  background-color: #BFE7DF;
-  z-index: -1;
-}
-.calendar-day.range-start:hover,
-.calendar-day.range-end:hover {
-  background-color: #49B5A3;
-  color: #fff;
-}
-.calendar-nav-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 8px;
-  color: #6b7280;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  flex-shrink: 0;
-}
-.calendar-nav-btn:hover {
-  background-color: #f0f7f6;
-  color: #6DC3BB;
-}
 
-/* Room Card */
-.room-empty {
-  padding: 1.5rem;
-  border: 1px dashed #d1d5db;
-  border-radius: var(--radius-md);
-  background: #f9fafb;
-  color: var(--text-sub);
-  text-align: center;
-  font-weight: 600;
-}
-.room-card {
-  border: 2px solid #ddd;
-  border-radius: var(--radius-md);
-  padding: 1.5rem;
-  margin-bottom: 1rem;
-  display: flex;
-  gap: 1.5rem;
-  align-items: stretch;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-.room-card:hover { border-color: var(--primary); }
-.room-card.selected { border-color: var(--primary); background-color: #f9fdfc; }
-.room-media {
-  flex: 1 1 0;
-  max-width: calc(50% - 0.75rem);
-  border-radius: 10px;
-  overflow: hidden;
-  background: #e5e7eb;
-}
-.room-media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  /* 이미지 축소 시 품질 개선 */
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: smooth;
-  transform: translateZ(0);
-}
-.room-content {
-  display: flex;
-  justify-content: space-between;
-  gap: 1.5rem;
-  flex: 1 1 0;
-  max-width: calc(50% - 0.75rem);
-}
-.room-info h3 { margin-bottom: 0.3rem; }
-.room-info p { color: var(--text-sub); font-size: 0.9rem; margin-bottom: 0.5rem; }
-.capacity { font-size: 0.8rem; background: #eee; padding: 2px 6px; border-radius: 4px; }
-.room-action { text-align: right; display: flex; flex-direction: column; justify-content: space-between; }
-.price { font-weight: bold; font-size: 1.1rem; }
-.select-btn {
-  padding: 0.5rem 1rem;
-  background: #eee;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  white-space: nowrap;
-  min-width: 72px;
-  text-align: center;
-}
-.select-btn.active {
-  background: var(--primary);
-  color: #000;
-}
 
-/* Room unavailable state */
-.room-card.unavailable {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.room-card.unavailable:hover {
-  border-color: #ddd;
-}
-.select-btn.unavailable {
-  background: #e5e7eb;
-  color: #9ca3af;
-  cursor: pointer;
-}
-.room-media {
-  position: relative;
-}
-.room-unavailable-badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  background: #ef4444;
-  color: white;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-.room-toggle-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 0.5rem;
-}
-.room-toggle-btn {
-  background: #BFE7DF;
-  border: 1px solid #8FCFC1;
-  color: #0f4c44;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  white-space: nowrap;
-}
+
 
 /* Rules */
 .rules-section {
@@ -1999,6 +1535,44 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   color: #333;
 }
 .close-modal-btn:hover { background: #f5f5f5; }
+
+
+
+/* Top Button Styles */
+.top-btn {
+  position: fixed;
+  bottom: 100px; /* booking-hint 위쪽, 혹은 바닥 여유 */
+  right: 40px;
+  width: 50px;
+  height: 50px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  color: var(--text-main);
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  opacity: 0.9;
+}
+.top-btn:hover {
+  background: var(--primary);
+  color: #004d40;
+  border-color: var(--primary);
+  transform: translateY(-3px);
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .top-btn {
+    display: none; /* 모바일에서는 숨김 */
+  }
+}
 </style>
 
 

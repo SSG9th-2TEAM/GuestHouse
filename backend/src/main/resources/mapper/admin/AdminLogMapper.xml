@@ -11,48 +11,61 @@
             target_id,
             action_type,
             reason,
-            metadata_json
+            metadata_json,
+            request_ip,
+            user_agent
         ) VALUES (
             #{adminId},
             #{targetType},
             #{targetId},
             #{actionType},
             #{reason},
-            #{metadataJson}
+            #{metadataJson},
+            #{requestIp},
+            #{userAgent}
         )
     </insert>
 
     <select id="selectAdminLogs" resultType="com.ssg9th2team.geharbang.domain.admin.dto.AdminLogRow">
         SELECT
             log_id AS logId,
-            admin_id AS adminId,
+            admin_log.admin_id AS adminId,
+            admins.admin_username AS adminUsername,
             target_type AS targetType,
             target_id AS targetId,
             action_type AS actionType,
             reason AS reason,
-            NULL AS metadataJson,
-            created_at AS createdAt
+            metadata_json AS metadataJson,
+            request_ip AS requestIp,
+            user_agent AS userAgent,
+            admin_log.created_at AS createdAt
         FROM admin_log
+        LEFT JOIN admins
+            ON admin_log.admin_id = admins.admin_id
         WHERE 1=1
         <if test="start != null">
-            AND created_at &gt;= #{start}
+            AND admin_log.created_at &gt;= #{start}
         </if>
         <if test="end != null">
-            AND created_at &lt; #{end}
+            AND admin_log.created_at &lt; #{end}
         </if>
         <if test="actionType != null and actionType != ''">
             AND action_type = #{actionType}
         </if>
-        <if test="keywordTargetId != null">
-            AND target_id = #{keywordTargetId}
+        <if test="targetType != null and targetType != ''">
+            AND target_type = #{targetType}
         </if>
-        <if test="keywordTargetId == null and keyword != null and keyword != ''">
+        <if test="targetIdExact != null">
+            AND target_id = #{targetIdExact}
+        </if>
+        <if test="targetIdExact == null and keyword != null and keyword != ''">
             AND (
                 reason LIKE CONCAT('%', #{keyword}, '%')
                 OR target_type LIKE CONCAT('%', #{keyword}, '%')
+                OR CAST(admin_id AS CHAR) LIKE CONCAT('%', #{keyword}, '%')
             )
         </if>
-        ORDER BY created_at DESC
+        ORDER BY admin_log.created_at DESC
         LIMIT #{size} OFFSET #{offset}
     </select>
 
@@ -69,13 +82,17 @@
         <if test="actionType != null and actionType != ''">
             AND action_type = #{actionType}
         </if>
-        <if test="keywordTargetId != null">
-            AND target_id = #{keywordTargetId}
+        <if test="targetType != null and targetType != ''">
+            AND target_type = #{targetType}
         </if>
-        <if test="keywordTargetId == null and keyword != null and keyword != ''">
+        <if test="targetIdExact != null">
+            AND target_id = #{targetIdExact}
+        </if>
+        <if test="targetIdExact == null and keyword != null and keyword != ''">
             AND (
                 reason LIKE CONCAT('%', #{keyword}, '%')
                 OR target_type LIKE CONCAT('%', #{keyword}, '%')
+                OR CAST(admin_id AS CHAR) LIKE CONCAT('%', #{keyword}, '%')
             )
         </if>
     </select>

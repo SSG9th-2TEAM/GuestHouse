@@ -299,6 +299,7 @@ public class AdminPaymentService {
     public PaymentResponseDto refundPayment(Long adminUserId, Long paymentId, String reason, Integer amount, Boolean override) {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ERR_PAYMENT_NOT_FOUND));
+        Integer beforePaymentStatus = payment.getPaymentStatus();
         boolean hasRefund = paymentRefundRepository.findByPaymentId(paymentId).stream()
                 .anyMatch(refund -> refund.getRefundStatus() != null && refund.getRefundStatus() != 2);
         if (hasRefund) {
@@ -311,6 +312,8 @@ public class AdminPaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ERR_PAYMENT_NOT_PAID);
         }
         Reservation reservation = reservationRepository.findById(payment.getReservationId()).orElse(null);
+        Integer beforeReservationStatus = reservation != null ? reservation.getReservationStatus() : null;
+        Integer beforeReservationPaymentStatus = reservation != null ? reservation.getPaymentStatus() : null;
         validateRefundEligibility(reservation);
         Integer baseAmount = payment.getApprovedAmount() != null
                 ? payment.getApprovedAmount()
@@ -377,12 +380,27 @@ public class AdminPaymentService {
         entityManager.clear();
         Payment updated = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ERR_PAYMENT_NOT_FOUND));
+        java.util.Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        java.util.Map<String, Object> before = new java.util.LinkedHashMap<>();
+        before.put("paymentStatus", beforePaymentStatus);
+        before.put("reservationStatus", beforeReservationStatus);
+        before.put("reservationPaymentStatus", beforeReservationPaymentStatus);
+        metadata.put("before", before);
+        java.util.Map<String, Object> after = new java.util.LinkedHashMap<>();
+        after.put("paymentStatus", updated.getPaymentStatus());
+        if (reservation != null) {
+            after.put("reservationStatus", 9);
+            after.put("reservationPaymentStatus", 3);
+        }
+        metadata.put("after", after);
+        metadata.put("refundAmount", refundAmount);
         adminLogService.writeLog(
                 adminUserId,
                 AdminLogConstants.TARGET_PAYMENT,
                 paymentId,
                 AdminLogConstants.ACTION_REFUND,
-                logReason
+                logReason,
+                metadata
         );
         return PaymentResponseDto.from(updated);
     }

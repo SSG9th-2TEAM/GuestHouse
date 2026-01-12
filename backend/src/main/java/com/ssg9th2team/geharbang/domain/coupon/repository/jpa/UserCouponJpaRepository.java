@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -26,4 +27,11 @@ public interface UserCouponJpaRepository extends JpaRepository<UserCoupon, Long>
 
     @Query("select uc.couponId from UserCoupon uc where uc.userId = :userId")
     Set<Long> findCouponIdsByUserId(@Param("userId") Long userId);
+
+    // [HIGH] 성능 최적화: couponId로 직접 조회 (전체 조회 후 필터링 X)
+    List<UserCoupon> findAllByCouponId(Long couponId);
+
+    // [HIGH] OOM 방지: 전체 조회 시 Stream 사용
+    @Query("select uc from UserCoupon uc")
+    Stream<UserCoupon> streamAll();
 }

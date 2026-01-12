@@ -19,6 +19,9 @@ services:
       - .env
     environment:
       - REDIS_HOST=redis
+      - GOOGLE_CLOUD_CREDENTIALS_LOCATION=file:/app/googlevision/ocr-test-480914-b8a930bfbdc0.json
+    volumes:
+      - ./googlevision:/app/googlevision
     networks:
       - mysql_default
     extra_hosts:
