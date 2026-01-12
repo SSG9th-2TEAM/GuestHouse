@@ -1,5 +1,6 @@
 <script setup>
 import GuesthouseCard from '../../components/GuesthouseCard.vue'
+import SkeletonCard from '../../components/SkeletonCard.vue'
 import FilterModal from '../../components/FilterModal.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { searchList } from '@/api/list'
@@ -22,11 +23,14 @@ const totalCount = ref(0)
 const isLoading = ref(false)
 const isLoadingMore = ref(false)
 const loadMoreTrigger = ref(null)
+const paginationRef = ref(null)
+const isMapBtnFixed = ref(true)
 
 const PAGE_SIZE = 16
 const MOBILE_BREAKPOINT = 1024
 
 let observer = null
+let paginationObserver = null
 
 // 화면 크기 감지 (PC vs Mobile)
 const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false)
@@ -85,6 +89,12 @@ const getKeywordFromRoute = () => {
     return raw[0] ?? ''
   }
   return raw ?? ''
+}
+
+// URL에서 페이지 번호 추출 헬퍼 함수
+const getPageFromRoute = () => {
+  const savedPage = parseInt(route.query.page, 10)
+  return Number.isFinite(savedPage) && savedPage >= 0 ? savedPage : 0
 }
 
 const applyRouteKeyword = () => {
@@ -219,7 +229,7 @@ const handleApplyFilter = ({ min, max, themeIds = [], guestCount = 1 }) => {
 
 const goToDetail = (id) => {
   if (!id) return
-  const query = { from: 'list', sort: currentSort.value, ...buildFilterQuery() }
+  const query = { from: 'list', sort: currentSort.value, page: page.value, ...buildFilterQuery() }
   router.push({ path: `/room/${id}`, query })
 }
 
@@ -242,8 +252,13 @@ const goToPage = (targetPage) => {
   if (isMobile.value) return
   const validPage = Math.min(Math.max(targetPage, 0), totalPages.value - 1)
   if (validPage === page.value) return
-  loadList({ page: validPage, reset: false, appendData: false })
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  // URL에 페이지 번호 저장
+  router.replace({ query: { ...route.query, page: validPage } })
+  // 스켈레톤 표시를 위해 아이템 초기화
+  items.value = []
+  window.scrollTo({ top: 0, behavior: 'auto' })
+  // reset: true로 호출하여 내부에서 isLoading 설정
+  loadList({ page: validPage, reset: true, appendData: false })
 }
 
 // 페이지 번호 목록 계산 (ReviewSection과 동일한 로직)
@@ -321,16 +336,51 @@ onMounted(async () => {
   applyRouteFilters(route.query)
   applyRouteKeyword()
   applyRouteSort()
-  loadList({ reset: true })
+  loadList({ page: getPageFromRoute(), reset: true })
   await nextTick()
   refreshObserver()
+  setupPaginationObserver()
 })
+
+// PC에서 페이징 영역 감지 Observer 설정
+const setupPaginationObserver = () => {
+  if (isMobile.value) return
+  if (paginationObserver) {
+    paginationObserver.disconnect()
+  }
+  if (!paginationRef.value) return
+  
+  paginationObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach(entry => {
+        // 페이징이 보이면 버튼을 static으로, 안 보이면 fixed로
+        isMapBtnFixed.value = !entry.isIntersecting
+      })
+    },
+    { rootMargin: '-50px 0px 0px 0px', threshold: 0 }
+  )
+  paginationObserver.observe(paginationRef.value)
+}
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   document.removeEventListener('click', handleClickOutside)
   teardownObserver()
+  if (paginationObserver) {
+    paginationObserver.disconnect()
+    paginationObserver = null
+  }
 })
+
+// 페이징이 렌더링될 때 observer 재설정
+watch(
+  () => paginationRef.value,
+  (newVal) => {
+    if (newVal && !isMobile.value) {
+      nextTick(() => setupPaginationObserver())
+    }
+  }
+)
 
 watch(
   () => [
@@ -343,13 +393,14 @@ watch(
     route.query.guestCount,
     route.query.checkin,
     route.query.checkout,
-    route.query.sort
+    route.query.sort,
+    route.query.page
   ],
   () => {
     applyRouteFilters(route.query)
     applyRouteKeyword()
     applyRouteSort()
-    loadList({ reset: true })
+    loadList({ page: getPageFromRoute(), reset: true })
   }
 )
 
@@ -409,7 +460,12 @@ watch(
       <button class="filter-btn" @click="isFilterModalOpen = !isFilterModalOpen"><span class="icon">🔍</span>필터</button>
     </div>
 
-    <div class="list-container" v-if="filteredItems.length > 0">
+    <!-- Skeleton Loading -->
+    <div class="list-container" v-if="isLoading && filteredItems.length === 0">
+      <SkeletonCard v-for="n in 8" :key="'skeleton-' + n" class="list-item" />
+    </div>
+
+    <div class="list-container" v-else-if="filteredItems.length > 0">
       <GuesthouseCard
         v-for="item in filteredItems"
         :key="item.id"
@@ -445,8 +501,15 @@ watch(
       <span v-if="isLoadingMore" class="load-more-status">불러오는 중...</span>
     </div>
 
+    <!-- Floating Map Button -->
+    <div class="map-btn-wrapper" :class="{ 'map-btn-wrapper--static': !isMobile && !isMapBtnFixed }">
+      <button class="map-floating-btn" @click="goToMap">
+        <span class="text">지도에서 보기</span>
+      </button>
+    </div>
+
     <!-- PC: 페이지네이션 -->
-    <div v-if="!isMobile && totalPages > 1 && filteredItems.length > 0" class="list-pagination">
+    <div v-if="!isMobile && totalPages > 1 && filteredItems.length > 0" ref="paginationRef" class="list-pagination">
       <button
         type="button"
         class="page-btn nav"
@@ -480,13 +543,6 @@ watch(
       </button>
     </div>
 
-    <!-- Floating Map Button -->
-    <div class="map-btn-wrapper">
-      <button class="map-floating-btn" @click="goToMap">
-        <span class="text">지도에서 보기</span>
-      </button>
-    </div>
-
     <!-- Filter Modal -->
     <FilterModal 
       :is-open="isFilterModalOpen"
@@ -503,18 +559,25 @@ watch(
 <style scoped>
 .main-content {
   padding-top: 4px;
-  padding-bottom: 6rem; /* Extra padding for floating button */
-  max-width: 1280px; 
-  margin: 0 auto;
+  padding-bottom: 1rem;
   padding-left: 1rem;
   padding-right: 1rem;
   --card-width: 340px;
 }
 
+/* PC 웹에서 header와 동일한 max-width 적용 */
+@media (min-width: 769px) {
+  .main-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
 .header {
   margin-bottom: 0;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #eee;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -611,12 +674,19 @@ watch(
 /* Fixed Buttons Group */
 .fixed-btns {
   position: fixed;
-  top: 84px;
+  top: 95px;
   right: 1rem;
   z-index: 120;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* PC 웹에서 컨테이너 안쪽에 위치 */
+@media (min-width: 769px) {
+  .fixed-btns {
+    right: max(24px, calc((100vw - 1400px) / 2 + 24px));
+  }
 }
 
 @media (max-width: 768px) {
@@ -672,7 +742,7 @@ watch(
 @media (min-width: 1024px) {
   .list-container {
     grid-template-columns: repeat(4, 1fr);
-    gap: 2rem;
+    gap: 2.5rem;
   }
 }
 
@@ -703,6 +773,24 @@ watch(
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
+}
+
+/* PC에서 페이징 영역에 도달하면 static으로 전환 */
+.map-btn-wrapper--static {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  display: flex;
+  justify-content: center;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .map-btn-wrapper {
+    bottom: 1rem;
+  }
 }
 
 .map-floating-btn {

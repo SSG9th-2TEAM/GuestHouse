@@ -14,6 +14,10 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  name: {
+    type: String,
+    default: ''
+  },
   transportInfo: {
     type: String,
     default: ''
@@ -160,6 +164,31 @@ watch(
     renderKakaoMap()
   }
 )
+
+const openKakaoNavi = () => {
+  const latitude = props.latitude
+  const longitude = props.longitude
+  const targetName = props.name || '숙소'
+
+  // 1. 위도, 경도가 있는 경우: 좌표로 바로 길찾기 연결
+  if (latitude && longitude && Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))) {
+    window.open(`https://map.kakao.com/link/to/${targetName},${latitude},${longitude}`, '_blank')
+    return
+  }
+
+  // 2. 위/경도가 없고 주소가 있는 경우: 주소 검색 결과로 연결
+  if (mapAddress.value) {
+    window.open(`https://map.kakao.com/link/search/${mapAddress.value}`, '_blank')
+    return
+  }
+  
+  // 3. 둘 다 없는 경우 (이름으로라도 시도)
+  if (targetName !== '숙소') {
+    window.open(`https://map.kakao.com/link/search/${targetName}`, '_blank')
+  } else {
+    alert('위치 정보가 없습니다.')
+  }
+}
 </script>
 
 <template>
@@ -169,6 +198,15 @@ watch(
     <div v-else class="map-placeholder">
       <div class="map-text">위치 정보가 없습니다.</div>
     </div>
+    
+    <button type="button" class="kakaomap-btn" @click="openKakaoNavi">
+      <!-- SVG Pin Icon -->
+      <svg class="kakaomap-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+      </svg>
+      카카오맵으로 길찾기
+    </button>
+    
     <p class="map-info">{{ transportText }}</p>
   </section>
 </template>
@@ -187,6 +225,7 @@ h2 {
   max-width: 520px;
   aspect-ratio: 1 / 1;
   border-radius: var(--radius-md);
+  border: 1px solid #ddd;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -206,6 +245,7 @@ h2 {
   max-width: 520px;
   aspect-ratio: 1 / 1;
   border-radius: var(--radius-md);
+  border: 1px solid #ddd;
   overflow: hidden;
   margin: 0 auto;
 }
@@ -219,5 +259,40 @@ h2 {
     aspect-ratio: auto;
     height: 480px;
   }
+}
+
+.kakaomap-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 520px;
+  margin: 1.2rem auto 0;
+  padding: 0.9rem;
+  background-color: #FAE100; /* 카카오 옐로우 */
+  color: #3C1E1E; /* 카카오 브라운 */
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.06);
+  letter-spacing: -0.01em;
+}
+.kakaomap-btn:hover {
+  background-color: #FFEB00;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+.kakaomap-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+}
+.kakaomap-icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
 }
 </style>

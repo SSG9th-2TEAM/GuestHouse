@@ -424,6 +424,16 @@ onMounted(() => {
   padding-bottom: 4rem;
 }
 
+/* PC 웹에서 header와 동일한 max-width 적용 */
+@media (min-width: 769px) {
+  .main-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
 .bannner {
   margin-bottom: 2rem;
   padding: 0;
@@ -434,6 +444,23 @@ onMounted(() => {
   display: block;
   width: 100%;
   height: auto;
+  border-radius: 16px;
+}
+
+/* PC 웹에서만 배너 높이 제한 - 이미지 잘림 방지 */
+@media (min-width: 768px) {
+  .bannner {
+    background-color: #1a1a1a;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  
+  .banner-image {
+    height: 350px;
+    width: 100%;
+    object-fit: contain;
+    background-color: #1a1a1a;
+  }
 }
 
 .banner-text {
@@ -530,6 +557,17 @@ onMounted(() => {
   cursor: pointer;
 }
 
+/* 모바일에서 카드 크기 축소 */
+@media (max-width: 768px) {
+  .row-scroll {
+    gap: 0.75rem;
+  }
+  
+  .row-card {
+    flex: 0 0 230px;
+  }
+}
+
 .more-card {
   border: 1px dashed #cbd5f5;
   background: #f8fafc;
@@ -540,7 +578,6 @@ onMounted(() => {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 1.5rem;
-  min-height: 360px;
   border-radius: 16px;
   transition: background-color 0.2s, transform 0.2s;
 }
