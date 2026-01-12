@@ -14,6 +14,10 @@ const currentChatRoom = ref(null); // This will hold the full room object
 const messageInput = ref(''); // For the real-time chat input
 const currentUser = computed(() => getUserInfo());
 
+const totalUnreadCount = computed(() => {
+  return realtimeChatRooms.value.reduce((total, room) => total + (room.unreadCount || 0), 0);
+});
+
 // Combined messages computed property
 const currentMessages = computed(() => {
     return activeTab.value === 'chat' ? realtimeChatStore.messages : messages.value;
@@ -86,7 +90,12 @@ const enterRealtimeChatRoom = async (room) => {
         });
         if (res.ok) {
             const fetchedMessages = await res.json();
-            realtimeChatStore.messages = fetchedMessages;
+            // Initialize readByRecipient property for each message
+            realtimeChatStore.messages = fetchedMessages.map(msg => ({
+                ...msg,
+                // For messages sent by current user, set readByRecipient based on backend's isRead field
+                readByRecipient: msg.senderUserId === currentUser.value?.userId ? msg.isRead : undefined
+            }));
         } else {
             realtimeChatStore.messages = [];
         }
@@ -130,6 +139,34 @@ watch(() => realtimeChatStore.messages, () => {
         });
     }
 }, { deep: true });
+
+// Auto-read messages when they arrive while viewing chat room
+watch(() => realtimeChatStore.messages, (newMessages, oldMessages) => {
+    if (activeTab.value === 'chat' && currentChatRoom.value && viewMode.value === 'chat') {
+        // Check if new message was added
+        if (newMessages.length > oldMessages.length) {
+            const latestMessage = newMessages[newMessages.length - 1];
+            // If message is from other user, mark as read automatically
+            if (latestMessage.senderUserId !== currentUser.value?.userId) {
+                markCurrentRoomAsRead();
+            }
+        }
+    }
+}, { deep: true });
+
+const markCurrentRoomAsRead = async () => {
+    if (!currentChatRoom.value) return;
+    
+    try {
+        await fetch(`/api/realtime-chat/rooms/${currentChatRoom.value.id}/read`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${getAccessToken()}` }
+        });
+        console.log('Auto-marked messages as read for room:', currentChatRoom.value.id);
+    } catch (error) {
+        console.error('Failed to auto-mark messages as read:', error);
+    }
+};
 
 // --- Methods for tabs ---
 const switchTab = (tab) => {
@@ -429,7 +466,8 @@ const goHome = () => {
   <div class="chatbot-wrapper" :style="wrapperStyle">
     <button class="chat-launcher" @mousedown="startDrag" @touchstart="startDrag" :class="{ 'is-open': isOpen, 'is-dragging': hasMoved }">
       <img src="/icon.png" alt="Chat" v-if="!isOpen" />
-      <span v-else class="close-icon">✕</span>
+      <span v-if="!isOpen && totalUnreadCount > 0" class="notification-badge">{{ totalUnreadCount }}</span>
+      <span v-if="isOpen" class="close-icon">✕</span>
     </button>
     <div v-if="isOpen" class="chatbot-window">
       <div class="chatbot-header">
@@ -501,7 +539,10 @@ const goHome = () => {
                     </div>
                     <div v-else class="user-container">
                         <div class="message-bubble user-bubble">{{ msg.messageContent }}</div>
-                        <div class="message-time">{{ formatTime(msg.createdAt) }}</div>
+                        <div class="message-meta">
+                            <span v-if="!msg.readByRecipient" class="unread-indicator">1</span>
+                            <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
+                        </div>
                     </div>
                 </div>
             </template>
@@ -525,6 +566,7 @@ const goHome = () => {
 <style scoped>
 /* General Wrapper */
 .chatbot-wrapper{position:fixed;bottom:100px;right:20px;z-index:9999;font-family:'Pretendard',sans-serif}.chat-launcher{width:60px;height:60px;border-radius:50%;background:white;border:1px solid #ddd;box-shadow:0 4px 12px rgba(0,0,0,0.15);cursor:grab;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s;user-select:none;touch-action:none}.chat-launcher:hover{transform:scale(1.05)}.chat-launcher.is-dragging{cursor:grabbing;box-shadow:0 8px 20px rgba(0,0,0,0.25);transform:scale(1.1)}.chat-launcher img{width:32px;height:32px;pointer-events:none}.close-icon{font-size:24px;color:#333}.chatbot-window{position:absolute;bottom:70px;right:0;width:380px;height:500px;max-height:calc(100vh - 180px);background:#fff;border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,0.12);display:flex;flex-direction:column;overflow:hidden;border:1px solid #eee}
+.notification-badge{position:absolute;top:-5px;right:-5px;background-color:red;color:white;border-radius:50%;width:24px;height:24px;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:bold;border:2px solid white}
 
 /* Header */
 .chatbot-header{height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid #f0f0f0;background:#fff;flex-shrink:0;position:relative}.header-title{font-weight:700;font-size:18px;position:absolute;left:50%;transform:translateX(-50%)}.back-btn,.close-btn{background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;z-index:2}.close-btn{display:none}
@@ -539,7 +581,7 @@ const goHome = () => {
 .badge{background:#ff4444;color:white;font-size:12px;font-weight:700;padding:2px 8px;border-radius:12px;min-width:20px;text-align:center}.room-subtitle{font-size:12px;color:#999;margin-bottom:4px}
 
 /* Chat View */
-.chat-container{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#fff}.messages-area{flex:1;overflow-y:auto;padding:20px}.message-row.user{display:flex;justify-content:flex-end}.message-row.bot{display:flex;justify-content:flex-start}.bot-container{display:flex;gap:12px;margin-bottom:20px}.bot-profile img{width:40px;height:40px;border-radius:50%;border:1px solid #eee}.bot-content{flex:1;max-width:85%}.bot-name{font-size:13px;font-weight:700;margin-bottom:6px;color:#333}.message-bubble{padding:12px 16px;border-radius:16px;font-size:15px;line-height:1.5;word-break:break-word}.bot-bubble{background:#f2f2f2;border-top-left-radius:4px;color:#333}.user-container{display:flex;flex-direction:column;align-items:flex-end;margin-bottom:20px;width:100%}.user-bubble{background:#333;color:white;border-bottom-right-radius:4px;max-width:80%;align-self:flex-end}.message-time{font-size:11px;color:#bbb;margin-top:4px}
+.chat-container{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#fff}.messages-area{flex:1;overflow-y:auto;padding:20px}.message-row.user{display:flex;justify-content:flex-end}.message-row.bot{display:flex;justify-content:flex-start}.bot-container{display:flex;gap:12px;margin-bottom:20px}.bot-profile img{width:40px;height:40px;border-radius:50%;border:1px solid #eee}.bot-content{flex:1;max-width:85%}.bot-name{font-size:13px;font-weight:700;margin-bottom:6px;color:#333}.message-bubble{padding:12px 16px;border-radius:16px;font-size:15px;line-height:1.5;word-break:keep-all;white-space:pre-wrap}.bot-bubble{background:#f2f2f2;border-top-left-radius:4px;color:#333}.user-container{display:flex;align-items:flex-end;gap:8px;margin-bottom:20px;justify-content:flex-end;width:100%}.user-bubble{background:#333;color:white;border-bottom-right-radius:4px;max-width:calc(100% - 70px);order:1}.message-meta{display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;flex-shrink:0;order:0}.message-time{font-size:11px;color:#bbb}.unread-indicator{font-size:12px;font-weight:700;color:#0f766e;margin-bottom:4px}
 
 /* Input Area */
 .message-input-area{padding:10px 20px;border-top:1px solid #f0f0f0;background:#fff;display:flex;gap:10px;align-items:center}.message-input-area input{flex:1;border:1px solid #ddd;border-radius:20px;padding:10px 16px;font-size:15px;outline:none;transition:border-color .2s}.message-input-area input:focus{border-color:#0f766e}.message-input-area button{background:#0f766e;color:white;border:none;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;font-weight:600;transition:background .2s}.message-input-area button:disabled{background:#ccc;cursor:not-allowed}.message-input-area button:hover:not(:disabled){background:#0d6e66}
