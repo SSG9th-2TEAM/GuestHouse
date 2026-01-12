@@ -570,7 +570,7 @@ watch(
   padding-bottom: 1rem;
   padding-left: 1rem;
   padding-right: 1rem;
-  --card-width: 340px;
+  --card-width: 300px;
 }
 
 /* PC 웹에서 header와 동일한 max-width 적용 */
@@ -734,6 +734,9 @@ watch(
 .list-item {
   cursor: pointer;
   transition: transform 0.2s;
+  width: 100%;
+  max-width: var(--card-width);
+  justify-self: center;
 }
 
 .list-item:hover {

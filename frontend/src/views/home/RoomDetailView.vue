@@ -696,6 +696,7 @@ watch(filteredRooms, (rooms) => {
         <span class="location">{{ guesthouse.address }}</span>
       </div>
       <div class="description-row">
+        <h2 class="info-title">소개</h2>
         <p class="description" :class="{ 'description-clamped': !showFullDescription }">
           {{ guesthouse.description }}
         </p>
@@ -709,31 +710,26 @@ watch(filteredRooms, (rooms) => {
         </button>
       </div>
       <div class="transport-info" v-if="guesthouse.transportInfo">
-        <h3 class="info-title">
+        <h2 class="info-title">
           <span class="info-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
               <path d="M4 11.5v6.3c0 .9.7 1.7 1.6 1.7h.7v1.1c0 .6.5 1.1 1.1 1.1s1.1-.5 1.1-1.1v-1.1h7.1v1.1c0 .6.5 1.1 1.1 1.1s1.1-.5 1.1-1.1v-1.1h.7c.9 0 1.6-.7 1.6-1.7v-6.3c0-2.5-2-4.5-4.5-4.5h-6.1c-2.5 0-4.5 2-4.5 4.5Zm12.1-2.6c1.5 0 2.7 1.2 2.7 2.6v.3H5.2v-.3c0-1.5 1.2-2.6 2.7-2.6h8.2Zm-9.6 7.4c-.5 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1Zm11.1 0c-.5 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1Z" />
             </svg>
           </span>
           교통 정보
-        </h3>
+        </h2>
         <p>{{ guesthouse.transportInfo }}</p>
       </div>
       <div class="contact-info" v-if="guesthouse.phone">
-        <h3 class="info-title">
-          <span class="info-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M6.6 3.5c.5-.4 1.2-.4 1.7 0l2 1.7c.6.5.7 1.4.3 2.1l-1 1.8c-.2.4-.2.9.1 1.3 1 1.6 2.4 3 4 4 .4.2.9.3 1.3.1l1.8-1c.7-.4 1.6-.3 2.1.3l1.7 2c.4.5.4 1.2 0 1.7l-1.3 1.5c-.5.6-1.2.9-2 .8-2.7-.4-5.3-1.8-7.7-4.2s-3.8-5-4.2-7.7c-.1-.8.2-1.5.8-2l1.5-1.3Z" />
-            </svg>
-          </span>
+        <h2 class="info-title">
           연락처
-        </h3>
+        </h2>
         <p>{{ guesthouse.phone }}</p>
       </div>
     </section>
 
     <section class="section amenity-section">
-      <h2>편의시설</h2>
+      <h2 class="info-title">편의시설</h2>
       <div class="tag-list amenity-list">
         <span
           v-for="(amenity, idx) in guesthouse.amenities"
@@ -745,7 +741,7 @@ watch(filteredRooms, (rooms) => {
         </span>
         <span v-if="!guesthouse.amenities.length" class="tag empty">등록된 정보 없음</span>
       </div>
-      <h2>테마</h2>
+      <h2 class="info-title">테마</h2>
       <div class="tag-list theme-tag-list">
         <span v-for="theme in themeTags" :key="theme.name" class="tag theme-tag">
           <img v-if="theme.imageUrl" :src="theme.imageUrl" :alt="theme.name" class="theme-tag__icon" />
@@ -1002,6 +998,7 @@ watch(filteredRooms, (rooms) => {
 }
 .info-section {
   padding-top: 0;
+  padding-bottom: 0.75rem;
 }
 hr {
   border: 0;
@@ -1031,13 +1028,23 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   line-height: 1.6;
   flex: 1;
   margin: 0;
+  white-space: pre-line;
+  width: 100%;
+  box-sizing: border-box;
+  max-height: calc(1.6em * 12);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.6rem 0.7rem;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
 }
 .description-clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: auto;
 }
 .more-btn {
   margin-top: 0.15rem;
@@ -1050,6 +1057,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   padding: 0.3rem 0.7rem;
   border-radius: 999px;
   white-space: nowrap;
+  display: none;
 }
 .detail-meta {
   display: flex;
@@ -1118,6 +1126,10 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 
 /* Amenities */
+.amenity-section {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
 .amenity-section h2 {
   margin-bottom: 0.6rem;
 }
@@ -1141,6 +1153,9 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+.theme-tag-list {
+  margin-bottom: 0.5rem;
 }
 .theme-tag__icon {
   width: 18px;
@@ -1177,6 +1192,9 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 
 /* Extra info */
+.extra-info-section {
+  padding-top: 0.75rem;
+}
 .extra-info-section h2 {
   margin-bottom: 0.8rem;
 }

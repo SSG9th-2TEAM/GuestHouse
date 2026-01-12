@@ -76,7 +76,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             priced_accommodations AS (
                 SELECT a.accommodations_id,
                        a.accommodations_name,
-                       a.short_description,
+                       CASE
+                           WHEN a.short_description IS NOT NULL
+                                AND TRIM(a.short_description) <> ''
+                               THEN a.short_description
+                           ELSE a.accommodations_description
+                       END AS short_description,
                        a.city,
                        a.district,
                        a.township,
@@ -240,7 +245,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             SELECT
                 a.accommodations_id AS accommodationsId,
                 a.accommodations_name AS accommodationsName,
-                a.short_description AS shortDescription,
+                CASE
+                    WHEN a.short_description IS NOT NULL
+                         AND TRIM(a.short_description) <> ''
+                        THEN a.short_description
+                    ELSE a.accommodations_description
+                END AS shortDescription,
                 a.city AS city,
                 a.district AS district,
                 a.township AS township,
@@ -451,7 +461,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             priced_accommodations AS (
                 SELECT a.accommodations_id,
                        a.accommodations_name,
-                       a.short_description,
+                       CASE
+                           WHEN a.short_description IS NOT NULL
+                                AND TRIM(a.short_description) <> ''
+                               THEN a.short_description
+                           ELSE a.accommodations_description
+                       END AS short_description,
                        a.city,
                        a.district,
                        a.township,
@@ -620,7 +635,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             priced_accommodations AS (
                 SELECT DISTINCT a.accommodations_id,
                        a.accommodations_name,
-                       a.short_description,
+                       CASE
+                           WHEN a.short_description IS NOT NULL
+                                AND TRIM(a.short_description) <> ''
+                               THEN a.short_description
+                           ELSE a.accommodations_description
+                       END AS short_description,
                        a.city,
                        a.district,
                        a.township,
@@ -875,7 +895,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             priced_accommodations AS (
                 SELECT a.accommodations_id,
                        a.accommodations_name,
-                       a.short_description,
+                       CASE
+                           WHEN a.short_description IS NOT NULL
+                                AND TRIM(a.short_description) <> ''
+                               THEN a.short_description
+                           ELSE a.accommodations_description
+                       END AS short_description,
                        a.city,
                        a.district,
                        a.township,
@@ -1052,7 +1077,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             priced_accommodations AS (
                 SELECT a.accommodations_id,
                        a.accommodations_name,
-                       a.short_description,
+                       CASE
+                           WHEN a.short_description IS NOT NULL
+                                AND TRIM(a.short_description) <> ''
+                               THEN a.short_description
+                           ELSE a.accommodations_description
+                       END AS short_description,
                        a.city,
                        a.district,
                        a.township,
@@ -1319,7 +1349,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             priced_accommodations AS (
                     SELECT a.accommodations_id,
                            a.accommodations_name,
-                           a.short_description,
+                           CASE
+                               WHEN a.short_description IS NOT NULL
+                                    AND TRIM(a.short_description) <> ''
+                                   THEN a.short_description
+                               ELSE a.accommodations_description
+                           END AS short_description,
                            a.city,
                            a.district,
                            a.township,
@@ -1514,7 +1549,12 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             priced_accommodations AS (
                 SELECT DISTINCT a.accommodations_id,
                        a.accommodations_name,
-                       a.short_description,
+                       CASE
+                           WHEN a.short_description IS NOT NULL
+                                AND TRIM(a.short_description) <> ''
+                               THEN a.short_description
+                           ELSE a.accommodations_description
+                       END AS short_description,
                        a.city,
                        a.district,
                        a.township,
