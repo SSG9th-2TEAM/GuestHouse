@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.global.config;
 
 import com.ssg9th2team.geharbang.global.oauth.service.CustomOAuth2UserService;
+import com.ssg9th2team.geharbang.global.oauth.service.OAuth2AuthenticationFailureHandler;
 import com.ssg9th2team.geharbang.global.oauth.service.OAuth2AuthenticationSuccessHandler;
 import com.ssg9th2team.geharbang.global.security.JwtAuthenticationFilter;
 import com.ssg9th2team.geharbang.global.security.JwtTokenProvider;
@@ -33,6 +34,7 @@ public class SecurityConfig {
         private final JwtTokenProvider jwtTokenProvider;
         private final CustomOAuth2UserService customOAuth2UserService;
         private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+        private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
         private final ClientRegistrationRepository clientRegistrationRepository;
 
         @Bean
@@ -77,7 +79,8 @@ public class SecurityConfig {
                                                                                 authorizationRequestResolver()))
                                                 .userInfoEndpoint(userInfo -> userInfo
                                                                 .userService(customOAuth2UserService))
-                                                .successHandler(oAuth2AuthenticationSuccessHandler))
+                                                .successHandler(oAuth2AuthenticationSuccessHandler)
+                                                .failureHandler(oAuth2AuthenticationFailureHandler))
 
                                 // JWT 인증 필터 추가
                                 .addFilterBefore(
