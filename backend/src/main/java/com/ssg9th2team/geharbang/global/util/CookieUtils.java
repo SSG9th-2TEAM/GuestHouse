@@ -89,16 +89,29 @@ public class CookieUtils {
     /**
      * URL 인코딩된 JSON 문자열을 OAuth2AuthorizationRequest로 역직렬화
      * SerializationUtils.deserialize() 대신 안전한 JSON 역직렬화 사용
+     * 역직렬화 실패 시 예외 대신 null 반환 (OAuth2 플로우 정상 진행 위함)
      */
     @SuppressWarnings("unchecked")
     public static OAuth2AuthorizationRequest deserializeAuthorizationRequest(Cookie cookie) {
         try {
+            if (cookie == null || cookie.getValue() == null || cookie.getValue().isEmpty()) {
+                return null;
+            }
+
             String json = URLDecoder.decode(cookie.getValue(), StandardCharsets.UTF_8);
             Map<String, Object> data = objectMapper.readValue(json, Map.class);
 
+            // 필수 필드 검증
+            String authorizationUri = (String) data.get("authorizationUri");
+            String clientId = (String) data.get("clientId");
+            if (authorizationUri == null || clientId == null) {
+                log.warn("Invalid OAuth2AuthorizationRequest cookie: missing required fields");
+                return null;
+            }
+
             OAuth2AuthorizationRequest.Builder builder = OAuth2AuthorizationRequest.authorizationCode()
-                    .authorizationUri((String) data.get("authorizationUri"))
-                    .clientId((String) data.get("clientId"))
+                    .authorizationUri(authorizationUri)
+                    .clientId(clientId)
                     .redirectUri((String) data.get("redirectUri"))
                     .state((String) data.get("state"))
                     .authorizationRequestUri((String) data.get("authorizationRequestUri"));
@@ -124,9 +137,10 @@ public class CookieUtils {
             }
 
             return builder.build();
-        } catch (IOException e) {
-            log.error("Failed to deserialize OAuth2AuthorizationRequest", e);
-            throw new IllegalStateException("Failed to deserialize OAuth2AuthorizationRequest", e);
+        } catch (Exception e) {
+            // 역직렬화 실패 시 null 반환 - OAuth2 인증 실패로 처리되어 FailureHandler 호출됨
+            log.warn("Failed to deserialize OAuth2AuthorizationRequest, treating as expired/invalid: {}", e.getMessage());
+            return null;
         }
     }
 
