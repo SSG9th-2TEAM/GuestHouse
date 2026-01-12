@@ -20,4 +20,7 @@ public interface UserSocialRepository extends JpaRepository<UserSocial, Long> {
 
     // 사용자로 모든 소셜 로그인 정보 조회
     List<UserSocial> findByUser(User user);
+    
+    // 사용자와 제공자로 소셜 로그인 정보 존재 여부 확인
+    boolean existsByUserAndProvider(User user, SocialProvider provider);
 }
