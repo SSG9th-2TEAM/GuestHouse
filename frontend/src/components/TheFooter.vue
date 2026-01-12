@@ -85,6 +85,7 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 24px;
+  font-family: 'TMoneyDungunbaram', sans-serif;
 }
 
 .footer-content {
@@ -97,9 +98,9 @@
 .footer-section h3 {
   color: #1a1a1a;
   font-size: 14px;
+  font-family: 'TMoneyDungunbaram', sans-serif;
   font-weight: 600;
   margin-bottom: 12px;
-  font-family: 'Noto Sans KR', sans-serif;
 }
 
 .footer-section p {
@@ -124,7 +125,6 @@
   text-decoration: none;
   font-size: 14px;
   transition: color 0.2s ease;
-  font-family: 'Noto Sans KR', sans-serif;
 }
 
 .footer-section a:hover {
@@ -173,7 +173,6 @@
   align-items: flex-start;
   gap: 8px;
   font-size: 12px;
-  font-family: 'Noto Sans KR', sans-serif;
   padding-top: 20px;
   color: #737373;
   line-height: 1.6;
