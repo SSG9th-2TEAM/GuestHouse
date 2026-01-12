@@ -10,6 +10,7 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,7 @@ public class RealtimeChatService {
     private final RealtimeChatRoomRepository chatRoomRepository;
     private final RealtimeChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // 유저의 채팅방 목록 조회
     @Transactional(readOnly = true)
@@ -155,5 +157,23 @@ public class RealtimeChatService {
             chatRoom.setGuestUnreadCount(0);
         }
         chatRoomRepository.save(chatRoom);
+
+        // 상대방에게 읽음 알림 전송
+        Long otherUserId = chatRoom.getHostUserId().equals(readerUserId) ? chatRoom.getGuestUserId() : chatRoom.getHostUserId();
+        User otherUser = userRepository.findById(otherUserId)
+                .orElse(null);
+
+        if (otherUser != null) {
+            log.info("Sending read receipt to user {} for room {}", otherUser.getEmail(), roomId);
+            messagingTemplate.convertAndSendToUser(
+                    otherUser.getEmail(), // Spring Security의 User principal 이름
+                    "/topic/notifications",
+                    Map.of(
+                            "type", "MESSAGES_READ",
+                            "roomId", roomId,
+                            "readerId", readerUserId
+                    )
+            );
+        }
     }
 }
