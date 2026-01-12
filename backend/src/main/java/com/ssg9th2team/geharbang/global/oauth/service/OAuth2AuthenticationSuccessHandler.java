@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.global.oauth.service;
 
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
+import com.ssg9th2team.geharbang.global.oauth.HttpCookieOAuth2AuthorizationRequestRepository;
 import com.ssg9th2team.geharbang.global.security.JwtTokenProvider;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +22,7 @@ import java.io.IOException;
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final HttpCookieOAuth2AuthorizationRequestRepository httpCookieOAuth2AuthorizationRequestRepository;
 
     @Value("${oauth2.redirect-uri}")
     private String redirectUri;
@@ -37,6 +39,9 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             log.debug("Response has already been committed. Unable to redirect to " + targetUrl);
             return;
         }
+
+        // OAuth2 인증 요청 관련 쿠키 정리
+        httpCookieOAuth2AuthorizationRequestRepository.removeAuthorizationRequestCookies(request, response);
 
         clearAuthenticationAttributes(request);
         getRedirectStrategy().sendRedirect(request, response, targetUrl);

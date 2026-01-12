@@ -1,6 +1,8 @@
 package com.ssg9th2team.geharbang.global.config;
 
+import com.ssg9th2team.geharbang.global.oauth.HttpCookieOAuth2AuthorizationRequestRepository;
 import com.ssg9th2team.geharbang.global.oauth.service.CustomOAuth2UserService;
+import com.ssg9th2team.geharbang.global.oauth.service.OAuth2AuthenticationFailureHandler;
 import com.ssg9th2team.geharbang.global.oauth.service.OAuth2AuthenticationSuccessHandler;
 import com.ssg9th2team.geharbang.global.security.JwtAuthenticationFilter;
 import com.ssg9th2team.geharbang.global.security.JwtTokenProvider;
@@ -33,7 +35,9 @@ public class SecurityConfig {
         private final JwtTokenProvider jwtTokenProvider;
         private final CustomOAuth2UserService customOAuth2UserService;
         private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+        private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
         private final ClientRegistrationRepository clientRegistrationRepository;
+        private final HttpCookieOAuth2AuthorizationRequestRepository httpCookieOAuth2AuthorizationRequestRepository;
 
         @Bean
         public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -73,11 +77,16 @@ public class SecurityConfig {
                                 .oauth2Login(oauth2 -> oauth2
                                                 .loginPage("/api/oauth2/login-disabled") // 비활성화용 더미 경로
                                                 .authorizationEndpoint(authorization -> authorization
+                                                                .baseUri("/oauth2/authorization")
+                                                                .authorizationRequestRepository(httpCookieOAuth2AuthorizationRequestRepository)
                                                                 .authorizationRequestResolver(
                                                                                 authorizationRequestResolver()))
+                                                .redirectionEndpoint(redirection -> redirection
+                                                                .baseUri("/login/oauth2/code/*"))
                                                 .userInfoEndpoint(userInfo -> userInfo
                                                                 .userService(customOAuth2UserService))
-                                                .successHandler(oAuth2AuthenticationSuccessHandler))
+                                                .successHandler(oAuth2AuthenticationSuccessHandler)
+                                                .failureHandler(oAuth2AuthenticationFailureHandler))
 
                                 // JWT 인증 필터 추가
                                 .addFilterBefore(

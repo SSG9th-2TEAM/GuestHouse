@@ -14,6 +14,19 @@
           @click="handleBannerClick(banner)"
         >
           <img :src="banner.image" :alt="banner.alt" class="banner-image" />
+          <!-- CSS 텍스트 오버레이 추가 -->
+          <div v-if="banner.overlayText" class="banner-overlay">
+            <div class="overlay-text-wrapper">
+              <span class="overlay-text">
+                <span class="heart">💛</span>
+                {{ banner.overlayText }}
+                <span class="heart">💛</span>
+              </span>
+              <p v-if="banner.overlaySubText" class="overlay-subtext">
+                {{ banner.overlaySubText }}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -59,7 +72,7 @@ const router = useRouter()
 // 배너 이미지 목록
 const banners = [
   { 
-    image: new URL('@/assets/banners/event1.png', import.meta.url).href, 
+    image: new URL('@/assets/home-banner.png', import.meta.url).href, 
     alt: '좋은 사람, 좋은 장소, 좋은 시간',
     link: null // 클릭해도 이동 안 함
   },
@@ -72,6 +85,13 @@ const banners = [
     image: new URL('@/assets/banners/event3.png', import.meta.url).href, 
     alt: '오늘의 선착순 50 - 7천원 즉시 할인',
     link: '/events' // 이벤트 페이지로 이동
+  },
+  {
+    image: new URL('@/assets/banners/event4.png', import.meta.url).href,
+    alt: '아직도 솔로야? - 게스트하우스 파티에서 새로운 인연을 만나보세요',
+    overlayText: '아직도 솔로야?', // 텍스트 추가
+    overlaySubText: '스테이블 게스트하우스 올래?', // 서브 텍스트 수정
+    link: '/room/135' // 135번 객실 상세 페이지로 이동
   }
 ]
 
@@ -130,41 +150,94 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+
 .event-carousel {
   width: 100%;
   margin-bottom: 2rem;
+  overflow: hidden; /* 추가: 최상위에서도 overflow 차단 */
 }
 
 .carousel-container {
   position: relative;
   width: 100%;
+  max-width: 100%; /* 추가: 너비 제한 명확화 */
   overflow: hidden;
+  overflow-x: hidden; /* 추가: 가로 스크롤 명시적 차단 */
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+
 .carousel-track {
   display: flex;
   transition: transform 0.5s ease-in-out;
+  width: 100%; /* 추가 */
 }
 
 .carousel-slide {
   min-width: 100%;
+  width: 100%; /* 명시적 너비 추가 */
+  max-width: 100%; /* 최대 너비 제한 */
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden; /* 슬라이드 자체에서도 차단 */
 }
 
 .carousel-slide.clickable {
   cursor: pointer;
 }
 
-.carousel-slide.clickable:hover .banner-image {
-  opacity: 0.9;
-  transition: opacity 0.3s ease;
+
+/* 텍스트 오버레이 스타일 */
+.banner-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  text-align: center;
+  pointer-events: none; /* 클릭 방지 */
+  z-index: 5;
+}
+
+.overlay-text {
+  font-size: 5rem;
+  font-weight: 900;
+  color: #FFD700; /* 금색/노란색 */
+  text-shadow: 
+    -3px -3px 0 #000,  
+     3px -3px 0 #000,
+    -3px  3px 0 #000,
+     3px  3px 0 #000,
+     5px  5px 15px rgba(0,0,0,0.5); /* 강한 그림자 */
+  letter-spacing: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  /* animation 제거됨 */
+}
+
+.overlay-subtext {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+  margin-top: 1rem;
+  text-shadow: 
+    -2px -2px 0 #000,  
+     2px -2px 0 #000,
+    -2px  2px 0 #000,
+     2px  2px 0 #000;
+}
+
+.heart {
+  font-size: 4rem;
+  filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
 }
 
 .banner-image {
   width: 100%;
-  height: 300px;
+  height: 600px;
   display: block;
   object-fit: cover;
   object-position: center;
@@ -269,7 +342,31 @@ onUnmounted(() => {
   }
 
   .banner-image {
-    height: 180px;
+    height: 280px;
+  }
+
+  .overlay-text {
+    font-size: 2.2rem;
+    gap: 0.5rem;
+    text-shadow: 
+      -1.5px -1.5px 0 #000,  
+       1.5px -1.5px 0 #000,
+      -1.5px  1.5px 0 #000,
+       1.5px  1.5px 0 #000;
+  }
+
+  .overlay-subtext {
+    font-size: 1rem;
+    margin-top: 0.5rem;
+    text-shadow: 
+      -1px -1px 0 #000,  
+       1px -1px 0 #000,
+      -1px  1px 0 #000,
+       1px  1px 0 #000;
+  }
+
+  .heart {
+    font-size: 1.8rem;
   }
 }
 </style>

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -20,12 +21,13 @@ public interface CouponInventoryRepository extends JpaRepository<CouponInventory
     Optional<CouponInventory> findByCouponId(Long couponId);
 
     /**
-     * 선착순 차감 시 동시성 제어를 위해 PESSIMISTIC_WRITE로 락을 잡고 조회.
+     * 선착순 차감 시 동시성 제어를 위해 PESSIMISTIC_WRITE로 락을 잡고 조회. -> 비관적락
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select ci from CouponInventory ci where ci.couponId = :couponId")
     Optional<CouponInventory> findWithLockByCouponId(@Param("couponId") Long couponId);
 
+    // 선착순 쿠폰 재고를 초기화
     @Modifying(clearAutomatically = true)
     @Query("update CouponInventory ci set ci.availableToday = ci.dailyLimit, ci.lastResetDate = :today "
             + "where ci.lastResetDate is null or ci.lastResetDate < :today")
@@ -34,4 +36,7 @@ public interface CouponInventoryRepository extends JpaRepository<CouponInventory
     // [MEDIUM] 확장성 고려: 전체 조회 시 Stream 사용
     @Query("select ci from CouponInventory ci")
     Stream<CouponInventory> streamAll();
+
+    @Query("select ci.couponId from CouponInventory ci")
+    List<Long> findAllCouponIds();
 }

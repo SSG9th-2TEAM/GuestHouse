@@ -196,9 +196,14 @@ const booking = computed(() => {
 const coupons = ref([])
 const eligibleCoupons = computed(() => {
   const totalPrice = booking.value?.price || 0
+  const bookingAccommodationId = Number(booking.value?.accommodationsId)
   return coupons.value.filter((coupon) => {
     const min = coupon?.minPrice ?? 0
-    return totalPrice >= min
+    const couponAccommodationId =
+      coupon?.accommodationsId == null ? null : Number(coupon.accommodationsId)
+    const isEligibleAccommodation =
+      couponAccommodationId === null || couponAccommodationId === bookingAccommodationId
+    return totalPrice >= min && isEligibleAccommodation
   })
 })
 
