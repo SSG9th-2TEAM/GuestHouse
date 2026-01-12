@@ -1,5 +1,6 @@
 package com.ssg9th2team.geharbang.domain.chat.service;
 
+import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
 import com.ssg9th2team.geharbang.domain.chat.RealtimeChatMessage;
 import com.ssg9th2team.geharbang.domain.chat.RealtimeChatRoom;
 import com.ssg9th2team.geharbang.domain.chat.dto.ChatMessageDto;
@@ -10,6 +11,7 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,8 @@ public class RealtimeChatService {
     private final RealtimeChatRoomRepository chatRoomRepository;
     private final RealtimeChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final AccommodationMapper accommodationMapper;
 
     // 유저의 채팅방 목록 조회
     @Transactional(readOnly = true)
@@ -52,11 +56,23 @@ public class RealtimeChatService {
                 .collect(Collectors.toSet());
         log.info("상대방 사용자 이름 조회를 위한 ID 목록: {}", otherUserIds);
 
-
         Map<Long, User> userMap = userRepository.findAllById(otherUserIds).stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
-      log.info("상대방 사용자 정보 {}건을 찾았습니다.", userMap.size());
+        log.info("상대방 사용자 정보 {}건을 찾았습니다.", userMap.size());
 
+        // N+1 문제 해결: 모든 숙소의 대표 이미지를 한 번에 조회
+        List<Long> accommodationIds = rooms.stream()
+                .map(RealtimeChatRoom::getAccommodationId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, String> imageMap = accommodationMapper.selectMainImagesByAccommodationIds(accommodationIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        img -> img.getAccommodationsId(),
+                        img -> img.getImageUrl(),
+                        (existing, replacement) -> existing // 중복 시 첫 번째 값 유지
+                ));
+        log.info("숙소 대표 이미지 {}건을 일괄 조회했습니다.", imageMap.size());
 
         List<ChatRoomDto> chatRoomDtos = rooms.stream().map(room -> {
             Long otherUserId;
@@ -74,7 +90,21 @@ public class RealtimeChatService {
             User otherUser = userMap.get(otherUserId);
             otherUserName = (otherUser != null) ? otherUser.getNickname() : "알 수 없는 사용자";
 
-            return ChatRoomDto.of(room, otherUserName, unreadCount);
+            String currentImageUrl = imageMap.get(room.getAccommodationId());
+
+            return ChatRoomDto.builder()
+                .id(room.getId())
+                .reservationId(room.getReservationId())
+                .accommodationId(room.getAccommodationId())
+                .accommodationName(room.getAccommodationName())
+                .accommodationImage(currentImageUrl) // Use the fresh URL
+                .hostUserId(room.getHostUserId())
+                .guestUserId(room.getGuestUserId())
+                .otherParticipantName(otherUserName)
+                .lastMessage(room.getLastMessage())
+                .lastMessageTime(room.getLastMessageTime())
+                .unreadCount(unreadCount)
+                .build();
         }).collect(Collectors.toList());
 
         log.info("사용자 ID {}에게 {}개의 채팅방 DTO를 반환합니다.", userId, chatRoomDtos.size());
@@ -155,5 +185,16 @@ public class RealtimeChatService {
             chatRoom.setGuestUnreadCount(0);
         }
         chatRoomRepository.save(chatRoom);
+
+        // 채팅방 전체에 읽음 알림 브로드캐스트 (해당 방을 구독 중인 모든 사용자가 수신)
+        log.info("Broadcasting read receipt to room {} by user {}", roomId, readerUserId);
+        messagingTemplate.convertAndSend(
+                "/topic/chatroom/" + roomId,
+                Map.of(
+                        "type", "MESSAGES_READ",
+                        "roomId", roomId,
+                        "readerId", readerUserId
+                )
+        );
     }
 }
