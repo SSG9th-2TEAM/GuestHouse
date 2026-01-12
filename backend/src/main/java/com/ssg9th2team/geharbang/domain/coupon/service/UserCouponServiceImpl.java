@@ -2,7 +2,6 @@ package com.ssg9th2team.geharbang.domain.coupon.service;
 
 import com.ssg9th2team.geharbang.domain.coupon.dto.UserCouponResponseDto;
 import com.ssg9th2team.geharbang.domain.coupon.entity.Coupon;
-import com.ssg9th2team.geharbang.domain.coupon.entity.CouponInventory;
 import com.ssg9th2team.geharbang.domain.coupon.entity.CouponIssueResult;
 import com.ssg9th2team.geharbang.domain.coupon.entity.CouponTriggerType;
 import com.ssg9th2team.geharbang.domain.coupon.entity.UserCoupon;
@@ -15,6 +14,7 @@ import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepositor
 import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -164,6 +164,7 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     // 사용 가능 쿠폰, 만료 쿠폰, 사용 완료한 쿠폰 조회
     @Override
+    @Cacheable(value = "userCoupons", key = "#userId + '_' + #status")
     @Transactional(readOnly = true)
     public List<UserCouponResponseDto> getMyCouponsByStatus(Long userId, String status) {
         //  DTO 리스트 반환
@@ -297,21 +298,20 @@ public class UserCouponServiceImpl implements UserCouponService {
     public int resetDailyCouponIssuedTracking() {
         // 1. CouponInventory에서 재고 관리되는 쿠폰들의 ID 조회
         // (선착순 쿠폰만 CouponInventory에 존재)
-        List<Long> limitedCouponIds = couponInventoryRepository.findAll().stream()
-                .map(CouponInventory::getCouponId)
-                .toList();
-        
-        // 2. 각 쿠폰의 발급 이력 Redis Set 삭제
-        int cleared = 0;
-        for (Long couponId : limitedCouponIds) {
-            String redisKey = COUPON_ISSUED_KEY_PREFIX + couponId;
-            Boolean deleted = redisTemplate.delete(redisKey);
-            if (Boolean.TRUE.equals(deleted)) {
-                cleared++;
-                log.debug("쿠폰 {} 발급 이력 초기화 완료", couponId);
-            }
+        List<Long> limitedCouponIds = couponInventoryRepository.findAllCouponIds();
+
+        if (limitedCouponIds.isEmpty()) {
+            log.info("초기화할 일일 쿠폰 발급 이력이 없습니다.");
+            return 0;
         }
-        
+
+        // 2. 각 쿠폰의 발급 이력 Redis Set 삭제 (bulk)
+        List<String> keysToDelete = limitedCouponIds.stream()
+                .map(couponId -> COUPON_ISSUED_KEY_PREFIX + couponId)
+                .toList();
+        Long deletedCount = redisTemplate.delete(keysToDelete);
+        int cleared = deletedCount != null ? deletedCount.intValue() : 0;
+
         log.info("일일 쿠폰 발급 이력 초기화: {}건", cleared);
         return cleared;
     }

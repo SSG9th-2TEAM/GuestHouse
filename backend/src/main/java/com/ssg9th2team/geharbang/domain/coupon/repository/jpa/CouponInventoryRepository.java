@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -35,4 +36,7 @@ public interface CouponInventoryRepository extends JpaRepository<CouponInventory
     // [MEDIUM] 확장성 고려: 전체 조회 시 Stream 사용
     @Query("select ci from CouponInventory ci")
     Stream<CouponInventory> streamAll();
+
+    @Query("select ci.couponId from CouponInventory ci")
+    List<Long> findAllCouponIds();
 }
