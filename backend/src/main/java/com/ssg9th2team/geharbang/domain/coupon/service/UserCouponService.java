@@ -48,4 +48,11 @@ public interface UserCouponService {
     
     // 특정 쿠폰 Redis 발급 이력 동기화
     void syncRedisIssuedCoupon(Long couponId);
+    
+    /**
+     * 일일 선착순 쿠폰의 발급 이력을 초기화한다.
+     * 매일 자정에 실행되어 사용자가 다시 쿠폰을 발급받을 수 있도록 함.
+     * @return 초기화된 쿠폰 개수
+     */
+    int resetDailyCouponIssuedTracking();
 }
