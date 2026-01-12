@@ -43,6 +43,11 @@ public interface ReservationService {
     void deleteCompletedReservation(Long reservationId);
 
     /**
+     * 취소된 예약 삭제 (내역에서 삭제)
+     */
+    void deleteCancelledReservation(Long reservationId);
+
+    /**
      * 오래된 대기 예약 정리 (스케줄러용)
      */
     int cleanupOldPendingReservations();
