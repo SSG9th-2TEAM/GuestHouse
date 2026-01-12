@@ -13,6 +13,7 @@ const searchStore = useSearchStore()
 const holidayStore = useHolidayStore()
 const calendarStore = useCalendarStore()
 const searchKeyword = ref(searchStore.keyword || '')
+const suggestKeyword = ref(searchKeyword.value || '')
 const keywordDisplay = computed(() => {
   const keyword = String(searchStore.keyword ?? '').trim()
   return keyword || '어디로 갈까?'
@@ -21,6 +22,7 @@ const keywordDisplay = computed(() => {
 const suggestions = ref([])
 const isSuggestOpen = ref(false)
 const isSuggestLoading = ref(false)
+const hasSuggestFetched = ref(false)
 const isComposing = ref(false)
 const MIN_SUGGEST_LENGTH = 2
 const SUGGEST_LIMIT = 10
@@ -33,7 +35,7 @@ const normalizeSuggestKeyword = (value) => {
 }
 
 const canShowSuggestions = computed(() => {
-  return Boolean(normalizeSuggestKeyword(searchKeyword.value) && isSuggestOpen.value)
+  return Boolean(normalizeSuggestKeyword(suggestKeyword.value) && isSuggestOpen.value)
 })
 
 const clearSuggestionTimer = () => {
@@ -47,6 +49,7 @@ const resetSuggestions = () => {
   clearSuggestionTimer()
   suggestions.value = []
   isSuggestLoading.value = false
+  hasSuggestFetched.value = false
 }
 
 const scheduleSuggestionFetch = (value) => {
@@ -56,6 +59,7 @@ const scheduleSuggestionFetch = (value) => {
     return
   }
   clearSuggestionTimer()
+  hasSuggestFetched.value = false
   suggestTimer = setTimeout(async () => {
     const requestId = ++suggestRequestId
     isSuggestLoading.value = true
@@ -75,6 +79,7 @@ const scheduleSuggestionFetch = (value) => {
     } finally {
       if (requestId === suggestRequestId) {
         isSuggestLoading.value = false
+        hasSuggestFetched.value = true
       }
     }
   }, 250)
@@ -82,7 +87,7 @@ const scheduleSuggestionFetch = (value) => {
 
 const openSuggestions = () => {
   isSuggestOpen.value = true
-  scheduleSuggestionFetch(searchKeyword.value)
+  scheduleSuggestionFetch(suggestKeyword.value || searchKeyword.value)
 }
 
 const closeSuggestions = () => {
@@ -94,6 +99,7 @@ const selectSuggestion = (suggestion) => {
   if (!suggestion?.value) return
   const nextValue = String(suggestion.value)
   searchKeyword.value = nextValue
+  suggestKeyword.value = nextValue
   searchStore.setKeyword(nextValue)
   closeSuggestions()
 }
@@ -102,9 +108,26 @@ const handleCompositionStart = () => {
   isComposing.value = true
 }
 
-const handleCompositionEnd = () => {
+const handleCompositionUpdate = (event) => {
+  const value = event?.target?.value ?? ''
+  suggestKeyword.value = value
+  scheduleSuggestionFetch(value)
+}
+
+const handleCompositionEnd = (event) => {
   isComposing.value = false
-  scheduleSuggestionFetch(searchKeyword.value)
+  const value = event?.target?.value ?? searchKeyword.value
+  suggestKeyword.value = value
+  scheduleSuggestionFetch(value)
+}
+
+const handleInput = (event) => {
+  const value = event?.target?.value ?? ''
+  suggestKeyword.value = value
+  if (!isSuggestOpen.value) return
+  if (event?.isComposing || isComposing.value) {
+    scheduleSuggestionFetch(value)
+  }
 }
 
 const getSuggestionLabel = (type) => {
@@ -126,6 +149,7 @@ watch(
   () => searchKeyword.value,
   (value) => {
     if (isComposing.value) return
+    suggestKeyword.value = value || ''
     if (!isSuggestOpen.value) return
     scheduleSuggestionFetch(value)
   }
@@ -532,9 +556,11 @@ onUnmounted(() => {
                 v-model="searchKeyword"
                 type="text"
                 placeholder="어디로 갈까?"
+                @input="handleInput"
                 @keydown.enter.prevent="handleSearch"
                 @focus="openSuggestions"
                 @compositionstart="handleCompositionStart"
+                @compositionupdate="handleCompositionUpdate"
                 @compositionend="handleCompositionEnd"
               >
               <div v-if="canShowSuggestions" class="search-suggestions">
@@ -555,7 +581,7 @@ onUnmounted(() => {
                     </span>
                     <span class="suggestion-text">{{ suggestion.value }}</span>
                   </button>
-                  <div v-if="!suggestions.length" class="suggestion-empty">검색 결과 없음</div>
+                    <div v-if="hasSuggestFetched && !suggestions.length" class="suggestion-empty">검색 결과 없음</div>
                 </template>
               </div>
             </div>
@@ -659,9 +685,11 @@ onUnmounted(() => {
                 v-model="searchKeyword"
                 type="text"
                 placeholder="어디로 갈까?"
+                @input="handleInput"
                 @keydown.enter.prevent="handleSearch"
                 @focus="openSuggestions"
                 @compositionstart="handleCompositionStart"
+                @compositionupdate="handleCompositionUpdate"
                 @compositionend="handleCompositionEnd"
               >
               <div v-if="canShowSuggestions" class="search-suggestions">
@@ -682,7 +710,7 @@ onUnmounted(() => {
                     </span>
                     <span class="suggestion-text">{{ suggestion.value }}</span>
                   </button>
-                  <div v-if="!suggestions.length" class="suggestion-empty">검색 결과 없음</div>
+                    <div v-if="hasSuggestFetched && !suggestions.length" class="suggestion-empty">검색 결과 없음</div>
                 </template>
               </div>
             </div>
@@ -922,67 +950,123 @@ onUnmounted(() => {
 
 .search-suggestions {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   left: 0;
-  right: 0;
-  background: #fff;
-  border: 1px solid #e0e6eb;
-  border-radius: 10px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  right: auto;
+  width: min(560px, calc(100vw - 32px));
+  min-width: 100%;
+  font-family: sans-serif;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+  border: 1px solid rgba(109, 195, 187, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
   z-index: 300;
-  max-height: 240px;
+  max-height: 260px;
   overflow-y: auto;
-  padding: 6px 0;
+  padding: 8px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overscroll-behavior: contain;
+  animation: suggestionDrop 0.16s ease-out;
 }
 
 .search-suggestion {
   width: 100%;
-  border: none;
-  background: transparent;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.7);
   text-align: left;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 10px 12px;
   cursor: pointer;
-  font-size: 12px;
-  color: #1a1f36;
+  font-size: 13px;
+  color: #0f172a;
+  border-radius: 10px;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.search-suggestion:hover {
-  background: #f5f9f8;
+.search-suggestion:hover,
+.search-suggestion:focus-visible {
+  background: #f2fbf9;
+  border-color: rgba(109, 195, 187, 0.45);
+  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.12);
+  outline: none;
 }
 
 .suggestion-tag {
   font-size: 10px;
   font-weight: 700;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 999px;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.3px;
   flex-shrink: 0;
+  border: 1px solid transparent;
 }
 
 .suggestion-tag--accommodation {
-  background: #e0f2f1;
+  background: rgba(109, 195, 187, 0.18);
   color: #0f766e;
+  border-color: rgba(109, 195, 187, 0.45);
 }
 
 .suggestion-tag--region {
-  background: #e8f0fe;
+  background: rgba(59, 130, 246, 0.12);
   color: #1d4ed8;
+  border-color: rgba(59, 130, 246, 0.35);
 }
 
 .suggestion-text {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  color: #1a1f36;
+  color: #0f172a;
 }
 
 .suggestion-empty,
 .suggestion-loading {
-  padding: 10px 12px;
+  padding: 12px 8px;
   font-size: 12px;
-  color: #8a92a0;
+  color: #6b7280;
+  text-align: center;
+}
+
+.suggestion-loading {
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.search-suggestions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.search-suggestions::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.2);
+  border-radius: 999px;
+}
+
+.search-suggestions::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes suggestionDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-suggestions {
+    animation: none;
+  }
+
+  .search-suggestion {
+    transition: none;
+  }
 }
 
 .search-item:hover {
@@ -1415,14 +1499,32 @@ onUnmounted(() => {
     display: none !important;
   }
   
-  .search-bar.expanded .search-bar-expanded {
-    display: flex !important;
-  }
-  
-  .collapsed-text {
-    flex: 1 1 0;
-    min-width: 0;
-    font-size: 13px;
+    .search-bar.expanded .search-bar-expanded {
+      display: flex !important;
+    }
+
+    .search-suggestions {
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .search-bar-collapsed,
+    .search-bar-expanded,
+    .collapsed-text,
+    .collapsed-divider,
+    .search-item-full label,
+    .search-item-full input {
+      font-family: revert;
+    }
+
+    .search-item-full label {
+      font-family: sans-serif;
+    }
+
+    .collapsed-text {
+      flex: 1 1 0;
+      min-width: 0;
+      font-size: 13px;
     color: #6b7280;
     white-space: nowrap;
     overflow: hidden;
