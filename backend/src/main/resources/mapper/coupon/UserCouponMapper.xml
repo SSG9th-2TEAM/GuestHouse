@@ -18,7 +18,8 @@
                     c.discount_type,
                     c.discount_value,
                     c.min_price,
-                    c.max_discount
+                    c.max_discount,
+                    c.accommodations_id as accommodationsId
         FROM coupon c
         join user_coupon uc on c.coupon_id = uc.coupon_id
 

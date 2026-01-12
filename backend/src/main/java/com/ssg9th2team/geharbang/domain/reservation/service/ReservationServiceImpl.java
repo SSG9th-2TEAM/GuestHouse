@@ -5,6 +5,11 @@ import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.Accommodati
 import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.coupon.entity.Coupon;
+import com.ssg9th2team.geharbang.domain.coupon.entity.UserCoupon;
+import com.ssg9th2team.geharbang.domain.coupon.entity.UserCouponStatus;
+import com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponJpaRepository;
+import com.ssg9th2team.geharbang.domain.coupon.repository.jpa.UserCouponJpaRepository;
 import com.ssg9th2team.geharbang.domain.payment.entity.Payment;
 import com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository;
 import com.ssg9th2team.geharbang.domain.payment.service.PaymentService;
@@ -47,6 +52,8 @@ public class ReservationServiceImpl implements ReservationService {
         private final PaymentJpaRepository paymentRepository;
         private final WaitlistService waitlistService;
         private final RealtimeChatRoomRepository realtimeChatRoomRepository;
+        private final UserCouponJpaRepository userCouponJpaRepository;
+        private final CouponJpaRepository couponJpaRepository;
 
         @Override
         @DistributedLock(key = "'reservation:room:' + #requestDto.roomId() + ':date:' + #requestDto.checkin().toString().substring(0,10)")
@@ -101,13 +108,44 @@ public class ReservationServiceImpl implements ReservationService {
                                 checkinDateTime.toLocalDate(),
                                 checkoutDateTime.toLocalDate());
 
-                // 쿠폰 할인액 (요청에서 받거나 0)
-                int couponDiscount = requestDto.couponDiscountAmount() != null
-                                ? requestDto.couponDiscountAmount()
-                                : 0;
+                // 쿠폰 할인액 (서버에서 검증/계산)
+                int couponDiscount = 0;
+                if (requestDto.userCouponId() != null) {
+                        UserCoupon userCoupon = userCouponJpaRepository.findById(requestDto.userCouponId())
+                                        .orElseThrow(() -> new IllegalArgumentException("쿠폰을 찾을 수 없습니다."));
+
+                        if (!userCoupon.getUserId().equals(userId)) {
+                                throw new IllegalArgumentException("본인의 쿠폰만 사용할 수 있습니다.");
+                        }
+
+                        if (userCoupon.getStatus() != UserCouponStatus.ISSUED) {
+                                throw new IllegalArgumentException("사용할 수 없는 쿠폰입니다.");
+                        }
+
+                        if (userCoupon.getExpiredAt() != null
+                                        && userCoupon.getExpiredAt().isBefore(LocalDateTime.now())) {
+                                throw new IllegalArgumentException("만료된 쿠폰입니다.");
+                        }
+
+                        Coupon coupon = couponJpaRepository.findById(userCoupon.getCouponId())
+                                        .orElseThrow(() -> new IllegalArgumentException("쿠폰 정보를 찾을 수 없습니다."));
+
+                        Integer minPrice = coupon.getMinPrice();
+                        if (minPrice != null && requestDto.totalAmount() < minPrice) {
+                                throw new IllegalArgumentException("최소 결제 금액을 충족하지 못했습니다.");
+                        }
+
+                        if (coupon.getAccommodation() != null
+                                        && !coupon.getAccommodation().getAccommodationsId()
+                                                        .equals(requestDto.accommodationsId())) {
+                                throw new IllegalArgumentException("해당 숙소 전용 쿠폰입니다.");
+                        }
+
+                        couponDiscount = calculateCouponDiscount(coupon, requestDto.totalAmount());
+                }
 
                 // 최종 결제 금액 계산
-                int finalAmount = requestDto.totalAmount() - couponDiscount;
+                int finalAmount = Math.max(0, requestDto.totalAmount() - couponDiscount);
 
                 Reservation reservation = Reservation.builder()
                                 .accommodationsId(requestDto.accommodationsId())
@@ -167,6 +205,20 @@ public class ReservationServiceImpl implements ReservationService {
                                         reservation.getId(), e);
                         // 필요시 알림 서비스 호출
                 }
+        }
+
+        private int calculateCouponDiscount(Coupon coupon, int totalAmount) {
+                if (coupon == null || coupon.getDiscountValue() == null) {
+                        return 0;
+                }
+
+                if ("PERCENT".equalsIgnoreCase(coupon.getDiscountType())) {
+                        int discount = (int) Math.floor(totalAmount * (coupon.getDiscountValue() / 100.0));
+                        Integer maxDiscount = coupon.getMaxDiscount();
+                        return maxDiscount != null ? Math.min(discount, maxDiscount) : discount;
+                }
+
+                return coupon.getDiscountValue();
         }
 
         @Override

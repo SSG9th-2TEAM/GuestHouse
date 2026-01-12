@@ -15,6 +15,8 @@ import com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJp
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +39,7 @@ public class UserCouponServiceImpl implements UserCouponService {
     private final ReservationJpaRepository reservationJpaRepository;
     private final ReviewJpaRepository reviewJpaRepository;
     private final StringRedisTemplate redisTemplate;
+    private final CacheManager cacheManager;
     
     private static final String COUPON_ISSUED_KEY_PREFIX = "coupon:issued:";
 
@@ -156,6 +159,7 @@ public class UserCouponServiceImpl implements UserCouponService {
         // 3. UserCoupon 생성 및 저장
         UserCoupon userCoupon = UserCoupon.issue(userId, coupon.getCouponId(), expiresAt);
         userCouponJpaRepository.save(userCoupon);
+        evictUserCouponCache(userId, "ISSUED");
 
         return CouponIssueResult.SUCCESS;
     }
@@ -227,6 +231,16 @@ public class UserCouponServiceImpl implements UserCouponService {
         else {
             userCoupon.expire();
         }
+    }
+
+
+    // 새로운 쿠폰 발급시 캐시 무효화 후 새로운 캐시
+    private void evictUserCouponCache(Long userId, String status) {
+        Cache cache = cacheManager.getCache("userCoupons");
+        if (cache == null) {
+            return;
+        }
+        cache.evict(userId + "_" + status);
     }
 
 
