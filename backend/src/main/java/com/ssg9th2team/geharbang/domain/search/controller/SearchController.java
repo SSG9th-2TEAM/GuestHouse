@@ -40,6 +40,7 @@ public class SearchController {
             @RequestParam(name = "guestCount", required = false) Integer guestCount,
             @RequestParam(name = "minPrice", required = false) Integer minPrice,
             @RequestParam(name = "maxPrice", required = false) Integer maxPrice,
+            @RequestParam(name = "includeUnavailable", defaultValue = "false") boolean includeUnavailable,
             @RequestParam(name = "sort", required = false) String sort) {
         // 체크인/체크아웃 날짜 검증
         if (checkin != null && checkout != null && !checkout.isAfter(checkin)) {
@@ -61,6 +62,7 @@ public class SearchController {
                 guestCount,
                 minPrice,
                 maxPrice,
+                includeUnavailable,
                 sort);
     }
 

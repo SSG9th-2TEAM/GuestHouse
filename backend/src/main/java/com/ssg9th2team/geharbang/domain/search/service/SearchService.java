@@ -22,6 +22,7 @@ public interface SearchService {
             Integer guestCount,
             Integer minPrice,
             Integer maxPrice,
+            boolean includeUnavailable,
             String sort);
 
     List<SearchSuggestionResponse> suggestPublicSearch(String keyword, int limit);

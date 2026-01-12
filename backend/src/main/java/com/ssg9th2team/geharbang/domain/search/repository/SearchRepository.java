@@ -57,6 +57,11 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             WITH room_stats AS (
                 SELECT accommodations_id,
                        MAX(max_guests) AS maxGuests,
+                       COUNT(*) AS activeRoomCount,
+                       MAX(CASE
+                               WHEN COALESCE(max_guests, 0) > 0 THEN 1
+                               ELSE 0
+                           END) AS hasValidMaxGuests,
                        MAX(CASE
                                WHEN COALESCE(max_guests, 0) >= :guestCount THEN 1
                                ELSE 0
@@ -80,6 +85,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                        a.rating,
                        a.review_count,
                        COALESCE(rs.maxGuests, 0) AS maxGuests,
+                       COALESCE(rs.activeRoomCount, 0) AS activeRoomCount,
+                       COALESCE(rs.hasValidMaxGuests, 0) AS hasValidMaxGuests,
                        COALESCE(rs.hasGuestCapacity, 0) AS hasGuestCapacity,
                        CASE
                            WHEN (:guestCount IS NULL OR :guestCount < 2)
@@ -113,13 +120,20 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
              AND ai.image_type = 'banner'
             WHERE (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', pa.accommodations_name, pa.city, pa.district, pa.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
-              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
+              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1
+                   OR (:includeUnavailable = true
+                       AND (pa.activeRoomCount = 0 OR pa.hasValidMaxGuests = 0)))
               AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
 
             """, countQuery = """
             WITH room_stats AS (
                 SELECT accommodations_id,
+                       COUNT(*) AS activeRoomCount,
+                       MAX(CASE
+                               WHEN COALESCE(max_guests, 0) > 0 THEN 1
+                               ELSE 0
+                           END) AS hasValidMaxGuests,
                        MAX(CASE
                                WHEN COALESCE(max_guests, 0) >= :guestCount THEN 1
                                ELSE 0
@@ -137,6 +151,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                        a.city,
                        a.district,
                        a.township,
+                       COALESCE(rs.activeRoomCount, 0) AS activeRoomCount,
+                       COALESCE(rs.hasValidMaxGuests, 0) AS hasValidMaxGuests,
                        COALESCE(rs.hasGuestCapacity, 0) AS hasGuestCapacity,
                        CASE
                            WHEN (:guestCount IS NULL OR :guestCount < 2)
@@ -152,7 +168,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             FROM priced_accommodations pa
             WHERE (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', pa.accommodations_name, pa.city, pa.district, pa.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
-              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
+              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1
+                   OR (:includeUnavailable = true
+                       AND (pa.activeRoomCount = 0 OR pa.hasValidMaxGuests = 0)))
               AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
             """, nativeQuery = true)
@@ -161,6 +179,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("guestCount") Integer guestCount,
             @Param("minPrice") Integer minPrice,
             @Param("maxPrice") Integer maxPrice,
+            @Param("includeUnavailable") boolean includeUnavailable,
             Pageable pageable);
 
     @Query(value = """
@@ -244,7 +263,13 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
              AND ai.sort_order = 0
              AND ai.image_type = 'banner'
             LEFT JOIN (
-                SELECT accommodations_id, MAX(max_guests) AS maxGuests
+                SELECT accommodations_id,
+                       MAX(max_guests) AS maxGuests,
+                       COUNT(*) AS activeRoomCount,
+                       MAX(CASE
+                               WHEN COALESCE(max_guests, 0) > 0 THEN 1
+                               ELSE 0
+                           END) AS hasValidMaxGuests
                 FROM room
                 WHERE room_status = 1
                 GROUP BY accommodations_id
@@ -259,13 +284,19 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       SELECT 1
                       FROM room_candidates rc
                       WHERE rc.accommodations_id = a.accommodations_id
-                   ))
+                   )
+                   OR (:includeUnavailable = true
+                       AND (COALESCE(rmax.activeRoomCount, 0) = 0
+                            OR COALESCE(rmax.hasValidMaxGuests, 0) = 0)))
               AND (:checkin IS NULL OR :checkout IS NULL
                    OR EXISTS (
                       SELECT 1
                       FROM available_rooms ar
                       WHERE ar.accommodations_id = a.accommodations_id
-                   ))
+                   )
+                   OR (:includeUnavailable = true
+                       AND (COALESCE(rmax.activeRoomCount, 0) = 0
+                            OR COALESCE(rmax.hasValidMaxGuests, 0) = 0)))
               AND (:minPrice IS NULL OR
                    (CASE
                        WHEN (:checkin IS NULL OR :checkout IS NULL)
@@ -339,6 +370,17 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             SELECT COUNT(*)
             FROM accommodation a
             LEFT JOIN min_prices mp ON mp.accommodations_id = a.accommodations_id
+            LEFT JOIN (
+                SELECT accommodations_id,
+                       COUNT(*) AS activeRoomCount,
+                       MAX(CASE
+                               WHEN COALESCE(max_guests, 0) > 0 THEN 1
+                               ELSE 0
+                           END) AS hasValidMaxGuests
+                FROM room
+                WHERE room_status = 1
+                GROUP BY accommodations_id
+            ) rmax ON rmax.accommodations_id = a.accommodations_id
             WHERE a.accommodation_status = 1
               AND a.approval_status = 'APPROVED'
               AND (:keyword IS NULL OR :keyword = ''
@@ -348,13 +390,19 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                       SELECT 1
                       FROM room_candidates rc
                       WHERE rc.accommodations_id = a.accommodations_id
-                   ))
+                   )
+                   OR (:includeUnavailable = true
+                       AND (COALESCE(rmax.activeRoomCount, 0) = 0
+                            OR COALESCE(rmax.hasValidMaxGuests, 0) = 0)))
               AND (:checkin IS NULL OR :checkout IS NULL
                    OR EXISTS (
                       SELECT 1
                       FROM available_rooms ar
                       WHERE ar.accommodations_id = a.accommodations_id
-                   ))
+                   )
+                   OR (:includeUnavailable = true
+                       AND (COALESCE(rmax.activeRoomCount, 0) = 0
+                            OR COALESCE(rmax.hasValidMaxGuests, 0) = 0)))
                AND (:minPrice IS NULL OR
                     (CASE
                         WHEN (:checkin IS NULL OR :checkout IS NULL)
@@ -377,12 +425,18 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("guestCount") Integer guestCount,
             @Param("minPrice") Integer minPrice,
             @Param("maxPrice") Integer maxPrice,
+            @Param("includeUnavailable") boolean includeUnavailable,
             Pageable pageable);
 
     @Query(value = """
             WITH room_stats AS (
                 SELECT accommodations_id,
                        MAX(max_guests) AS maxGuests,
+                       COUNT(*) AS activeRoomCount,
+                       MAX(CASE
+                               WHEN COALESCE(max_guests, 0) > 0 THEN 1
+                               ELSE 0
+                           END) AS hasValidMaxGuests,
                        MAX(CASE
                                WHEN COALESCE(max_guests, 0) >= :guestCount THEN 1
                                ELSE 0
@@ -406,6 +460,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                        a.rating,
                        a.review_count,
                        COALESCE(rs.maxGuests, 0) AS maxGuests,
+                       COALESCE(rs.activeRoomCount, 0) AS activeRoomCount,
+                       COALESCE(rs.hasValidMaxGuests, 0) AS hasValidMaxGuests,
                        COALESCE(rs.hasGuestCapacity, 0) AS hasGuestCapacity,
                        CASE
                            WHEN (:guestCount IS NULL OR :guestCount < 2)
@@ -441,13 +497,20 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
              AND ai.image_type = 'banner'
             WHERE (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', pa.accommodations_name, pa.city, pa.district, pa.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
-              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
+              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1
+                   OR (:includeUnavailable = true
+                       AND (pa.activeRoomCount = 0 OR pa.hasValidMaxGuests = 0)))
               AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
 
             """, countQuery = """
             WITH room_stats AS (
                 SELECT accommodations_id,
+                       COUNT(*) AS activeRoomCount,
+                       MAX(CASE
+                               WHEN COALESCE(max_guests, 0) > 0 THEN 1
+                               ELSE 0
+                           END) AS hasValidMaxGuests,
                        MAX(CASE
                                WHEN COALESCE(max_guests, 0) >= :guestCount THEN 1
                                ELSE 0
@@ -465,6 +528,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                        a.city,
                        a.district,
                        a.township,
+                       COALESCE(rs.activeRoomCount, 0) AS activeRoomCount,
+                       COALESCE(rs.hasValidMaxGuests, 0) AS hasValidMaxGuests,
                        COALESCE(rs.hasGuestCapacity, 0) AS hasGuestCapacity,
                        CASE
                            WHEN (:guestCount IS NULL OR :guestCount < 2)
@@ -482,7 +547,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             FROM priced_accommodations pa
             WHERE (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', pa.accommodations_name, pa.city, pa.district, pa.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
-              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
+              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1
+                   OR (:includeUnavailable = true
+                       AND (pa.activeRoomCount = 0 OR pa.hasValidMaxGuests = 0)))
               AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
             """, nativeQuery = true)
@@ -492,6 +559,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("guestCount") Integer guestCount,
             @Param("minPrice") Integer minPrice,
             @Param("maxPrice") Integer maxPrice,
+            @Param("includeUnavailable") boolean includeUnavailable,
             Pageable pageable);
 
     @Query(value = """
@@ -579,13 +647,45 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                           SELECT 1
                           FROM room_candidates rc
                           WHERE rc.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
                   AND (:checkin IS NULL OR :checkout IS NULL
                        OR EXISTS (
                           SELECT 1
                           FROM available_rooms ar
                           WHERE ar.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
             )
             SELECT
                 pa.accommodations_id AS accommodationsId,
@@ -696,13 +796,45 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                           SELECT 1
                           FROM room_candidates rc
                           WHERE rc.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
                   AND (:checkin IS NULL OR :checkout IS NULL
                        OR EXISTS (
                           SELECT 1
                           FROM available_rooms ar
                           WHERE ar.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
             )
             SELECT COUNT(*)
             FROM priced_accommodations pa
@@ -717,12 +849,18 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("guestCount") Integer guestCount,
             @Param("minPrice") Integer minPrice,
             @Param("maxPrice") Integer maxPrice,
+            @Param("includeUnavailable") boolean includeUnavailable,
             Pageable pageable);
 
     @Query(value = """
             WITH room_stats AS (
                 SELECT accommodations_id,
                        MAX(max_guests) AS maxGuests,
+                       COUNT(*) AS activeRoomCount,
+                       MAX(CASE
+                               WHEN COALESCE(max_guests, 0) > 0 THEN 1
+                               ELSE 0
+                           END) AS hasValidMaxGuests,
                        MAX(CASE
                                WHEN COALESCE(max_guests, 0) >= :guestCount THEN 1
                                ELSE 0
@@ -746,6 +884,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                        a.rating,
                        a.review_count,
                        COALESCE(rs.maxGuests, 0) AS maxGuests,
+                       COALESCE(rs.activeRoomCount, 0) AS activeRoomCount,
+                       COALESCE(rs.hasValidMaxGuests, 0) AS hasValidMaxGuests,
                        COALESCE(rs.hasGuestCapacity, 0) AS hasGuestCapacity,
                        CASE
                            WHEN (:guestCount IS NULL OR :guestCount < 2)
@@ -783,7 +923,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
              AND ai.image_type = 'banner'
             WHERE (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', pa.accommodations_name, pa.city, pa.district, pa.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
-              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
+                AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1
+                     OR (:includeUnavailable = true
+                         AND (pa.activeRoomCount = 0 OR pa.hasValidMaxGuests = 0)))
               AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
 
@@ -791,6 +933,11 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             WITH room_stats AS (
                 SELECT accommodations_id,
                        MAX(max_guests) AS maxGuests,
+                       COUNT(*) AS activeRoomCount,
+                       MAX(CASE
+                               WHEN COALESCE(max_guests, 0) > 0 THEN 1
+                               ELSE 0
+                           END) AS hasValidMaxGuests,
                        MAX(CASE
                                WHEN COALESCE(max_guests, 0) >= :guestCount THEN 1
                                ELSE 0
@@ -808,6 +955,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                        a.city,
                        a.district,
                        a.township,
+                       COALESCE(rs.activeRoomCount, 0) AS activeRoomCount,
+                       COALESCE(rs.hasValidMaxGuests, 0) AS hasValidMaxGuests,
                        COALESCE(rs.hasGuestCapacity, 0) AS hasGuestCapacity,
                        CASE
                            WHEN (:guestCount IS NULL OR :guestCount < 2)
@@ -827,7 +976,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             FROM priced_accommodations pa
             WHERE (:keyword IS NULL OR :keyword = ''
                    OR LOWER(CONCAT_WS(' ', pa.accommodations_name, pa.city, pa.district, pa.township)) LIKE CONCAT('%', LOWER(:keyword), '%'))
-              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
+              AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1
+                   OR (:includeUnavailable = true
+                       AND (pa.activeRoomCount = 0 OR pa.hasValidMaxGuests = 0)))
               AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
               AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
             """, nativeQuery = true)
@@ -840,6 +991,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("guestCount") Integer guestCount,
             @Param("minPrice") Integer minPrice,
             @Param("maxPrice") Integer maxPrice,
+            @Param("includeUnavailable") boolean includeUnavailable,
             Pageable pageable);
 
     @Query(value = """
@@ -929,13 +1081,45 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                           SELECT 1
                           FROM room_candidates rc
                           WHERE rc.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
                   AND (:checkin IS NULL OR :checkout IS NULL
                        OR EXISTS (
                           SELECT 1
                           FROM available_rooms ar
                           WHERE ar.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
             )
             SELECT
                 pa.accommodations_id AS accommodationsId,
@@ -1048,13 +1232,45 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                           SELECT 1
                           FROM room_candidates rc
                           WHERE rc.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
                   AND (:checkin IS NULL OR :checkout IS NULL
                        OR EXISTS (
                           SELECT 1
                           FROM available_rooms ar
                           WHERE ar.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
             )
             SELECT COUNT(*)
             FROM priced_accommodations pa
@@ -1072,6 +1288,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("guestCount") Integer guestCount,
             @Param("minPrice") Integer minPrice,
             @Param("maxPrice") Integer maxPrice,
+            @Param("includeUnavailable") boolean includeUnavailable,
             Pageable pageable);
 
     @Query(value = """
@@ -1080,6 +1297,11 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             AS (
                     SELECT accommodations_id,
                            MAX(max_guests) AS maxGuests,
+                           COUNT(*) AS activeRoomCount,
+                           MAX(CASE
+                                   WHEN COALESCE(max_guests, 0) > 0 THEN 1
+                                   ELSE 0
+                               END) AS hasValidMaxGuests,
 
             MAX(CASE
                                    WHEN COALESCE(max_guests, 0) >= :guestCount THEN 1
@@ -1106,6 +1328,8 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                            a.rating,
                            a.review_count,
                            COALESCE(rs.maxGuests, 0) AS maxGuests,
+                           COALESCE(rs.activeRoomCount, 0) AS activeRoomCount,
+                           COALESCE(rs.hasValidMaxGuests, 0) AS hasValidMaxGuests,
                            COALESCE(rs.hasGuestCapacity, 0) AS hasGuestCapacity,
                            CASE
                                WHEN (:guestCount IS NULL OR :guestCount < 2)
@@ -1151,7 +1375,9 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             OR LOWER(CONCAT_WS(' ', pa.accommodations_name, pa.city, pa.district, pa.township))
 
             LIKE CONCAT('%', LOWER(:keyword), '%'))
-                  AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1)
+                  AND (:guestCount IS NULL OR :guestCount = 0 OR pa.hasGuestCapacity = 1
+                       OR (:includeUnavailable = true
+                           AND (pa.activeRoomCount = 0 OR pa.hasValidMaxGuests = 0)))
                   AND (:minPrice IS NULL OR pa.effective_price >= :minPrice)
                   AND (:maxPrice IS NULL OR pa.effective_price <= :maxPrice)
 
@@ -1159,6 +1385,11 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                 WITH room_stats AS (
                     SELECT accommodations_id,
                            MAX(max_guests) AS maxGuests,
+                           COUNT(*) AS activeRoomCount,
+                           MAX(CASE
+                                   WHEN COALESCE(max_guests, 0) > 0 THEN 1
+                                   ELSE 0
+                               END) AS hasValidMaxGuests,
 
             MAX(CASE
                                    WHEN COALESCE(max_guests, 0) >= :guestCount THEN 1
@@ -1222,6 +1453,7 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("guestCount") Integer guestCount,
             @Param("minPrice") Integer minPrice,
             @Param("maxPrice") Integer maxPrice,
+            @Param("includeUnavailable") boolean includeUnavailable,
             Pageable pageable);
 
     @Query(value = """
@@ -1313,13 +1545,45 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                           SELECT 1
                           FROM room_candidates rc
                           WHERE rc.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
                   AND (:checkin IS NULL OR :checkout IS NULL
                        OR EXISTS (
                           SELECT 1
                           FROM available_rooms ar
                           WHERE ar.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
             )
             SELECT
                 pa.accommodations_id AS accommodationsId,
@@ -1434,13 +1698,45 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
                           SELECT 1
                           FROM room_candidates rc
                           WHERE rc.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
                   AND (:checkin IS NULL OR :checkout IS NULL
                        OR EXISTS (
                           SELECT 1
                           FROM available_rooms ar
                           WHERE ar.accommodations_id = a.accommodations_id
-                       ))
+                       )
+                       OR (:includeUnavailable = true
+                           AND (
+                               NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                               )
+                               OR NOT EXISTS (
+                                   SELECT 1
+                                   FROM room r
+                                   WHERE r.accommodations_id = a.accommodations_id
+                                     AND r.room_status = 1
+                                     AND COALESCE(r.max_guests, 0) > 0
+                               )
+                           )))
             )
             SELECT COUNT(*)
             FROM priced_accommodations pa
@@ -1459,5 +1755,6 @@ public interface SearchRepository extends JpaRepository<Accommodation, Long> {
             @Param("guestCount") Integer guestCount,
             @Param("minPrice") Integer minPrice,
             @Param("maxPrice") Integer maxPrice,
+            @Param("includeUnavailable") boolean includeUnavailable,
             Pageable pageable);
 }

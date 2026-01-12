@@ -41,6 +41,7 @@ public class SearchServiceImpl implements SearchService {
             Integer guestCount,
             Integer minPrice,
             Integer maxPrice,
+            boolean includeUnavailable,
             String sort) {
         Sort sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
         if (sort != null && !sort.isEmpty()) {
@@ -99,6 +100,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else if (hasThemes) {
                 resultPage = searchRepository.searchPublicListByTheme(
@@ -109,6 +111,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else if (hasBounds) {
                 resultPage = searchRepository.searchPublicListByBounds(
@@ -122,6 +125,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else {
                 resultPage = searchRepository.searchPublicList(
@@ -131,6 +135,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             }
         } else {
@@ -145,6 +150,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else if (hasThemes) {
                 resultPage = searchRepository.searchPublicListByThemeNoDates(
@@ -153,6 +159,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else if (hasBounds) {
                 resultPage = searchRepository.searchPublicListByBoundsNoDates(
@@ -164,6 +171,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else {
                 resultPage = searchRepository.searchPublicListNoDates(
@@ -171,6 +179,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             }
         }
