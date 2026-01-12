@@ -187,10 +187,6 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.carousel-slide.clickable:hover .banner-image {
-  opacity: 0.9;
-  transition: opacity 0.3s ease;
-}
 
 /* 텍스트 오버레이 스타일 */
 .banner-overlay {

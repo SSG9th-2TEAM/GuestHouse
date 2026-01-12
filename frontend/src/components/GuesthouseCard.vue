@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { computed } from 'vue'
-import heartActiveIcon from '@/assets/icons/heart-active.png'
-import heartInactiveIcon from '@/assets/icons/heart-inactive.png'
+import heartActiveIcon from '@/assets/wishlist1.png'
+import heartInactiveIcon from '@/assets/wishlist2.png'
 
 const props = defineProps({
   id: [Number, String],
@@ -71,7 +71,6 @@ const emit = defineEmits(['toggle-favorite'])
           :src="isFavorite ? heartActiveIcon : heartInactiveIcon" 
           :alt="isFavorite ? '찜한 숙소' : '찜하기'" 
           class="heart-icon"
-          :class="{ 'is-active': isFavorite }"
         />
       </button>
     </div>
@@ -157,6 +156,7 @@ const emit = defineEmits(['toggle-favorite'])
   transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   padding: 0;
   z-index: 2;
+  color: #9ca3af;
 }
 
 .favorite-btn:hover {
@@ -169,14 +169,18 @@ const emit = defineEmits(['toggle-favorite'])
 }
 
 .heart-icon {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   object-fit: contain;
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .favorite-btn.active .heart-icon {
   transform: scale(1.1);
+}
+
+.favorite-btn.active {
+  color: #ef4444;
 }
 
 .inactive-badge {
