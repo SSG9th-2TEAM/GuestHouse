@@ -1,5 +1,7 @@
 ﻿<script setup>
 import { computed } from 'vue'
+import heartActiveIcon from '@/assets/wishlist1.png'
+import heartInactiveIcon from '@/assets/wishlist2.png'
 
 const props = defineProps({
   id: [Number, String],
@@ -65,8 +67,11 @@ const emit = defineEmits(['toggle-favorite'])
         @click.stop="$emit('toggle-favorite', id)"
         aria-label="위시리스트 추가"
       >
-        <span v-if="isFavorite">&#9829;</span>
-        <span v-else>&#9825;</span>
+        <img 
+          :src="isFavorite ? heartActiveIcon : heartInactiveIcon" 
+          :alt="isFavorite ? '찜한 숙소' : '찜하기'" 
+          class="heart-icon"
+        />
       </button>
     </div>
     <div class="card-content">
@@ -138,26 +143,44 @@ const emit = defineEmits(['toggle-favorite'])
   position: absolute;
   top: 10px;
   right: 10px;
-  background: rgba(255, 255, 255, 0.95);
+  background: white;
   border-radius: 50%;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
   cursor: pointer;
-  border: 1px solid rgba(148, 163, 184, 0.4);
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  padding: 0;
+  z-index: 2;
   color: #9ca3af;
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1);
-  transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
+}
+
+.favorite-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.favorite-btn:active {
+  transform: scale(0.9);
+}
+
+.heart-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.favorite-btn.active .heart-icon {
+  transform: scale(1.1);
 }
 
 .favorite-btn.active {
   color: #ef4444;
-  background: rgba(254, 242, 242, 0.95);
-  border-color: rgba(248, 113, 113, 0.5);
-  box-shadow: 0 3px 12px rgba(248, 113, 113, 0.2);
 }
 
 .inactive-badge {
@@ -176,14 +199,8 @@ const emit = defineEmits(['toggle-favorite'])
   opacity: 0.6;
 }
 
-.favorite-btn:active {
-  transform: scale(0.9);
-}
-
-.favorite-btn:not(.active):hover {
-  color: #ef4444;
-  background: rgba(255, 255, 255, 1);
-  border-color: rgba(248, 113, 113, 0.4);
+.favorite-btn:not(.active):hover .heart-icon {
+  transform: scale(1.1);
 }
 
 .card-content {
