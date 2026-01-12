@@ -2,6 +2,7 @@ package com.ssg9th2team.geharbang.global.config;
 
 import com.ssg9th2team.geharbang.domain.admin.support.AdminIdArgumentResolver;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value; // 이거 꼭 추가해야 합니다!
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -15,23 +16,25 @@ public class WebConfig implements WebMvcConfigurer {
 
     private final AdminIdArgumentResolver adminIdArgumentResolver;
 
+    // ▼▼▼ [핵심 수정] 설정 파일에서 변수 가져오기 (없으면 기본값 localhost 사용) ▼▼▼
+    @Value("${env.oauth2-frontend-base-url:http://localhost:5173}")
+    private String frontendUrl;
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
                 .allowedOrigins(
-                        "http://localhost:3000",      // 로컬 프론트엔드 (React 기본)
-                        "http://localhost:5173",      // 로컬 프론트엔드 (Vite 기본)
+                        "http://localhost:3000",      // 로컬 React
+                        "http://localhost:5173",      // 로컬 Vite
                         "http://localhost:8080",      // 로컬 백엔드
                         "http://127.0.0.1:5173",
                         "http://127.0.0.1:8080",
-                        // ▼▼▼ [여기부터 추가된 부분] ▼▼▼
-                        "http://49.50.138.206",       // 배포된 프론트엔드 (포트 80)
-                        "http://49.50.138.206:8081",  // 관리자 서버 자기 자신
-                        "http://49.50.138.206:3000",  // 배포된 프론트엔드 (혹시 3000번 쓴다면)
-                        "http://49.50.138.206:5173"   // 배포된 프론트엔드 (혹시 5173번 쓴다면)
+                        // ▼▼▼ [하드코딩 제거됨] 변수로 대체 ▼▼▼
+                        frontendUrl,                  // 예: http://49.50.138.206:8081
+                        frontendUrl + ":8081"         // 혹시 모를 포트 중복 대비
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowCredentials(true); // 쿠키/인증정보 포함 허용
+                .allowCredentials(true);
     }
 
     @Override
