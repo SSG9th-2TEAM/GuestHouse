@@ -701,7 +701,9 @@ watch(
   border: 1px solid #ddd;
   border-radius: 20px;
   background: white;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-main);
   cursor: pointer;
   transition: background-color 0.2s;
   display: flex;
@@ -848,6 +850,7 @@ watch(
 .empty-title {
   font-size: 1.25rem;
   font-weight: 700;
+  font-family: 'NanumSquareRound', sans-serif;
   color: var(--text-main, #1f2937);
   margin: 0 0 0.75rem 0;
   word-break: keep-all;
