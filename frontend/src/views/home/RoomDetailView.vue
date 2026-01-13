@@ -140,6 +140,7 @@ const normalizeRooms = (rooms, fallbackPrice) => {
         introduction: room?.roomIntroduction ?? '',
         description: room?.roomDescription ?? room?.description ?? '',
         capacity: toNumber(room?.maxGuests ?? room?.capacity ?? 0, 0),
+        minGuests: toNumber(room?.minGuests ?? 1, 1),
         price,
         available,
         imageUrl,
@@ -276,8 +277,8 @@ const totalPrice = computed(() => {
   if (!selectedRoom.value) return 0
   let price = selectedRoom.value.price * stayNights.value
   
-  const category = (guesthouse.value.category || '').toUpperCase()
-  if (category === 'GUESTHOUSE' || category === '게스트하우스') {
+  // minGuests가 1인 경우 (게스트하우스 도미토리 등) 인원수 비례 요금 적용
+  if (selectedRoom.value.minGuests === 1) {
     const count = Number(searchStore.guestCount)
     price *= Math.max(1, Number.isFinite(count) ? count : 1)
   }
@@ -1221,7 +1222,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   gap: 1rem;
 }
 .picker-field { flex: 1; }
-.picker-field label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 0.5rem; }
+.picker-field label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 0.5rem; font-family: 'NanumSquareRound', sans-serif !important; }
 .date-display, .guest-control {
   border: 1px solid #ddd;
   padding: 0 0.8rem;
@@ -1293,8 +1294,9 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 .price-amount {
   font-size: 1.2rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text-main);
+  font-family: 'NanumSquareRound', sans-serif !important;
 }
 .price-nights {
   font-size: 0.9rem;
@@ -1306,7 +1308,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   color: #004d40;
   padding: 0.8rem 2rem;
   border-radius: 8px;
-  font-weight: bold;
+  font-weight: 800;
   font-size: 1rem;
   border: none;
   cursor: pointer;
@@ -1315,6 +1317,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-family: 'NanumSquareRound', sans-serif !important;
 }
 .book-btn:disabled {
   background: #ccc;
@@ -1344,8 +1347,10 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   border: none;
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
-  font-weight: 600;
+  font-weight: 800;
   cursor: pointer;
+  font-size: 0.9rem; /* Match parent's font size */
+  font-family: 'NanumSquareRound', sans-serif !important;
 }
 
 @media (max-width: 768px) {
@@ -1429,10 +1434,11 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   border: none;
   padding: 0.4rem 0.8rem;
   border-radius: 8px;
-  font-weight: bold;
+  font-weight: 800;
   font-size: 0.95rem;
   cursor: pointer;
   transition: opacity 0.2s;
+  font-family: 'NanumSquareRound', sans-serif !important;
 }
 .coupon-header-btn:hover {
   opacity: 0.9;

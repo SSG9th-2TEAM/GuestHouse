@@ -187,8 +187,10 @@ const booking = computed(() => {
     stayNights: stayNights,
     guests: guestsText,
     guestCount: guestCount,
-    price: roomPrice * stayNights,
-    pricePerNight: roomPrice,
+    price: (room?.minGuests === 1 ? roomPrice * guestCount : roomPrice) * stayNights,
+    pricePerNight: room?.minGuests === 1 ? roomPrice * guestCount : roomPrice, // Total per night (includes guest count if applicable)
+    basePrice: roomPrice, // Unit price (per person or per room)
+    isPerPerson: room?.minGuests === 1,
     currency: 'KRW'
   }
 })
@@ -375,7 +377,12 @@ const handlePayment = async () => {
           <!-- Price Section -->
           <div class="price-section">
             <div class="price-row">
-              <span>₩{{ booking.pricePerNight.toLocaleString() }} x {{ booking.stayNights }}박</span>
+              <span v-if="booking.isPerPerson">
+                ₩{{ booking.basePrice.toLocaleString() }} × {{ booking.stayNights }}박 × {{ booking.guestCount }}명
+              </span>
+              <span v-else>
+                ₩{{ booking.pricePerNight.toLocaleString() }} x {{ booking.stayNights }}박
+              </span>
               <span>₩{{ booking.price.toLocaleString() }}</span>
             </div>
             <div class="price-row" v-if="selectedCoupon">

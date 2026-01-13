@@ -64,7 +64,11 @@ const resetSuggestions = () => {
   hasSuggestFetched.value = false
 }
 
+const isSelecting = ref(false)
+
 const scheduleSuggestionFetch = (value) => {
+  console.log('[DEBUG] scheduleSuggestionFetch called with:', value, 'isSelecting:', isSelecting.value, 'isSuggestOpen:', isSuggestOpen.value)
+  if (isSelecting.value) return // 선택 중이면 무시
   const keyword = normalizeSuggestKeyword(value)
   if (!isSuggestOpen.value || !keyword) {
     resetSuggestions()
@@ -77,6 +81,7 @@ const scheduleSuggestionFetch = (value) => {
     isSuggestLoading.value = true
     try {
       const response = await fetchSearchSuggestions(keyword, SUGGEST_LIMIT)
+      console.log('[DEBUG] API Fetch executed for:', keyword)
       if (requestId !== suggestRequestId) return
       if (response.ok && Array.isArray(response.data)) {
         suggestions.value = response.data
@@ -98,11 +103,15 @@ const scheduleSuggestionFetch = (value) => {
 }
 
 const openSuggestions = () => {
+  console.log('[DEBUG] openSuggestions called. isSelecting:', isSelecting.value, 'isSuggestOpen:', isSuggestOpen.value)
+  if (isSuggestOpen.value) return // 이미 열려있으면 무시
+  if (isSelecting.value) return
   isSuggestOpen.value = true
   scheduleSuggestionFetch(suggestKeyword.value || searchKeyword.value)
 }
 
 const closeSuggestions = () => {
+  console.log('[DEBUG] closeSuggestions called by:', new Error().stack)
   isSuggestOpen.value = false
   resetSuggestions()
 }
@@ -168,17 +177,28 @@ const buildSearchQuery = () => {
   return query
 }
 
+const handleSuggestionInteract = () => {
+  console.log('[DEBUG] Suggestion interaction started (mousedown/touchstart)')
+  isSelecting.value = true
+}
+
 const selectSuggestion = async (suggestion) => {
+  console.log('[selectSuggestion] Called with:', suggestion)
+  // 선택 시작 플래그 설정
+  isSelecting.value = true
+  
   const val = suggestion?.value
   const type = suggestion?.type
-  if (!val) return
-  
-  // 강제로 포커스 해제하여 가상 키보드 닫기 및 입력 조합 종료
-  if (document.activeElement instanceof HTMLElement) {
-    document.activeElement.blur()
+  if (!val) {
+    isSelecting.value = false
+    return
   }
 
-  // blur로 인해 v-model 값이 롤백되는 것을 방지하기 위해 틱 대기
+  // 즉시 suggestions 닫기
+  isSearchExpanded.value = false
+  closeSuggestions()
+
+  // 모바일의 경우 DOM에서 input이 사라지도록 대기
   await nextTick()
 
   const nextValue = String(val)
@@ -189,13 +209,12 @@ const selectSuggestion = async (suggestion) => {
   suggestKeyword.value = nextValue
   searchStore.setKeyword(nextValue)
   
-  // Ghost Click 방지를 위해 닫기 지연 (mousedown 후 mouseup이 발생할 때까지 리스트 유지)
-  // 비동기 이동 로직 실행 전에 예약하여 무조건 닫히도록 함
-  setTimeout(() => {
-    isSearchExpanded.value = false
-    closeSuggestions()
-  }, 100)
+  // 강제로 포커스 해제하여 가상 키보드 닫기
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
 
+  // 네비게이션
   try {
     if (String(type || '').toUpperCase() === 'ACCOMMODATION') {
       const resolved = await resolveAccommodation(nextValue)
@@ -206,10 +225,14 @@ const selectSuggestion = async (suggestion) => {
     }
 
     const targetPath = isMapContext() ? '/map' : '/list'
-    // 같은 경로 이동 시 NavigationDuplicated 에러가 발생할 수 있으므로 catch 처리
     await router.push({ path: targetPath, query: buildSearchQuery() })
   } catch (error) {
-    // 네비게이션 에러 무시
+    console.error('Navigation error:', error)
+  } finally {
+    // 약간의 지연 후 선택 플래그 해제 (이벤트 루프 처리 대기)
+    setTimeout(() => {
+      isSelecting.value = false
+    }, 500)
   }
 }
 
@@ -234,6 +257,8 @@ const handleSearch = async () => {
 
 // Input Handlers
 const handleInput = (event) => {
+  console.log('[DEBUG] handleInput called. isSelecting:', isSelecting.value)
+  if (isSelecting.value) return
   const value = event?.target?.value ?? ''
   suggestKeyword.value = value
   if (!isSuggestOpen.value) return
@@ -244,11 +269,13 @@ const handleInput = (event) => {
 
 const handleCompositionStart = () => { isComposing.value = true }
 const handleCompositionUpdate = (event) => {
+  if (isSelecting.value) return
   const value = event?.target?.value ?? ''
   suggestKeyword.value = value
   scheduleSuggestionFetch(value)
 }
 const handleCompositionEnd = (event) => {
+  if (isSelecting.value) return
   isComposing.value = false
   const value = event?.target?.value ?? searchKeyword.value
   suggestKeyword.value = value
@@ -284,6 +311,16 @@ const toggleGuestPicker = (e) => {
 
 // Click Outside & Resize
 const handleClickOutside = (e) => {
+  if (isSelecting.value) {
+    console.log('[DEBUG] handleClickOutside ignored due to isSelecting')
+    return
+  }
+  if (e.target.closest('.search-suggestions')) {
+      console.log('[DEBUG] Clicked inside suggestions')
+  } else if (!e.target.closest('.search-keyword-wrapper')) {
+      console.log('[DEBUG] handleClickOutside triggering closeSuggestions. Target:', e.target)
+  }
+  
   if (!e.target.closest('.date-picker-wrapper')) {
     calendarStore.closeCalendar('header')
   }
@@ -353,7 +390,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Expanded Mobile View -->
-    <div class="search-bar-expanded" v-if="isSearchExpanded" @click.stop>
+    <div class="search-bar-expanded" :class="{ 'suggestions-open': canShowSuggestions }" v-if="isSearchExpanded" @click.stop>
       <div class="expanded-close" @click="isSearchExpanded = false">×</div>
       <div class="search-item-full search-keyword-wrapper">
         <label>여행지</label>
@@ -368,31 +405,33 @@ onUnmounted(() => {
           @compositionupdate="handleCompositionUpdate"
           @compositionend="handleCompositionEnd"
         >
-        <div v-if="canShowSuggestions" class="search-suggestions">
-          <div v-if="isSuggestLoading" class="suggestion-loading">검색 중...</div>
-          <template v-else>
-            <button
-              v-for="(suggestion, idx) in suggestions"
-              :key="`${suggestion.type}-${suggestion.value}-${idx}`"
-              type="button"
-              :class="[
-                'search-suggestion',
-                String(suggestion.type || '').toUpperCase() === 'REGION'
-                  ? 'search-suggestion--region'
-                  : 'search-suggestion--accommodation'
-              ]"
-              @mousedown.prevent="selectSuggestion(suggestion)"
+        <div v-if="canShowSuggestions" class="search-suggestions" 
+             @mousedown.capture.prevent="handleSuggestionInteract"
+             @touchstart.capture="handleSuggestionInteract"
+             @click.stop>
+          <button
+            v-for="(suggestion, idx) in suggestions"
+            :key="`${suggestion.type}-${suggestion.value}-${idx}`"
+            type="button"
+            :class="[
+              'search-suggestion',
+              String(suggestion.type || '').toUpperCase() === 'REGION'
+                ? 'search-suggestion--region'
+                : 'search-suggestion--accommodation'
+            ]"
+            @click.stop="selectSuggestion(suggestion)"
+          >
+            <span class="suggestion-text">{{ suggestion.value }}</span>
+            <span
+              class="suggestion-tag"
+              :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
             >
-              <span class="suggestion-text">{{ suggestion.value }}</span>
-              <span
-                class="suggestion-tag"
-                :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
-              >
-                {{ getSuggestionLabel(suggestion.type) }}
-              </span>
-            </button>
-            <div v-if="hasSuggestFetched && !suggestions.length" class="suggestion-empty">검색 결과 없음</div>
-          </template>
+              {{ getSuggestionLabel(suggestion.type) }}
+            </span>
+          </button>
+          
+          <div v-if="isSuggestLoading && suggestions.length === 0" class="suggestion-loading">검색 중...</div>
+          <div v-if="!isSuggestLoading && hasSuggestFetched && !suggestions.length" class="suggestion-empty">검색 결과 없음</div>
         </div>
       </div>
 
@@ -434,31 +473,33 @@ onUnmounted(() => {
           @compositionupdate="handleCompositionUpdate"
           @compositionend="handleCompositionEnd"
         >
-        <div v-if="canShowSuggestions" class="search-suggestions">
-          <div v-if="isSuggestLoading" class="suggestion-loading">검색 중...</div>
-          <template v-else>
-            <button
-              v-for="(suggestion, idx) in suggestions"
-              :key="`${suggestion.type}-${suggestion.value}-${idx}`"
-              type="button"
-              :class="[
-                'search-suggestion',
-                String(suggestion.type || '').toUpperCase() === 'REGION'
-                  ? 'search-suggestion--region'
-                  : 'search-suggestion--accommodation'
-              ]"
-              @mousedown.prevent="selectSuggestion(suggestion)"
+        <div v-if="canShowSuggestions" class="search-suggestions" 
+             @mousedown.capture.prevent="handleSuggestionInteract"
+             @touchstart.capture="handleSuggestionInteract"
+             @click.stop>
+          <button
+            v-for="(suggestion, idx) in suggestions"
+            :key="`${suggestion.type}-${suggestion.value}-${idx}`"
+            type="button"
+            :class="[
+              'search-suggestion',
+              String(suggestion.type || '').toUpperCase() === 'REGION'
+                ? 'search-suggestion--region'
+                : 'search-suggestion--accommodation'
+            ]"
+            @click.stop="selectSuggestion(suggestion)"
+          >
+            <span class="suggestion-text">{{ suggestion.value }}</span>
+            <span
+              class="suggestion-tag"
+              :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
             >
-              <span class="suggestion-text">{{ suggestion.value }}</span>
-              <span
-                class="suggestion-tag"
-                :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
-              >
-                {{ getSuggestionLabel(suggestion.type) }}
-              </span>
-            </button>
-            <div v-if="hasSuggestFetched && !suggestions.length" class="suggestion-empty">검색 결과 없음</div>
-          </template>
+              {{ getSuggestionLabel(suggestion.type) }}
+            </span>
+          </button>
+
+          <div v-if="isSuggestLoading && suggestions.length === 0" class="suggestion-loading">검색 중...</div>
+          <div v-if="!isSuggestLoading && hasSuggestFetched && !suggestions.length" class="suggestion-empty">검색 결과 없음</div>
         </div>
       </div>
 
@@ -554,9 +595,10 @@ onUnmounted(() => {
   border: 1px solid #e5e7eb;
   border-radius: 14px;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
-  z-index: 300;
+  z-index: 99999;
   max-height: 280px;
   overflow-y: auto;
+  pointer-events: auto;
   padding: 6px;
   overscroll-behavior: contain;
   animation: suggestionDrop 0.16s ease-out;
@@ -776,6 +818,12 @@ onUnmounted(() => {
     margin-top: 16px; font-size: 16px; font-weight: 600; gap: 8px;
   }
   .search-btn-full:hover { background-color: #5aaca3; }
+
+  /* suggestions가 열렸을 때 다른 요소들의 클릭 차단 */
+  .search-bar-expanded.suggestions-open > *:not(.search-keyword-wrapper) {
+    pointer-events: none;
+    opacity: 0.5; /* 시각적 피드백 */
+  }
 }
 
 @media (min-width: 769px) {
