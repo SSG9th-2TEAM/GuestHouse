@@ -46,11 +46,17 @@ public class AccommodationDetailDto {
             return null;
         }
 
+        // description이 null이거나 빈 문자열이면 shortDescription을 사용
+        String description = dto.getAccommodationsDescription();
+        if (description == null || description.trim().isEmpty()) {
+            description = dto.getShortDescription();
+        }
+
         return AccommodationDetailDto.builder()
                 .accommodationsId(dto.getAccommodationsId())
                 .accommodationsName(dto.getAccommodationsName())
                 .accommodationsCategory(dto.getAccommodationsCategory())
-                .accommodationsDescription(dto.getAccommodationsDescription())
+                .accommodationsDescription(description)
                 .shortDescription(dto.getShortDescription())
                 .city(dto.getCity())
                 .district(dto.getDistrict())
