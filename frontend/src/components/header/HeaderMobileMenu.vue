@@ -70,8 +70,27 @@ const handleLogout = () => {
   logout()
   isLoggedIn.value = false
   isMenuOpen.value = false
-  // 페이지 새로고침으로 상태 완전 초기화
-  window.location.href = '/'
+  
+  // 공개 페이지 패턴 (로그아웃 후에도 유지 가능한 페이지)
+  const publicPathPatterns = [
+    /^\/$/,           // 메인
+    /^\/list/,        // 리스트
+    /^\/map/,         // 지도
+    /^\/room\//,      // 숙소 상세
+    /^\/events/,      // 이벤트
+    /^\/search/       // 검색
+  ]
+  
+  const currentPath = route.path
+  const isPublicPage = publicPathPatterns.some(pattern => pattern.test(currentPath))
+  
+  if (isPublicPage) {
+    // 공개 페이지면 현재 페이지 새로고침 (상태 초기화)
+    window.location.reload()
+  } else {
+    // 보호된 페이지면 메인으로 이동
+    window.location.href = '/'
+  }
 }
 
 // Click Outside Logic
