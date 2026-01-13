@@ -170,10 +170,20 @@ const buildSearchQuery = () => {
 
 const selectSuggestion = async (suggestion) => {
   if (!suggestion?.value) return
+  
+  // 강제로 포커스 해제하여 가상 키보드 닫기 및 입력 조합 종료
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
+
   const nextValue = String(suggestion.value)
+  
+  // 입력 상태 정리
+  isComposing.value = false
   searchKeyword.value = nextValue
   suggestKeyword.value = nextValue
   searchStore.setKeyword(nextValue)
+
   if (isAccommodationSuggestion(suggestion)) {
     const resolved = await resolveAccommodation(nextValue)
     if (resolved?.accommodationsId) {
@@ -183,8 +193,16 @@ const selectSuggestion = async (suggestion) => {
       return
     }
   }
+
   const targetPath = isMapContext() ? '/map' : '/list'
-  router.push({ path: targetPath, query: buildSearchQuery() })
+  
+  try {
+    // 같은 경로 이동 시 NavigationDuplicated 에러가 발생할 수 있으므로 catch 처리
+    await router.push({ path: targetPath, query: buildSearchQuery() })
+  } catch (error) {
+    // 네비게이션 에러 무시 (이미 해당 페이지에 있거나 이동 중인 경우)
+  }
+
   isSearchExpanded.value = false
   closeSuggestions()
 }
