@@ -403,7 +403,7 @@ const getFullDescription = (room) => {
   text-align: center;
 }
 .full-desc {
-  white-space: pre-wrap; /* ?먮낯 以꾨컮轅??곸슜 */
+  white-space: pre-wrap; /* 원본 줄바꿈 적용 */
   word-break: break-all;
   line-height: 1.6;
   color: #444;
@@ -433,7 +433,7 @@ const getFullDescription = (room) => {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center; /* ?リ린 踰꾪듉 ?곷떒 ?곗륫 ?뺣젹 ?깆쓣 ?꾪빐 */
+  align-items: center; /* 닫기 버튼 상단 우측 정렬 등을 위해 */
 }
 .image-modal-image {
   width: auto;
