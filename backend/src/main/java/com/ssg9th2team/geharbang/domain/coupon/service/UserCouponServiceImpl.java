@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -137,56 +138,86 @@ public class UserCouponServiceImpl implements UserCouponService {
     @Override
     @Transactional
     public CouponIssueResult issueToUser(Long userId, Coupon coupon) {
-        if (!skipDuplicateCheck) {
-            // 1. Redis Set으로 중복 체크 (O(1))
-            String redisKey = COUPON_ISSUED_KEY_PREFIX + coupon.getCouponId();
-            Long addCount = redisTemplate.opsForSet().add(redisKey, userId.toString());
+        Long couponId = coupon.getCouponId();
+        
+        // ✅ 선착순 쿠폰 여부 확인 (CouponInventory 존재 여부)
+        boolean isLimited = couponInventoryRepository.existsByCouponId(couponId);
+        
+        if (isLimited) {
+            // 📌 선착순 쿠폰 → Redis 사용
+            if (!skipDuplicateCheck) {
+                // 1. Redis Set으로 중복 체크 (O(1))
+                String redisKey = COUPON_ISSUED_KEY_PREFIX + couponId;
+                Long addCount = redisTemplate.opsForSet().add(redisKey, userId.toString());
 
-            if (addCount != null && addCount == 0) {
-                // Redis에 이미 존재 → 중복 발급
-                log.debug("쿠폰 {} 중복 발급 차단 - userId: {}", coupon.getCouponId(), userId);
+                if (addCount != null && addCount == 0) {
+                    // Redis에 이미 존재 → 중복 발급
+                    log.debug("쿠폰 {} 중복 발급 차단 - userId: {}", couponId, userId);
+                    return CouponIssueResult.DUPLICATED;
+                }
+
+                if (!asyncEnabled) {
+                    // DB에도 확인 (Redis 장애 대비 이중 체크)
+                    if (userCouponJpaRepository.existsByUserIdAndCouponId(userId, couponId)) {
+                        // Redis에는 없었지만 DB에 있음 → Redis 동기화 필요
+                        log.warn("쿠폰 {} Redis-DB 불일치 감지 - userId: {}", couponId, userId);
+                        // Redis에서 제거 (동기화)
+                        redisTemplate.opsForSet().remove(redisKey, userId.toString());
+                        return CouponIssueResult.DUPLICATED;
+                    }
+                }
+            }
+
+            // 2. 선착순 재고 확인
+            boolean slotAvailable = couponInventoryService.consumeSlotIfLimited(couponId);
+            if (!slotAvailable) {
+                String redisKey = COUPON_ISSUED_KEY_PREFIX + couponId;
+                redisTemplate.opsForSet().remove(redisKey, userId.toString());
+                return CouponIssueResult.SOLD_OUT;
+            }
+
+            // 3. 만료일 계산
+            LocalDateTime expiresAt = coupon.calculateExpiryDate();
+
+            if (asyncEnabled) {
+                // 비동기 큐에 추가
+                boolean enqueued = couponIssueQueueService.enqueueIssue(userId, couponId, expiresAt);
+                if (!enqueued) {
+                    String redisKey = COUPON_ISSUED_KEY_PREFIX + couponId;
+                    redisTemplate.opsForSet().remove(redisKey, userId.toString());
+                    couponInventoryService.restoreRedisSlot(couponId);
+                    return CouponIssueResult.FAILED;
+                }
+                return CouponIssueResult.SUCCESS;
+            }
+
+            // 동기 저장
+            CouponIssueResult result = saveUserCoupon(userId, couponId, expiresAt);
+            if (result == CouponIssueResult.DUPLICATED) {
+                couponInventoryService.restoreRedisSlot(couponId);
+            }
+            return result;
+            
+        } else {
+            // 📌 일반 쿠폰 → DB만 사용 (Redis 사용 안 함)
+            // 1. DB 중복 체크
+            if (userCouponJpaRepository.existsByUserIdAndCouponId(userId, couponId)) {
+                log.debug("쿠폰 {} 중복 발급 차단 (DB) - userId: {}", couponId, userId);
                 return CouponIssueResult.DUPLICATED;
             }
 
-            if (!asyncEnabled) {
-                // DB에도 확인 (Redis 장애 대비 이중 체크)
-                if (userCouponJpaRepository.existsByUserIdAndCouponId(userId, coupon.getCouponId())) {
-                    // Redis에는 없었지만 DB에 있음 → Redis 동기화 필요
-                    log.warn("쿠폰 {} Redis-DB 불일치 감지 - userId: {}", coupon.getCouponId(), userId);
-                    // Redis에서 제거 (동기화)
-                    redisTemplate.opsForSet().remove(redisKey, userId.toString());
-                    return CouponIssueResult.DUPLICATED;
-                }
+            // 2. 만료일 계산
+            LocalDateTime expiresAt = coupon.calculateExpiryDate();
+
+            // 3. DB에 바로 저장 (동기)
+            CouponIssueResult result = saveUserCoupon(userId, couponId, expiresAt);
+            if (result == CouponIssueResult.SUCCESS) {
+                log.debug("일반 쿠폰 {} 발급 성공 - userId: {}", couponId, userId);
             }
+            return result;
         }
-
-        // 2. 선착순 제한 확인
-        boolean slotAvailable = couponInventoryService.consumeSlotIfLimited(coupon.getCouponId());
-        if (!slotAvailable) {
-            return CouponIssueResult.SOLD_OUT;
-        }
-
-        // 2. 만료일 계산 (Coupon 엔티티의 calculateExpiryDate 메서드 사용)
-        LocalDateTime expiresAt = coupon.calculateExpiryDate();
-
-        if (asyncEnabled) {
-            boolean enqueued = couponIssueQueueService.enqueueIssue(userId, coupon.getCouponId(), expiresAt);
-            if (!enqueued) {
-                String redisKey = COUPON_ISSUED_KEY_PREFIX + coupon.getCouponId();
-                redisTemplate.opsForSet().remove(redisKey, userId.toString());
-                couponInventoryService.restoreRedisSlot(coupon.getCouponId());
-                return CouponIssueResult.FAILED;
-            }
-            return CouponIssueResult.SUCCESS;
-        }
-
-        // 3. UserCoupon 생성 및 저장
-        UserCoupon userCoupon = UserCoupon.issue(userId, coupon.getCouponId(), expiresAt);
-        userCouponJpaRepository.save(userCoupon);
-        evictUserCouponCache(userId, "ISSUED");
-
-        return CouponIssueResult.SUCCESS;
     }
+
 
 
 
@@ -271,6 +302,18 @@ public class UserCouponServiceImpl implements UserCouponService {
             return;
         }
         cache.evict(userId + "_" + status);
+    }
+
+    private CouponIssueResult saveUserCoupon(Long userId, Long couponId, LocalDateTime expiresAt) {
+        try {
+            UserCoupon userCoupon = UserCoupon.issue(userId, couponId, expiresAt);
+            userCouponJpaRepository.save(userCoupon);
+            evictUserCouponCache(userId, "ISSUED");
+            return CouponIssueResult.SUCCESS;
+        } catch (DataIntegrityViolationException e) {
+            log.warn("쿠폰 {} 중복 발급 차단 (DB 제약) - userId: {}", couponId, userId);
+            return CouponIssueResult.DUPLICATED;
+        }
     }
 
 
