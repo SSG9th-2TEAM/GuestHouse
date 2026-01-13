@@ -281,13 +281,13 @@ const getFullDescription = (room) => {
   font-size: 0.9rem; 
   margin: 0; 
   line-height: 1.5;
-  word-break: break-all; /* ?쒓?/?곷Ц ?쇱슜 ??以꾨컮轅???泥섎━ */
+  word-break: break-all; /* 한글/영문 혼용 시 줄바꿈 처리 */
   display: -webkit-box;
-  -webkit-line-clamp: 2; /* 2以꾧퉴吏留??쒖떆 */
+  -webkit-line-clamp: 2; /* 2줄까지만 표시 */
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: pre-wrap; /* 以꾨컮轅덉? ?몄떇?섎릺 line-clamp濡??먮쫫 */
+  white-space: pre-wrap; /* 줄바꿈은 인식되되 line-clamp로 자름 */
 }
 .more-desc-btn {
   background: none;
