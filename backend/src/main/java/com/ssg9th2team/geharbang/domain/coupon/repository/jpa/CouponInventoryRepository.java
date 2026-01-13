@@ -43,9 +43,9 @@ public interface CouponInventoryRepository extends JpaRepository<CouponInventory
     Stream<CouponInventory> streamAll();
 
 
-
     @Query("select ci.couponId from CouponInventory ci")
     List<Long> findAllCouponIds();
+
 
     @Modifying(clearAutomatically = true)
     @Query("update CouponInventory ci set ci.availableToday = ci.availableToday - 1 "

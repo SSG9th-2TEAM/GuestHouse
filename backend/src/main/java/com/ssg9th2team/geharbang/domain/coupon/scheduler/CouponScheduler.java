@@ -38,13 +38,13 @@ public class CouponScheduler {
      */
     @Scheduled(cron = "0 0 0 * * *")
     public void expireCoupons() {
-        // 1. 만료된 쿠폰 상태 변경
+        // 1. 만료된 쿠폰 상태 변경 (ISSUED → EXPIRED)
         int expired = userCouponService.expireOverdueCoupons();
-        
-        // 2. 선착순 재고 초기화
+
+        // 2. 선착순 재고 초기화 (50개 → 50개로 리셋)
         int reset = couponInventoryService.resetDailyInventories();
-        
-        // 3. 일일 쿠폰 발급 이력 초기화 (사용자가 다시 발급받을 수 있도록)
+
+        // 3. 일일 쿠폰 발급 이력 초기화 (사용자가 다시 받을 수 있도록)
         int cleared = userCouponService.resetDailyCouponIssuedTracking();
         
         log.info("자정 배치 실행 완료 - 만료: {}, 재고 리셋: {}, 발급 이력 클리어: {}", 
