@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { useCalendarStore } from '@/stores/calendar'
@@ -177,6 +177,9 @@ const selectSuggestion = async (suggestion) => {
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur()
   }
+
+  // blur로 인해 v-model 값이 롤백되는 것을 방지하기 위해 틱 대기
+  await nextTick()
 
   const nextValue = String(val)
   

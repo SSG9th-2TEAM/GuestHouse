@@ -35,6 +35,7 @@ public class RoomServiceImpl implements RoomService {
                 .minGuests(roomCreateDto.getMinGuests())
                 .maxGuests(roomCreateDto.getMaxGuests())
                 .roomDescription(roomCreateDto.getRoomDescription())
+                .roomIntroduction(roomCreateDto.getRoomIntroduction())
                 .mainImageUrl(roomCreateDto.getMainImageUrl())
                 .roomStatus(roomCreateDto.getRoomStatus() != null ? roomCreateDto.getRoomStatus() : 1)
                 .bathroomCount(roomCreateDto.getBathroomCount())
@@ -50,7 +51,6 @@ public class RoomServiceImpl implements RoomService {
         return room.getRoomId();
     }
 
-
     // 객실 수정
     @Override
     @Transactional
@@ -62,6 +62,7 @@ public class RoomServiceImpl implements RoomService {
                 .minGuests(roomUpdateDto.getMinGuests())
                 .maxGuests(roomUpdateDto.getMaxGuests())
                 .roomDescription(roomUpdateDto.getRoomDescription())
+                .roomIntroduction(roomUpdateDto.getRoomIntroduction())
                 .mainImageUrl(roomUpdateDto.getMainImageUrl())
                 .bathroomCount(roomUpdateDto.getBathroomCount())
                 .roomType(roomUpdateDto.getRoomType())
@@ -74,7 +75,6 @@ public class RoomServiceImpl implements RoomService {
         accommodationMapper.updateMinPrice(accommodationsId);
     }
 
-
     // 객실 삭제
     @Override
     @Transactional
@@ -84,10 +84,10 @@ public class RoomServiceImpl implements RoomService {
         LocalDateTime now = LocalDateTime.now();
 
         boolean hasActiveReservation = reservations.stream()
-                        .anyMatch(r -> r.getReservationStatus() == 2 && r.getCheckout().isAfter(now));
+                .anyMatch(r -> r.getReservationStatus() == 2 && r.getCheckout().isAfter(now));
 
         // 아직 체크아웃 안 된 확정 예약이 있다면
-        if(hasActiveReservation) {
+        if (hasActiveReservation) {
             throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다");
         }
 
@@ -103,4 +103,3 @@ public class RoomServiceImpl implements RoomService {
         return roomMapper.selectRoomById(accommodationsId, roomId);
     }
 }
-   

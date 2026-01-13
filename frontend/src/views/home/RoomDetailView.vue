@@ -137,7 +137,8 @@ const normalizeRooms = (rooms, fallbackPrice) => {
       return {
         id: room?.roomId ?? room?.id,
         name: room?.roomName ?? room?.name ?? '',
-        desc: room?.roomDescription ?? room?.description ?? '',
+        introduction: room?.roomIntroduction ?? '',
+        description: room?.roomDescription ?? room?.description ?? '',
         capacity: toNumber(room?.maxGuests ?? room?.capacity ?? 0, 0),
         price,
         available,

@@ -19,6 +19,7 @@ public class RoomResponseDto {
     private Integer minGuests;
     private Integer maxGuests;
     private String roomDescription;
+    private String roomIntroduction;
     private String mainImageUrl;
     private Integer roomStatus;
     private Integer bathroomCount;

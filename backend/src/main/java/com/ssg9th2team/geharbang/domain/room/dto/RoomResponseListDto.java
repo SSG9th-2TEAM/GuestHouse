@@ -11,6 +11,7 @@ public class RoomResponseListDto {
     private Long roomId;
     private String roomName;
     private String roomDescription;
+    private String roomIntroduction; // Added
     private int maxGuests;
     private int minGuests; // Added
     private int price;
