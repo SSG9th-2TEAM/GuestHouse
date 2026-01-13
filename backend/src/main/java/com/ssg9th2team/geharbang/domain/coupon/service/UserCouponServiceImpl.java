@@ -1,11 +1,7 @@
 package com.ssg9th2team.geharbang.domain.coupon.service;
 
 import com.ssg9th2team.geharbang.domain.coupon.dto.UserCouponResponseDto;
-import com.ssg9th2team.geharbang.domain.coupon.entity.Coupon;
-import com.ssg9th2team.geharbang.domain.coupon.entity.CouponIssueResult;
-import com.ssg9th2team.geharbang.domain.coupon.entity.CouponTriggerType;
-import com.ssg9th2team.geharbang.domain.coupon.entity.UserCoupon;
-import com.ssg9th2team.geharbang.domain.coupon.entity.UserCouponStatus;
+import com.ssg9th2team.geharbang.domain.coupon.entity.*;
 import com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponInventoryRepository;
 import com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponJpaRepository;
 import com.ssg9th2team.geharbang.domain.coupon.repository.jpa.UserCouponJpaRepository;
@@ -19,6 +15,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -343,38 +340,34 @@ public class UserCouponServiceImpl implements UserCouponService {
         
         log.info("쿠폰 {} Redis 발급 이력 동기화: {}건", couponId, issuedCoupons.size());
     }
-    
+
     /**
      * 일일 선착순 쿠폰의 발급 이력을 초기화한다.
      * 매일 자정에 실행되어 사용자가 다시 쿠폰을 발급받을 수 있도록 함.
      */
     @Override
+    @Scheduled(cron = "0 0 0 * * ?")
+    @Transactional
     public int resetDailyCouponIssuedTracking() {
-        // 1. CouponInventory에서 재고 관리되는 쿠폰들의 ID 조회
-        // (선착순 쿠폰만 CouponInventory에 존재)
-        List<Long> limitedCouponIds = couponInventoryRepository.findAllCouponIds();
-
+        List<Long> limitedCouponIds = couponInventoryRepository.findAll()
+                .stream()
+                .map(CouponInventory::getCouponId)
+                .toList();
         if (limitedCouponIds.isEmpty()) {
-            log.info("초기화할 일일 쿠폰 발급 이력이 없습니다.");
+            log.info("일일 쿠폰 초기화: 선착순 쿠폰이 없어 스킵합니다.");
             return 0;
         }
 
-        // 2. DB에서 해당 쿠폰들의 발급 기록 삭제 (사용자가 다시 받을 수 있도록)
-        int deletedFromDb = 0;
-        for (Long couponId : limitedCouponIds) {
-            deletedFromDb += userCouponJpaRepository.deleteByCouponId(couponId);
-        }
-        log.info("DB에서 일일 쿠폰 발급 기록 삭제: {}건", deletedFromDb);
+        // Redis 키 삭제 (기존 로직 유지)
+        limitedCouponIds.forEach(couponId -> {
+            String redisKey = "coupon:issued:" + couponId;
+            redisTemplate.delete(redisKey);
+        });
 
-
-        // 3. 각 쿠폰의 발급 이력 Redis Set 삭제 (bulk)
-        List<String> keysToDelete = limitedCouponIds.stream()
-                .map(couponId -> COUPON_ISSUED_KEY_PREFIX + couponId)
-                .toList();
-        Long deletedCount = redisTemplate.delete(keysToDelete);
-        int cleared = deletedCount != null ? deletedCount.intValue() : 0;
-
-        log.info("일일 쿠폰 발급 이력 초기화: {}건", cleared);
-        return cleared;
+        // DB 기록 삭제 - Bulk Delete로 한 번에 처리 (N+1 문제 해결)
+        int deletedFromDb = userCouponJpaRepository.deleteByCouponIds(limitedCouponIds);
+        log.info("일일 쿠폰 초기화 완료 - Redis 키 {}개 삭제, DB 레코드 {}개 삭제",
+                limitedCouponIds.size(), deletedFromDb);
+        return deletedFromDb;
     }
 }

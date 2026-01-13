@@ -133,7 +133,10 @@ const handleClaimCoupon = async (coupon) => {
   issuingMap.value = { ...issuingMap.value, [key]: true }
   try {
     await issueCoupon(coupon.couponId)
-    await loadClaimedCoupons()
+    // 발급 성공 시 즉시 버튼 상태 업데이트 (새로고침 없이)
+    markClaimedCoupon(coupon.couponId)
+    // 백그라운드에서 쿠폰 목록 동기화
+    loadClaimedCoupons()
     openModal('쿠폰 발급 완료', '쿠폰이 발급되었습니다. 쿠폰함에서 확인하세요.')
   } catch (error) {
     const message = error?.message || '쿠폰 발급에 실패했습니다.'

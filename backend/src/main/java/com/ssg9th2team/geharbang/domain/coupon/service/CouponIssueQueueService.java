@@ -169,9 +169,13 @@ public class CouponIssueQueueService {
      * 
      * @param payload 직렬화된 문자열 (예: "123|45|2026-01-12T17:00:00")
      * @return 역직렬화된 발급 요청 객체
+     * @throws IllegalArgumentException payload 형식이 잘못된 경우
      */
     public static IssueRequest decode(String payload) {
         String[] parts = payload.split("\\|", 3);
+        if (parts.length < 3) {
+            throw new IllegalArgumentException("Invalid payload format: " + payload);
+        }
         Long userId = Long.valueOf(parts[0]);
         Long couponId = Long.valueOf(parts[1]);
         LocalDateTime expiresAt = LocalDateTime.parse(parts[2]);

@@ -37,8 +37,27 @@ public interface UserCouponJpaRepository extends JpaRepository<UserCoupon, Long>
     @Query("select uc from UserCoupon uc")
     Stream<UserCoupon> streamAll();
 
-    // 일일 쿠폰 리셋: couponId로 모든 발급 기록 삭제
+    /**
+     * 일일 선착순 쿠폰 재설정 시 사용
+     * 특정 쿠폰 ID로 발급된 모든 쿠폰을 삭제한다.
+     *
+     * @param couponId 삭제할 쿠폰 ID
+     * @return 삭제된 행 수
+     */
     @Modifying
     @Transactional
-    int deleteByCouponId(Long couponId);
+    @Query("delete from UserCoupon uc where uc.couponId = :couponId")
+    int deleteByCouponId(@Param("couponId") Long couponId);
+
+    /**
+     * 일일 선착순 쿠폰 재설정 시 사용 (Bulk Delete)
+     * 특정 쿠폰 ID 리스트로 발급된 모든 쿠폰을 한 번에 삭제한다.
+     *
+     * @param couponIds 삭제할 쿠폰 ID 리스트
+     * @return 삭제된 행 수
+     */
+    @Modifying
+    @Transactional
+    @Query("delete from UserCoupon uc where uc.couponId in :couponIds")
+    int deleteByCouponIds(@Param("couponIds") List<Long> couponIds);
 }
