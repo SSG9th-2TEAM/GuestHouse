@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface UserCouponJpaRepository extends JpaRepository<UserCoupon, Long> {
 
@@ -34,4 +36,9 @@ public interface UserCouponJpaRepository extends JpaRepository<UserCoupon, Long>
     // [HIGH] OOM 방지: 전체 조회 시 Stream 사용
     @Query("select uc from UserCoupon uc")
     Stream<UserCoupon> streamAll();
+
+    // 일일 쿠폰 리셋: couponId로 모든 발급 기록 삭제
+    @Modifying
+    @Transactional
+    int deleteByCouponId(Long couponId);
 }

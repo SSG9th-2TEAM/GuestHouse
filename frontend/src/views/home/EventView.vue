@@ -13,6 +13,9 @@ const nextResetCountdown = ref('00:00:00')
 const countdownInterval = ref(null)
 const claimedCoupons = ref(new Set())
 const issuingMap = ref({})
+const isModalOpen = ref(false)
+const modalTitle = ref('')
+const modalMessage = ref('')
 
 const normalizeId = (value) => (value === null || value === undefined ? null : String(value))
 
@@ -99,6 +102,24 @@ const isClaimed = (couponId) => {
   return key ? claimedCoupons.value.has(key) : false
 }
 
+const markClaimedCoupon = (couponId) => {
+  const key = normalizeId(couponId)
+  if (!key) return
+  const next = new Set(claimedCoupons.value)
+  next.add(key)
+  claimedCoupons.value = next
+}
+
+const openModal = (title, message) => {
+  modalTitle.value = title
+  modalMessage.value = message
+  isModalOpen.value = true
+}
+
+const closeModal = () => {
+  isModalOpen.value = false
+}
+
 const handleClaimCoupon = async (coupon) => {
   if (!getAccessToken()) {
     alert('로그인이 필요한 서비스입니다.')
@@ -113,10 +134,13 @@ const handleClaimCoupon = async (coupon) => {
   try {
     await issueCoupon(coupon.couponId)
     await loadClaimedCoupons()
-    alert('쿠폰이 발급되었습니다. 쿠폰함에서 확인하세요.')
+    openModal('쿠폰 발급 완료', '쿠폰이 발급되었습니다. 쿠폰함에서 확인하세요.')
   } catch (error) {
     const message = error?.message || '쿠폰 발급에 실패했습니다.'
-    alert(message)
+    if (message.includes('이미 발급')) {
+      markClaimedCoupon(coupon.couponId)
+    }
+    openModal('쿠폰 발급 안내', message)
   } finally {
     const nextState = { ...issuingMap.value }
     delete nextState[key]
@@ -239,6 +263,14 @@ onUnmounted(() => {
       </article>
       </div>
     </section>
+
+    <div v-if="isModalOpen" class="event-modal-overlay" @click.self="closeModal">
+      <div class="event-modal-content" role="dialog" aria-modal="true">
+        <h3 class="event-modal-title">{{ modalTitle }}</h3>
+        <p class="event-modal-message">{{ modalMessage }}</p>
+        <button class="event-modal-btn" type="button" @click="closeModal">확인</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -433,6 +465,53 @@ onUnmounted(() => {
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+}
+
+.event-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.event-modal-content {
+  background: #fff;
+  border-radius: 18px;
+  padding: 24px 28px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
+}
+
+.event-modal-title {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  color: #0f172a;
+}
+
+.event-modal-message {
+  margin: 0 0 20px;
+  color: #475467;
+  white-space: pre-wrap;
+}
+
+.event-modal-btn {
+  border: none;
+  background: var(--brand-primary-strong, #6DC3BB);
+  color: var(--brand-on-primary, #0f172a);
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.event-modal-btn:hover {
+  background: var(--brand-primary, #BFE7DF);
 }
 
 @media (max-width: 640px) {

@@ -117,49 +117,49 @@ const createEmptyGuesthouse = (id = null) => ({
 
 const buildAddress = (data) => {
   return [data?.city, data?.district, data?.township, data?.addressDetail]
-    .filter(Boolean)
-    .join(' ')
+      .filter(Boolean)
+      .join(' ')
 }
 
 const normalizeRooms = (rooms, fallbackPrice) => {
   if (!Array.isArray(rooms)) return []
   return rooms
-    .filter((room) => room?.roomStatus === 1)
-    .map((room) => {
-      const price = toNumber(room?.price ?? room?.weekendPrice ?? fallbackPrice, fallbackPrice)
-      const roomStatus = room?.roomStatus
-      const available = roomStatus == null ? true : roomStatus === 1
-      const imageUrl = room?.mainImageUrl || DEFAULT_IMAGE
-      
-      // 썸네일 URL (원본 그대로 사용)
-      const thumbnailUrl = imageUrl
+      .filter((room) => room?.roomStatus === 1)
+      .map((room) => {
+        const price = toNumber(room?.price ?? room?.weekendPrice ?? fallbackPrice, fallbackPrice)
+        const roomStatus = room?.roomStatus
+        const available = roomStatus == null ? true : roomStatus === 1
+        const imageUrl = room?.mainImageUrl || DEFAULT_IMAGE
 
-      return {
-        id: room?.roomId ?? room?.id,
-        name: room?.roomName ?? room?.name ?? '',
-        desc: room?.roomDescription ?? room?.description ?? '',
-        capacity: toNumber(room?.maxGuests ?? room?.capacity ?? 0, 0),
-        price,
-        available,
-        imageUrl,
-        thumbnailUrl
-      }
-    })
+        // 썸네일 URL (원본 그대로 사용)
+        const thumbnailUrl = imageUrl
+
+        return {
+          id: room?.roomId ?? room?.id,
+          name: room?.roomName ?? room?.name ?? '',
+          desc: room?.roomDescription ?? room?.description ?? '',
+          capacity: toNumber(room?.maxGuests ?? room?.capacity ?? 0, 0),
+          price,
+          available,
+          imageUrl,
+          thumbnailUrl
+        }
+      })
 }
 
 const normalizeAmenities = (data) => {
   if (Array.isArray(data?.amenityDetails)) {
     return data.amenityDetails
-      .map((amenity) => ({
-        name: amenity?.amenityName ?? amenity?.name ?? '',
-        icon: amenity?.amenityIcon ?? amenity?.icon ?? ''
-      }))
-      .filter((amenity) => amenity.name)
+        .map((amenity) => ({
+          name: amenity?.amenityName ?? amenity?.name ?? '',
+          icon: amenity?.amenityIcon ?? amenity?.icon ?? ''
+        }))
+        .filter((amenity) => amenity.name)
   }
   if (Array.isArray(data?.amenities)) {
     return data.amenities
-      .map((name) => ({ name, icon: '' }))
-      .filter((amenity) => amenity.name)
+        .map((name) => ({ name, icon: '' }))
+        .filter((amenity) => amenity.name)
   }
   return []
 }
@@ -178,11 +178,13 @@ const normalizeReviews = (reviews) => {
   if (!Array.isArray(reviews)) return []
   return reviews.map((review) => {
     const ratingValue = Number(review?.rating)
-    const rating = Number.isFinite(ratingValue) ? Math.round(ratingValue) : 0
+    const rating = Number.isFinite(ratingValue)
+        ? Math.min(Math.max(Math.round(ratingValue * 2) / 2, 0), 5)
+        : 0
     const images = Array.isArray(review?.images) ? review.images : []
     const imageUrls = images
-      .map((image) => image?.imageUrl ?? image)
-      .filter((url) => typeof url === 'string' && url.trim())
+        .map((image) => image?.imageUrl ?? image)
+        .filter((url) => typeof url === 'string' && url.trim())
     const tags = Array.isArray(review?.tags) ? review.tags : []
     return {
       id: review?.reviewId ?? review?.id,
@@ -193,22 +195,22 @@ const normalizeReviews = (reviews) => {
       image: imageUrls[0] ?? null,
       images: imageUrls,
       tags: tags
-        .map((tag) => tag?.reviewTagName ?? tag?.name ?? tag)
-        .filter((tag) => typeof tag === 'string' && tag.trim())
+          .map((tag) => tag?.reviewTagName ?? tag?.name ?? tag)
+          .filter((tag) => typeof tag === 'string' && tag.trim())
     }
   })
 }
 
 const normalizeDetail = (data) => {
   const imageUrls = Array.isArray(data?.images)
-    ? data.images.map((image) => image?.imageUrl).filter(Boolean)
-    : []
+      ? data.images.map((image) => image?.imageUrl).filter(Boolean)
+      : []
   const fallbackPrice = toNumber(data?.minPrice ?? 0, 0)
   const ratingValue = Number(data?.rating)
   const reviews = normalizeReviews(data?.reviews)
   // Fallback to snake_case if camelCase is missing
   const category = data?.accommodationsCategory || data?.accommodations_category || ''
-  
+
   return {
     id: data?.accommodationsId ?? null,
     category,
@@ -245,10 +247,6 @@ const availableRoomIds = ref(null)
 const isAvailabilityLoading = ref(false)
 const calendarStore = useCalendarStore()
 const isCalendarOpen = computed(() => calendarStore.activeCalendar === 'room-detail')
-const showFullDescription = ref(false)
-const isDescriptionLong = computed(() => { 
-  return guesthouse.value.description && guesthouse.value.description.length > 150 
-})
 // showAllRooms, currentDate removed
 const datePickerRef = ref(null)
 let availabilityRequestId = 0
@@ -276,7 +274,7 @@ const stayNights = computed(() => {
 const totalPrice = computed(() => {
   if (!selectedRoom.value) return 0
   let price = selectedRoom.value.price * stayNights.value
-  
+
   const category = (guesthouse.value.category || '').toUpperCase()
   if (category === 'GUESTHOUSE' || category === '게스트하우스') {
     const count = Number(searchStore.guestCount)
@@ -303,11 +301,11 @@ const filteredRooms = computed(() => {
 
 
 const toggleCalendar = () => {
-    if (isCalendarOpen.value) {
-        calendarStore.closeCalendar('room-detail')
-    } else {
-        calendarStore.openCalendar('room-detail')
-    }
+  if (isCalendarOpen.value) {
+    calendarStore.closeCalendar('room-detail')
+  } else {
+    calendarStore.openCalendar('room-detail')
+  }
 }
 // Calendar logic moved to RoomDetailCalendar.vue
 
@@ -375,7 +373,6 @@ const loadAccommodation = async () => {
   selectedRoom.value = null
   availableRoomIds.value = null
   isAvailabilityLoading.value = false
-  showFullDescription.value = false
   guesthouse.value = createEmptyGuesthouse(accommodationsId)
   downloadedCouponIds.value = new Set() // Reset set
 
@@ -405,10 +402,10 @@ const loadAccommodation = async () => {
       const myCoupons = await getMyCoupons('ALL')
       // 내 쿠폰 중, 현재 다운로드 가능한 쿠폰과 ID가 같은 것들을 찾아 Set에 추가
       myCoupons.forEach(userCoupon => {
-         // UserCouponResponseDto는 flatten된 구조 (couponId)
-         if (userCoupon.couponId) {
-             downloadedCouponIds.value.add(String(userCoupon.couponId))
-         }
+        // UserCouponResponseDto는 flatten된 구조 (couponId)
+        if (userCoupon.couponId) {
+          downloadedCouponIds.value.add(String(userCoupon.couponId))
+        }
       })
     } catch (e) {
       console.warn('내 쿠폰 목록 조회 실패 (비로그인 상태일 수 있음):', e)
@@ -472,9 +469,9 @@ const getSnsLabel = (type, url) => {
 const buildSnsLinks = (sns) => {
   if (!sns) return []
   const lines = String(sns)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
 
   const results = []
   const seen = new Set()
@@ -508,12 +505,12 @@ const themeTags = computed(() => {
   const themes = Array.isArray(guesthouse.value.themes) ? guesthouse.value.themes : []
   const map = themeIconMap.value
   return themes
-    .map((theme) => {
-      const name = theme == null ? '' : String(theme).trim()
-      if (!name) return null
-      return { name, imageUrl: map.get(name) || '' }
-    })
-    .filter(Boolean)
+      .map((theme) => {
+        const name = theme == null ? '' : String(theme).trim()
+        if (!name) return null
+        return { name, imageUrl: map.get(name) || '' }
+      })
+      .filter(Boolean)
 })
 
 const increaseGuest = () => {
@@ -633,9 +630,9 @@ const handleDownloadCoupon = async (coupon) => {
 
 
 const formatDate = (dateStr) => {
-    if(!dateStr) return '';
-    const date = new Date(dateStr);
-    return `${date.getFullYear()}.${date.getMonth()+1}.${date.getDate()}`;
+  if(!dateStr) return '';
+  const date = new Date(dateStr);
+  return `${date.getFullYear()}.${date.getMonth()+1}.${date.getDate()}`;
 }
 
 onMounted(() => {
@@ -647,20 +644,20 @@ onMounted(() => {
 })
 watch(() => route.params.id, loadAccommodation)
 watch(
-  () => route.query,
-  (query) => {
-    if (hasFilterQuery(query)) {
-      applyRouteFilters(query)
+    () => route.query,
+    (query) => {
+      if (hasFilterQuery(query)) {
+        applyRouteFilters(query)
+      }
     }
-  }
 )
 // watch logic for calendar removed
 watch(
-  () => [route.params.id, searchStore.startDate, searchStore.endDate, searchStore.guestCount],
-  () => {
-    loadAvailability()
-  },
-  { immediate: true }
+    () => [route.params.id, searchStore.startDate, searchStore.endDate, searchStore.guestCount],
+    () => {
+      loadAvailability()
+    },
+    { immediate: true }
 )
 watch(filteredRooms, (rooms) => {
   if (!selectedRoom.value) return
@@ -683,289 +680,277 @@ watch(filteredRooms, (rooms) => {
 
     <!-- 실제 컨텐츠 -->
     <template v-else>
-    <!-- Image Grid -->
-    <ImageGallery :images="guesthouse.images" :name="guesthouse.name" />
+      <!-- Image Grid -->
+      <ImageGallery :images="guesthouse.images" :name="guesthouse.name" />
 
-    <!-- Title & Info -->
-    <section class="section info-section">
-      <h1>{{ guesthouse.name }}</h1>
-      <div class="meta">
-        <span class="rating">★ {{ guesthouse.rating }} (리뷰 {{ guesthouse.reviewCount }}개)</span>
-        <span class="location">{{ guesthouse.address }}</span>
-      </div>
-      <div class="description-row">
-        <p class="description" :class="{ 'description-clamped': !showFullDescription }">
-          {{ guesthouse.description }}
-        </p>
-        <button
-          v-if="isDescriptionLong"
-          type="button"
-          class="more-btn"
-          @click="showFullDescription = !showFullDescription"
-        >
-          {{ showFullDescription ? '접기' : '더보기' }}
-        </button>
-      </div>
-      <div class="transport-info" v-if="guesthouse.transportInfo">
-        <h3 class="info-title">
+      <!-- Title & Info -->
+      <section class="section info-section">
+        <h1>{{ guesthouse.name }}</h1>
+        <div class="meta">
+          <span class="rating">★ {{ guesthouse.rating }} (리뷰 {{ guesthouse.reviewCount }}개)</span>
+          <span class="location">{{ guesthouse.address }}</span>
+        </div>
+        <div class="description-row">
+          <h2 class="info-title">소개</h2>
+          <p class="description">
+            {{ guesthouse.description }}
+          </p>
+        </div>
+        <div class="transport-info" v-if="guesthouse.transportInfo">
+          <h2 class="info-title">
           <span class="info-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
               <path d="M4 11.5v6.3c0 .9.7 1.7 1.6 1.7h.7v1.1c0 .6.5 1.1 1.1 1.1s1.1-.5 1.1-1.1v-1.1h7.1v1.1c0 .6.5 1.1 1.1 1.1s1.1-.5 1.1-1.1v-1.1h.7c.9 0 1.6-.7 1.6-1.7v-6.3c0-2.5-2-4.5-4.5-4.5h-6.1c-2.5 0-4.5 2-4.5 4.5Zm12.1-2.6c1.5 0 2.7 1.2 2.7 2.6v.3H5.2v-.3c0-1.5 1.2-2.6 2.7-2.6h8.2Zm-9.6 7.4c-.5 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1Zm11.1 0c-.5 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1Z" />
             </svg>
           </span>
-          교통 정보
-        </h3>
-        <p>{{ guesthouse.transportInfo }}</p>
-      </div>
-      <div class="contact-info" v-if="guesthouse.phone">
-        <h3 class="info-title">
-          <span class="info-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M6.6 3.5c.5-.4 1.2-.4 1.7 0l2 1.7c.6.5.7 1.4.3 2.1l-1 1.8c-.2.4-.2.9.1 1.3 1 1.6 2.4 3 4 4 .4.2.9.3 1.3.1l1.8-1c.7-.4 1.6-.3 2.1.3l1.7 2c.4.5.4 1.2 0 1.7l-1.3 1.5c-.5.6-1.2.9-2 .8-2.7-.4-5.3-1.8-7.7-4.2s-3.8-5-4.2-7.7c-.1-.8.2-1.5.8-2l1.5-1.3Z" />
-            </svg>
-          </span>
-          연락처
-        </h3>
-        <p>{{ guesthouse.phone }}</p>
-      </div>
-    </section>
+            교통 정보
+          </h2>
+          <p>{{ guesthouse.transportInfo }}</p>
+        </div>
+        <div class="contact-info" v-if="guesthouse.phone">
+          <h2 class="info-title">
+            연락처
+          </h2>
+          <p>{{ guesthouse.phone }}</p>
+        </div>
+      </section>
 
-    <section class="section amenity-section">
-      <h2>편의시설</h2>
-      <div class="tag-list amenity-list">
+      <section class="section amenity-section">
+        <h2 class="info-title">편의시설</h2>
+        <div class="tag-list amenity-list">
         <span
-          v-for="(amenity, idx) in guesthouse.amenities"
-          :key="amenity.name || idx"
-          class="tag amenity-tag"
+            v-for="(amenity, idx) in guesthouse.amenities"
+            :key="amenity.name || idx"
+            class="tag amenity-tag"
         >
           <span v-if="amenity.icon" class="amenity-icon" v-html="amenity.icon"></span>
           <span class="amenity-text">{{ amenity.name }}</span>
         </span>
-        <span v-if="!guesthouse.amenities.length" class="tag empty">등록된 정보 없음</span>
-      </div>
-      <h2>테마</h2>
-      <div class="tag-list theme-tag-list">
+          <span v-if="!guesthouse.amenities.length" class="tag empty">등록된 정보 없음</span>
+        </div>
+        <h2 class="info-title">테마</h2>
+        <div class="tag-list theme-tag-list">
         <span v-for="theme in themeTags" :key="theme.name" class="tag theme-tag">
           <img v-if="theme.imageUrl" :src="theme.imageUrl" :alt="theme.name" class="theme-tag__icon" />
           <span v-else class="theme-tag__icon theme-tag__icon--empty"></span>
           <span class="theme-tag__label">{{ theme.name }}</span>
         </span>
-        <span v-if="!themeTags.length" class="tag empty">등록된 정보 없음</span>
-      </div>
-    </section>
+          <span v-if="!themeTags.length" class="tag empty">등록된 정보 없음</span>
+        </div>
+      </section>
 
-    <hr />
+      <hr />
 
-    <section class="section extra-info-section">
-      <h2>추가 정보</h2>
-      <dl class="info-list">
-        <div class="info-row">
-          <dt>체크인</dt>
-          <dd>{{ guesthouse.checkInTime || '정보 없음' }}</dd>
-        </div>
-        <div class="info-row">
-          <dt>체크아웃</dt>
-          <dd>{{ guesthouse.checkOutTime || '정보 없음' }}</dd>
-        </div>
-        <div class="info-row">
-          <dt>주차</dt>
-          <dd>{{ guesthouse.parkingInfo || '정보 없음' }}</dd>
-        </div>
-        <div class="info-row">
-          <dt>SNS</dt>
-          <dd>
-            <template v-if="snsLinks.length">
-              <a
-                v-for="link in snsLinks"
-                :key="link.url"
-                :href="link.url"
-                class="sns-link"
-                target="_blank"
-                rel="noopener noreferrer"
-                :aria-label="link.label"
-              >
-                <svg v-if="link.type === 'instagram'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
-                  <rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="2" />
-                  <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2" />
-                  <circle cx="17.5" cy="6.5" r="1" fill="currentColor" />
-                </svg>
-                <svg v-else-if="link.type === 'youtube'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
-                  <rect x="3" y="6" width="18" height="12" rx="3" ry="3" fill="none" stroke="currentColor" stroke-width="2" />
-                  <path d="M10 9l5 3-5 3z" fill="currentColor" />
-                </svg>
-                <svg v-else-if="link.type === 'blog'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
-                  <path d="M6 3h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" />
-                  <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="2" />
-                  <path d="M8 13h8M8 17h6" fill="none" stroke="currentColor" stroke-width="2" />
-                </svg>
-                <svg v-else-if="link.type === 'facebook'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
-                  <path d="M15 8h3V5h-3c-2 0-4 2-4 4v3H8v3h3v6h3v-6h3l1-3h-4V9c0-.6.4-1 1-1z" fill="currentColor" />
-                </svg>
-                <svg v-else viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
-                  <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                  <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                <span class="sns-text">
+      <section class="section extra-info-section">
+        <h2>추가 정보</h2>
+        <dl class="info-list">
+          <div class="info-row">
+            <dt>체크인</dt>
+            <dd>{{ guesthouse.checkInTime || '정보 없음' }}</dd>
+          </div>
+          <div class="info-row">
+            <dt>체크아웃</dt>
+            <dd>{{ guesthouse.checkOutTime || '정보 없음' }}</dd>
+          </div>
+          <div class="info-row">
+            <dt>주차</dt>
+            <dd>{{ guesthouse.parkingInfo || '정보 없음' }}</dd>
+          </div>
+          <div class="info-row">
+            <dt>SNS</dt>
+            <dd>
+              <template v-if="snsLinks.length">
+                <a
+                    v-for="link in snsLinks"
+                    :key="link.url"
+                    :href="link.url"
+                    class="sns-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :aria-label="link.label"
+                >
+                  <svg v-if="link.type === 'instagram'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
+                    <rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="2" />
+                    <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2" />
+                    <circle cx="17.5" cy="6.5" r="1" fill="currentColor" />
+                  </svg>
+                  <svg v-else-if="link.type === 'youtube'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
+                    <rect x="3" y="6" width="18" height="12" rx="3" ry="3" fill="none" stroke="currentColor" stroke-width="2" />
+                    <path d="M10 9l5 3-5 3z" fill="currentColor" />
+                  </svg>
+                  <svg v-else-if="link.type === 'blog'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
+                    <path d="M6 3h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" />
+                    <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="2" />
+                    <path d="M8 13h8M8 17h6" fill="none" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                  <svg v-else-if="link.type === 'facebook'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
+                    <path d="M15 8h3V5h-3c-2 0-4 2-4 4v3H8v3h3v6h3v-6h3l1-3h-4V9c0-.6.4-1 1-1z" fill="currentColor" />
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
+                    <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <span class="sns-text">
                   {{ link.type === 'blog' && link.label.toLowerCase().includes('naver') ? '네이버 블로그 바로가기' : `${link.label} 바로가기` }}
                 </span>
-              </a>
-            </template>
-            <span v-else>{{ guesthouse.sns || '정보 없음' }}</span>
-          </dd>
-        </div>
-      </dl>
-    </section>
+                </a>
+              </template>
+              <span v-else>{{ guesthouse.sns || '정보 없음' }}</span>
+            </dd>
+          </div>
+        </dl>
+      </section>
 
-    <hr />
+      <hr />
 
-    <!-- Room Selection -->
-    <section class="section room-selection">
-      <div class="room-selection-header">
-        <h2>객실 선택</h2>
-        <!-- Coupon Button (Moved Here) -->
-        <button 
-           v-if="availableCoupons.length > 0" 
-           type="button" 
-           class="coupon-header-btn" 
-           @click="isCouponModalOpen = true"
-        >
-           쿠폰함
-        </button>
-      </div>
-      
-      <!-- Date & Guest Picker Mock -->
-      <div class="picker-box">
-        <div class="picker-row">
-          <div ref="datePickerRef" class="picker-field date-picker-wrapper" @click.stop>
-            <label>체크인 / 체크아웃</label>
-            <button
+      <!-- Room Selection -->
+      <section class="section room-selection">
+        <div class="room-selection-header">
+          <h2>객실 선택</h2>
+          <!-- Coupon Button (Moved Here) -->
+          <button
+              v-if="availableCoupons.length > 0"
               type="button"
-              class="date-display"
-              :aria-expanded="isCalendarOpen"
-              @click="toggleCalendar"
-            >
-              {{ searchStore.checkInOutText }}
-            </button>
-
-            <RoomDetailCalendar />
-          </div>
-          <div class="picker-field">
-            <label>투숙 인원</label>
-            <div class="guest-control">
-              <button @click="decreaseGuest" :disabled="searchStore.guestCount <= 1">-</button>
-              <span>게스트 {{ searchStore.guestCount || 1 }}명</span>
-              <button @click="increaseGuest">+</button>
-            </div>
-          </div>
-          
-           <!-- Square Coupon Button Removed -->
-
+              class="coupon-header-btn"
+              @click="isCouponModalOpen = true"
+          >
+            쿠폰함
+          </button>
         </div>
-      </div>
 
-      <!-- Room List -->
-      <RoomListSection 
-        :rooms="filteredRooms" 
-        :selected-room="selectedRoom"
-        @update:selected-room="selectedRoom = $event"
+        <!-- Date & Guest Picker Mock -->
+        <div class="picker-box">
+          <div class="picker-row">
+            <div ref="datePickerRef" class="picker-field date-picker-wrapper" @click.stop>
+              <label>체크인 / 체크아웃</label>
+              <button
+                  type="button"
+                  class="date-display"
+                  :aria-expanded="isCalendarOpen"
+                  @click="toggleCalendar"
+              >
+                {{ searchStore.checkInOutText }}
+              </button>
+
+              <RoomDetailCalendar />
+            </div>
+            <div class="picker-field">
+              <label>투숙 인원</label>
+              <div class="guest-control">
+                <button @click="decreaseGuest" :disabled="searchStore.guestCount <= 1">-</button>
+                <span>게스트 {{ searchStore.guestCount || 1 }}명</span>
+                <button @click="increaseGuest">+</button>
+              </div>
+            </div>
+
+            <!-- Square Coupon Button Removed -->
+
+          </div>
+        </div>
+
+        <!-- Room List -->
+        <RoomListSection
+            :rooms="filteredRooms"
+            :selected-room="selectedRoom"
+            @update:selected-room="selectedRoom = $event"
+        />
+      </section>
+
+      <hr />
+
+      <!-- Reviews -->
+      <ReviewSection :reviews="guesthouse.reviews" :name="guesthouse.name" />
+
+      <!-- Map -->
+      <MapSection
+          :latitude="guesthouse.latitude"
+          :longitude="guesthouse.longitude"
+          :address="guesthouse.address"
+          :name="guesthouse.name"
+          :transport-info="guesthouse.transportInfo"
       />
-    </section>
 
-    <hr />
+      <!-- Rules -->
+      <section class="section rules-section">
+        <div class="rule-box">
+          <h3>환불 규정</h3>
+          <ul>
+            <li>체크인 7일 전 취소: 결제 금액 100% 환불</li>
+            <li>체크인 5~6일 전 취소: 결제 금액의 90% 환불</li>
+            <li>체크인 3~4일 전 취소: 결제 금액의 70% 환불</li>
+            <li>체크인 1~2일 전 취소: 결제 금액의 50% 환불</li>
+            <li>체크인 당일 취소 또는 노쇼(No-show): 환불 불가</li>
+          </ul>
+        </div>
+      </section>
 
-    <!-- Reviews -->
-    <ReviewSection :reviews="guesthouse.reviews" :name="guesthouse.name" />
-
-    <!-- Map -->
-    <MapSection
-      :latitude="guesthouse.latitude"
-      :longitude="guesthouse.longitude"
-      :address="guesthouse.address"
-      :name="guesthouse.name"
-      :transport-info="guesthouse.transportInfo"
-    />
-
-    <!-- Rules -->
-    <section class="section rules-section">
-      <div class="rule-box">
-        <h3>환불 규정</h3>
-        <ul>
-          <li>체크인 7일 전 취소: 결제 금액 100% 환불</li>
-          <li>체크인 5~6일 전 취소: 결제 금액의 90% 환불</li>
-          <li>체크인 3~4일 전 취소: 결제 금액의 70% 환불</li>
-          <li>체크인 1~2일 전 취소: 결제 금액의 50% 환불</li>
-          <li>체크인 당일 취소 또는 노쇼(No-show): 환불 불가</li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- Floating Bottom Bar -->
-    <div class="bottom-bar">
-      <div class="selection-summary">
-        <span v-if="selectedRoom">선택한 객실: {{ selectedRoom.name }}</span>
-        <span v-else>객실을 선택해주세요</span>
-        <div class="total-price" v-if="selectedRoom">
+      <!-- Floating Bottom Bar -->
+      <div class="bottom-bar">
+        <div class="selection-summary">
+          <span v-if="selectedRoom">선택한 객실: {{ selectedRoom.name }}</span>
+          <span v-else>객실을 선택해주세요</span>
+          <div class="total-price" v-if="selectedRoom">
           <span class="price-detail" v-if="hasDateRange">
             ₩{{ formatPrice(selectedRoom.price) }} × {{ stayNights }}박<span v-if="['GUESTHOUSE', '게스트하우스'].includes((guesthouse.category || '').toUpperCase())"> × {{ searchStore.guestCount }}명</span> =
           </span>
-          <span class="price-amount">₩{{ formatPrice(hasDateRange ? totalPrice : selectedRoom.price) }}</span>
-          <span class="price-nights" v-if="!hasDateRange"> / 1박</span>
+            <span class="price-amount">₩{{ formatPrice(hasDateRange ? totalPrice : selectedRoom.price) }}</span>
+            <span class="price-nights" v-if="!hasDateRange"> / 1박</span>
+          </div>
+        </div>
+        <button class="book-btn" :disabled="!canBook" @click="goToBooking">예약하기</button>
+      </div>
+      <div v-if="selectedRoom && !canBook" class="booking-hint">
+        날짜를 선택해주세요.
+        <button type="button" class="booking-hint-btn" @click="openCalendarFromHint">
+          날짜 선택하기
+        </button>
+      </div>
+
+
+      <!-- Coupon Modal -->
+      <div v-if="isCouponModalOpen" class="modal-overlay" @click.self="isCouponModalOpen = false">
+        <div class="modal-content coupon-modal">
+          <h3>사용 가능한 쿠폰</h3>
+          <p class="modal-desc">이 숙소에서 사용할 수 있는 쿠폰을 다운로드하세요.</p>
+          <div class="coupon-list-container">
+            <ul class="coupon-list" v-if="availableCoupons.length > 0">
+              <li v-for="coupon in availableCoupons" :key="coupon.couponId" class="coupon-item">
+                <div class="coupon-info">
+                  <div class="coupon-name">{{ coupon.name }}</div>
+                  <div class="coupon-desc">{{ coupon.description }}</div>
+                  <div class="coupon-meta">
+                    <span>{{ coupon.discountType === 'PERCENT' ? coupon.discountValue + '%' : coupon.discountValue.toLocaleString() + '원' }} 할인</span>
+                    <span v-if="coupon.minPrice">({{ coupon.minPrice.toLocaleString() }}원 이상)</span>
+                  </div>
+                </div>
+
+                <button
+                    class="download-btn"
+                    :class="{ 'downloaded': downloadedCouponIds.has(String(coupon.couponId)) }"
+                    :disabled="downloadedCouponIds.has(String(coupon.couponId))"
+                    @click="handleDownloadCoupon(coupon)"
+                >
+                  {{ downloadedCouponIds.has(String(coupon.couponId)) ? '발급완료' : '다운로드' }}
+                </button>
+              </li>
+            </ul>
+            <p v-else class="no-coupon">다운로드 가능한 쿠폰이 없습니다.</p>
+          </div>
+          <button class="close-modal-btn" @click="isCouponModalOpen = false">닫기</button>
         </div>
       </div>
-      <button class="book-btn" :disabled="!canBook" @click="goToBooking">예약하기</button>
-    </div>
-    <div v-if="selectedRoom && !canBook" class="booking-hint">
-      날짜를 선택해주세요.
-      <button type="button" class="booking-hint-btn" @click="openCalendarFromHint">
-        날짜 선택하기
+
+      <!-- Unavailable Modal and Room Image Modal moved to properties/RoomListSection -->
+
+      <!-- Top Button -->
+      <button
+          v-show="showTopBtn"
+          class="top-btn"
+          @click="scrollToTop"
+          aria-label="맨 위로"
+      >
+        ↑
       </button>
-    </div>
-
-
-    <!-- Coupon Modal -->
-    <div v-if="isCouponModalOpen" class="modal-overlay" @click.self="isCouponModalOpen = false">
-      <div class="modal-content coupon-modal">
-        <h3>사용 가능한 쿠폰</h3>
-        <p class="modal-desc">이 숙소에서 사용할 수 있는 쿠폰을 다운로드하세요.</p>
-        <div class="coupon-list-container">
-          <ul class="coupon-list" v-if="availableCoupons.length > 0">
-            <li v-for="coupon in availableCoupons" :key="coupon.couponId" class="coupon-item">
-               <div class="coupon-info">
-                 <div class="coupon-name">{{ coupon.name }}</div>
-                 <div class="coupon-desc">{{ coupon.description }}</div>
-                 <div class="coupon-meta">
-                   <span>{{ coupon.discountType === 'PERCENT' ? coupon.discountValue + '%' : coupon.discountValue.toLocaleString() + '원' }} 할인</span>
-                   <span v-if="coupon.minPrice">({{ coupon.minPrice.toLocaleString() }}원 이상)</span>
-                 </div>
-               </div>
-
-               <button 
-                 class="download-btn" 
-                 :class="{ 'downloaded': downloadedCouponIds.has(String(coupon.couponId)) }"
-                 :disabled="downloadedCouponIds.has(String(coupon.couponId))"
-                 @click="handleDownloadCoupon(coupon)"
-               >
-                 {{ downloadedCouponIds.has(String(coupon.couponId)) ? '발급완료' : '다운로드' }}
-               </button>
-            </li>
-          </ul>
-          <p v-else class="no-coupon">다운로드 가능한 쿠폰이 없습니다.</p>
-        </div>
-        <button class="close-modal-btn" @click="isCouponModalOpen = false">닫기</button>
-      </div>
-    </div>
-
-    <!-- Unavailable Modal and Room Image Modal moved to properties/RoomListSection -->
-
-    <!-- Top Button -->
-    <button 
-      v-show="showTopBtn" 
-      class="top-btn" 
-      @click="scrollToTop" 
-      aria-label="맨 위로"
-    >
-      ↑
-    </button>
     </template>
   </div>
 </template>
@@ -1000,6 +985,7 @@ watch(filteredRooms, (rooms) => {
 }
 .info-section {
   padding-top: 0;
+  padding-bottom: 0.75rem;
 }
 hr {
   border: 0;
@@ -1029,26 +1015,19 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   line-height: 1.6;
   flex: 1;
   margin: 0;
+  white-space: pre-line;
+  width: 100%;
+  box-sizing: border-box;
+  max-height: calc(1.6em * 12);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.6rem 0.7rem;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
 }
-.description-clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.more-btn {
-  margin-top: 0.15rem;
-  align-self: flex-end;
-  background: #BFE7DF;
-  border: 1px solid #8FCFC1;
-  color: #0f4c44;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  white-space: nowrap;
-}
+
 .detail-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1116,6 +1095,10 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 
 /* Amenities */
+.amenity-section {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
 .amenity-section h2 {
   margin-bottom: 0.6rem;
 }
@@ -1139,6 +1122,9 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+.theme-tag-list {
+  margin-bottom: 0.5rem;
 }
 .theme-tag__icon {
   width: 18px;
@@ -1175,6 +1161,9 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 
 /* Extra info */
+.extra-info-section {
+  padding-top: 0.75rem;
+}
 .extra-info-section h2 {
   margin-bottom: 0.8rem;
 }
@@ -1295,8 +1284,8 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   z-index: 100;
 }
 .selection-summary { display: flex; flex-direction: column; gap: 0.25rem; }
-.total-price { 
-  font-weight: bold; 
+.total-price {
+  font-weight: bold;
   font-size: 1.2rem;
   display: flex;
   align-items: baseline;
@@ -1370,7 +1359,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
     max-width: 100%;
     padding: 0 16px;
   }
-  
+
   .picker-row {
     flex-direction: column;
   }
@@ -1486,9 +1475,9 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   margin-bottom: 1.5rem;
 }
 .coupon-list-container {
-    overflow-y: auto;
-    margin-bottom: 1rem;
-    flex: 1;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  flex: 1;
 }
 .coupon-list {
   list-style: none;
@@ -1574,5 +1563,3 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   }
 }
 </style>
-
-

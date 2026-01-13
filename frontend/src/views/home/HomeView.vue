@@ -456,7 +456,7 @@ onMounted(() => {
   }
   
   .banner-image {
-    height: 350px;
+    height: 480px;
     width: 100%;
     object-fit: contain;
     background-color: #1a1a1a;
