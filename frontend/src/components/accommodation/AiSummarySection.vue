@@ -1,6 +1,14 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { fetchAiSummary } from '@/api/accommodation'
+
+defineOptions({
+  name: 'AiSummarySection'
+})
+
+onMounted(() => {
+  // console.log('AiSummarySection Mounted!') // 디버깅 로그는 잠시 주석 처리
+})
 
 const props = defineProps({
   accommodationId: {
@@ -31,7 +39,6 @@ const loadSummary = async () => {
   } catch (error) {
     console.error('AI Summary Error:', error)
     isError.value = true
-    alert('요약을 불러올 수 없습니다. 잠시 후 다시 시도해주세요.')
   } finally {
     isLoading.value = false
   }
@@ -48,9 +55,11 @@ const loadSummary = async () => {
       ✨ AI 숙소 요약 보기
     </button>
 
-    <div v-if="isLoading" class="loading-box">
-      <div class="spinner"></div>
-      <span>AI가 숙소 리뷰와 정보를 분석 중입니다...</span>
+    <div v-if="isLoading" class="skeleton-loader">
+      <div class="skeleton-line title"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line short"></div>
     </div>
 
     <div v-if="isLoaded" class="summary-box">
@@ -65,91 +74,103 @@ const loadSummary = async () => {
 
 <style scoped>
 .ai-summary-section {
-  margin: 1rem 0;
+  margin: 1.5rem 0;
 }
 
 .ai-btn {
   width: 100%;
-  padding: 0.8rem;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  padding: 1rem;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
   color: white;
   border: none;
-  border-radius: 12px;
-  font-weight: 600;
+  border-radius: 16px;
+  font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
-  transition: transform 0.2s, opacity 0.2s;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
 .ai-btn:hover {
-  opacity: 0.95;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
 }
 
-.ai-btn:active {
-  transform: translateY(0);
-}
-
-.loading-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.8rem;
-  padding: 1.5rem;
-  background: #f9fafb;
-  border-radius: 12px;
-  color: #6b7280;
-  font-size: 0.95rem;
-}
-
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 3px solid #e5e7eb;
-  border-top-color: #6366f1;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
+/* 카드 디자인 핵심 */
 .summary-box {
-  background: #f3f4f6;
+  background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 1.2rem;
-  animation: fadeIn 0.3s ease-out;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-top: 1rem;
 }
 
 .summary-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.8rem;
-  font-weight: 700;
-  color: #4b5563;
-}
-
-.ai-icon {
-  font-size: 1.2rem;
+  gap: 0.6rem;
+  margin-bottom: 1.2rem;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: #1f2937;
+  border-bottom: 2px solid #f3f4f6;
+  padding-bottom: 0.8rem;
 }
 
 .summary-text {
   white-space: pre-line;
-  line-height: 1.6;
-  color: #374151;
-  font-size: 0.95rem;
+  line-height: 1.8;
+  color: #4b5563;
+  font-size: 15px;
   margin: 0;
+  letter-spacing: -0.01em;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* 로딩 스켈레톤도 카드에 맞게 수정 */
+.skeleton-loader {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-top: 1rem;
+}
+
+.skeleton-line {
+  height: 15px;
+  background-color: #e5e7eb;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.skeleton-line.title {
+  width: 40%;
+  height: 20px;
+  margin-bottom: 1rem;
+}
+.skeleton-line.short {
+  width: 70%;
+}
+.skeleton-line:last-child {
+  margin-bottom: 0;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
 }
 </style>

@@ -16,6 +16,7 @@ import MapSection from './room-detail/features/MapSection.vue'
 import RoomDetailCalendar from './room-detail/features/RoomDetailCalendar.vue'
 import RoomListSection from './room-detail/features/RoomListSection.vue'
 import DetailSkeleton from '@/components/DetailSkeleton.vue'
+import AiSummarySection from '@/components/accommodation/AiSummarySection.vue'
 import { useCalendarStore } from '@/stores/calendar'
 
 const router = useRouter()
@@ -692,6 +693,9 @@ watch(filteredRooms, (rooms) => {
         </div>
         <div class="description-row">
           <h2 class="info-title">소개</h2>
+
+          <AiSummarySection :accommodation-id="guesthouse.id" />
+
           <p class="description">
             {{ guesthouse.description }}
           </p>

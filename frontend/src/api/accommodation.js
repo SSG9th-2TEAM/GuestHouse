@@ -44,5 +44,6 @@ export async function fetchAiSummary(accommodationId) {
   if (!accommodationId) {
     return { ok: false, status: 400, data: null }
   }
-  return hostGet(`/accommodations/${accommodationId}/ai-summary`)
+  // adminClient의 hostGet을 사용하고, 컨트롤러 경로에 맞게 /v1을 추가
+  return hostGet(`/v1/accommodations/${accommodationId}/ai-summary`)
 }
