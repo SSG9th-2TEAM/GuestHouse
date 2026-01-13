@@ -35,6 +35,8 @@ public class CouponScheduler {
 
     /**
      * 매일 자정에 만료된 쿠폰 상태 변경 및 선착순 재고 초기화
+     * 
+     * ⚠️ 운영용: 매일 자정 실행
      */
     @Scheduled(cron = "0 0 0 * * *")
     public void expireCoupons() {

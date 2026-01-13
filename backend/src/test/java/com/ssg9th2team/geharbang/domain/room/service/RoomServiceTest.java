@@ -24,10 +24,14 @@ import java.util.ArrayList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@ActiveProfiles("integration-test")
+@ActiveProfiles("test")
 @Transactional
 @Sql(scripts = "/sql/test-base-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
-public class RoomServiceTest extends com.ssg9th2team.geharbang.config.IntegrationTestConfig {
+@SpringBootTest
+public class RoomServiceTest {
+
+    @MockBean
+    protected com.ssg9th2team.geharbang.domain.ocr.service.OcrService ocrService;
 
     @Autowired
     private RoomServiceImpl roomService;
@@ -241,5 +245,41 @@ public class RoomServiceTest extends com.ssg9th2team.geharbang.config.Integratio
         assertThat(room.getMaxGuests()).isEqualTo(5);
 
         System.out.println("객실 조회 성공 - " + room.getRoomName());
+    }
+
+    @Test
+    @DisplayName("객실 등록 - 소개글(roomIntroduction) 매핑 테스트")
+    void createRoomIntroductionTest() {
+        // given
+        RoomCreateDto roomDto = new RoomCreateDto();
+        roomDto.setRoomName("소개글 테스트 룸");
+        roomDto.setPrice(150000);
+        roomDto.setWeekendPrice(180000);
+        roomDto.setMinGuests(2);
+        roomDto.setMaxGuests(4);
+        roomDto.setRoomDescription("기존 설명");
+        roomDto.setRoomIntroduction("새로운 소개글입니다. 매핑 확인용.");
+        roomDto.setMainImageUrl("test.jpg");
+        roomDto.setBathroomCount(1);
+        roomDto.setRoomType("ONDOL");
+        roomDto.setBedCount(2);
+        roomDto.setRoomStatus(1);
+
+        // when
+        Long roomId = roomService.createRoom(testAccommodationId, roomDto);
+
+        // then
+        RoomResponseDto savedRoom = roomService.getRoom(testAccommodationId, roomId);
+        assertThat(savedRoom.getRoomIntroduction()).isEqualTo("새로운 소개글입니다. 매핑 확인용.");
+        System.out.println("Introduction 매핑 확인 완료: " + savedRoom.getRoomIntroduction());
+
+        // Check via AccommodationService to verify RoomList response
+        AccommodationResponseDto accDto = accommodationService.getAccommodation(testAccommodationId);
+        assertThat(accDto.getRooms()).isNotEmpty();
+        // find variable roomId
+        boolean found = accDto.getRooms().stream()
+                .anyMatch(r -> r.getRoomId().equals(roomId) && "새로운 소개글입니다. 매핑 확인용.".equals(r.getRoomIntroduction()));
+        assertThat(found).isTrue();
+        System.out.println("Accommodation 조회 시 객실 리스트에도 Introduction 포함 확인 완료");
     }
 }
