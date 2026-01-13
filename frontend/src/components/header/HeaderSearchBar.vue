@@ -169,45 +169,45 @@ const buildSearchQuery = () => {
 }
 
 const selectSuggestion = async (suggestion) => {
-  if (!suggestion?.value) return
+  const val = suggestion?.value
+  const type = suggestion?.type
+  if (!val) return
   
   // 강제로 포커스 해제하여 가상 키보드 닫기 및 입력 조합 종료
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur()
   }
 
-  const nextValue = String(suggestion.value)
+  const nextValue = String(val)
   
   // 입력 상태 정리
   isComposing.value = false
   searchKeyword.value = nextValue
   suggestKeyword.value = nextValue
   searchStore.setKeyword(nextValue)
-
-  if (isAccommodationSuggestion(suggestion)) {
-    const resolved = await resolveAccommodation(nextValue)
-    if (resolved?.accommodationsId) {
-      closeSuggestions()
-      isSearchExpanded.value = false
-      router.push({ path: `/room/${resolved.accommodationsId}` })
-      return
-    }
-  }
-
-  const targetPath = isMapContext() ? '/map' : '/list'
   
-  try {
-    // 같은 경로 이동 시 NavigationDuplicated 에러가 발생할 수 있으므로 catch 처리
-    await router.push({ path: targetPath, query: buildSearchQuery() })
-  } catch (error) {
-    // 네비게이션 에러 무시 (이미 해당 페이지에 있거나 이동 중인 경우)
-  }
-
   // Ghost Click 방지를 위해 닫기 지연 (mousedown 후 mouseup이 발생할 때까지 리스트 유지)
+  // 비동기 이동 로직 실행 전에 예약하여 무조건 닫히도록 함
   setTimeout(() => {
     isSearchExpanded.value = false
     closeSuggestions()
   }, 100)
+
+  try {
+    if (String(type || '').toUpperCase() === 'ACCOMMODATION') {
+      const resolved = await resolveAccommodation(nextValue)
+      if (resolved?.accommodationsId) {
+        await router.push({ path: `/room/${resolved.accommodationsId}` })
+        return
+      }
+    }
+
+    const targetPath = isMapContext() ? '/map' : '/list'
+    // 같은 경로 이동 시 NavigationDuplicated 에러가 발생할 수 있으므로 catch 처리
+    await router.push({ path: targetPath, query: buildSearchQuery() })
+  } catch (error) {
+    // 네비게이션 에러 무시
+  }
 }
 
 const handleSearch = async () => {
