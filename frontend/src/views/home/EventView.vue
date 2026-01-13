@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDownloadableCoupons, issueCoupon, getMyCouponIds } from '@/api/couponApi'
-import { getAccessToken } from '@/api/authClient'
+import { getAccessToken, getUserId } from '@/api/authClient'
 
 const router = useRouter()
 const couponEvents = ref([])
@@ -18,6 +18,49 @@ const modalTitle = ref('')
 const modalMessage = ref('')
 
 const normalizeId = (value) => (value === null || value === undefined ? null : String(value))
+const claimedStorageKey = () => {
+  const userId = getUserId()
+  return userId ? `claimedCoupons:${userId}` : null
+}
+
+const getNextResetTs = () => {
+  const now = new Date()
+  const nextMidnight = new Date(now)
+  nextMidnight.setHours(24, 0, 0, 0)
+  return nextMidnight.getTime()
+}
+
+const loadLocalClaimedCoupons = () => {
+  const key = claimedStorageKey()
+  if (!key) return new Set()
+  const raw = sessionStorage.getItem(key)
+  if (!raw) return new Set()
+  try {
+    const data = JSON.parse(raw)
+    if (data?.expiresAt && Date.now() > data.expiresAt) {
+      sessionStorage.removeItem(key)
+      return new Set()
+    }
+    const ids = Array.isArray(data?.ids) ? data.ids : []
+    const normalized = ids
+      .map((id) => normalizeId(id))
+      .filter(Boolean)
+    return new Set(normalized)
+  } catch (error) {
+    console.warn('⚠️ [EventView] 로컬 쿠폰 데이터 파싱 실패:', error)
+    return new Set()
+  }
+}
+
+const saveLocalClaimedCoupons = (idsSet) => {
+  const key = claimedStorageKey()
+  if (!key) return
+  const payload = {
+    expiresAt: getNextResetTs(),
+    ids: Array.from(idsSet)
+  }
+  sessionStorage.setItem(key, JSON.stringify(payload))
+}
 
 const fetchCoupons = async () => {
   couponLoading.value = true
@@ -44,16 +87,23 @@ const fetchCoupons = async () => {
 }
 
 const loadClaimedCoupons = async () => {
+  if (!getAccessToken()) {
+    claimedCoupons.value = new Set()
+    return
+  }
   try {
     const ids = await getMyCouponIds()
     const normalized = new Set(
       (ids || [])
         .map((id) => normalizeId(id))
-        .filter((id) => id !== null)
+        .filter(Boolean)
     )
-    claimedCoupons.value = normalized
+    const merged = new Set(claimedCoupons.value)
+    normalized.forEach((id) => merged.add(id))
+    claimedCoupons.value = merged
+    saveLocalClaimedCoupons(merged)
   } catch (error) {
-    console.error('내 쿠폰 조회 실패:', error)
+    console.error('❌ [EventView] 쿠폰 목록 조회 실패:', error)
   }
 }
 
@@ -70,13 +120,12 @@ const startCountdown = () => {
 }
 
 const updateCountdown = async () => {
-  const now = new Date()
-  const nextMidnight = new Date(now)
-  nextMidnight.setHours(24, 0, 0, 0)
-  const diffMs = nextMidnight.getTime() - now.getTime()
+  const now = Date.now()
+  const diffMs = getNextResetTs() - now
   if (diffMs <= 0) {
     nextResetCountdown.value = '00:00:00'
     clearCountdown()
+    claimedCoupons.value = loadLocalClaimedCoupons()
     await fetchCoupons()
     await loadClaimedCoupons()
     startCountdown()
@@ -108,6 +157,7 @@ const markClaimedCoupon = (couponId) => {
   const next = new Set(claimedCoupons.value)
   next.add(key)
   claimedCoupons.value = next
+  saveLocalClaimedCoupons(next)
 }
 
 const openModal = (title, message) => {
@@ -179,6 +229,7 @@ const formatPeriod = (start, end) => {
 }
 
 onMounted(async () => {
+  claimedCoupons.value = loadLocalClaimedCoupons()
   await fetchCoupons()
   await loadClaimedCoupons()
   await updateCountdown()
