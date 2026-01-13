@@ -105,6 +105,16 @@ public class ReservationController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 취소된 예약 삭제 (내역에서 삭제)
+     */
+    @DeleteMapping("/cancelled/{reservationId}")
+    public ResponseEntity<Void> deleteCancelledReservation(
+            @PathVariable Long reservationId) {
+        reservationService.deleteCancelledReservation(reservationId);
+        return ResponseEntity.noContent().build();
+    }
+
     // 객실별 예약 목록 조회
     @GetMapping("/room/{roomId}")
     public ResponseEntity<List<ReservationResponseDto>> getReservationsByRoom(@PathVariable Long roomId) {

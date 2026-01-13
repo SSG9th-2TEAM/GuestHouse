@@ -52,7 +52,7 @@ public class GlobalExceptionHandler {
         log.error("RuntimeException: {}", ex.getMessage(), ex);
 
         // 브라우저 요청(HTML)인 경우 로그인 페이지로 리다이렉트
-        if (isHtmlRequest(request)) {
+        if (shouldRedirectToLogin(request)) {
             log.info("Redirecting browser request to login page due to RuntimeException");
             return new RedirectView(failureRedirectUri);
         }
@@ -67,7 +67,7 @@ public class GlobalExceptionHandler {
         log.error("Unhandled Exception: ", ex);
 
         // 브라우저 요청(HTML)인 경우 로그인 페이지로 리다이렉트
-        if (isHtmlRequest(request)) {
+        if (shouldRedirectToLogin(request)) {
             log.info("Redirecting browser request to login page due to exception");
             return new RedirectView(failureRedirectUri);
         }
@@ -78,10 +78,9 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 브라우저의 HTML 요청인지 확인
+     * 브라우저의 HTML 요청인지 확인 (리다이렉트 대상)
      */
-    private boolean isHtmlRequest(HttpServletRequest request) {
-        String acceptHeader = request.getHeader("Accept");
+    private boolean shouldRedirectToLogin(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
 
         // API 경로는 항상 JSON 응답
@@ -89,12 +88,21 @@ public class GlobalExceptionHandler {
             return false;
         }
 
-        // OAuth2 콜백 경로는 브라우저 요청으로 처리
+        // 이미 /login 경로면 리다이렉트하지 않음 (무한 루프 방지)
+        if (requestUri != null && requestUri.equals("/login")) {
+            return false;
+        }
+
+        // OAuth2 콜백 경로는 리다이렉트 대상
         if (requestUri != null && requestUri.startsWith("/login/oauth2/code/")) {
             return true;
         }
 
-        // Accept 헤더로 판단
-        return acceptHeader != null && acceptHeader.contains("text/html");
+        // OAuth2 authorization 경로는 리다이렉트 대상
+        if (requestUri != null && requestUri.startsWith("/oauth2/authorization/")) {
+            return true;
+        }
+
+        return false;
     }
 }

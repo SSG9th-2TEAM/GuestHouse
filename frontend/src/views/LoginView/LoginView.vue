@@ -422,6 +422,10 @@ const goToSignup = () => {
   transform: translateY(0);
 }
 
+.social-btn span {
+  font-family: 'NanumSquareRound', sans-serif;
+}
+
 .social-icon {
   flex-shrink: 0;
 }
