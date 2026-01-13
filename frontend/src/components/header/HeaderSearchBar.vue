@@ -222,14 +222,6 @@ const selectSuggestion = async (suggestion) => {
     return
   }
 
-  // 즉시 suggestions 닫기
-  isSearchExpanded.value = false
-  closeSuggestions()
-
-  // 모바일의 경우 터치 이벤트 전파 완전 차단을 위해 충분히 대기
-  await nextTick()
-  await new Promise(resolve => setTimeout(resolve, 100))
-
   const nextValue = String(val)
   
   // 입력 상태 정리
@@ -258,6 +250,10 @@ const selectSuggestion = async (suggestion) => {
   } catch (error) {
     console.error('Navigation error:', error)
   } finally {
+    // 네비게이션 완료 후 닫기 (이벤트 전파 이슈 방지 및 자연스러운 전환)
+    isSearchExpanded.value = false
+    closeSuggestions()
+
     // 약간의 지연 후 선택 플래그 해제 (이벤트 루프 처리 대기)
     setTimeout(() => {
       isSelecting.value = false
@@ -386,7 +382,7 @@ watch(() => searchKeyword.value, (value) => {
   scheduleSuggestionFetch(value)
 })
 
-watch(() => route.path, () => {
+watch(() => route.fullPath, () => {
   if (isMobile()) {
     isSearchExpanded.value = false
     closeSuggestions()
@@ -473,7 +469,7 @@ onUnmounted(() => {
 
       <div class="search-item-full" 
            :style="{ 'pointer-events': isSuggestOpen ? 'none' : 'auto' }"
-           @click="(e) => { toggleCalendar(e) }">
+           @click="toggleCalendar">
         <label>날짜</label>
         <input type="text" :placeholder="searchStore.dateDisplayText" readonly>
       </div>
