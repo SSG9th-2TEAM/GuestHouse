@@ -53,6 +53,13 @@ const formatReviewCount = (value) => {
   return numeric.toLocaleString()
 }
 
+const normalizedPrice = computed(() => {
+  const value = Number(props.price)
+  return Number.isFinite(value) ? value : null
+})
+
+const hasPrice = computed(() => normalizedPrice.value !== null && normalizedPrice.value > 0)
+
 const emit = defineEmits(['toggle-favorite'])
 </script>
 
@@ -82,9 +89,10 @@ const emit = defineEmits(['toggle-favorite'])
       <div class="card-bottom">
         <div class="info-left">
           <p class="location">{{ location }}</p>
-          <span class="price">
-            <strong>&#8361;{{ price.toLocaleString() }}</strong><span class="price-unit">&nbsp;/&nbsp;1박</span>
+          <span v-if="hasPrice" class="price">
+            <strong>&#8361;{{ normalizedPrice.toLocaleString() }}</strong><span class="price-unit">&nbsp;/&nbsp;1박</span>
           </span>
+          <span v-else class="price price--empty">가격정보 없음</span>
         </div>
         <div class="info-right">
           <span class="rating-value">&#9733;{{ formatRating(rating) }}</span>
@@ -283,6 +291,11 @@ const emit = defineEmits(['toggle-favorite'])
 
 .price-unit {
   white-space: nowrap;
+}
+
+.price--empty {
+  color: var(--text-sub);
+  font-weight: 600;
 }
 
 .book-btn {

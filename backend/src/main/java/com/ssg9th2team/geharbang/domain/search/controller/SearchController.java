@@ -1,9 +1,12 @@
 package com.ssg9th2team.geharbang.domain.search.controller;
 
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
+import com.ssg9th2team.geharbang.domain.search.dto.SearchResolveResponse;
+import com.ssg9th2team.geharbang.domain.search.dto.SearchSuggestionResponse;
 import com.ssg9th2team.geharbang.domain.search.service.SearchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -37,6 +40,7 @@ public class SearchController {
             @RequestParam(name = "guestCount", required = false) Integer guestCount,
             @RequestParam(name = "minPrice", required = false) Integer minPrice,
             @RequestParam(name = "maxPrice", required = false) Integer maxPrice,
+            @RequestParam(name = "includeUnavailable", defaultValue = "false") boolean includeUnavailable,
             @RequestParam(name = "sort", required = false) String sort) {
         // 체크인/체크아웃 날짜 검증
         if (checkin != null && checkout != null && !checkout.isAfter(checkin)) {
@@ -58,6 +62,24 @@ public class SearchController {
                 guestCount,
                 minPrice,
                 maxPrice,
+                includeUnavailable,
                 sort);
+    }
+
+    @GetMapping("/search/suggest")
+    public List<SearchSuggestionResponse> suggest(
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "limit", defaultValue = "10") int limit) {
+        return searchService.suggestPublicSearch(keyword, limit);
+    }
+
+    @GetMapping("/search/resolve")
+    public ResponseEntity<SearchResolveResponse> resolveAccommodation(
+            @RequestParam(name = "keyword", required = false) String keyword) {
+        SearchResolveResponse resolved = searchService.resolvePublicAccommodation(keyword);
+        if (resolved == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(resolved);
     }
 }

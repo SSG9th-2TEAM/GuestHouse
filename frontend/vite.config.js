@@ -29,8 +29,8 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
-      // OAuth2 소셜 로그인 경로 프록시
-      '/oauth2': {
+      // OAuth2 소셜 로그인 경로 프록시 (/oauth2/authorization만, /oauth2/redirect는 프론트엔드)
+      '/oauth2/authorization': {
         target: 'http://localhost:8080',
         changeOrigin: true,
       },

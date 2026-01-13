@@ -67,10 +67,12 @@ const MAX_ROW_CARDS = 12
 const MAX_ITEMS_PER_ROW = MAX_ROW_CARDS - 1
 const MAX_THEME_SECTIONS = 8
 
+import { getCardDescription } from '@/utils/accommodationUtils'
+
 const normalizeItem = (item) => {
   const id = item.accommodationsId ?? item.accommodationId ?? item.id
   const title = item.accommodationsName ?? item.accommodationName ?? item.title ?? ''
-  const description = item.shortDescription ?? item.description ?? ''
+  const description = getCardDescription(item)
   const rating = item.rating ?? null
   const reviewCount = item.reviewCount ?? item.review_count ?? null
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
@@ -279,7 +281,7 @@ onMounted(() => {
           :disabled="isAiLoading || !aiSearchQuery.trim()"
         >
           <span v-if="isAiLoading" class="loading-spinner"></span>
-          <span v-else>✨ 추천받기</span>
+          <span v-else class="ai-search-button-label">✨ 추천받기</span>
         </button>
       </div>
       
@@ -351,7 +353,7 @@ onMounted(() => {
         <div class="skeleton-section-title shimmer"></div>
       </div>
       <div class="row-scroll">
-        <SkeletonCard v-for="n in 4" :key="n" />
+        <SkeletonCard v-for="n in 5" :key="n" />
       </div>
     </section>
     <section v-if="isLoading" class="theme-section skeleton-section">
@@ -359,7 +361,7 @@ onMounted(() => {
         <div class="skeleton-section-title shimmer"></div>
       </div>
       <div class="row-scroll">
-        <SkeletonCard v-for="n in 4" :key="n" />
+        <SkeletonCard v-for="n in 5" :key="n" />
       </div>
     </section>
 
@@ -721,11 +723,12 @@ onMounted(() => {
   gap: 0.75rem;
   max-width: 800px;
   margin: 0 auto;
+  align-items: center;
 }
 
 .ai-search-input {
   flex: 1;
-  padding: 1rem 1.25rem;
+  padding: calc(1rem + 2px) 1.25rem calc(1rem - 2px);
   font-size: 1rem;
   border: 2px solid var(--brand-primary, #BFE7DF);
   border-radius: 50px;
@@ -744,27 +747,43 @@ onMounted(() => {
 }
 
 .ai-search-button {
-  padding: 1rem 2rem;
-  font-size: 1rem;
+  padding: 0.85rem 1.2rem 0.85rem 0.9rem;
+  min-height: 48px;
+  font-size: 0.95rem;
   font-weight: 700;
-  color: #0f172a;
-  background: var(--brand-primary, #BFE7DF);
-  border: 1px solid var(--brand-primary-strong, #6DC3BB);
-  border-radius: 50px;
+  color: #0f766e;
+  background: linear-gradient(135deg, var(--brand-primary, #BFE7DF) 0%, #7fd3ca 100%);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
   white-space: nowrap;
+  box-shadow: 0 6px 14px rgba(109, 195, 187, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ai-search-button:hover:not(:disabled) {
-  background: var(--brand-primary-strong, #6DC3BB);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(109, 195, 187, 0.3);
+  background: linear-gradient(135deg, #9fe0d7 0%, var(--brand-primary-strong, #6DC3BB) 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(109, 195, 187, 0.35);
+}
+
+.ai-search-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 4px 10px rgba(109, 195, 187, 0.25);
 }
 
 .ai-search-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  box-shadow: none;
+}
+
+.ai-search-button-label {
+  display: inline-block;
+  transform: translateY(-1px);
 }
 
 .loading-spinner {

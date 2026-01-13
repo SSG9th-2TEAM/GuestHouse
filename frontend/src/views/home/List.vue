@@ -69,10 +69,12 @@ const selectSort = (value) => {
   isSortOpen.value = false
 }
 
+import { getCardDescription } from '@/utils/accommodationUtils'
+
 const normalizeItem = (item) => {
   const id = item.accommodationsId ?? item.accommodationId ?? item.id
   const title = item.accommodationsName ?? item.accommodationName ?? item.title ?? ''
-  const description = item.shortDescription ?? item.description ?? ''
+  const description = getCardDescription(item)
   const rating = item.rating ?? null
   const reviewCount = item.reviewCount ?? item.review_count ?? null
   const location = [item.city, item.district, item.township].filter(Boolean).join(' ')
@@ -183,7 +185,8 @@ const loadList = async ({
       maxPrice,
       page: pageParam,
       size: PAGE_SIZE,
-      sort
+      sort,
+      includeUnavailable: true
     })
     if (response.ok) {
       const payload = response.data
@@ -562,7 +565,7 @@ watch(
   padding-bottom: 1rem;
   padding-left: 1rem;
   padding-right: 1rem;
-  --card-width: 340px;
+  --card-width: 300px;
 }
 
 /* PC 웹에서 header와 동일한 max-width 적용 */
@@ -701,7 +704,9 @@ watch(
   border: 1px solid #ddd;
   border-radius: 20px;
   background: white;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-main);
   cursor: pointer;
   transition: background-color 0.2s;
   display: flex;
@@ -724,6 +729,9 @@ watch(
 .list-item {
   cursor: pointer;
   transition: transform 0.2s;
+  width: 100%;
+  max-width: var(--card-width);
+  justify-self: center;
 }
 
 .list-item:hover {
@@ -848,6 +856,7 @@ watch(
 .empty-title {
   font-size: 1.25rem;
   font-weight: 700;
+  font-family: 'NanumSquareRound', sans-serif;
   color: var(--text-main, #1f2937);
   margin: 0 0 0.75rem 0;
   word-break: keep-all;
