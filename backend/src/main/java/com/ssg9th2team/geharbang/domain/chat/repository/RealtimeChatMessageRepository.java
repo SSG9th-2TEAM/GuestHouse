@@ -19,4 +19,6 @@ public interface RealtimeChatMessageRepository extends JpaRepository<RealtimeCha
 
     // 사용자가 특정 채팅방에서 보낸 메시지가 아닌 메시지 중 읽지 않은 메시지 수
     long countByChatRoomIdAndSenderUserIdIsNotAndIsReadFalse(Long chatRoomId, Long senderUserId);
+
+    void deleteByChatRoomId(Long chatRoomId);
 }
