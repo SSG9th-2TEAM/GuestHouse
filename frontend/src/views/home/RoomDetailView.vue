@@ -385,7 +385,7 @@ const loadAccommodation = async () => {
     ])
 
     if (!detailResponse.ok || !detailResponse.data) {
-      guesthouse.value = createEmptyGuesthouse(accommodationsId)
+      router.replace({ name: 'not-found' })
       return
     }
 
@@ -412,7 +412,7 @@ const loadAccommodation = async () => {
     }
   } catch (error) {
     console.error('Failed to load accommodation detail', error)
-    guesthouse.value = createEmptyGuesthouse(accommodationsId)
+    router.replace({ name: 'not-found' })
   } finally {
     isDataLoading.value = false
   }
