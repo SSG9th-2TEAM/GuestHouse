@@ -48,10 +48,9 @@ public class CouponInventoryService {
         try {
             // Redis에서 해당 쿠폰 재고 값을 1 감소
             Long remaining = redisTemplate.opsForValue().decrement(redisKey);
-            // 남은 쿠폰이 없거나 쿠폰이 개수가 0보다 작다면 -> 100명중 50명은 팅김
+            // 남은 쿠폰이 없거나 쿠폰 남은 수량이 0보다 작다면 -> 100명중 50명은 팅김
+            // decrement는 -1 하는건데 쿠폰 개수가 0 -> -1  되면 다시 incremnet로 +1 시킴 ->  쿠폰 0 개
             if (remaining == null || remaining < 0) {
-                // Redis 복구
-                // decrement는 -1 하는건데 쿠폰 개수가 0 -> -1  되면 다시 incremnet로 +1 시킴 ->  쿠폰 0 개
                 if (remaining != null && remaining < 0) {
                     redisTemplate.opsForValue().increment(redisKey);
                 }
