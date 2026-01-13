@@ -33,7 +33,7 @@ const goHome = () => {
     align-items: center;
     min-height: 80vh;
     background-color: #fff;
-    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    font-family: 'NanumSquareRound', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
 }
 
 .content-wrapper {
@@ -51,7 +51,7 @@ const goHome = () => {
     height: auto;
     object-fit: contain;
     /* Soft shadow for depth */
-    filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.05));
+    /* filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.05)); */
     animation: float 3s ease-in-out infinite;
 }
 
@@ -72,22 +72,22 @@ const goHome = () => {
 }
 
 .home-btn {
-    background-color: #ff5a5f; /* Brand color */
-    color: white;
+    background-color: #BFE7DF;
+    color: #004d40;
     font-size: 1rem;
-    font-weight: 600;
+    font-weight: 700;
     padding: 14px 32px;
     border-radius: 50px;
     border: none;
     cursor: pointer;
     transition: all 0.2s ease;
-    box-shadow: 0 4px 12px rgba(255, 90, 95, 0.3);
+    box-shadow: 0 4px 12px rgba(191, 231, 223, 0.5);
 }
 
 .home-btn:hover {
-    background-color: #e0484d;
+    background-color: #A0D1C8;
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(255, 90, 95, 0.4);
+    box-shadow: 0 6px 16px rgba(160, 209, 200, 0.6);
 }
 
 .home-btn:active {
