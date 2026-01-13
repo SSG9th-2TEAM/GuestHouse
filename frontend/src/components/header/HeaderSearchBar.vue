@@ -56,7 +56,8 @@ const normalizeSuggestKeyword = (value) => {
 }
 
 const canShowSuggestions = computed(() => {
-  return isSuggestOpen.value && suggestions.value.length > 0
+  // API 로딩 중에도 suggestions div를 유지하여 클릭이 투과되는 것 방지
+  return isSuggestOpen.value && (suggestions.value.length > 0 || isSuggestLoading.value)
 })
 
 const clearSuggestionTimer = () => {
@@ -90,14 +91,25 @@ const scheduleSuggestionFetch = (value) => {
   }
 
   const keyword = normalizeSuggestKeyword(value)
-  if (!isSuggestOpen.value || !keyword) {
-    resetSuggestions()
-    return
-  }
+
+  // 즉시 리셋하지 않고 타이머 설정 (입력 중간 단계에서 리스트 깜빡임 방지)
   clearSuggestionTimer()
   hasSuggestFetched.value = false
   isShowingPopular.value = false
+
   suggestTimer = setTimeout(async () => {
+    // suggestions가 닫혀있으면 중단
+    if (!isSuggestOpen.value) {
+      resetSuggestions()
+      return
+    }
+
+    // 키워드가 유효하지 않으면 리셋
+    if (!keyword) {
+      resetSuggestions()
+      return
+    }
+
     const requestId = ++suggestRequestId
     isSuggestLoading.value = true
     try {
@@ -214,8 +226,9 @@ const selectSuggestion = async (suggestion) => {
   isSearchExpanded.value = false
   closeSuggestions()
 
-  // 모바일의 경우 DOM에서 input이 사라지도록 대기
+  // 모바일의 경우 터치 이벤트 전파 완전 차단을 위해 충분히 대기
   await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 100))
 
   const nextValue = String(val)
   
@@ -311,6 +324,10 @@ const toggleSearch = (event) => {
 }
 
 const toggleCalendar = (e) => {
+  // suggestions가 열려있으면 캘린더 토글 무시
+  if (isSuggestOpen.value) {
+    return
+  }
   e.stopPropagation()
   calendarStore.toggleCalendar('header')
   isGuestOpen.value = false
@@ -318,6 +335,8 @@ const toggleCalendar = (e) => {
 }
 
 const toggleGuestPicker = (e) => {
+  // suggestions가 열려있으면 게스트 피커 토글 무시
+  if (isSuggestOpen.value) return
   e.stopPropagation()
   isGuestOpen.value = !isGuestOpen.value
   calendarStore.closeCalendar('header')
@@ -326,6 +345,9 @@ const toggleGuestPicker = (e) => {
 
 // Click Outside & Resize
 const handleClickOutside = (e) => {
+  const closestWrapper = e.target.closest('.search-keyword-wrapper')
+  const closestSuggestions = e.target.closest('.search-suggestions')
+  
   if (isSelecting.value) {
     return
   }
@@ -336,7 +358,8 @@ const handleClickOutside = (e) => {
   if (!e.target.closest('.guest-picker-wrapper')) {
     isGuestOpen.value = false
   }
-  if (!e.target.closest('.search-keyword-wrapper')) {
+  // suggestions 영역 클릭 시에도 닫지 않음
+  if (!closestWrapper && !closestSuggestions) {
     closeSuggestions()
   }
 }
@@ -448,7 +471,9 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="search-item-full" @click="toggleCalendar">
+      <div class="search-item-full" 
+           :style="{ 'pointer-events': isSuggestOpen ? 'none' : 'auto' }"
+           @click="(e) => { toggleCalendar(e) }">
         <label>날짜</label>
         <input type="text" :placeholder="searchStore.dateDisplayText" readonly>
       </div>
@@ -456,7 +481,9 @@ onUnmounted(() => {
       <!-- Mobile Calendar -->
       <HeaderCalendar v-if="isCalendarOpen" mode="mobile" />
 
-      <div class="search-item-full" @click="toggleGuestPicker">
+      <div class="search-item-full" 
+           :style="{ 'pointer-events': isSuggestOpen ? 'none' : 'auto' }"
+           @click="toggleGuestPicker">
         <label>여행자</label>
         <input type="text" :placeholder="searchStore.guestDisplayText" readonly>
       </div>
@@ -843,6 +870,10 @@ onUnmounted(() => {
   
   .search-item-full {
     display: flex; flex-direction: column; padding: 16px 0; border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .search-item-full.search-keyword-wrapper {
+    position: relative;
   }
   .search-item-full:last-of-type { border-bottom: none; }
   
