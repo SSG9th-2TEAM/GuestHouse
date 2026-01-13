@@ -1290,11 +1290,6 @@ h3 {
   display: flex;
   gap: 1rem;
 }
-<<<<<<< HEAD
-.picker-field { flex: 1; }
-.picker-field label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 0.5rem; font-family: 'NanumSquareRound', sans-serif !important; }
-=======
-
 .picker-field {
   flex: 1;
 }
@@ -1305,8 +1300,6 @@ h3 {
   font-weight: bold;
   margin-bottom: 0.5rem;
 }
-
->>>>>>> develop
 .date-display, .guest-control {
   border: 1px solid #ddd;
   padding: 0 0.8rem;
