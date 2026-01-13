@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
 import { useHolidayStore } from '@/stores/holiday'
 import { useCalendarStore } from '@/stores/calendar'
+import { fetchSearchSuggestions, resolveSearchAccommodation } from '@/api/list'
 import { isAuthenticated, logout, validateToken, getUserInfo, getAccessToken, getCurrentUser, saveUserInfo } from '@/api/authClient'
 
 const router = useRouter()
@@ -12,10 +13,157 @@ const searchStore = useSearchStore()
 const holidayStore = useHolidayStore()
 const calendarStore = useCalendarStore()
 const searchKeyword = ref(searchStore.keyword || '')
+const suggestKeyword = ref(searchKeyword.value || '')
 const keywordDisplay = computed(() => {
   const keyword = String(searchStore.keyword ?? '').trim()
   return keyword || '어디로 갈까?'
 })
+
+const suggestions = ref([])
+const isSuggestOpen = ref(false)
+const isSuggestLoading = ref(false)
+const hasSuggestFetched = ref(false)
+const isComposing = ref(false)
+const MIN_SUGGEST_LENGTH = 2
+const SUGGEST_LIMIT = 10
+let suggestTimer = null
+let suggestRequestId = 0
+
+const normalizeSuggestKeyword = (value) => {
+  const trimmed = String(value ?? '').trim()
+  return trimmed.length >= MIN_SUGGEST_LENGTH ? trimmed : ''
+}
+
+const canShowSuggestions = computed(() => {
+  return Boolean(normalizeSuggestKeyword(suggestKeyword.value) && isSuggestOpen.value)
+})
+
+const clearSuggestionTimer = () => {
+  if (suggestTimer) {
+    clearTimeout(suggestTimer)
+    suggestTimer = null
+  }
+}
+
+const resetSuggestions = () => {
+  clearSuggestionTimer()
+  suggestions.value = []
+  isSuggestLoading.value = false
+  hasSuggestFetched.value = false
+}
+
+const scheduleSuggestionFetch = (value) => {
+  const keyword = normalizeSuggestKeyword(value)
+  if (!isSuggestOpen.value || !keyword) {
+    resetSuggestions()
+    return
+  }
+  clearSuggestionTimer()
+  hasSuggestFetched.value = false
+  suggestTimer = setTimeout(async () => {
+    const requestId = ++suggestRequestId
+    isSuggestLoading.value = true
+    try {
+      const response = await fetchSearchSuggestions(keyword, SUGGEST_LIMIT)
+      if (requestId !== suggestRequestId) return
+      if (response.ok && Array.isArray(response.data)) {
+        suggestions.value = response.data
+      } else {
+        suggestions.value = []
+      }
+    } catch (error) {
+      console.error('Failed to load search suggestions', error)
+      if (requestId === suggestRequestId) {
+        suggestions.value = []
+      }
+    } finally {
+      if (requestId === suggestRequestId) {
+        isSuggestLoading.value = false
+        hasSuggestFetched.value = true
+      }
+    }
+  }, 250)
+}
+
+const openSuggestions = () => {
+  isSuggestOpen.value = true
+  scheduleSuggestionFetch(suggestKeyword.value || searchKeyword.value)
+}
+
+const closeSuggestions = () => {
+  isSuggestOpen.value = false
+  resetSuggestions()
+}
+
+const resolveAccommodation = async (value) => {
+  const keyword = String(value ?? '').trim()
+  if (!keyword) return null
+  try {
+    const response = await resolveSearchAccommodation(keyword)
+    if (response.ok && response.data?.accommodationsId) {
+      return response.data
+    }
+  } catch (error) {
+    console.error('Failed to resolve accommodation', error)
+  }
+  return null
+}
+
+const isAccommodationSuggestion = (suggestion) => {
+  return String(suggestion?.type || '').toUpperCase() === 'ACCOMMODATION'
+}
+
+const selectSuggestion = async (suggestion) => {
+  if (!suggestion?.value) return
+  const nextValue = String(suggestion.value)
+  searchKeyword.value = nextValue
+  suggestKeyword.value = nextValue
+  searchStore.setKeyword(nextValue)
+  if (isAccommodationSuggestion(suggestion)) {
+    const resolved = await resolveAccommodation(nextValue)
+    if (resolved?.accommodationsId) {
+      closeSuggestions()
+      isSearchExpanded.value = false
+      router.push({ path: `/room/${resolved.accommodationsId}` })
+      return
+    }
+  }
+  const targetPath = isMapContext() ? '/map' : '/list'
+  router.push({ path: targetPath, query: buildSearchQuery() })
+  isSearchExpanded.value = false
+  closeSuggestions()
+}
+
+const handleCompositionStart = () => {
+  isComposing.value = true
+}
+
+const handleCompositionUpdate = (event) => {
+  const value = event?.target?.value ?? ''
+  suggestKeyword.value = value
+  scheduleSuggestionFetch(value)
+}
+
+const handleCompositionEnd = (event) => {
+  isComposing.value = false
+  const value = event?.target?.value ?? searchKeyword.value
+  suggestKeyword.value = value
+  scheduleSuggestionFetch(value)
+}
+
+const handleInput = (event) => {
+  const value = event?.target?.value ?? ''
+  suggestKeyword.value = value
+  if (!isSuggestOpen.value) return
+  if (event?.isComposing || isComposing.value) {
+    scheduleSuggestionFetch(value)
+  }
+}
+
+const getSuggestionLabel = (type) => {
+  const normalized = String(type || '').toUpperCase()
+  return normalized === 'REGION' ? '지역' : '숙소'
+}
 
 watch(
   () => searchStore.keyword,
@@ -24,6 +172,16 @@ watch(
     if (next !== searchKeyword.value) {
       searchKeyword.value = next
     }
+  }
+)
+
+watch(
+  () => searchKeyword.value,
+  (value) => {
+    if (isComposing.value) return
+    suggestKeyword.value = value || ''
+    if (!isSuggestOpen.value) return
+    scheduleSuggestionFetch(value)
   }
 )
 
@@ -99,6 +257,7 @@ const toggleGuestPicker = (e) => {
   e.stopPropagation()
   isGuestOpen.value = !isGuestOpen.value
   calendarStore.closeCalendar('header')
+  closeSuggestions()
 }
 
 const increaseGuest = () => {
@@ -208,6 +367,7 @@ const toggleCalendar = (e) => {
   e.stopPropagation()
   calendarStore.toggleCalendar('header')
   isGuestOpen.value = false
+  closeSuggestions()
 }
 
 const prevMonth = () => {
@@ -278,10 +438,24 @@ const buildSearchQuery = () => {
   return query
 }
 
-const handleSearch = () => {
+const handleSearch = async () => {
+  const keyword = String(searchKeyword.value ?? '').trim()
+  if (keyword) {
+    const resolved = await resolveAccommodation(keyword)
+    if (resolved?.accommodationsId) {
+      searchStore.setKeyword(keyword)
+      searchKeyword.value = keyword
+      isSearchExpanded.value = false
+      closeSuggestions()
+      router.push({ path: `/room/${resolved.accommodationsId}` })
+      return
+    }
+  }
+
   const targetPath = isMapContext() ? '/map' : '/list'
   router.push({ path: targetPath, query: buildSearchQuery() })
   isSearchExpanded.value = false
+  closeSuggestions()
 }
 
 const toggleMenu = () => {
@@ -295,6 +469,9 @@ const toggleSearch = (event) => {
     return
   }
   isSearchExpanded.value = !isSearchExpanded.value
+  if (!isSearchExpanded.value) {
+    closeSuggestions()
+  }
 }
 
 const handleClickOutside = (e) => {
@@ -307,11 +484,15 @@ const handleClickOutside = (e) => {
   if (!e.target.closest('.guest-picker-wrapper')) {
     isGuestOpen.value = false
   }
+  if (!e.target.closest('.search-keyword-wrapper')) {
+    closeSuggestions()
+  }
 }
 
 const handleResize = () => {
   if (!isMobile()) {
     isSearchExpanded.value = false
+    closeSuggestions()
   }
 }
 
@@ -330,12 +511,17 @@ onMounted(async () => {
   // 페이지 이동 후 로그인 상태 업데이트
   router.afterEach(() => {
     isLoggedIn.value = isAuthenticated()
+    if (isMobile()) {
+      isSearchExpanded.value = false
+      closeSuggestions()
+    }
   })
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('resize', handleResize)
+  clearSuggestionTimer()
 })
 </script>
 
@@ -411,9 +597,45 @@ onUnmounted(() => {
           <!-- Expanded Mobile View -->
           <div class="search-bar-expanded" v-if="isSearchExpanded" @click.stop>
             <div class="expanded-close" @click="isSearchExpanded = false">×</div>
-            <div class="search-item-full">
+            <div class="search-item-full search-keyword-wrapper">
               <label>여행지</label>
-              <input v-model="searchKeyword" type="text" placeholder="어디로 갈까?" @keydown.enter.prevent="handleSearch">
+              <input
+                v-model="searchKeyword"
+                type="text"
+                placeholder="어디로 갈까?"
+                @input="handleInput"
+                @keydown.enter.prevent="handleSearch"
+                @focus="openSuggestions"
+                @compositionstart="handleCompositionStart"
+                @compositionupdate="handleCompositionUpdate"
+                @compositionend="handleCompositionEnd"
+              >
+              <div v-if="canShowSuggestions" class="search-suggestions">
+                <div v-if="isSuggestLoading" class="suggestion-loading">검색 중...</div>
+                <template v-else>
+                  <button
+                    v-for="(suggestion, idx) in suggestions"
+                    :key="`${suggestion.type}-${suggestion.value}-${idx}`"
+                    type="button"
+                    :class="[
+                      'search-suggestion',
+                      String(suggestion.type || '').toUpperCase() === 'REGION'
+                        ? 'search-suggestion--region'
+                        : 'search-suggestion--accommodation'
+                    ]"
+                    @mousedown.prevent="selectSuggestion(suggestion)"
+                  >
+                    <span class="suggestion-text">{{ suggestion.value }}</span>
+                    <span
+                      class="suggestion-tag"
+                      :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
+                    >
+                      {{ getSuggestionLabel(suggestion.type) }}
+                    </span>
+                  </button>
+                    <div v-if="hasSuggestFetched && !suggestions.length" class="suggestion-empty">검색 결과 없음</div>
+                </template>
+              </div>
             </div>
 
             <div class="search-item-full" @click="toggleCalendar">
@@ -509,9 +731,45 @@ onUnmounted(() => {
 
           <!-- Desktop View -->
           <div class="search-bar-desktop">
-            <div class="search-item">
+            <div class="search-item search-keyword-wrapper">
               <label>여행지</label>
-              <input v-model="searchKeyword" type="text" placeholder="어디로 갈까?" @keydown.enter.prevent="handleSearch">
+              <input
+                v-model="searchKeyword"
+                type="text"
+                placeholder="어디로 갈까?"
+                @input="handleInput"
+                @keydown.enter.prevent="handleSearch"
+                @focus="openSuggestions"
+                @compositionstart="handleCompositionStart"
+                @compositionupdate="handleCompositionUpdate"
+                @compositionend="handleCompositionEnd"
+              >
+              <div v-if="canShowSuggestions" class="search-suggestions">
+                <div v-if="isSuggestLoading" class="suggestion-loading">검색 중...</div>
+                <template v-else>
+                  <button
+                    v-for="(suggestion, idx) in suggestions"
+                    :key="`${suggestion.type}-${suggestion.value}-${idx}`"
+                    type="button"
+                    :class="[
+                      'search-suggestion',
+                      String(suggestion.type || '').toUpperCase() === 'REGION'
+                        ? 'search-suggestion--region'
+                        : 'search-suggestion--accommodation'
+                    ]"
+                    @mousedown.prevent="selectSuggestion(suggestion)"
+                  >
+                    <span class="suggestion-text">{{ suggestion.value }}</span>
+                    <span
+                      class="suggestion-tag"
+                      :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
+                    >
+                      {{ getSuggestionLabel(suggestion.type) }}
+                    </span>
+                  </button>
+                    <div v-if="hasSuggestFetched && !suggestions.length" class="suggestion-empty">검색 결과 없음</div>
+                </template>
+              </div>
             </div>
 
           <div class="search-divider"></div>
@@ -741,6 +999,156 @@ onUnmounted(() => {
   padding: 6px 8px;
   border-radius: 6px;
   min-width: 0;
+}
+
+.search-keyword-wrapper {
+  position: relative;
+}
+
+.search-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: auto;
+  width: min(560px, calc(100vw - 32px));
+  min-width: 100%;
+  font-family: sans-serif;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  z-index: 300;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px;
+  overscroll-behavior: contain;
+  animation: suggestionDrop 0.16s ease-out;
+}
+
+.search-suggestion {
+  --suggest-accent: #0f766e;
+  width: 100%;
+  border: 1px solid transparent;
+  background: #ffffff;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #111827;
+  border-radius: 10px;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+}
+
+.search-suggestion + .search-suggestion {
+  margin-top: 4px;
+}
+
+.search-suggestion::before {
+  content: '';
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--suggest-accent);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.search-suggestion--region {
+  --suggest-accent: #2563eb;
+}
+
+.search-suggestion--accommodation {
+  --suggest-accent: #0f766e;
+}
+
+.search-suggestion:hover,
+.search-suggestion:focus-visible {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+  outline: none;
+}
+
+.suggestion-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.2px;
+  flex-shrink: 0;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  background: #f8fafc;
+  margin-left: auto;
+}
+
+.search-suggestion--accommodation .suggestion-tag {
+  background: #ecfdf5;
+  color: #0f766e;
+  border-color: #99f6e4;
+}
+
+.search-suggestion--region .suggestion-tag {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.suggestion-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.suggestion-empty,
+.suggestion-loading {
+  padding: 14px 8px;
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.suggestion-loading {
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.search-suggestions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.search-suggestions::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.2);
+  border-radius: 999px;
+}
+
+.search-suggestions::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes suggestionDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-suggestions {
+    animation: none;
+  }
+
+  .search-suggestion {
+    transition: none;
+  }
 }
 
 .search-item:hover {
@@ -1173,14 +1581,32 @@ onUnmounted(() => {
     display: none !important;
   }
   
-  .search-bar.expanded .search-bar-expanded {
-    display: flex !important;
-  }
-  
-  .collapsed-text {
-    flex: 1 1 0;
-    min-width: 0;
-    font-size: 13px;
+    .search-bar.expanded .search-bar-expanded {
+      display: flex !important;
+    }
+
+    .search-suggestions {
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .search-bar-collapsed,
+    .search-bar-expanded,
+    .collapsed-text,
+    .collapsed-divider,
+    .search-item-full label,
+    .search-item-full input {
+      font-family: revert;
+    }
+
+    .search-item-full label {
+      font-family: sans-serif;
+    }
+
+    .collapsed-text {
+      flex: 1 1 0;
+      min-width: 0;
+      font-size: 13px;
     color: #6b7280;
     white-space: nowrap;
     overflow: hidden;

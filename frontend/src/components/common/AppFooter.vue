@@ -97,9 +97,9 @@
 .footer-section h3 {
   color: #1a1a1a;
   font-size: 14px;
+  font-family: 'TMoneyDungunbaram', sans-serif;
   font-weight: 600;
   margin-bottom: 12px;
-  font-family: 'Noto Sans KR', sans-serif;
 }
 
 .footer-section p {
