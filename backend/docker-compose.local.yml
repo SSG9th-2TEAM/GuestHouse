@@ -1,0 +1,10 @@
+services:
+  backend:
+    build: .
+    image: guesthouse-local:latest
+    pull_policy: never
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+    env_file:
+      - secrets.env

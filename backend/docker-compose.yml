@@ -22,6 +22,8 @@ services:
     environment:
       - REDIS_HOST=redis
       - GOOGLE_CLOUD_CREDENTIALS_LOCATION=file:/app/googlevision/ocr-test-480914-b8a930bfbdc0.json
+      - DB_HOST=mysql
+      - DB_PORT=3306
     volumes:
       - ./googlevision:/app/googlevision
     networks:
