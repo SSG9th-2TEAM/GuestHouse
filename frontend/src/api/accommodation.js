@@ -39,3 +39,10 @@ export async function fetchAccommodationAvailability(accommodationId, { checkin,
   }
   return hostGet(`/public/detail/${accommodationId}/availability`, params)
 }
+
+export async function fetchAiSummary(accommodationId) {
+  if (!accommodationId) {
+    return { ok: false, status: 400, data: null }
+  }
+  return hostGet(`/accommodations/${accommodationId}/ai-summary`)
+}

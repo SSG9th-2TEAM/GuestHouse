@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.review.repository.jpa;
 
 import com.ssg9th2team.geharbang.domain.review.entity.ReviewEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -39,4 +40,6 @@ public interface ReviewJpaRepository extends JpaRepository<ReviewEntity, Long> {
       """)
   List<Long> findAccommodationIdsByKeywordInContent(@Param("keyword") String keyword);
 
+  // 숙소별 최신 리뷰 조회
+  List<ReviewEntity> findByAccommodationsIdAndIsDeletedFalse(Long accommodationsId, Pageable pageable);
 }
