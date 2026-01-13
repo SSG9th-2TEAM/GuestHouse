@@ -104,8 +104,25 @@ export async function deleteCompletedReservation(reservationId) {
         method: 'DELETE'
     })
 
+
     if (!response.ok) {
         const errorMsg = response.data?.message || `이용 완료된 예약만 삭제할 수 있습니다. (${response.status})`
+        throw new Error(errorMsg)
+    }
+}
+
+/**
+ * 취소된 예약 삭제 (내역에서 삭제)
+ * @param {number} reservationId - 예약 ID
+ * @returns {Promise<void>}
+ */
+export async function deleteCancelledReservation(reservationId) {
+    const response = await authenticatedRequest(`/api/reservations/cancelled/${reservationId}`, {
+        method: 'DELETE'
+    })
+
+    if (!response.ok) {
+        const errorMsg = response.data?.message || `예약 내역 삭제 실패 (${response.status})`
         throw new Error(errorMsg)
     }
 }

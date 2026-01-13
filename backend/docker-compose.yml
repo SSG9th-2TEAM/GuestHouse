@@ -10,7 +10,9 @@ services:
     command: redis-server --appendonly yes
 
   backend:
-    build: .
+    # build: .
+    image: lkm011/guesthouse-backend:latest
+    pull_policy: always
     container_name: guesthouse-backend
     restart: always
     ports:
