@@ -3,7 +3,10 @@ package com.ssg9th2team.geharbang.domain.search.service;
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
+import com.ssg9th2team.geharbang.domain.search.dto.SearchResolveResponse;
+import com.ssg9th2team.geharbang.domain.search.dto.SearchSuggestionResponse;
 import com.ssg9th2team.geharbang.domain.search.repository.SearchRepository;
+import com.ssg9th2team.geharbang.domain.search.repository.SearchResolveProjection;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,6 +41,7 @@ public class SearchServiceImpl implements SearchService {
             Integer guestCount,
             Integer minPrice,
             Integer maxPrice,
+            boolean includeUnavailable,
             String sort) {
         Sort sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
         if (sort != null && !sort.isEmpty()) {
@@ -96,6 +100,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else if (hasThemes) {
                 resultPage = searchRepository.searchPublicListByTheme(
@@ -106,6 +111,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else if (hasBounds) {
                 resultPage = searchRepository.searchPublicListByBounds(
@@ -119,6 +125,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else {
                 resultPage = searchRepository.searchPublicList(
@@ -128,6 +135,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             }
         } else {
@@ -142,6 +150,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else if (hasThemes) {
                 resultPage = searchRepository.searchPublicListByThemeNoDates(
@@ -150,6 +159,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else if (hasBounds) {
                 resultPage = searchRepository.searchPublicListByBoundsNoDates(
@@ -161,6 +171,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             } else {
                 resultPage = searchRepository.searchPublicListNoDates(
@@ -168,6 +179,7 @@ public class SearchServiceImpl implements SearchService {
                         guestCount,
                         minPrice,
                         maxPrice,
+                        includeUnavailable,
                         pageable);
             }
         }
@@ -177,6 +189,52 @@ public class SearchServiceImpl implements SearchService {
                 .toList();
 
         return PublicListResponse.of(items, resultPage);
+    }
+
+    @Override
+    public List<SearchSuggestionResponse> suggestPublicSearch(String keyword, int limit) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        if (normalizedKeyword == null || normalizedKeyword.length() < 2) {
+            return List.of();
+        }
+        if (limit <= 0) {
+            return List.of();
+        }
+        int safeLimit = Math.min(limit, 20);
+        int regionLimit = (safeLimit + 1) / 2;
+        int accommodationLimit = safeLimit / 2;
+
+        List<String> regions = regionLimit > 0
+                ? searchRepository.suggestRegions(normalizedKeyword, PageRequest.of(0, regionLimit))
+                : List.of();
+        List<String> accommodationNames = searchRepository.suggestAccommodationNames(
+                normalizedKeyword,
+                PageRequest.of(0, accommodationLimit));
+
+        return java.util.stream.Stream.concat(
+                regions.stream()
+                        .filter(region -> region != null && !region.trim().isEmpty())
+                        .map(SearchSuggestionResponse::region),
+                accommodationNames.stream()
+                        .filter(name -> name != null && !name.trim().isEmpty())
+                        .map(SearchSuggestionResponse::accommodation)
+        ).toList();
+    }
+
+    @Override
+    public SearchResolveResponse resolvePublicAccommodation(String keyword) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        if (normalizedKeyword == null) {
+            return null;
+        }
+
+        List<SearchResolveProjection> matches = searchRepository.resolveAccommodationByName(normalizedKeyword);
+        if (matches.size() != 1) {
+            return null;
+        }
+
+        SearchResolveProjection match = matches.get(0);
+        return SearchResolveResponse.of(match.getAccommodationsId(), match.getAccommodationsName());
     }
 
     private String normalizeKeyword(String keyword) {

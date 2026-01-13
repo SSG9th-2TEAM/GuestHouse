@@ -80,6 +80,7 @@ class SearchServiceIntegrationTest {
                                 null,
                                 null,
                                 null,
+                                false,
                                 null);
 
                 assertThat(response.items()).hasSize(1);
@@ -113,6 +114,7 @@ class SearchServiceIntegrationTest {
                                 4,
                                 null,
                                 null,
+                                false,
                                 null);
 
                 List<String> names = response.items().stream()
@@ -151,6 +153,7 @@ class SearchServiceIntegrationTest {
                                 2,
                                 null,
                                 null,
+                                false,
                                 null);
 
                 List<String> names = response.items().stream()
@@ -186,6 +189,7 @@ class SearchServiceIntegrationTest {
                                 2,
                                 null,
                                 null,
+                                false,
                                 null);
 
                 assertThat(response.items()).hasSize(1);
@@ -218,6 +222,7 @@ class SearchServiceIntegrationTest {
                                 null,
                                 null,
                                 null,
+                                false,
                                 null);
 
                 assertThat(response.items()).hasSize(1);
@@ -253,6 +258,7 @@ class SearchServiceIntegrationTest {
                                 null,
                                 null,
                                 null,
+                                false,
                                 null);
 
                 assertThat(response.items()).hasSize(1);
@@ -286,6 +292,7 @@ class SearchServiceIntegrationTest {
                                 null,
                                 15000,
                                 25000,
+                                false,
                                 null);
 
                 assertThat(response.items()).hasSize(1);
@@ -323,6 +330,7 @@ class SearchServiceIntegrationTest {
                                 null,
                                 15000,
                                 25000,
+                                false,
                                 null);
 
                 assertThat(response.items()).extracting("accommodationsName")
@@ -369,7 +377,7 @@ class SearchServiceIntegrationTest {
                                 33.20, 33.30, 126.50, 126.60,
                                 null, null,
                                 null,
-                                5000, 20000, null);
+                                5000, 20000, false, null);
 
                 assertThat(response.items()).hasSize(1);
                 assertThat(response.items().get(0).getAccommodationsName()).isEqualTo("Valid-Acc");
