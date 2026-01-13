@@ -38,12 +38,12 @@ const router = createRouter({
             component: () => import('../views/mypage/ProfileView.vue')
         },
         {
-            path: '/room/:id',
+            path: '/room/:id(\\d+)',
             name: 'room-detail',
             component: () => import('../views/home/RoomDetailView.vue')
         },
         {
-            path: '/booking/:id',
+            path: '/booking/:id(\\d+)',
             name: 'booking',
             component: () => import('../views/booking/BookingView.vue'),
             props: (route) => ({
@@ -80,7 +80,7 @@ const router = createRouter({
             component: () => import('../views/mypage/ReservationHistoryView.vue')
         },
         {
-            path: '/reservations/cancel/:id',
+            path: '/reservations/cancel/:id(\\d+)',
             name: 'reservation-cancel',
             component: () => import('../views/mypage/ReservationCancelView.vue')
         },
@@ -170,7 +170,7 @@ const router = createRouter({
                     component: () => import('../views/HostView/HostAccommodationRegister.vue')
                 },
                 {
-                    path: 'accommodation/edit/:id',
+                    path: 'accommodation/edit/:id(\\d+)',
                     name: 'host-edit',
                     component: () => import('../views/HostView/HostAccommodationEdit.vue')
                 },
@@ -269,6 +269,11 @@ const router = createRouter({
             path: '/policy',
             name: 'policy',
             component: () => import('../views/policy/PolicyView.vue')
+        },
+        {
+            path: '/:pathMatch(.*)*',
+            name: 'not-found',
+            component: () => import('../views/NotFoundView.vue')
         }
     ]
 })

@@ -45,12 +45,34 @@ jobs:
         name: app-jar
         path: backend/build/libs/geharbang-0.0.1-SNAPSHOT.jar
 
-    - name: Upload test results
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-results
-        path: backend/build/reports/tests/
+  build-docker:
+    needs: build-backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+          path: backend/build/libs/
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/guesthouse-backend:latest
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -86,19 +108,13 @@ jobs:
         path: frontend/dist
 
   deploy:
-    needs: [build-backend, build-frontend]
+    needs: [build-docker, build-frontend]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
     steps:
     - uses: actions/checkout@v4
     
-    - name: Download JAR artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: app-jar
-        path: ./backend-artifact
-
     - name: Download frontend artifact
       uses: actions/download-artifact@v4
       with:
@@ -114,14 +130,14 @@ jobs:
 
     - name: Deploy Backend to Private Server via Public Server
       run: |
-        # Public 서버로 JAR 및 설정 파일 전송
-        scp -o StrictHostKeyChecking=no ./backend-artifact/geharbang-0.0.1-SNAPSHOT.jar backend/Dockerfile backend/docker-compose.yml ${{ secrets.SSH_USERNAME }}@${{ secrets.PUBLIC_SERVER_IP }}:/tmp/
+        # Public 서버로 docker-compose.yml 전송 (Dockerfile 및 JAR 전송 불필요)
+        scp -o StrictHostKeyChecking=no backend/docker-compose.yml ${{ secrets.SSH_USERNAME }}@${{ secrets.PUBLIC_SERVER_IP }}:/tmp/
         
-        # Public 서버에서 Private 서버로 전송 및 Docker 재시작
+        # Public 서버에서 Private 서버로 전송 및 Docker 이미지 Pull & 재시작
         ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.PUBLIC_SERVER_IP }} << 'EOF'
-          scp /tmp/geharbang-0.0.1-SNAPSHOT.jar /tmp/Dockerfile /tmp/docker-compose.yml root@${{ secrets.PRIVATE_SERVER_IP }}:~/applications/thismo/
-          ssh root@${{ secrets.PRIVATE_SERVER_IP }} "cd ~/applications/thismo && docker-compose up -d --build"
-          rm /tmp/geharbang-0.0.1-SNAPSHOT.jar /tmp/Dockerfile /tmp/docker-compose.yml
+          scp /tmp/docker-compose.yml root@${{ secrets.PRIVATE_SERVER_IP }}:~/applications/thismo/
+          ssh root@${{ secrets.PRIVATE_SERVER_IP }} "cd ~/applications/thismo && docker-compose pull && docker-compose up -d"
+          rm /tmp/docker-compose.yml
         EOF
 
     - name: Deploy Frontend to Public Server

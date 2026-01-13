@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getMyReservations, deleteCompletedReservation } from '@/api/reservationApi'
+import { getMyReservations, deleteCompletedReservation, deleteCancelledReservation } from '@/api/reservationApi'
 import { isAuthenticated } from '@/api/authClient'
 
 const router = useRouter()
@@ -275,6 +275,15 @@ onMounted(() => {
                   <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
                   <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
                 </div>
+                </div>
+
+              <!-- 삭제 버튼 (이벤트 버블링 방지) -->
+              <div class="card-action-overlay" @click.prevent.stop>
+                <button
+                  class="icon-btn delete-small"
+                  @click="handleDeleteCancelled(item.reservationId)"
+                  title="내역 삭제"
+                >🗑</button>
               </div>
             </div>
           </router-link>
@@ -604,5 +613,28 @@ onMounted(() => {
 a.res-card {
   text-decoration: none;
   color: inherit;
+}
+
+/* 카드 내 오버레이 액션 버튼 */
+.card-action-overlay {
+  display: flex;
+  align-items: flex-start;
+  padding-left: 0.5rem;
+}
+
+.icon-btn.delete-small {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.icon-btn.delete-small:hover {
+  color: #e11d48;
+  background: #fee2e2;
 }
 </style>
