@@ -731,7 +731,7 @@ watch(filteredRooms, (rooms) => {
         <h2 class="info-title">테마</h2>
         <div class="tag-list theme-tag-list">
         <span v-for="theme in themeTags" :key="theme.name" class="tag theme-tag">
-          <img v-if="theme.imageUrl" :src="theme.imageUrl" :alt="theme.name" class="theme-tag__icon" />
+          <img v-if="theme.imageUrl" :src="theme.imageUrl" :alt="theme.name" class="theme-tag__icon"/>
           <span v-else class="theme-tag__icon theme-tag__icon--empty"></span>
           <span class="theme-tag__label">{{ theme.name }}</span>
         </span>
@@ -739,7 +739,7 @@ watch(filteredRooms, (rooms) => {
         </div>
       </section>
 
-      <hr />
+      <hr/>
 
       <section class="section extra-info-section">
         <h2>추가 정보</h2>
@@ -770,28 +770,35 @@ watch(filteredRooms, (rooms) => {
                     :aria-label="link.label"
                 >
                   <svg v-if="link.type === 'instagram'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
-                    <rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="2" />
-                    <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2" />
-                    <circle cx="17.5" cy="6.5" r="1" fill="currentColor" />
+                    <rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor"
+                          stroke-width="2"/>
+                    <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
                   </svg>
                   <svg v-else-if="link.type === 'youtube'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
-                    <rect x="3" y="6" width="18" height="12" rx="3" ry="3" fill="none" stroke="currentColor" stroke-width="2" />
-                    <path d="M10 9l5 3-5 3z" fill="currentColor" />
+                    <rect x="3" y="6" width="18" height="12" rx="3" ry="3" fill="none" stroke="currentColor"
+                          stroke-width="2"/>
+                    <path d="M10 9l5 3-5 3z" fill="currentColor"/>
                   </svg>
                   <svg v-else-if="link.type === 'blog'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
-                    <path d="M6 3h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" />
-                    <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="2" />
-                    <path d="M8 13h8M8 17h6" fill="none" stroke="currentColor" stroke-width="2" />
+                    <path d="M6 3h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="none"
+                          stroke="currentColor" stroke-width="2"/>
+                    <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <path d="M8 13h8M8 17h6" fill="none" stroke="currentColor" stroke-width="2"/>
                   </svg>
                   <svg v-else-if="link.type === 'facebook'" viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
-                    <path d="M15 8h3V5h-3c-2 0-4 2-4 4v3H8v3h3v6h3v-6h3l1-3h-4V9c0-.6.4-1 1-1z" fill="currentColor" />
+                    <path d="M15 8h3V5h-3c-2 0-4 2-4 4v3H8v3h3v6h3v-6h3l1-3h-4V9c0-.6.4-1 1-1z" fill="currentColor"/>
                   </svg>
                   <svg v-else viewBox="0 0 24 24" class="sns-icon" aria-hidden="true">
-                    <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 20" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                   <span class="sns-text">
-                  {{ link.type === 'blog' && link.label.toLowerCase().includes('naver') ? '네이버 블로그 바로가기' : `${link.label} 바로가기` }}
+                  {{
+                      link.type === 'blog' && link.label.toLowerCase().includes('naver') ? '네이버 블로그 바로가기' : `${link.label} 바로가기`
+                    }}
                 </span>
                 </a>
               </template>
@@ -801,7 +808,7 @@ watch(filteredRooms, (rooms) => {
         </dl>
       </section>
 
-      <hr />
+      <hr/>
 
       <!-- Room Selection -->
       <section class="section room-selection">
@@ -832,7 +839,7 @@ watch(filteredRooms, (rooms) => {
                 {{ searchStore.checkInOutText }}
               </button>
 
-              <RoomDetailCalendar />
+              <RoomDetailCalendar/>
             </div>
             <div class="picker-field">
               <label>투숙 인원</label>
@@ -856,10 +863,10 @@ watch(filteredRooms, (rooms) => {
         />
       </section>
 
-      <hr />
+      <hr/>
 
       <!-- Reviews -->
-      <ReviewSection :reviews="guesthouse.reviews" :name="guesthouse.name" />
+      <ReviewSection :reviews="guesthouse.reviews" :name="guesthouse.name"/>
 
       <!-- Map -->
       <MapSection
@@ -891,7 +898,10 @@ watch(filteredRooms, (rooms) => {
           <span v-else>객실을 선택해주세요</span>
           <div class="total-price" v-if="selectedRoom">
           <span class="price-detail" v-if="hasDateRange">
-            ₩{{ formatPrice(selectedRoom.price) }} × {{ stayNights }}박<span v-if="['GUESTHOUSE', '게스트하우스'].includes((guesthouse.category || '').toUpperCase())"> × {{ searchStore.guestCount }}명</span> =
+            ₩{{ formatPrice(selectedRoom.price) }} × {{ stayNights }}박<span
+              v-if="['GUESTHOUSE', '게스트하우스'].includes((guesthouse.category || '').toUpperCase())"> × {{
+              searchStore.guestCount
+            }}명</span> =
           </span>
             <span class="price-amount">₩{{ formatPrice(hasDateRange ? totalPrice : selectedRoom.price) }}</span>
             <span class="price-nights" v-if="!hasDateRange"> / 1박</span>
@@ -919,7 +929,9 @@ watch(filteredRooms, (rooms) => {
                   <div class="coupon-name">{{ coupon.name }}</div>
                   <div class="coupon-desc">{{ coupon.description }}</div>
                   <div class="coupon-meta">
-                    <span>{{ coupon.discountType === 'PERCENT' ? coupon.discountValue + '%' : coupon.discountValue.toLocaleString() + '원' }} 할인</span>
+                    <span>{{
+                        coupon.discountType === 'PERCENT' ? coupon.discountValue + '%' : coupon.discountValue.toLocaleString() + '원'
+                      }} 할인</span>
                     <span v-if="coupon.minPrice">({{ coupon.minPrice.toLocaleString() }}원 이상)</span>
                   </div>
                 </div>
@@ -983,18 +995,32 @@ watch(filteredRooms, (rooms) => {
 .section {
   padding: 1.5rem 0;
 }
+
 .info-section {
   padding-top: 0;
   padding-bottom: 0.75rem;
 }
+
 hr {
   border: 0;
   border-top: 1px solid #eee;
   margin: 0;
 }
-h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
-h2 { font-size: 1.4rem; margin-bottom: 1rem; }
-h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+
+h1 {
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+}
+
+h2 {
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+}
+
+h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
 
 /* Info */
 .meta {
@@ -1005,12 +1031,14 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   flex-direction: column;
   gap: 0.25rem;
 }
+
 .description-row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.5rem;
 }
+
 .description {
   line-height: 1.6;
   flex: 1;
@@ -1036,45 +1064,55 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   color: var(--text-sub);
   font-size: 0.9rem;
 }
+
 .meta-item {
   background: #f3f4f6;
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
 }
+
 .transport-info {
   margin-top: 1rem;
 }
+
 .transport-info h3 {
   margin-bottom: 0.4rem;
 }
+
 .transport-info p {
   margin: 0;
   color: var(--text-sub);
   line-height: 1.5;
 }
+
 .info-title {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
 }
+
 .info-icon {
   width: 18px;
   height: 18px;
   display: inline-flex;
   color: #0f4c44;
 }
+
 .info-icon svg {
   width: 18px;
   height: 18px;
   display: block;
   fill: currentColor;
 }
+
 .contact-info {
   margin-top: 1rem;
 }
+
 .contact-info h3 {
   margin-bottom: 0.4rem;
 }
+
 .contact-info p {
   margin: 0;
   color: var(--text-sub);
@@ -1087,6 +1125,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   align-items: center;
   justify-content: space-between;
 }
+
 .host-avatar {
   width: 60px;
   height: 60px;
@@ -1099,15 +1138,18 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   padding-top: 0.75rem;
   padding-bottom: 0.75rem;
 }
+
 .amenity-section h2 {
   margin-bottom: 0.6rem;
 }
+
 .tag-list {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
+
 .tag {
   background: #f3f4f6;
   color: var(--text-main);
@@ -1115,17 +1157,21 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   border-radius: 999px;
   font-size: 0.85rem;
 }
+
 .tag.empty {
   color: var(--text-sub);
 }
+
 .theme-tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
+
 .theme-tag-list {
   margin-bottom: 0.5rem;
 }
+
 .theme-tag__icon {
   width: 18px;
   height: 18px;
@@ -1133,17 +1179,21 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   border-radius: 4px;
   flex-shrink: 0;
 }
+
 .theme-tag__icon--empty {
   background: #e5e7eb;
 }
+
 .theme-tag__label {
   line-height: 1;
 }
+
 .amenity-tag {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
 }
+
 .amenity-icon {
   display: inline-flex;
   width: 18px;
@@ -1151,9 +1201,11 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   color: var(--text-main);
   flex-shrink: 0;
 }
+
 .amenity-text {
   line-height: 1;
 }
+
 :deep(.amenity-icon svg) {
   width: 18px;
   height: 18px;
@@ -1164,29 +1216,35 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 .extra-info-section {
   padding-top: 0.75rem;
 }
+
 .extra-info-section h2 {
   margin-bottom: 0.8rem;
 }
+
 .info-list {
   display: grid;
   gap: 0.75rem;
   margin: 0;
 }
+
 .info-row {
   display: grid;
   grid-template-columns: 80px 1fr;
   gap: 0.75rem;
   align-items: start;
 }
+
 .info-row dt {
   font-weight: 600;
   color: var(--text-main);
 }
+
 .info-row dd {
   margin: 0;
   color: var(--text-sub);
   word-break: break-word;
 }
+
 .sns-link {
   display: inline-flex;
   align-items: center;
@@ -1199,16 +1257,20 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   margin-right: 0.6rem;
   transition: background 0.2s ease;
 }
+
 .sns-link:last-child {
   margin-right: 0;
 }
+
 .sns-link:hover {
   background: #e5e7eb;
 }
+
 .sns-icon {
   width: 18px;
   height: 18px;
 }
+
 .sns-text {
   font-size: 0.85rem;
   color: var(--text-main);
@@ -1222,12 +1284,23 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   padding: 1.5rem;
   margin-bottom: 1.5rem;
 }
+
 .picker-row {
   display: flex;
   gap: 1rem;
 }
-.picker-field { flex: 1; }
-.picker-field label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 0.5rem; }
+
+.picker-field {
+  flex: 1;
+}
+
+.picker-field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
 .date-display, .guest-control {
   border: 1px solid #ddd;
   padding: 0 0.8rem;
@@ -1238,15 +1311,18 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   min-height: 48px;
   background: #fff;
 }
+
 .date-picker-wrapper {
   position: relative;
 }
+
 .date-display {
   width: 100%;
   background: #fff;
   cursor: pointer;
   text-align: left;
 }
+
 .guest-control button {
   width: 30px;
   height: 30px;
@@ -1256,16 +1332,23 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 }
 
 
-
-
-
 /* Rules */
 .rules-section {
   padding-top: 0;
   padding-bottom: 0;
 }
-.rule-box h3 { margin-bottom: 0.8rem; }
-.rule-box ul { list-style: inside disc; color: var(--text-sub); font-size: 0.9rem; line-height: 1.6; padding-left: 0.75rem; }
+
+.rule-box h3 {
+  margin-bottom: 0.8rem;
+}
+
+.rule-box ul {
+  list-style: inside disc;
+  color: var(--text-sub);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding-left: 0.75rem;
+}
 
 /* Bottom Bar */
 .bottom-bar {
@@ -1280,10 +1363,16 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   justify-content: space-between;
   align-items: center;
   gap: 2rem;
-  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
   z-index: 100;
 }
-.selection-summary { display: flex; flex-direction: column; gap: 0.25rem; }
+
+.selection-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 .total-price {
   font-weight: bold;
   font-size: 1.2rem;
@@ -1292,21 +1381,25 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   flex-wrap: wrap;
   gap: 0.25rem;
 }
+
 .price-detail {
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text-sub);
 }
+
 .price-amount {
   font-size: 1.2rem;
   font-weight: 700;
   color: var(--text-main);
 }
+
 .price-nights {
   font-size: 0.9rem;
   font-weight: 500;
   color: var(--text-sub);
 }
+
 .book-btn {
   background: var(--primary);
   color: #004d40;
@@ -1322,11 +1415,13 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   align-items: center;
   justify-content: center;
 }
+
 .book-btn:disabled {
   background: #ccc;
   cursor: not-allowed;
   opacity: 1;
 }
+
 .booking-hint {
   position: fixed;
   bottom: 84px;
@@ -1342,8 +1437,9 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   align-items: center;
   gap: 0.6rem;
   z-index: 101;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
+
 .booking-hint-btn {
   background: var(--primary);
   color: #004d40;
@@ -1371,6 +1467,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   .calendar-month {
     width: 100%;
   }
+
   .room-card {
     flex-direction: column;
     padding: 1rem;
@@ -1412,6 +1509,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
     justify-content: space-between;
     margin-top: 0.15rem;
   }
+
   .booking-hint {
     width: calc(100% - 32px);
     left: 16px;
@@ -1419,6 +1517,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
     justify-content: space-between;
   }
 }
+
 /* Coupon Styles */
 .room-selection-header {
   display: flex;
@@ -1426,9 +1525,11 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   justify-content: space-between;
   margin-bottom: 1rem;
 }
+
 .room-selection-header h2 {
   margin-bottom: 0;
 }
+
 .coupon-header-btn {
   background: var(--primary);
   color: #004d40;
@@ -1440,9 +1541,11 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   cursor: pointer;
   transition: opacity 0.2s;
 }
+
 .coupon-header-btn:hover {
   opacity: 0.9;
 }
+
 .download-btn.downloaded {
   background: #ccc;
   color: #666;
@@ -1452,13 +1555,17 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
 }
+
 .modal-content.coupon-modal {
   background: white;
   padding: 2rem;
@@ -1469,16 +1576,19 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   display: flex;
   flex-direction: column;
 }
+
 .modal-desc {
   color: #666;
   font-size: 0.95rem;
   margin-bottom: 1.5rem;
 }
+
 .coupon-list-container {
   overflow-y: auto;
   margin-bottom: 1rem;
   flex: 1;
 }
+
 .coupon-list {
   list-style: none;
   padding: 0;
@@ -1487,6 +1597,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   flex-direction: column;
   gap: 1rem;
 }
+
 .coupon-item {
   border: 1px solid #ddd;
   border-radius: 12px;
@@ -1497,10 +1608,28 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   gap: 1rem;
   background: #fdfdfd;
 }
-.coupon-info { flex: 1; }
-.coupon-name { font-weight: bold; font-size: 1.05rem; margin-bottom: 0.25rem; }
-.coupon-desc { font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; }
-.coupon-meta { font-size: 0.85rem; color: #ff5722; font-weight: 600; }
+
+.coupon-info {
+  flex: 1;
+}
+
+.coupon-name {
+  font-weight: bold;
+  font-size: 1.05rem;
+  margin-bottom: 0.25rem;
+}
+
+.coupon-desc {
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.coupon-meta {
+  font-size: 0.85rem;
+  color: #ff5722;
+  font-weight: 600;
+}
 
 .download-btn {
   background: var(--primary);
@@ -1512,7 +1641,11 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   cursor: pointer;
   white-space: nowrap;
 }
-.download-btn:hover { filter: brightness(0.95); }
+
+.download-btn:hover {
+  filter: brightness(0.95);
+}
+
 .close-modal-btn {
   width: 100%;
   padding: 0.8rem;
@@ -1523,8 +1656,10 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   font-weight: 600;
   color: #333;
 }
-.close-modal-btn:hover { background: #f5f5f5; }
 
+.close-modal-btn:hover {
+  background: #f5f5f5;
+}
 
 
 /* Top Button Styles */
@@ -1537,7 +1672,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   background: #fff;
   border: 1px solid #ddd;
   border-radius: 50%;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   color: var(--text-main);
   font-size: 1.5rem;
   font-weight: bold;
@@ -1549,6 +1684,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   transition: all 0.3s ease;
   opacity: 0.9;
 }
+
 .top-btn:hover {
   background: var(--primary);
   color: #004d40;

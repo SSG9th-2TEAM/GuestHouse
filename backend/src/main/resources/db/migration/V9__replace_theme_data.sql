@@ -20,18 +20,18 @@ INSERT INTO theme (theme_category, theme_name, theme_image_url) VALUES
 ('NATURE', '갯벌', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Crab/3D/crab_3d.png'),
 ('NATURE', '숲세권', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Deciduous%20tree/3D/deciduous_tree_3d.png'),
 ('NATURE', '노을 맛집', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Sunset/3D/sunset_3d.png'),
-('NATURE', '별구경 명소', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Milky%20Way/3D/milky_way_3d.png'),
+('NATURE', '별구경 명소', 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/1f30c.png'),
 
 -- 2. CULTURE (문화)
 ('CULTURE', '문화유적', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Classical%20building/3D/classical_building_3d.png'),
 
 -- 3. ACTIVITY (액티비티)
-('ACTIVITY', '서핑', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Person%20surfing%3A%20light%20skin%20tone/3D/person_surfing_light_skin_tone_3d.png'),
+('ACTIVITY', '서핑', 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/1f3c4.png'),
 ('ACTIVITY', '수상레저', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Speedboat/3D/speedboat_3d.png'),
 ('ACTIVITY', '워터파크', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Playground%20slide/3D/playground_slide_3d.png'),
-('ACTIVITY', '러닝', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Person%20running/3D/person_running_3d.png'),
+('ACTIVITY', '러닝', 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/1f3c3.png'),
 ('ACTIVITY', '하이킹', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Hiking%20boot/3D/hiking_boot_3d.png'),
-('ACTIVITY', '요가&명상', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Person%20in%20lotus%20position/3D/person_in_lotus_position_3d.png'),
+('ACTIVITY', '요가&명상', 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/1f9d8.png'),
 ('ACTIVITY', '낚시', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Fishing%20pole/3D/fishing_pole_3d.png'),
 ('ACTIVITY', '스냅 촬영', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Camera%20with%20flash/3D/camera_with_flash_3d.png'),
 
@@ -41,7 +41,7 @@ INSERT INTO theme (theme_category, theme_name, theme_image_url) VALUES
 ('VIBE', '신나는 게스트하우스', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Mirror%20ball/3D/mirror_ball_3d.png'),
 ('VIBE', '조용한 게스트하우스', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Candle/3D/candle_3d.png'),
 ('VIBE', '불멍', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Fire/3D/fire_3d.png'),
-('VIBE', '촌캉스', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Woman%E2%80%99s%20hat/3D/woman%E2%80%99s_hat_3d.png'),
+('VIBE', '촌캉스', 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/1f452.png'),
 ('VIBE', '한옥', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Japanese%20castle/3D/japanese_castle_3d.png'),
 ('VIBE', '감성숙소', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Sparkles/3D/sparkles_3d.png'),
 ('VIBE', 'LP/바이닐', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Musical%20notes/3D/musical_notes_3d.png'),
@@ -68,7 +68,7 @@ INSERT INTO theme (theme_category, theme_name, theme_image_url) VALUES
 
 -- 8. FACILITY (시설/편의)
 ('FACILITY', '1인실', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Bust%20in%20silhouette/3D/bust_in_silhouette_3d.png'),
-('FACILITY', '여성 전용', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Women%E2%80%99s%20room/3D/women%E2%80%99s_room_3d.png'),
+('FACILITY', '여성 전용', 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/1f6ba.png'),
 ('FACILITY', '공항 주변', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Airplane/3D/airplane_3d.png'),
 ('FACILITY', '자쿠지', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Bathtub/3D/bathtub_3d.png'),
 ('FACILITY', '넷플릭스/OTT', 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Popcorn/3D/popcorn_3d.png'),

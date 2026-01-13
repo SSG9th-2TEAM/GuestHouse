@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, nextTick, ref, watch } from 'vue'
 
 const props = defineProps({
   reviews: {
@@ -16,6 +16,9 @@ const REVIEWS_PER_PAGE = 5
 const showAllReviewTags = ref(false)
 const currentReviewPage = ref(1)
 const expandedReviewIds = ref([])
+const reviewOverflowMap = ref({})
+const reviewContentRefs = new Map()
+let resizeTimer = null
 
 const reviewTagSummary = computed(() => {
   const counts = new Map()
@@ -87,19 +90,24 @@ const isReviewExpanded = (id) => expandedReviewIds.value.includes(id)
 const toggleReviewExpanded = (id) => {
   if (isReviewExpanded(id)) {
     expandedReviewIds.value = expandedReviewIds.value.filter((value) => value !== id)
+    refreshReviewOverflow()
     return
   }
   expandedReviewIds.value = [...expandedReviewIds.value, id]
+  refreshReviewOverflow()
 }
 
-const isReviewLong = (content) => {
-  return String(content ?? '').length > 120
+const shouldShowReviewToggle = (id) => Boolean(reviewOverflowMap.value[id])
+
+const clampRating = (rating) => {
+  const value = Number(rating)
+  if (!Number.isFinite(value)) return 0
+  return Math.min(Math.max(value, 0), 5)
 }
 
-const renderStars = (rating) => {
-  const safeRating = Math.min(Math.max(Number(rating) || 0, 0), 5)
-  return '★'.repeat(safeRating) + '☆'.repeat(5 - safeRating)
-}
+const getStarFillWidth = (rating) => `${(clampRating(rating) / 5) * 100}%`
+
+const formatRatingLabel = (rating) => clampRating(rating).toFixed(1)
 
 const isReviewImageModalOpen = ref(false)
 const selectedReviewImageIndex = ref(0)
@@ -144,6 +152,49 @@ const showNextReviewImage = () => {
   currentScale.value = 1
 }
 
+const registerReviewContentRef = (id, el) => {
+  if (!id) return
+  if (el) {
+    reviewContentRefs.set(id, el)
+  } else {
+    reviewContentRefs.delete(id)
+  }
+}
+
+const updateReviewOverflow = () => {
+  const nextMap = { ...reviewOverflowMap.value }
+  pagedReviews.value.forEach((review) => {
+    if (isReviewExpanded(review.id)) return
+    const el = reviewContentRefs.get(review.id)
+    if (!el) return
+    const hasOverflow = el.scrollHeight - el.clientHeight > 1
+    nextMap[review.id] = hasOverflow
+  })
+  reviewOverflowMap.value = nextMap
+}
+
+const refreshReviewOverflow = async () => {
+  await nextTick()
+  updateReviewOverflow()
+}
+
+const handleResize = () => {
+  if (resizeTimer) clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(() => {
+    updateReviewOverflow()
+  }, 120)
+}
+
+onMounted(() => {
+  refreshReviewOverflow()
+  window.addEventListener('resize', handleResize)
+})
+
+onBeforeUnmount(() => {
+  if (resizeTimer) clearTimeout(resizeTimer)
+  window.removeEventListener('resize', handleResize)
+})
+
 watch(
   () => props.reviews,
   () => {
@@ -152,6 +203,9 @@ watch(
     showAllReviewTags.value = false
     isReviewImageModalOpen.value = false
     currentScale.value = 1
+    reviewOverflowMap.value = {}
+    reviewContentRefs.clear()
+    refreshReviewOverflow()
   }
 )
 
@@ -161,6 +215,13 @@ watch(
     if (currentReviewPage.value > totalReviewPages.value) {
       currentReviewPage.value = totalReviewPages.value
     }
+  }
+)
+
+watch(
+  () => pagedReviews.value,
+  () => {
+    refreshReviewOverflow()
   }
 )
 </script>
@@ -197,7 +258,16 @@ watch(
           <span class="author">{{ review.author }}</span>
           <span class="date">{{ review.date }}</span>
         </div>
-        <div class="stars">{{ renderStars(review.rating) }}</div>
+        <div class="stars" role="img" :aria-label="`별점 ${formatRatingLabel(review.rating)}`">
+          <span class="stars-base" aria-hidden="true">★★★★★</span>
+          <span
+            class="stars-fill"
+            :style="{ width: getStarFillWidth(review.rating) }"
+            aria-hidden="true"
+          >
+            ★★★★★
+          </span>
+        </div>
         <div v-if="review.images && review.images.length" class="review-images">
           <img
             v-for="(img, idx) in review.images.slice(0, 5)"
@@ -211,11 +281,15 @@ watch(
             @keydown.enter.prevent="openReviewImageModal(review.images, idx)"
           />
         </div>
-        <p class="review-content" :class="{ clamped: !isReviewExpanded(review.id) }">
+        <p
+          :ref="(el) => registerReviewContentRef(review.id, el)"
+          class="review-content"
+          :class="{ clamped: !isReviewExpanded(review.id) }"
+        >
           {{ review.content }}
         </p>
         <button
-          v-if="isReviewLong(review.content)"
+          v-if="shouldShowReviewToggle(review.id)"
           type="button"
           class="review-content-toggle"
           @click="toggleReviewExpanded(review.id)"
@@ -339,6 +413,22 @@ h2 {
 }
 .stars {
   margin-bottom: 0.5rem;
+  position: relative;
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+}
+.stars-base {
+  color: #e5e7eb;
+}
+.stars-fill {
+  color: #f59e0b;
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 0;
 }
 .review-tag-summary {
   display: flex;

@@ -1,4 +1,4 @@
-package com.ssg9th2team.geharbang.domain.search.service;
+﻿package com.ssg9th2team.geharbang.domain.search.service;
 
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
@@ -50,7 +50,8 @@ class SearchServiceTest {
                 4,
                 "https://example.com/image.jpg");
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 24), 1);
-        when(searchRepository.searchPublicListNoDates(eq("부산"), isNull(), isNull(), isNull(), any(PageRequest.class)))
+        when(searchRepository.searchPublicListNoDates(eq("부산"), isNull(), isNull(), isNull(), eq(false),
+                any(PageRequest.class)))
                 .thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(
@@ -67,6 +68,7 @@ class SearchServiceTest {
                 null,
                 null,
                 null,
+                false,
                 null);
 
         assertThat(response.items()).hasSize(1);
@@ -94,7 +96,7 @@ class SearchServiceTest {
                 "https://example.com/theme.jpg");
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(1, 10), 11);
         when(searchRepository.searchPublicListByThemeNoDates(eq(List.of(2L)), eq("오션뷰"), isNull(), isNull(), isNull(),
-                any(PageRequest.class)))
+                eq(false), any(PageRequest.class)))
                 .thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(
@@ -111,11 +113,12 @@ class SearchServiceTest {
                 null,
                 null,
                 null,
+                false,
                 null);
 
         assertThat(response.items()).hasSize(1);
         verify(searchRepository).searchPublicListByThemeNoDates(eq(List.of(2L)), eq("오션뷰"), isNull(), isNull(),
-                isNull(), any(PageRequest.class));
+                isNull(), eq(false), any(PageRequest.class));
     }
 
     @Test
@@ -145,7 +148,7 @@ class SearchServiceTest {
                 isNull(),
                 isNull(),
                 isNull(),
-                any(PageRequest.class))).thenReturn(page);
+                eq(false), any(PageRequest.class))).thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(
                 Collections.emptyList(),
@@ -161,6 +164,7 @@ class SearchServiceTest {
                 null,
                 null,
                 null,
+                false,
                 null);
 
         assertThat(response.items()).hasSize(1);
@@ -173,7 +177,7 @@ class SearchServiceTest {
                 isNull(),
                 isNull(),
                 isNull(),
-                any(PageRequest.class));
+                eq(false), any(PageRequest.class));
     }
 
     @Test
@@ -197,7 +201,7 @@ class SearchServiceTest {
         LocalDateTime checkin = LocalDateTime.of(2026, 1, 10, 15, 0);
         LocalDateTime checkout = LocalDateTime.of(2026, 1, 12, 11, 0);
         when(searchRepository.searchPublicList(isNull(), eq(checkin), eq(checkout), eq(4), isNull(), isNull(),
-                any(PageRequest.class)))
+                eq(false), any(PageRequest.class)))
                 .thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(
@@ -214,11 +218,12 @@ class SearchServiceTest {
                 4,
                 null,
                 null,
+                false,
                 null);
 
         assertThat(response.items()).hasSize(1);
         verify(searchRepository).searchPublicList(isNull(), eq(checkin), eq(checkout), eq(4), isNull(), isNull(),
-                any(PageRequest.class));
+                eq(false), any(PageRequest.class));
     }
 
     private static final class ListProjectionStub implements ListDtoProjection {

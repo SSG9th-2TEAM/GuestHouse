@@ -211,10 +211,51 @@ const isTagSelected = (tagId) => {
   return selectedTagIds.value.includes(tagId)
 }
 
-const setRating = (star) => {
-  // 백엔드 업데이트가 텍스트/이미지만 지원하면 막을 수도 있지만
-  // UX상 놔두고, 백엔드가 무시하면 됨.
-  rating.value = star
+const clampRating = (value) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return 0
+  return Math.min(Math.max(parsed, 0), 5)
+}
+
+const formatRating = (value) => clampRating(value).toFixed(1)
+
+const getStarFillWidth = (value) => `${(clampRating(value) / 5) * 100}%`
+
+const setRating = (value) => {
+  const stepped = Math.round(Number(value) * 2) / 2
+  rating.value = clampRating(stepped)
+}
+
+const setRatingFromEvent = (event) => {
+  const rect = event.currentTarget.getBoundingClientRect()
+  if (!rect.width) return
+  const offsetX = event.clientX - rect.left
+  const ratio = Math.min(Math.max(offsetX / rect.width, 0), 1)
+  const raw = ratio * 5
+  const stepped = Math.ceil(raw * 2) / 2
+  rating.value = clampRating(Math.max(0.5, stepped))
+}
+
+const handleRatingKeydown = (event) => {
+  if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    setRating((Number(rating.value) || 0) + 0.5)
+    if (rating.value === 0) rating.value = 0.5
+    return
+  }
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+    event.preventDefault()
+    setRating((Number(rating.value) || 0) - 0.5)
+    return
+  }
+  if (event.key === 'Home') {
+    event.preventDefault()
+    rating.value = 0
+  }
+  if (event.key === 'End') {
+    event.preventDefault()
+    rating.value = 5
+  }
 }
 
 // 방문일 추출 (dates에서 체크인 날짜, YYYY.MM.DD -> YYYY-MM-DD 변환)
@@ -314,14 +355,26 @@ const handleSubmit = async () => {
     <!-- Rating -->
     <div class="rating-section">
       <span class="label">별점:</span>
-      <div class="stars">
-        <span 
-          v-for="star in 5" 
-          :key="star" 
-          class="star"
-          :class="{ active: star <= rating }"
-          @click="setRating(star)"
-        >★</span>
+      <div
+        class="stars"
+        role="slider"
+        aria-label="별점"
+        :aria-valuemin="0"
+        :aria-valuemax="5"
+        :aria-valuenow="rating || 0"
+        :aria-valuetext="`${formatRating(rating)}점`"
+        tabindex="0"
+        @click="setRatingFromEvent"
+        @keydown="handleRatingKeydown"
+      >
+        <span class="stars-base" aria-hidden="true">★★★★★</span>
+        <span
+          class="stars-fill"
+          :style="{ width: getStarFillWidth(rating) }"
+          aria-hidden="true"
+        >
+          ★★★★★
+        </span>
       </div>
     </div>
 
@@ -535,23 +588,31 @@ const handleSubmit = async () => {
 }
 
 .stars {
-  display: flex;
-  gap: 4px;
-}
-
-.star {
+  position: relative;
+  display: inline-block;
   font-size: 1.5rem;
-  color: #ddd;
+  line-height: 1;
   cursor: pointer;
-  transition: color 0.2s;
+  user-select: none;
 }
 
-.star.active {
-  color: #fbbf24;
+.stars:focus {
+  outline: 2px solid #8FCFC1;
+  outline-offset: 2px;
 }
 
-.star:hover {
+.stars-base {
+  color: #ddd;
+}
+
+.stars-fill {
   color: #fbbf24;
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 0;
 }
 
 /* Content */

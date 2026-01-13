@@ -746,14 +746,15 @@ watch(
 
 .filter-floating-btn {
   background-color: white;
-  color: #222;
+  color: var(--text-main);
   border: 1px solid #ddd;
   border-radius: 20px;
   padding: 8px 16px;
   display: flex;
   align-items: center;
   gap: 6px;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
 }
