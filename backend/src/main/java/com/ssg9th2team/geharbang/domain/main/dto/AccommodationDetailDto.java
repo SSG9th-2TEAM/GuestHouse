@@ -11,6 +11,8 @@ import lombok.Getter;
 import java.math.BigDecimal;
 import java.util.List;
 
+import org.springframework.util.StringUtils;
+
 @Getter
 @Builder
 public class AccommodationDetailDto {
@@ -48,7 +50,7 @@ public class AccommodationDetailDto {
 
         // description이 null이거나 빈 문자열이면 shortDescription을 사용
         String description = dto.getAccommodationsDescription();
-        if (description == null || description.trim().isEmpty()) {
+        if (!StringUtils.hasText(description)) {
             description = dto.getShortDescription();
         }
 

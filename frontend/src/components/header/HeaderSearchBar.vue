@@ -67,7 +67,6 @@ const resetSuggestions = () => {
 const isSelecting = ref(false)
 
 const scheduleSuggestionFetch = (value) => {
-  console.log('[DEBUG] scheduleSuggestionFetch called with:', value, 'isSelecting:', isSelecting.value, 'isSuggestOpen:', isSuggestOpen.value)
   if (isSelecting.value) return // 선택 중이면 무시
   const keyword = normalizeSuggestKeyword(value)
   if (!isSuggestOpen.value || !keyword) {
@@ -81,7 +80,6 @@ const scheduleSuggestionFetch = (value) => {
     isSuggestLoading.value = true
     try {
       const response = await fetchSearchSuggestions(keyword, SUGGEST_LIMIT)
-      console.log('[DEBUG] API Fetch executed for:', keyword)
       if (requestId !== suggestRequestId) return
       if (response.ok && Array.isArray(response.data)) {
         suggestions.value = response.data
@@ -103,7 +101,6 @@ const scheduleSuggestionFetch = (value) => {
 }
 
 const openSuggestions = () => {
-  console.log('[DEBUG] openSuggestions called. isSelecting:', isSelecting.value, 'isSuggestOpen:', isSuggestOpen.value)
   if (isSuggestOpen.value) return // 이미 열려있으면 무시
   if (isSelecting.value) return
   isSuggestOpen.value = true
@@ -111,7 +108,6 @@ const openSuggestions = () => {
 }
 
 const closeSuggestions = () => {
-  console.log('[DEBUG] closeSuggestions called by:', new Error().stack)
   isSuggestOpen.value = false
   resetSuggestions()
 }
@@ -178,12 +174,10 @@ const buildSearchQuery = () => {
 }
 
 const handleSuggestionInteract = () => {
-  console.log('[DEBUG] Suggestion interaction started (mousedown/touchstart)')
   isSelecting.value = true
 }
 
 const selectSuggestion = async (suggestion) => {
-  console.log('[selectSuggestion] Called with:', suggestion)
   // 선택 시작 플래그 설정
   isSelecting.value = true
   
@@ -257,7 +251,6 @@ const handleSearch = async () => {
 
 // Input Handlers
 const handleInput = (event) => {
-  console.log('[DEBUG] handleInput called. isSelecting:', isSelecting.value)
   if (isSelecting.value) return
   const value = event?.target?.value ?? ''
   suggestKeyword.value = value
@@ -312,13 +305,7 @@ const toggleGuestPicker = (e) => {
 // Click Outside & Resize
 const handleClickOutside = (e) => {
   if (isSelecting.value) {
-    console.log('[DEBUG] handleClickOutside ignored due to isSelecting')
     return
-  }
-  if (e.target.closest('.search-suggestions')) {
-      console.log('[DEBUG] Clicked inside suggestions')
-  } else if (!e.target.closest('.search-keyword-wrapper')) {
-      console.log('[DEBUG] handleClickOutside triggering closeSuggestions. Target:', e.target)
   }
   
   if (!e.target.closest('.date-picker-wrapper')) {
