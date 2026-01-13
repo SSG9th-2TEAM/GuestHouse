@@ -50,7 +50,8 @@ class SearchServiceTest {
                 4,
                 "https://example.com/image.jpg");
         PageImpl<ListDtoProjection> page = new PageImpl<>(List.of(projection), PageRequest.of(0, 24), 1);
-        when(searchRepository.searchPublicListNoDates(eq("부산"), isNull(), isNull(), isNull(), eq(false), any(PageRequest.class)))
+        when(searchRepository.searchPublicListNoDates(eq("부산"), isNull(), isNull(), isNull(), eq(false),
+                any(PageRequest.class)))
                 .thenReturn(page);
 
         PublicListResponse response = searchService.searchPublicList(

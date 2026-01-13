@@ -69,12 +69,7 @@ const selectSort = (value) => {
   isSortOpen.value = false
 }
 
-const getCardDescription = (item) => {
-  const shortText = typeof item.shortDescription === 'string' ? item.shortDescription.trim() : ''
-  const raw = shortText || item.description || ''
-  if (typeof raw !== 'string') return ''
-  return raw.split(/\r?\n/)[0].trim()
-}
+import { getCardDescription } from '@/utils/accommodationUtils'
 
 const normalizeItem = (item) => {
   const id = item.accommodationsId ?? item.accommodationId ?? item.id

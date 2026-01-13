@@ -247,10 +247,6 @@ const availableRoomIds = ref(null)
 const isAvailabilityLoading = ref(false)
 const calendarStore = useCalendarStore()
 const isCalendarOpen = computed(() => calendarStore.activeCalendar === 'room-detail')
-const showFullDescription = ref(false)
-const isDescriptionLong = computed(() => { 
-  return guesthouse.value.description && guesthouse.value.description.length > 150 
-})
 // showAllRooms, currentDate removed
 const datePickerRef = ref(null)
 let availabilityRequestId = 0
@@ -377,7 +373,6 @@ const loadAccommodation = async () => {
   selectedRoom.value = null
   availableRoomIds.value = null
   isAvailabilityLoading.value = false
-  showFullDescription.value = false
   guesthouse.value = createEmptyGuesthouse(accommodationsId)
   downloadedCouponIds.value = new Set() // Reset set
 
@@ -697,17 +692,9 @@ watch(filteredRooms, (rooms) => {
       </div>
       <div class="description-row">
         <h2 class="info-title">소개</h2>
-        <p class="description" :class="{ 'description-clamped': !showFullDescription }">
+        <p class="description">
           {{ guesthouse.description }}
         </p>
-        <button
-          v-if="isDescriptionLong"
-          type="button"
-          class="more-btn"
-          @click="showFullDescription = !showFullDescription"
-        >
-          {{ showFullDescription ? '접기' : '더보기' }}
-        </button>
       </div>
       <div class="transport-info" v-if="guesthouse.transportInfo">
         <h2 class="info-title">
@@ -1040,25 +1027,7 @@ h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
 }
-.description-clamped {
-  display: block;
-  -webkit-line-clamp: unset;
-  line-clamp: unset;
-  overflow: auto;
-}
-.more-btn {
-  margin-top: 0.15rem;
-  align-self: flex-end;
-  background: #BFE7DF;
-  border: 1px solid #8FCFC1;
-  color: #0f4c44;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  white-space: nowrap;
-  display: none;
-}
+
 .detail-meta {
   display: flex;
   flex-wrap: wrap;

@@ -67,12 +67,7 @@ const MAX_ROW_CARDS = 12
 const MAX_ITEMS_PER_ROW = MAX_ROW_CARDS - 1
 const MAX_THEME_SECTIONS = 8
 
-const getCardDescription = (item) => {
-  const shortText = typeof item.shortDescription === 'string' ? item.shortDescription.trim() : ''
-  const raw = shortText || item.description || ''
-  if (typeof raw !== 'string') return ''
-  return raw.split(/\r?\n/)[0].trim()
-}
+import { getCardDescription } from '@/utils/accommodationUtils'
 
 const normalizeItem = (item) => {
   const id = item.accommodationsId ?? item.accommodationId ?? item.id

@@ -211,15 +211,14 @@ public class SearchServiceImpl implements SearchService {
                 normalizedKeyword,
                 PageRequest.of(0, accommodationLimit));
 
-        List<SearchSuggestionResponse> suggestions = new java.util.ArrayList<>();
-        regions.stream()
-                .filter(region -> region != null && !region.trim().isEmpty())
-                .forEach(region -> suggestions.add(SearchSuggestionResponse.region(region)));
-        accommodationNames.stream()
-                .filter(name -> name != null && !name.trim().isEmpty())
-                .forEach(name -> suggestions.add(SearchSuggestionResponse.accommodation(name)));
-
-        return suggestions;
+        return java.util.stream.Stream.concat(
+                regions.stream()
+                        .filter(region -> region != null && !region.trim().isEmpty())
+                        .map(SearchSuggestionResponse::region),
+                accommodationNames.stream()
+                        .filter(name -> name != null && !name.trim().isEmpty())
+                        .map(SearchSuggestionResponse::accommodation)
+        ).toList();
     }
 
     @Override
