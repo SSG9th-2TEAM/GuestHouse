@@ -263,6 +263,8 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   z-index: 10;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  line-height: 1;
+  padding: 0 0 5px 0; /* 위로 미세 조정 */
 }
 
 .carousel-arrow:hover {
@@ -273,10 +275,12 @@ onUnmounted(() => {
 
 .arrow-left {
   left: 1rem;
+  padding-right: 2px; /* 왼쪽으로 미세 조정 */
 }
 
 .arrow-right {
   right: 1rem;
+  padding-left: 2px; /* 오른쪽으로 미세 조정 */
 }
 
 /* 인디케이터 (점) */
