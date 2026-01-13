@@ -237,7 +237,7 @@ onUnmounted(() => {
 
 .banner-image {
   width: 100%;
-  height: 600px;
+  height: 480px;
   display: block;
   object-fit: cover;
   object-position: center;
