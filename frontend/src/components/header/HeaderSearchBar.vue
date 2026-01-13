@@ -203,8 +203,11 @@ const selectSuggestion = async (suggestion) => {
     // 네비게이션 에러 무시 (이미 해당 페이지에 있거나 이동 중인 경우)
   }
 
-  isSearchExpanded.value = false
-  closeSuggestions()
+  // Ghost Click 방지를 위해 닫기 지연 (mousedown 후 mouseup이 발생할 때까지 리스트 유지)
+  setTimeout(() => {
+    isSearchExpanded.value = false
+    closeSuggestions()
+  }, 100)
 }
 
 const handleSearch = async () => {
@@ -375,7 +378,7 @@ onUnmounted(() => {
                   ? 'search-suggestion--region'
                   : 'search-suggestion--accommodation'
               ]"
-              @mousedown.prevent @click.stop="selectSuggestion(suggestion)"
+              @mousedown.prevent="selectSuggestion(suggestion)"
             >
               <span class="suggestion-text">{{ suggestion.value }}</span>
               <span
@@ -441,7 +444,7 @@ onUnmounted(() => {
                   ? 'search-suggestion--region'
                   : 'search-suggestion--accommodation'
               ]"
-              @mousedown.prevent @click.stop="selectSuggestion(suggestion)"
+              @mousedown.prevent="selectSuggestion(suggestion)"
             >
               <span class="suggestion-text">{{ suggestion.value }}</span>
               <span
