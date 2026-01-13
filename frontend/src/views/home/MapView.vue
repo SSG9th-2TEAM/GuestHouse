@@ -71,6 +71,7 @@ let idleTimer = null
 let autoFitPending = true
 let initialLoadDone = false
 let allowGlobalFallback = true
+let pendingSelectedId = null
 
 const isSelectedFavorite = computed(() => {
   const id = selectedItem.value?.id
@@ -113,7 +114,11 @@ const toggleWishlist = async (id) => {
   if (!id) return
   if (!isAuthenticated()) {
     if (confirm('로그인이 필요합니다.\n로그인 페이지로 이동하시겠습니까?')) {
-      router.push('/login')
+      // Save current map state before redirect
+      saveMapState()
+      const level = mapInstance.value?.getLevel?.() ?? ''
+      const redirectPath = `/map?selectedId=${id}${level ? `&level=${level}` : ''}`
+      router.push({ path: '/login', query: { redirect: redirectPath } })
     }
     return
   }
@@ -290,6 +295,15 @@ const loadList = async ({
       lastQueryKey = queryKey
     }
     allowGlobalFallback = false
+    // Restore selected item from pending ID
+    if (pendingSelectedId !== null) {
+      const targetItem = items.value.find(item => String(item.id) === String(pendingSelectedId))
+      if (targetItem) {
+        selectedItem.value = targetItem
+        syncMarkerActiveState()
+      }
+      pendingSelectedId = null
+    }
   } catch (error) {
     console.error('Failed to load list', error)
   } finally {
@@ -471,6 +485,11 @@ const goToList = () => {
 }
 
 onMounted(() => {
+  // Check for selectedId in query params (after login redirect)
+  const selectedIdParam = route.query.selectedId
+  if (selectedIdParam) {
+    pendingSelectedId = selectedIdParam
+  }
   loadWishlist()
   applyRouteFilters(route.query)
   applyRouteKeyword()
@@ -483,7 +502,10 @@ onMounted(() => {
     if (!mapContainer.value) return
 
     const savedState = route.query.from === 'list' ? null : loadMapState()
-    if (savedState) {
+    // Use level from query param as fallback (after login redirect)
+    const levelFromQuery = Number(route.query.level)
+    const effectiveLevel = savedState?.level ?? (Number.isFinite(levelFromQuery) ? levelFromQuery : 13)
+    if (savedState || route.query.selectedId) {
       autoFitPending = false
     }
 
@@ -491,7 +513,7 @@ onMounted(() => {
       center: savedState
         ? new window.kakao.maps.LatLng(savedState.lat, savedState.lng)
         : new window.kakao.maps.LatLng(36.5, 127.8), // Center of South Korea approximate
-      level: savedState ? savedState.level : 13, // Zoom level to see the whole country
+      level: effectiveLevel,
       draggable: true
     }
 
@@ -630,10 +652,11 @@ watch(
 /* Global styles for the keys injected into the map */
 .price-marker {
   background-color: white;
-  padding: 4px 10px 6px;
+  padding: 7px 10px 3px 12px;
   border-radius: 18px;
   font-weight: 700;
   font-size: 0.9rem;
+  font-family: 'NanumSquareRound', sans-serif;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   cursor: pointer;
   color: #111;
@@ -665,7 +688,7 @@ watch(
   font-size: 1.05rem;
   line-height: 1;
   position: relative;
-  top: 1px;
+  top: 2px;
 }
 </style>
 
