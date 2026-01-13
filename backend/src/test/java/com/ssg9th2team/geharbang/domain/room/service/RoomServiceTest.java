@@ -274,7 +274,6 @@ public class RoomServiceTest {
         System.out.println("Introduction 매핑 확인 완료: " + savedRoom.getRoomIntroduction());
 
         // Check via AccommodationService to verify RoomList response
-        // Check via AccommodationService to verify RoomList response
         AccommodationResponseDto accDto = accommodationService.getAccommodation(testAccommodationId);
         assertThat(accDto.getRooms()).isNotEmpty();
         // find variable roomId
