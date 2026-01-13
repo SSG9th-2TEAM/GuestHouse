@@ -10,6 +10,7 @@ import { isAuthenticated, getUserId } from '@/api/authClient'
 import { fetchRecommendations, fetchAiRecommendations } from '@/api/recommendation'
 import { useSearchStore } from '@/stores/search'
 import EventCarousel from '@/components/EventCarousel.vue'
+import FooterMarquee from '@/components/FooterMarquee.vue'
 
 // AI 추천 관련
 const aiSearchQuery = ref('')
@@ -418,12 +419,13 @@ onMounted(() => {
       </div>
     </section>
   </main>
+  <FooterMarquee />
 </template>
 
 <style scoped>
 .main-content {
   padding-top: 2rem;
-  padding-bottom: 4rem;
+  padding-bottom: 0;
 }
 
 /* PC 웹에서 header와 동일한 max-width 적용 */
@@ -433,6 +435,12 @@ onMounted(() => {
     margin: 0 auto;
     padding-left: 24px;
     padding-right: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    padding-bottom: 0;
   }
 }
 
@@ -718,6 +726,8 @@ onMounted(() => {
   margin: 0;
 }
 
+
+
 .ai-search-input-wrapper {
   display: flex;
   gap: 0.75rem;
@@ -728,12 +738,13 @@ onMounted(() => {
 
 .ai-search-input {
   flex: 1;
-  padding: calc(1rem + 2px) 1.25rem calc(1rem - 2px);
+  padding: 1rem 1.25rem 1rem;
   font-size: 1rem;
   border: 2px solid var(--brand-primary, #BFE7DF);
   border-radius: 50px;
   background: white;
   outline: none;
+  line-height: 1.5;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
