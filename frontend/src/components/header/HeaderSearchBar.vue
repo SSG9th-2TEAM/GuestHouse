@@ -7,6 +7,14 @@ import { fetchSearchSuggestions, resolveSearchAccommodation } from '@/api/list'
 import HeaderCalendar from './HeaderCalendar.vue'
 import HeaderGuestPicker from './HeaderGuestPicker.vue'
 
+const POPULAR_DESTINATIONS = [
+  { value: '협재', type: 'REGION', description: '에메랄드빛 바다와 비양도' },
+  { value: '애월', type: 'REGION', description: '낭만적인 카페거리와 산책로' },
+  { value: '성산', type: 'REGION', description: '유네스코 자연유산 성산일출봉' },
+  { value: '서귀포', type: 'REGION', description: '제주의 남쪽, 따뜻한 휴양지' },
+  { value: '함덕', type: 'REGION', description: '야자수와 백사장이 펼쳐진 곳' }
+]
+
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
@@ -26,6 +34,7 @@ const suggestions = ref([])
 const isSuggestOpen = ref(false)
 const isSuggestLoading = ref(false)
 const hasSuggestFetched = ref(false)
+const isShowingPopular = ref(false) // 인기 검색어 노출 여부
 const isComposing = ref(false)
 const MIN_SUGGEST_LENGTH = 2
 const SUGGEST_LIMIT = 10
@@ -47,7 +56,7 @@ const normalizeSuggestKeyword = (value) => {
 }
 
 const canShowSuggestions = computed(() => {
-  return Boolean(normalizeSuggestKeyword(suggestKeyword.value) && isSuggestOpen.value)
+  return isSuggestOpen.value && suggestions.value.length > 0
 })
 
 const clearSuggestionTimer = () => {
@@ -62,12 +71,24 @@ const resetSuggestions = () => {
   suggestions.value = []
   isSuggestLoading.value = false
   hasSuggestFetched.value = false
+  isShowingPopular.value = false
 }
 
 const isSelecting = ref(false)
 
 const scheduleSuggestionFetch = (value) => {
   if (isSelecting.value) return // 선택 중이면 무시
+
+  const trimmed = String(value ?? '').trim()
+  if (trimmed.length === 0 && isSuggestOpen.value) {
+    clearSuggestionTimer()
+    suggestions.value = [...POPULAR_DESTINATIONS]
+    isSuggestLoading.value = false
+    hasSuggestFetched.value = true
+    isShowingPopular.value = true
+    return
+  }
+
   const keyword = normalizeSuggestKeyword(value)
   if (!isSuggestOpen.value || !keyword) {
     resetSuggestions()
@@ -75,6 +96,7 @@ const scheduleSuggestionFetch = (value) => {
   }
   clearSuggestionTimer()
   hasSuggestFetched.value = false
+  isShowingPopular.value = false
   suggestTimer = setTimeout(async () => {
     const requestId = ++suggestRequestId
     isSuggestLoading.value = true
@@ -396,6 +418,7 @@ onUnmounted(() => {
              @mousedown.capture.prevent="handleSuggestionInteract"
              @touchstart.capture="handleSuggestionInteract"
              @click.stop>
+          <div v-if="isShowingPopular" class="suggestions-header">✨ 추천 검색어</div>
           <button
             v-for="(suggestion, idx) in suggestions"
             :key="`${suggestion.type}-${suggestion.value}-${idx}`"
@@ -408,7 +431,10 @@ onUnmounted(() => {
             ]"
             @click.stop="selectSuggestion(suggestion)"
           >
-            <span class="suggestion-text">{{ suggestion.value }}</span>
+            <div class="suggestion-info">
+              <span class="suggestion-text">{{ suggestion.value }}</span>
+              <span v-if="suggestion.description" class="suggestion-desc">{{ suggestion.description }}</span>
+            </div>
             <span
               class="suggestion-tag"
               :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
@@ -464,6 +490,7 @@ onUnmounted(() => {
              @mousedown.capture.prevent="handleSuggestionInteract"
              @touchstart.capture="handleSuggestionInteract"
              @click.stop>
+          <div v-if="isShowingPopular" class="suggestions-header">✨ 추천 검색어</div>
           <button
             v-for="(suggestion, idx) in suggestions"
             :key="`${suggestion.type}-${suggestion.value}-${idx}`"
@@ -476,7 +503,10 @@ onUnmounted(() => {
             ]"
             @click.stop="selectSuggestion(suggestion)"
           >
-            <span class="suggestion-text">{{ suggestion.value }}</span>
+            <div class="suggestion-info">
+              <span class="suggestion-text">{{ suggestion.value }}</span>
+              <span v-if="suggestion.description" class="suggestion-desc">{{ suggestion.description }}</span>
+            </div>
             <span
               class="suggestion-tag"
               :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
@@ -583,7 +613,7 @@ onUnmounted(() => {
   border-radius: 14px;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
   z-index: 99999;
-  max-height: 280px;
+  max-height: 480px;
   overflow-y: auto;
   pointer-events: auto;
   padding: 6px;
@@ -637,6 +667,33 @@ onUnmounted(() => {
   border-color: #e2e8f0;
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
   outline: none;
+}
+
+.suggestions-header {
+  padding: 8px 14px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.suggestion-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.suggestion-desc {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 }
 
 .suggestion-tag {
