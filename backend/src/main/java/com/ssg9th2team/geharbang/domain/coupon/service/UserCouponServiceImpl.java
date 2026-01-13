@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -191,11 +192,11 @@ public class UserCouponServiceImpl implements UserCouponService {
             }
 
             // 동기 저장
-            UserCoupon userCoupon = UserCoupon.issue(userId, couponId, expiresAt);
-            userCouponJpaRepository.save(userCoupon);
-            evictUserCouponCache(userId, "ISSUED");
-
-            return CouponIssueResult.SUCCESS;
+            CouponIssueResult result = saveUserCoupon(userId, couponId, expiresAt);
+            if (result == CouponIssueResult.DUPLICATED) {
+                couponInventoryService.restoreRedisSlot(couponId);
+            }
+            return result;
             
         } else {
             // 📌 일반 쿠폰 → DB만 사용 (Redis 사용 안 함)
@@ -209,12 +210,11 @@ public class UserCouponServiceImpl implements UserCouponService {
             LocalDateTime expiresAt = coupon.calculateExpiryDate();
 
             // 3. DB에 바로 저장 (동기)
-            UserCoupon userCoupon = UserCoupon.issue(userId, couponId, expiresAt);
-            userCouponJpaRepository.save(userCoupon);
-            evictUserCouponCache(userId, "ISSUED");
-
-            log.debug("일반 쿠폰 {} 발급 성공 - userId: {}", couponId, userId);
-            return CouponIssueResult.SUCCESS;
+            CouponIssueResult result = saveUserCoupon(userId, couponId, expiresAt);
+            if (result == CouponIssueResult.SUCCESS) {
+                log.debug("일반 쿠폰 {} 발급 성공 - userId: {}", couponId, userId);
+            }
+            return result;
         }
     }
 
@@ -302,6 +302,18 @@ public class UserCouponServiceImpl implements UserCouponService {
             return;
         }
         cache.evict(userId + "_" + status);
+    }
+
+    private CouponIssueResult saveUserCoupon(Long userId, Long couponId, LocalDateTime expiresAt) {
+        try {
+            UserCoupon userCoupon = UserCoupon.issue(userId, couponId, expiresAt);
+            userCouponJpaRepository.save(userCoupon);
+            evictUserCouponCache(userId, "ISSUED");
+            return CouponIssueResult.SUCCESS;
+        } catch (DataIntegrityViolationException e) {
+            log.warn("쿠폰 {} 중복 발급 차단 (DB 제약) - userId: {}", couponId, userId);
+            return CouponIssueResult.DUPLICATED;
+        }
     }
 
 

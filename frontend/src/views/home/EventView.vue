@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getDownloadableCoupons, issueCoupon, getMyCouponIds, getMyCoupons } from '@/api/couponApi'
+import { getDownloadableCoupons, issueCoupon, getMyCouponIds } from '@/api/couponApi'
 import { getAccessToken, getUserId } from '@/api/authClient'
 
 const router = useRouter()
@@ -92,30 +92,14 @@ const loadClaimedCoupons = async () => {
     return
   }
   try {
-    const result = await getMyCoupons('ALL')
-    console.log('🔍 [EventView] 내 쿠폰 목록 조회:', result)
-    
-    if (!Array.isArray(result)) {
-      console.warn('⚠️ [EventView] 쿠폰 목록이 배열이 아닙니다:', result)
-      return
-    }
-    
-    const ids = new Set()
-    result.forEach((userCoupon) => {
-      // UserCouponResponseDto는 flatten된 구조 (couponId 직접 접근)
-      const couponId = userCoupon.couponId || userCoupon.coupon?.couponId
-      if (couponId) {
-        const normalized = normalizeId(couponId)
-        if (normalized) {
-          ids.add(normalized)
-          console.log(`✅ [EventView] 쿠폰 ${couponId} → normalized: ${normalized}`)
-        }
-      }
-    })
-    
-    console.log('📋 [EventView] 발급받은 쿠폰 IDs:', Array.from(ids))
+    const ids = await getMyCouponIds()
+    const normalized = new Set(
+      (ids || [])
+        .map((id) => normalizeId(id))
+        .filter(Boolean)
+    )
     const merged = new Set(claimedCoupons.value)
-    ids.forEach((id) => merged.add(id))
+    normalized.forEach((id) => merged.add(id))
     claimedCoupons.value = merged
     saveLocalClaimedCoupons(merged)
   } catch (error) {
