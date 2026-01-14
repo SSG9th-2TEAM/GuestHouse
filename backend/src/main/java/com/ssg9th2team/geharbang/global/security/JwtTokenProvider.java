@@ -36,7 +36,6 @@ public class JwtTokenProvider {
             @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration,/// 리프래시 토큰
             UserRepository userRepository) {/// 사용자 저장소
 
-
         /// BASE 64로 인코딩된 비밀키를 디코딩해서 실제 암호화 키 객체로 만들기
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         this.key = Keys.hmacShaKeyFor(keyBytes);

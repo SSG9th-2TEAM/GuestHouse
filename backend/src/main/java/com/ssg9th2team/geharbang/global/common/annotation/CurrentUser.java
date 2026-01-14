@@ -5,10 +5,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-
+/**
+ * 현재 로그인한 사용자를 주입하기 위한 어노테이션.
+ * CurrentUserArgumentResolver에서 처리됩니다.
+ */
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
-@AuthenticationPrincipal(expression = "#this == 'anonymousUser' ? null : user")
 public @interface CurrentUser {
 }

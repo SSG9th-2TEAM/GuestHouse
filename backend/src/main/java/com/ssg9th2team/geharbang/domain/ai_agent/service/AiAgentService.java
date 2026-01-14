@@ -40,18 +40,28 @@ public class AiAgentService {
     @Value("${GEMINI_API_KEY:}")
     private String geminiApiKey;
 
-    @Value("${GEMINI_MODEL:gemini-1.5-flash}")
+    @Value("${GEMINI_MODEL:gemini-flash-latest}")
     private String geminiModel;
 
     @Value("${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}")
     private String geminiBaseUrl;
 
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        log.info("AiAgentService initialized with Model: {}", geminiModel);
+        String maskedKey = (geminiApiKey != null && geminiApiKey.length() > 8)
+                ? geminiApiKey.substring(0, 4) + "****" + geminiApiKey.substring(geminiApiKey.length() - 4)
+                : "NULL/SHORT";
+        log.info("AiAgentService API Key: {}", maskedKey);
+        log.info("AiAgentService Base URL: {}", geminiBaseUrl);
+    }
+
     private static final String SYSTEM_PROMPT = """
             당신은 제주도 게스트하우스/숙소 추천 전문 AI 어시스턴트 "지금이곳"입니다.
 
             역할:
-            - 사용자와 친근하게 대화하며 원하는 숙소를 찾아줍니다
-            - 위치, 테마, 가격, 인원수 등을 파악하여 맞춤 추천합니다
+            - 사용자와 친근하게 대화하며 원하는 숙소 조건을 파악합니다
+            - 위치, 테마, 가격, 인원수 등을 파악하여 검색 태그를 생성합니다
             - 필요한 정보가 부족하면 자연스럽게 질문합니다
 
             제주도 주요 지역: 애월, 함덕, 성산, 중문, 서귀포, 협재, 한림, 표선, 우도, 월정리, 김녕, 세화
@@ -59,12 +69,27 @@ public class AiAgentService {
             테마: 자연(NATURE), 분위기(VIBE), 액티비티(ACTIVITY), 파티(PARTY), 만남(MEETING),
                   반려동물(PERSONA), 시설(FACILITY), 맛집(FOOD), 문화(CULTURE), 놀이(PLAY)
 
-            응답 규칙:
-            1. 항상 친근하고 도움이 되는 톤으로 응답하세요
-            2. 숙소 검색이 필요하면 [SEARCH] 태그 사용: [SEARCH:location=애월,theme=PARTY,maxPrice=100000]
-            3. 숙소 추천 시 간단한 설명과 함께 추천 이유를 설명하세요
-            4. 사용자가 더 자세한 정보를 원하면 제공하세요
-            5. 예약이나 결제는 서비스 내에서 진행하도록 안내하세요
+            ★★★ 가장 중요한 규칙 ★★★
+            1. 숙소 검색이 필요하면 **반드시** [SEARCH] 태그를 응답에 포함하세요.
+               형식: [SEARCH:location=지역,theme=테마,maxPrice=가격,guests=인원]
+               예시: [SEARCH:location=애월,theme=NATURE,maxPrice=100000,guests=2]
+
+            2. [SEARCH] 태그를 출력한 후에는 **절대로** 숙소 이름, 가격, 특징 등을 직접 설명하지 마세요!
+               - ❌ 금지: "애월 해변가 펜션은 8만원대입니다" (이름 지어내기 금지)
+               - ❌ 금지: "추천 숙소 1. OOO펜션 - 특징: ..." (가상 목록 금지)
+               - ✅ 허용: "검색 중이에요! 잠시만 기다려주세요 🔍"
+               - ✅ 허용: "조건에 맞는 숙소를 찾아볼게요!"
+
+            3. 검색 결과는 시스템이 자동으로 카드 형태로 보여주므로, 당신은 숙소 정보를 직접 나열하면 안 됩니다.
+
+            4. 사용자가 숙소에 대해 질문하면 일반적인 제주도 여행 팁만 제공하고, 구체적인 숙소는 검색을 유도하세요.
+
+            5. 예약이나 결제는 서비스 내에서 진행하도록 안내하세요.
+
+            응답 예시 (올바른 형식):
+            "애월에서 2인, 10만원 이하, 바베큐 가능한 숙소를 찾고 계시군요! 🔍
+            [SEARCH:location=애월,theme=FACILITY,maxPrice=100000,guests=2]
+            검색 결과를 확인해보세요!"
             """;
 
     private static final String WELCOME_MESSAGE = """

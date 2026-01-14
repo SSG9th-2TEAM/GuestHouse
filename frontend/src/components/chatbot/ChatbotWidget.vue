@@ -18,9 +18,50 @@ const totalUnreadCount = computed(() => {
   return realtimeChatRooms.value.reduce((total, room) => total + (room.unreadCount || 0), 0);
 });
 
+// 새 메시지 알림 감시 - 실시간으로 채팅방 목록 업데이트
+watch(() => realtimeChatStore.roomNotifications.length, (newLength) => {
+    if (newLength > 0) {
+        const notifications = [...realtimeChatStore.roomNotifications];
+        realtimeChatStore.clearNotifications();
+
+        notifications.forEach(notification => {
+            // 해당 채팅방 찾아서 업데이트
+            const room = realtimeChatRooms.value.find(r => Number(r.id) === Number(notification.roomId));
+            if (room) {
+                room.unreadCount = notification.unreadCount;
+                room.lastMessage = notification.lastMessage;
+                room.lastMessageTime = notification.lastMessageTime;
+                console.log('Updated room from notification:', room);
+            } else {
+                // 채팅방 목록에 없으면 새로고침
+                console.log('Room not found in list, reloading...');
+                loadRealtimeChatRooms();
+            }
+        });
+
+        // 최신 메시지 순으로 재정렬
+        realtimeChatRooms.value.sort((a, b) => {
+            if (!a.lastMessageTime && !b.lastMessageTime) return 0;
+            if (!a.lastMessageTime) return 1;
+            if (!b.lastMessageTime) return -1;
+            return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
+        });
+    }
+});
+
 // Combined messages computed property
 const currentMessages = computed(() => {
-    return activeTab.value === 'chat' ? realtimeChatStore.messages : messages.value;
+    if (activeTab.value === 'chat') {
+        // 메시지 시간순 정렬 (오름차순: 과거 -> 최신)
+        // Redis ZSet Score가 꼬였을 경우를 대비해 클라이언트에서 재정렬
+        return [...realtimeChatStore.messages].sort((a, b) => {
+            if (!a.createdAt && !b.createdAt) return 0;
+            if (!a.createdAt) return -1;
+            if (!b.createdAt) return 1;
+            return new Date(a.createdAt) - new Date(b.createdAt);
+        });
+    }
+    return messages.value;
 });
 
 // --- Existing state for chatbot ---
@@ -90,11 +131,12 @@ const enterRealtimeChatRoom = async (room) => {
         });
         if (res.ok) {
             const fetchedMessages = await res.json();
+            const myId = currentUser.value?.userId || currentUser.value?.id;
             // Initialize readByRecipient property for each message
             realtimeChatStore.messages = fetchedMessages.map(msg => ({
                 ...msg,
                 // For messages sent by current user, set readByRecipient based on backend's isRead field
-                readByRecipient: msg.senderUserId === currentUser.value?.userId ? msg.isRead : undefined
+                readByRecipient: myId && Number(msg.senderUserId) === Number(myId) ? msg.isRead : undefined
             }));
         } else {
             realtimeChatStore.messages = [];
@@ -131,6 +173,45 @@ const isHost = (room) => {
     return currentUser.value.userId === room.hostUserId;
 };
 
+// 기본 게스트 아바타 이미지 (SVG 데이터 URI)
+const defaultGuestAvatar = "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='100'%20height='100'%20viewBox='0%200%2024%2024'%3e%3ccircle%20cx='12'%20cy='12'%20r='12'%20fill='%23E0E0E0'/%3e%3cpath%20d='M20%2021v-2a4%204%200%200%200-4-4H8a4%204%200%200%200-4%204v2'%20fill='none'%20stroke='%239E9E9E'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3c/path%3e%3ccircle%20cx='12'%20cy='7'%20r='4'%20fill='none'%20stroke='%239E9E9E'%20stroke-width='2'%3e%3c/circle%3e%3c/svg%3e";
+
+// 현재 사용자 기준으로 상대방 정보 가져오기
+const getOtherUserName = (room) => {
+    if (!currentUser.value || !room) return '상대방';
+    if (isHost(room)) {
+        return room.guestName || '게스트';
+    } else {
+        return room.hostName || '호스트';
+    }
+};
+
+// 상대방 프로필 이미지 가져오기 (호스트면 게스트 아바타, 게스트면 숙소 이미지)
+const getOtherUserProfileImage = (room) => {
+    if (!room) return '/icon.png';
+    if (isHost(room)) {
+        // 호스트가 보는 화면: 게스트 프로필 (기본 아바타)
+        return room.guestProfileImage || defaultGuestAvatar;
+    } else {
+        // 게스트가 보는 화면: 숙소 이미지
+        return room.accommodationImage || '/icon.png';
+    }
+};
+
+// 현재 사용자 ID 가져오기 (userId 또는 id)
+const getCurrentUserId = () => {
+    if (!currentUser.value) return null;
+    return currentUser.value.userId || currentUser.value.id;
+};
+
+// 현재 사용자가 메시지를 보낸 사람인지 확인 (타입 맞춰서 비교)
+const isMyMessage = (msg) => {
+    const myId = getCurrentUserId();
+    if (!myId) return false;
+    // 숫자/문자열 타입 차이를 고려하여 비교
+    return Number(msg.senderUserId) === Number(myId);
+};
+
 // Watch for incoming messages to scroll down
 watch(() => realtimeChatStore.messages, () => {
     if (activeTab.value === 'chat') {
@@ -141,18 +222,20 @@ watch(() => realtimeChatStore.messages, () => {
 }, { deep: true });
 
 // Auto-read messages when they arrive while viewing chat room
-watch(() => realtimeChatStore.messages, (newMessages, oldMessages) => {
+watch(() => realtimeChatStore.messages.length, (newLength, oldLength) => {
     if (activeTab.value === 'chat' && currentChatRoom.value && viewMode.value === 'chat') {
         // Check if new message was added
-        if (newMessages.length > oldMessages.length) {
-            const latestMessage = newMessages[newMessages.length - 1];
-            // If message is from other user, mark as read automatically
-            if (latestMessage.senderUserId !== currentUser.value?.userId) {
+        if (newLength > oldLength) {
+            const latestMessage = realtimeChatStore.messages[realtimeChatStore.messages.length - 1];
+            // If message is from other user, mark as read automatically (즉시 호출)
+            const myId = getCurrentUserId();
+            if (latestMessage && myId && Number(latestMessage.senderUserId) !== Number(myId)) {
+                console.log('New message from other user detected, marking as read...');
                 markCurrentRoomAsRead();
             }
         }
     }
-}, { deep: true });
+});
 
 const markCurrentRoomAsRead = async () => {
     if (!currentChatRoom.value) return;
@@ -327,6 +410,13 @@ const toggleChat = async () => {
     } else {
       await loadRooms();
     }
+  } else {
+    // 닫힐 때 채팅방 나가기 처리 (구독 해지)
+    if (activeTab.value === 'chat') {
+        realtimeChatStore.leaveRoom();
+        currentChatRoom.value = null;
+        viewMode.value = 'list'; // 다음에 열 때 목록부터 보이게
+    }
   }
 };
 
@@ -408,6 +498,11 @@ const enterRoom = async (roomId) => {
 };
 
 const goBackToList = () => {
+  // 실시간 채팅방에서 나갈 때 구독 해지
+  if (activeTab.value === 'chat') {
+    realtimeChatStore.leaveRoom();
+  }
+  
   viewMode.value = 'list';
   currentRoomId.value = null;
   currentChatRoom.value = null; // Clear real-time chat room as well
@@ -505,10 +600,10 @@ const goHome = () => {
             <div v-else-if="realtimeChatRooms.length === 0" class="empty-state"><p>진행중인 대화가 없습니다</p><p class="sub-text">숙소 예약 후 호스트와 대화를 시작할 수 있습니다.</p></div>
             <div v-else class="room-list">
                 <div v-for="room in realtimeChatRooms" :key="room.id" class="room-item" @click="enterRealtimeChatRoom(room)">
-                    <div class="room-icon"><img :src="room.accommodationImage || '/icon.png'" alt="숙소" /></div>
+                    <div class="room-icon"><img :src="getOtherUserProfileImage(room)" alt="프로필" /></div>
                     <div class="room-info">
                         <div class="room-sender">{{ room.accommodationName }}</div>
-                        <div class="room-subtitle">호스트: {{ isHost(room) ? '게스트와 대화' : room.hostName }}</div>
+                        <div class="room-subtitle">{{ isHost(room) ? '게스트: ' + (room.guestName || '게스트') : '호스트: ' + (room.hostName || '호스트') }}</div>
                         <div class="room-msg">{{ room.lastMessage || '아직 메시지가 없습니다' }}</div>
                         <div class="room-time">{{ formatTime(room.lastMessageTime) }}</div>
                     </div>
@@ -528,19 +623,23 @@ const goHome = () => {
             </template>
             <!-- Real-time Chat Messages -->
             <template v-if="activeTab === 'chat'">
-                <div v-for="msg in currentMessages" :key="`rt-${msg.id}`" class="message-row" :class="currentUser && msg.senderUserId === currentUser.userId ? 'user' : 'bot'">
-                    <div v-if="currentUser && msg.senderUserId !== currentUser.userId" class="bot-container">
-                        <div class="bot-profile"><img :src="currentChatRoom.accommodationImage || '/icon.png'" alt="Host" /></div>
+                <div v-for="msg in currentMessages" :key="`rt-${msg.id}`" class="message-row" :class="isMyMessage(msg) ? 'user' : 'bot'">
+                    <!-- 상대방(게스트 또는 호스트)의 메시지 -->
+                    <div v-if="!isMyMessage(msg)" class="bot-container">
+                        <div class="bot-profile">
+                            <img :src="getOtherUserProfileImage(currentChatRoom)" alt="상대방" />
+                        </div>
                         <div class="bot-content">
-                            <div class="bot-name">{{ currentChatRoom.hostName }}</div>
+                            <div class="bot-name">{{ msg.senderName || '상대방' }}</div>
                             <div class="message-bubble bot-bubble"><div class="message-text" style="white-space: pre-wrap;">{{ msg.messageContent }}</div></div>
                             <div class="message-time">{{ formatTime(msg.createdAt) }}</div>
                         </div>
                     </div>
+                    <!-- 내가 보낸 메시지 -->
                     <div v-else class="user-container">
                         <div class="message-bubble user-bubble">{{ msg.messageContent }}</div>
                         <div class="message-meta">
-                            <span v-if="!msg.readByRecipient" class="unread-indicator">1</span>
+                            <span v-if="msg.readByRecipient === false" class="unread-indicator">1</span>
                             <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
                         </div>
                     </div>
