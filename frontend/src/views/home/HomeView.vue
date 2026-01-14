@@ -413,7 +413,8 @@ onMounted(() => {
 .banner-image {
   display: block;
   width: 100%;
-  height: auto;
+  height: 130px;
+  object-fit: cover;
   border-radius: 16px;
 }
 

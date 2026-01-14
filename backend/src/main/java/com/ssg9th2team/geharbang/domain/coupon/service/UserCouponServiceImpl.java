@@ -16,7 +16,6 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -386,10 +385,9 @@ public class UserCouponServiceImpl implements UserCouponService {
 
     /**
      * 일일 선착순 쿠폰의 발급 이력을 초기화한다.
-     * 매일 자정에 실행되어 사용자가 다시 쿠폰을 발급받을 수 있도록 함.
+     * CouponScheduler에서 매일 자정에 호출됨.
      */
     @Override
-    @Scheduled(cron = "0 0 0 * * ?")
     @Transactional
     public int resetDailyCouponIssuedTracking() {
         List<Long> limitedCouponIds = couponInventoryRepository.findAll()
@@ -412,5 +410,22 @@ public class UserCouponServiceImpl implements UserCouponService {
         log.info("일일 쿠폰 초기화 완료 - Redis 키 {}개 삭제, DB 레코드 {}개 삭제",
                 limitedCouponIds.size(), deletedFromDb);
         return deletedFromDb;
+    }
+
+
+    // 첫 예약 쿠폰 발급 후 사용자가 예약 취소 -> 첫 예약 쿠폰 회수
+    @Override
+    @Transactional
+    public void revokeFirstReservationCoupon(Long userId) {
+        // N+1 쿼리 방지: JOIN을 사용하여 한 번의 쿼리로 조회
+        List<UserCoupon> firstReservationCoupons = userCouponJpaRepository
+                .findUserCouponsByTriggerType(userId, UserCouponStatus.ISSUED, CouponTriggerType.FIRST_RESERVATION);
+        
+        // 첫 예약 쿠폰이 있으면 삭제
+        if (!firstReservationCoupons.isEmpty()) {
+            userCouponJpaRepository.deleteAll(firstReservationCoupons);
+            evictUserCouponCache(userId, "ISSUED");
+            log.info("첫 예약 쿠폰 회수 - userId: {}, 개수: {}", userId, firstReservationCoupons.size());
+        }
     }
 }
