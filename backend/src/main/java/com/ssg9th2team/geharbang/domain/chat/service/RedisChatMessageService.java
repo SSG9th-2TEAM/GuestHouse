@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
@@ -38,8 +39,13 @@ public class RedisChatMessageService {
 
         // 메시지 ID 생성 (timestamp + random)
         long messageId = System.currentTimeMillis() * 1000 + (long)(Math.random() * 1000);
-        LocalDateTime now = LocalDateTime.now();
-        double score = now.toInstant(ZoneOffset.UTC).toEpochMilli();
+        
+        // 서버 시간대와 관계없이 한국 시간(KST)으로 저장
+        ZoneId kstZoneId = ZoneId.of("Asia/Seoul");
+        LocalDateTime now = LocalDateTime.now(kstZoneId);
+        
+        // Score는 KST 기준의 타임스탬프로 설정
+        double score = now.atZone(kstZoneId).toInstant().toEpochMilli();
 
         ChatMessageDto message = ChatMessageDto.builder()
                 .id(messageId)
@@ -123,7 +129,8 @@ public class RedisChatMessageService {
                             .isRead(true)
                             .build();
 
-                    double score = message.getCreatedAt().toInstant(ZoneOffset.UTC).toEpochMilli();
+                    ZoneId kstZoneId = ZoneId.of("Asia/Seoul");
+                    double score = message.getCreatedAt().atZone(kstZoneId).toInstant().toEpochMilli();
                     String updatedJson = objectMapper.writeValueAsString(updatedMessage);
                     redisTemplate.opsForZSet().add(key, updatedJson, score);
                 }
@@ -149,9 +156,11 @@ public class RedisChatMessageService {
      */
     public void cleanupOldMessages(Long roomId, int daysToKeep) {
         String key = String.format(CHAT_MESSAGES_KEY, roomId);
-        long cutoffTime = LocalDateTime.now()
+        ZoneId kstZoneId = ZoneId.of("Asia/Seoul");
+        long cutoffTime = LocalDateTime.now(kstZoneId)
                 .minusDays(daysToKeep)
-                .toInstant(ZoneOffset.UTC)
+                .atZone(kstZoneId)
+                .toInstant()
                 .toEpochMilli();
 
         Long removedCount = redisTemplate.opsForZSet().removeRangeByScore(key, 0, cutoffTime);

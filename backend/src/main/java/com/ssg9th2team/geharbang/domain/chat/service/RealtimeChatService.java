@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -173,7 +174,7 @@ public class RealtimeChatService {
             chatRoom.setHostUnreadCount(newUnreadCount);
             recipientUserId = chatRoom.getHostUserId();
         }
-        chatRoom.setUpdatedAt(LocalDateTime.now());
+        chatRoom.setUpdatedAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")));
         chatRoomRepository.save(chatRoom);
 
         // 수신자에게 새 메시지 알림 전송 (채팅방 목록 업데이트용)
