@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.main.controller;
 
 import com.ssg9th2team.geharbang.domain.accommodation.service.AccommodationService;
+import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.main.dto.AvailableRoomResponse;
 import com.ssg9th2team.geharbang.domain.main.dto.AccommodationDetailDto;
@@ -38,17 +39,10 @@ public class MainController {
 
     @GetMapping("/list")
     public MainAccommodationListResponse list(
-            Authentication authentication, // Inject Authentication object
+            Authentication authentication,
             @RequestParam(name = "themeIds", required = false) List<Long> themeIds,
             @RequestParam(name = "keyword", required = false) String keyword) {
-
-        Long userId = null;
-        if (authentication != null && authentication.isAuthenticated()) {
-            String userEmail = authentication.getName();
-            userId = userRepository.findByEmail(userEmail)
-                    .map(com.ssg9th2team.geharbang.domain.auth.entity.User::getId)
-                    .orElse(null); // If user not found, userId remains null
-        }
+        Long userId = extractUserId(authentication);
         return mainService.getMainAccommodationList(userId, themeIds, keyword);
     }
 
@@ -57,19 +51,10 @@ public class MainController {
             Authentication authentication,
             @RequestParam(name = "themeIds") List<Long> themeIds,
             @RequestParam(name = "keyword", required = false) String keyword) {
-        Long userId = null;
-        if (authentication != null && authentication.isAuthenticated()) {
-            String userEmail = authentication.getName();
-            userId = userRepository.findByEmail(userEmail)
-                    .map(com.ssg9th2team.geharbang.domain.auth.entity.User::getId)
-                    .orElse(null);
-        }
-
         if (themeIds == null || themeIds.isEmpty()) {
             return new LinkedHashMap<>();
         }
-
-        // 최적화된 벌크 조회 사용 (기존: 테마별 순차 조회 -> 신규: 한 번에 조회 후 그룹핑)
+        Long userId = extractUserId(authentication);
         return mainService.getMainAccommodationListBulk(userId, themeIds, keyword);
     }
 
@@ -95,5 +80,21 @@ public class MainController {
         List<Long> roomIds = roomJpaRepository.findAvailableRoomIds(accommodationsId, checkinAt, checkoutAt,
                 guestCount);
         return AvailableRoomResponse.of(roomIds);
+    }
+
+    /**
+     * Authentication 객체에서 userId를 추출합니다.
+     * 
+     * @param authentication Spring Security Authentication 객체
+     * @return 사용자 ID, 인증되지 않은 경우 null
+     */
+    private Long extractUserId(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        String userEmail = authentication.getName();
+        return userRepository.findByEmail(userEmail)
+                .map(User::getId)
+                .orElse(null);
     }
 }
