@@ -26,7 +26,7 @@ services:
     environment:
       - REDIS_HOST=redis
       - GOOGLE_CLOUD_CREDENTIALS_LOCATION=file:/app/googlevision/ocr-test-480914-b8a930bfbdc0.json
-      - DB_HOST=10.0.2.7
+      - DB_HOST=${DB_HOST}
       - DB_PORT=3306
     logging:
       driver: "json-file"
