@@ -7,6 +7,14 @@ import { fetchSearchSuggestions, resolveSearchAccommodation } from '@/api/list'
 import HeaderCalendar from './HeaderCalendar.vue'
 import HeaderGuestPicker from './HeaderGuestPicker.vue'
 
+const POPULAR_DESTINATIONS = [
+  { value: '협재', type: 'REGION', description: '에메랄드빛 바다와 비양도' },
+  { value: '애월', type: 'REGION', description: '낭만적인 카페거리와 산책로' },
+  { value: '성산', type: 'REGION', description: '유네스코 자연유산 성산일출봉' },
+  { value: '서귀포', type: 'REGION', description: '제주의 남쪽, 따뜻한 휴양지' },
+  { value: '함덕', type: 'REGION', description: '야자수와 백사장이 펼쳐진 곳' }
+]
+
 const router = useRouter()
 const route = useRoute()
 const searchStore = useSearchStore()
@@ -26,6 +34,7 @@ const suggestions = ref([])
 const isSuggestOpen = ref(false)
 const isSuggestLoading = ref(false)
 const hasSuggestFetched = ref(false)
+const isShowingPopular = ref(false) // 인기 검색어 노출 여부
 const isComposing = ref(false)
 const MIN_SUGGEST_LENGTH = 2
 const SUGGEST_LIMIT = 10
@@ -47,7 +56,8 @@ const normalizeSuggestKeyword = (value) => {
 }
 
 const canShowSuggestions = computed(() => {
-  return Boolean(normalizeSuggestKeyword(suggestKeyword.value) && isSuggestOpen.value)
+  // API 로딩 중에도 suggestions div를 유지하여 클릭이 투과되는 것 방지
+  return isSuggestOpen.value && (suggestions.value.length > 0 || isSuggestLoading.value)
 })
 
 const clearSuggestionTimer = () => {
@@ -62,20 +72,44 @@ const resetSuggestions = () => {
   suggestions.value = []
   isSuggestLoading.value = false
   hasSuggestFetched.value = false
+  isShowingPopular.value = false
 }
 
 const isSelecting = ref(false)
 
 const scheduleSuggestionFetch = (value) => {
   if (isSelecting.value) return // 선택 중이면 무시
-  const keyword = normalizeSuggestKeyword(value)
-  if (!isSuggestOpen.value || !keyword) {
-    resetSuggestions()
+
+  const trimmed = String(value ?? '').trim()
+  if (trimmed.length === 0 && isSuggestOpen.value) {
+    clearSuggestionTimer()
+    suggestions.value = [...POPULAR_DESTINATIONS]
+    isSuggestLoading.value = false
+    hasSuggestFetched.value = true
+    isShowingPopular.value = true
     return
   }
+
+  const keyword = normalizeSuggestKeyword(value)
+
+  // 즉시 리셋하지 않고 타이머 설정 (입력 중간 단계에서 리스트 깜빡임 방지)
   clearSuggestionTimer()
   hasSuggestFetched.value = false
+  isShowingPopular.value = false
+
   suggestTimer = setTimeout(async () => {
+    // suggestions가 닫혀있으면 중단
+    if (!isSuggestOpen.value) {
+      resetSuggestions()
+      return
+    }
+
+    // 키워드가 유효하지 않으면 리셋
+    if (!keyword) {
+      resetSuggestions()
+      return
+    }
+
     const requestId = ++suggestRequestId
     isSuggestLoading.value = true
     try {
@@ -188,13 +222,6 @@ const selectSuggestion = async (suggestion) => {
     return
   }
 
-  // 즉시 suggestions 닫기
-  isSearchExpanded.value = false
-  closeSuggestions()
-
-  // 모바일의 경우 DOM에서 input이 사라지도록 대기
-  await nextTick()
-
   const nextValue = String(val)
   
   // 입력 상태 정리
@@ -223,6 +250,10 @@ const selectSuggestion = async (suggestion) => {
   } catch (error) {
     console.error('Navigation error:', error)
   } finally {
+    // 네비게이션 완료 후 닫기 (이벤트 전파 이슈 방지 및 자연스러운 전환)
+    isSearchExpanded.value = false
+    closeSuggestions()
+
     // 약간의 지연 후 선택 플래그 해제 (이벤트 루프 처리 대기)
     setTimeout(() => {
       isSelecting.value = false
@@ -289,6 +320,10 @@ const toggleSearch = (event) => {
 }
 
 const toggleCalendar = (e) => {
+  // suggestions가 열려있으면 캘린더 토글 무시
+  if (isSuggestOpen.value) {
+    return
+  }
   e.stopPropagation()
   calendarStore.toggleCalendar('header')
   isGuestOpen.value = false
@@ -296,6 +331,8 @@ const toggleCalendar = (e) => {
 }
 
 const toggleGuestPicker = (e) => {
+  // suggestions가 열려있으면 게스트 피커 토글 무시
+  if (isSuggestOpen.value) return
   e.stopPropagation()
   isGuestOpen.value = !isGuestOpen.value
   calendarStore.closeCalendar('header')
@@ -304,6 +341,9 @@ const toggleGuestPicker = (e) => {
 
 // Click Outside & Resize
 const handleClickOutside = (e) => {
+  const closestWrapper = e.target.closest('.search-keyword-wrapper')
+  const closestSuggestions = e.target.closest('.search-suggestions')
+  
   if (isSelecting.value) {
     return
   }
@@ -314,7 +354,8 @@ const handleClickOutside = (e) => {
   if (!e.target.closest('.guest-picker-wrapper')) {
     isGuestOpen.value = false
   }
-  if (!e.target.closest('.search-keyword-wrapper')) {
+  // suggestions 영역 클릭 시에도 닫지 않음
+  if (!closestWrapper && !closestSuggestions) {
     closeSuggestions()
   }
 }
@@ -341,7 +382,7 @@ watch(() => searchKeyword.value, (value) => {
   scheduleSuggestionFetch(value)
 })
 
-watch(() => route.path, () => {
+watch(() => route.fullPath, () => {
   if (isMobile()) {
     isSearchExpanded.value = false
     closeSuggestions()
@@ -396,6 +437,7 @@ onUnmounted(() => {
              @mousedown.capture.prevent="handleSuggestionInteract"
              @touchstart.capture="handleSuggestionInteract"
              @click.stop>
+          <div v-if="isShowingPopular" class="suggestions-header">✨ 추천 검색어</div>
           <button
             v-for="(suggestion, idx) in suggestions"
             :key="`${suggestion.type}-${suggestion.value}-${idx}`"
@@ -408,7 +450,10 @@ onUnmounted(() => {
             ]"
             @click.stop="selectSuggestion(suggestion)"
           >
-            <span class="suggestion-text">{{ suggestion.value }}</span>
+            <div class="suggestion-info">
+              <span class="suggestion-text">{{ suggestion.value }}</span>
+              <span v-if="suggestion.description" class="suggestion-desc">{{ suggestion.description }}</span>
+            </div>
             <span
               class="suggestion-tag"
               :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
@@ -422,7 +467,9 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="search-item-full" @click="toggleCalendar">
+      <div class="search-item-full" 
+           :style="{ 'pointer-events': isSuggestOpen ? 'none' : 'auto' }"
+           @click="toggleCalendar">
         <label>날짜</label>
         <input type="text" :placeholder="searchStore.dateDisplayText" readonly>
       </div>
@@ -430,7 +477,9 @@ onUnmounted(() => {
       <!-- Mobile Calendar -->
       <HeaderCalendar v-if="isCalendarOpen" mode="mobile" />
 
-      <div class="search-item-full" @click="toggleGuestPicker">
+      <div class="search-item-full" 
+           :style="{ 'pointer-events': isSuggestOpen ? 'none' : 'auto' }"
+           @click="toggleGuestPicker">
         <label>여행자</label>
         <input type="text" :placeholder="searchStore.guestDisplayText" readonly>
       </div>
@@ -464,6 +513,7 @@ onUnmounted(() => {
              @mousedown.capture.prevent="handleSuggestionInteract"
              @touchstart.capture="handleSuggestionInteract"
              @click.stop>
+          <div v-if="isShowingPopular" class="suggestions-header">✨ 추천 검색어</div>
           <button
             v-for="(suggestion, idx) in suggestions"
             :key="`${suggestion.type}-${suggestion.value}-${idx}`"
@@ -476,7 +526,10 @@ onUnmounted(() => {
             ]"
             @click.stop="selectSuggestion(suggestion)"
           >
-            <span class="suggestion-text">{{ suggestion.value }}</span>
+            <div class="suggestion-info">
+              <span class="suggestion-text">{{ suggestion.value }}</span>
+              <span v-if="suggestion.description" class="suggestion-desc">{{ suggestion.description }}</span>
+            </div>
             <span
               class="suggestion-tag"
               :class="String(suggestion.type || '').toUpperCase() === 'REGION' ? 'suggestion-tag--region' : 'suggestion-tag--accommodation'"
@@ -583,7 +636,7 @@ onUnmounted(() => {
   border-radius: 14px;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
   z-index: 99999;
-  max-height: 280px;
+  max-height: 480px;
   overflow-y: auto;
   pointer-events: auto;
   padding: 6px;
@@ -637,6 +690,33 @@ onUnmounted(() => {
   border-color: #e2e8f0;
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
   outline: none;
+}
+
+.suggestions-header {
+  padding: 8px 14px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.suggestion-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.suggestion-desc {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 }
 
 .suggestion-tag {
@@ -786,6 +866,10 @@ onUnmounted(() => {
   
   .search-item-full {
     display: flex; flex-direction: column; padding: 16px 0; border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .search-item-full.search-keyword-wrapper {
+    position: relative;
   }
   .search-item-full:last-of-type { border-bottom: none; }
   

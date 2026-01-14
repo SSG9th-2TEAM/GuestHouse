@@ -60,4 +60,5 @@ public interface AccommodationJpaRepository
                         """)
         List<Accommodation> findByKeywordInDescription(@Param("keyword") String keyword);
 
+        List<Accommodation> findByUserId(Long userId);
 }

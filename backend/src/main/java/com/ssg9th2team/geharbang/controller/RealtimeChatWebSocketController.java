@@ -5,14 +5,17 @@ import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.chat.dto.ChatMessageDto;
 import com.ssg9th2team.geharbang.domain.chat.dto.ChatMessageRequest;
 import com.ssg9th2team.geharbang.domain.chat.service.RealtimeChatService;
+import com.ssg9th2team.geharbang.domain.chat.service.RedisPublisher;
+import org.owasp.html.PolicyFactory;
+import org.owasp.html.Sanitizers;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Controller;
@@ -23,8 +26,12 @@ public class RealtimeChatWebSocketController {
 
     private static final Logger log = LoggerFactory.getLogger(RealtimeChatWebSocketController.class);
     private final RealtimeChatService chatService;
-    private final SimpMessagingTemplate messagingTemplate;
     private final UserRepository userRepository;
+    private final RedisPublisher redisPublisher;
+    private final ChannelTopic channelTopic;
+
+    // XSS 방지를 위한 HTML Sanitizer 정책 설정 (기본 포맷팅 및 링크 허용, 스크립트 제거)
+    private final PolicyFactory policy = Sanitizers.FORMATTING.and(Sanitizers.LINKS);
 
     @MessageMapping("/chat/{roomId}/send")
     public void sendMessage(
@@ -49,13 +56,16 @@ public class RealtimeChatWebSocketController {
                     .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userEmail));
             Long senderUserId = user.getId();
 
+            // XSS 방지를 위해 메시지 내용 정제 (Sanitize)
+            String sanitizedContent = policy.sanitize(request.getContent());
+
             log.info("Saving message from user {} (ID: {}) to room {}", user.getEmail(), senderUserId, roomId);
-            ChatMessageDto message = chatService.saveMessage(roomId, senderUserId, request.getContent());
+            ChatMessageDto message = chatService.saveMessage(roomId, senderUserId, sanitizedContent);
 
-            log.info("Broadcasting message to /topic/chatroom/{}", roomId);
-            messagingTemplate.convertAndSend("/topic/chatroom/" + roomId, message);
+            log.info("Publishing message to Redis topic {} for room {}", channelTopic.getTopic(), roomId);
+            redisPublisher.publish(channelTopic, message);
 
-            log.info("Message successfully sent to room {}", roomId);
+            log.info("Message successfully published to Redis for room {}", roomId);
         } catch (Exception e) {
             log.error("Error sending message in room {}: {}", roomId, e.getMessage(), e);
         }
