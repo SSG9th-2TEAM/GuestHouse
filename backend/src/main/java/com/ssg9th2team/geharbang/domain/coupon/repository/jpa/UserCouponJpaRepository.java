@@ -60,4 +60,21 @@ public interface UserCouponJpaRepository extends JpaRepository<UserCoupon, Long>
     @Transactional
     @Query("delete from UserCoupon uc where uc.couponId in :couponIds")
     int deleteByCouponIds(@Param("couponIds") List<Long> couponIds);
+
+    /**
+     * N+1 쿼리 방지를 위한 JOIN 쿼리
+     * 사용자 ID, 상태, 트리거 타입으로 쿠폰 조회
+     *
+     * @param userId      사용자 ID
+     * @param status      쿠폰 상태
+     * @param triggerType 트리거 타입
+     * @return 조건에 맞는 UserCoupon 목록
+     */
+    @Query("SELECT uc FROM UserCoupon uc WHERE uc.userId = :userId AND uc.status = :status AND uc.couponId IN " +
+           "(SELECT c.couponId FROM Coupon c WHERE c.triggerType = :triggerType)")
+    List<UserCoupon> findUserCouponsByTriggerType(
+            @Param("userId") Long userId,
+            @Param("status") UserCouponStatus status,
+            @Param("triggerType") com.ssg9th2team.geharbang.domain.coupon.entity.CouponTriggerType triggerType
+    );
 }

@@ -24,10 +24,14 @@ public class CouponScheduler {
     public void onApplicationReady() {
         log.info("애플리케이션 시작 - Redis 쿠폰 데이터 초기화 시작");
         
+        // 0. 서버 재시작 시 하루 지난 일일 쿠폰 자동 정리 (로컬 개발 환경 대응)
+        log.info("서버 시작: 일일 쿠폰 초기화 체크 시작");
+        userCouponService.resetDailyCouponIssuedTracking();
+        
         // 1. 재고 초기화
         couponInventoryService.initializeAllRedisStock();
         
-        // 2. 발급 이력 초기화
+        // 2. 발급 이력 초기화 (일일 쿠폰 정리 후 실행)
         userCouponService.initializeRedisIssuedCoupons();
         
         log.info("Redis 쿠폰 데이터 초기화 완료");
