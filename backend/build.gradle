@@ -72,7 +72,6 @@ dependencies {
 
 	// 검색 엔진 추가
 	// implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
-
 	// 롬복
 	compileOnly 'org.projectlombok:lombok:1.18.30'
 	annotationProcessor 'org.projectlombok:lombok:1.18.30'
