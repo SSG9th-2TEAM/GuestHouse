@@ -265,60 +265,20 @@ onMounted(() => {
     <!-- 이벤트 배너 캐러셀 -->
     <EventCarousel />
 
-    <!-- AI 자연어 추천 검색 섹션 -->
-    <section class="ai-search-section">
-      <div class="ai-search-input-wrapper">
-        <input
-          v-model="aiSearchQuery"
-          type="text"
-          class="ai-search-input"
-          placeholder="예: 조용한 곳에서 풍경 보면서 힐링하고 싶어"
-          @keydown.enter="handleAiSearch"
-          :disabled="isAiLoading"
-        />
-        <button
-          class="ai-search-button"
-          @click="handleAiSearch"
-          :disabled="isAiLoading || !aiSearchQuery.trim()"
-        >
-          <span v-if="isAiLoading" class="loading-spinner"></span>
-          <span v-else class="ai-search-button-label">✨ 추천받기</span>
-        </button>
-      </div>
-      
-      <!-- AI 분석 결과 -->
-      <div v-if="aiAnalysis" class="ai-result-info">
-        <div class="ai-themes">
-          <span class="ai-theme-label">분석된 테마:</span>
-          <span v-for="theme in aiAnalysis.themes" :key="theme" class="ai-theme-tag">{{ theme }}</span>
+    <!-- AI 여행 가이드 CTA 배너 -->
+    <section class="ai-guide-banner" @click="router.push('/ai-agent')">
+      <div class="ai-guide-content">
+        <div class="ai-guide-icon">
+          <img src="@/assets/images/ai-guide-icon.png" alt="AI Guide" class="ai-guide-img" />
         </div>
-        <p v-if="aiAnalysis.reasoning" class="ai-reasoning">💡 {{ aiAnalysis.reasoning }}</p>
-      </div>
-      
-      <!-- AI 추천 결과 -->
-      <div v-if="aiRecommendations.length > 0" class="ai-recommendations">
-        <div class="row-scroll">
-          <GuesthouseCard 
-            v-for="item in aiRecommendations" 
-            :key="item.id"
-            :id="item.id"
-            :title="item.title"
-            :description="item.description"
-            :rating="item.rating"
-            :review-count="item.reviewCount"
-            :location="item.location"
-            :price="item.price"
-            :image-url="item.imageUrl"
-            :is-favorite="wishlistIds.has(item.id)"
-            @toggle-favorite="toggleWishlist"
-            @click="router.push(`/room/${item.id}`)"
-            class="row-card"
-          />
+        <div class="ai-guide-text">
+          <h2 class="ai-guide-title">AI 여행 가이드와 대화하기</h2>
+          <p class="ai-guide-subtitle">
+            "서귀포에서 조용하게 쉴 수 있는 곳 추천해줘" 처럼 자유롭게 물어보세요!
+          </p>
         </div>
+        <div class="ai-guide-arrow">→</div>
       </div>
-      
-      <!-- 에러 메시지 -->
-      <div v-if="aiError" class="ai-error">{{ aiError }}</div>
     </section>
 
     <!-- 맞춤 추천 섹션 (로그인 사용자만) -->
@@ -702,10 +662,100 @@ onMounted(() => {
   }
 }
 
-/* AI 검색 섹션 스타일 */
-.ai-search-section {
-  padding: 0.5rem 0;
-  margin-bottom: 0.5rem;
+/* AI 여행 가이드 배너 스타일 */
+.ai-guide-banner {
+  background: linear-gradient(135deg, #6DC3BB 0%, #4ECDC4 50%, #45B7D1 100%);
+  border-radius: 20px;
+  padding: 1.5rem 2rem;
+  margin-bottom: 2rem;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 4px 15px rgba(109, 195, 187, 0.3);
+}
+
+.ai-guide-banner:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(109, 195, 187, 0.4);
+}
+
+.ai-guide-content {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.ai-guide-icon {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  width: 70px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 8px;
+}
+
+.ai-guide-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ai-guide-text {
+  flex: 1;
+}
+
+.ai-guide-title {
+  margin: 0 0 0.4rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.ai-guide-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+}
+
+.ai-guide-arrow {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: white;
+  opacity: 0.8;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.ai-guide-banner:hover .ai-guide-arrow {
+  transform: translateX(5px);
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .ai-guide-banner {
+    padding: 1.25rem 1.5rem;
+  }
+  
+  .ai-guide-icon {
+    font-size: 2rem;
+    width: 55px;
+    height: 55px;
+  }
+  
+  .ai-guide-title {
+    font-size: 1.1rem;
+  }
+  
+  .ai-guide-subtitle {
+    font-size: 0.85rem;
+  }
+  
+  .ai-guide-arrow {
+    font-size: 1.4rem;
+  }
 }
 
 .ai-search-header {
