@@ -65,13 +65,9 @@ public class AccommodationAiSummaryService {
                     .collect(Collectors.toList());
 
             String firstTag = topTags.get(0);
-            String secondTag = topTags.size() > 1 ? topTags.get(1) : "";
 
-            if (!secondTag.isEmpty()) {
-                moodDescription = String.format("이 숙소를 다녀간 여행객들은 '%s', '%s' 점을 최고의 장점으로 꼽았습니다. 실제 데이터가 증명하는 찐 맛집입니다!", firstTag, secondTag);
-            } else {
-                moodDescription = String.format("이 숙소를 다녀간 여행객들은 '%s' 점을 최고의 장점으로 꼽았습니다. 실제 데이터가 증명하는 찐 맛집입니다!", firstTag);
-            }
+            // 문맥 인식 분위기 설명 생성
+            moodDescription = generateMoodDescription(topTags);
 
             // 팁 생성 (Map 활용)
             for (Map.Entry<String, String> entry : TIP_MAP.entrySet()) {
@@ -114,5 +110,38 @@ public class AccommodationAiSummaryService {
         else locationTag = "제주 여행의 중심";
 
         return new AccommodationAiSummaryResponse(name, locationTag, keywords, moodDescription, tip, reviewCount);
+    }
+
+    private String generateMoodDescription(List<String> topTags) {
+        if (topTags == null || topTags.isEmpty()) {
+            return "아직 리뷰 데이터가 충분하지 않지만, 사장님의 정성이 담긴 공간입니다.";
+        }
+
+        String firstTag = topTags.get(0);
+
+        if (containsAny(firstTag, "파티", "재미", "놀기")) {
+            return "여행객들의 리뷰 데이터가 증명하듯, <strong>새로운 만남과 즐거운 파티 분위기</strong>가 압도적인 곳입니다. 심심할 틈이 없는 여행을 원하신다면 최고의 선택이 될 거예요.";
+        } else if (containsAny(firstTag, "조용", "쉬기", "침구", "방음")) {
+            return "무엇보다 <strong>편안한 휴식과 꿀잠</strong>을 중요하게 생각하는 여행객들에게 사랑받는 곳입니다. 조용한 분위기 속에서 힐링하고 싶은 분들께 강력 추천합니다.";
+        } else if (containsAny(firstTag, "뷰", "사진", "인테리어", "감성")) {
+            return "어디를 찍어도 인생샷이 나오는 <strong>감각적인 인테리어와 뷰</strong>가 특징입니다. 눈이 즐거운 숙소를 찾는 분들의 만족도가 매우 높습니다.";
+        } else if (containsAny(firstTag, "조식", "음식", "맛")) {
+            return "숙박뿐만 아니라 <strong>음식 맛까지 훌륭한 찐 맛집</strong>입니다. 든든한 아침 식사로 기분 좋은 하루를 시작할 수 있습니다.";
+        } else if (containsAny(firstTag, "가성비", "가격", "저렴")) {
+            return "가격 대비 만족도가 매우 높은 <strong>가성비 끝판왕</strong> 숙소입니다. 합리적인 가격에 훌륭한 시설을 누릴 수 있어 재방문율이 높습니다.";
+        } else if (containsAny(firstTag, "청결", "깨끗", "관리")) {
+            return "들어서자마자 느껴지는 <strong>쾌적함과 청결함</strong>이 돋보이는 곳입니다. 위생에 민감한 여행객들도 안심하고 머물 수 있습니다.";
+        } else {
+            return String.format("다녀간 여행객들이 입을 모아 <strong>'%s'</strong> 점을 칭찬하는 곳입니다. 실제 데이터가 증명하는 실패 없는 선택이 될 것입니다.", firstTag);
+        }
+    }
+
+    private boolean containsAny(String text, String... keywords) {
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

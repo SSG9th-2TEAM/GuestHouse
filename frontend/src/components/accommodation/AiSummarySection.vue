@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, computed } from 'vue'
 import { fetchAiSummary } from '@/api/accommodation'
 
 defineOptions({
@@ -18,7 +18,16 @@ const displayedSummary = ref('')
 const isLoading = ref(false)
 const isError = ref(false)
 const isLoaded = ref(false)
+const isExpanded = ref(false) // 더보기 상태 관리
 let typeWriterInterval = null
+
+// 더보기 상태에 따라 보여줄 텍스트 결정 (CSS로 제어하지만, 타자기 효과 완료 후 텍스트 유지용)
+const contentStyle = computed(() => ({
+  maxHeight: isExpanded.value ? '1000px' : '180px', // 접혔을 때 높이 제한
+  overflow: 'hidden',
+  transition: 'max-height 0.5s ease-in-out',
+  position: 'relative'
+}))
 
 const typeWriterEffect = (htmlContent) => {
   let i = 0;
@@ -50,16 +59,16 @@ const buildSummaryHtml = (data) => {
   const { accommodationName, locationTag, keywords, moodDescription, tip, reviewCount } = data;
 
   const keywordsHtml = keywords.join(' ');
-  const footerHtml = reviewCount > 0
-    ? `<span class="footer-text">🔍 최근 <strong>${reviewCount}건</strong>의 실제 방문자 리뷰와 데이터를 기반으로 분석했습니다.</span>`
-    : `<span class="footer-text">🔍 숙소 상세 정보를 기반으로 분석했습니다.</span>`;
+  // Footer는 별도 영역으로 분리하기 위해 본문 HTML에서는 제외하고 데이터로 저장
+  footerData.value = { reviewCount };
 
   return `<strong>${accommodationName}</strong>은(는) <strong>${locationTag}</strong>에 위치한 매력적인 숙소입니다.<br><br>` +
          `🔑 <strong>핵심 키워드</strong>: ${keywordsHtml} #제주감성<br><br>` +
          `🏡 <strong>분위기 & 특징</strong><br>${moodDescription}<br><br>` +
-         `💡 <strong>AI의 이용 꿀팁</strong><br>${tip}<br><br>` +
-         footerHtml;
+         `💡 <strong>AI의 이용 꿀팁</strong><br>${tip}`;
 }
+
+const footerData = ref(null);
 
 const loadSummary = async () => {
   if (isLoading.value || isLoaded.value) return
@@ -81,6 +90,15 @@ const loadSummary = async () => {
     isError.value = true
   } finally {
     isLoading.value = false
+  }
+}
+
+const toggleExpand = () => {
+  isExpanded.value = !isExpanded.value;
+  // 더보기 클릭 시 전체 텍스트 바로 표시 (타자기 효과 중단)
+  if (isExpanded.value && displayedSummary.value.length < fullSummaryHtml.value.length) {
+    if (typeWriterInterval) clearInterval(typeWriterInterval);
+    displayedSummary.value = fullSummaryHtml.value;
   }
 }
 
@@ -116,16 +134,37 @@ onUnmounted(() => {
         <span class="ai-icon">✨</span>
         <span class="ai-title">AI 숙소 요약</span>
       </div>
-      <p class="summary-text">
-        <span v-html="displayedSummary"></span>
-        <span class="cursor" v-if="displayedSummary.length < fullSummaryHtml.length">|</span>
-      </p>
+
+      <div class="summary-content" :style="contentStyle">
+        <p class="summary-text">
+          <span v-html="displayedSummary"></span>
+          <span class="cursor" v-if="displayedSummary.length < fullSummaryHtml.length">|</span>
+        </p>
+        <!-- Fade out effect -->
+        <div v-if="!isExpanded" class="fade-out"></div>
+      </div>
+
+      <!-- 더보기 버튼 -->
+      <button class="expand-btn" @click="toggleExpand">
+        {{ isExpanded ? '접기' : '⌄ 더보기' }}
+      </button>
+
+      <!-- Footer 영역 분리 -->
+      <div class="summary-footer" v-if="footerData">
+        <span v-if="footerData.reviewCount > 0">
+          🔍 최근 <strong>{{ footerData.reviewCount }}건</strong>의 실제 방문자 리뷰와 데이터를 기반으로 분석했습니다.
+        </span>
+        <span v-else>
+          🔍 숙소 상세 정보를 기반으로 분석했습니다.
+        </span>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
 .ai-summary-section {
+  width: 100%;
   margin: 1.5rem 0;
 }
 
@@ -156,23 +195,26 @@ onUnmounted(() => {
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
-  padding: 1.5rem;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   margin-top: 1rem;
-  min-height: 200px;
+  overflow: hidden; /* 내부 컨텐츠 넘침 방지 */
 }
 
 .summary-header {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin-bottom: 1.2rem;
+  padding: 1.5rem 1.5rem 1rem 1.5rem;
   font-weight: 800;
   font-size: 1.15rem;
   color: #1f2937;
   border-bottom: 2px solid #f3f4f6;
-  padding-bottom: 0.8rem;
+}
+
+.summary-content {
+  padding: 1.2rem 1.5rem 0 1.5rem;
+  position: relative;
 }
 
 .summary-text {
@@ -183,13 +225,39 @@ onUnmounted(() => {
   letter-spacing: -0.01em;
 }
 
-/* Footer Text Style (Global style needed for v-html or deep selector) */
-:deep(.footer-text) {
+.fade-out {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 60px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1));
+  pointer-events: none;
+}
+
+.expand-btn {
+  width: 100%;
+  padding: 0.8rem;
+  background: transparent;
+  border: none;
+  color: #6366f1;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.expand-btn:hover {
+  color: #4f46e5;
+  background-color: #f9fafb;
+}
+
+.summary-footer {
+  background-color: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+  padding: 1rem;
+  text-align: center;
   font-size: 13px;
   color: #9ca3af;
-  margin-top: 20px;
-  text-align: right;
-  display: block;
 }
 
 .cursor {
@@ -257,4 +325,17 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .retry-btn:hover { background: #dc2626; }
+
+/* Mobile Styles */
+@media (max-width: 768px) {
+  .summary-content {
+    padding: 1rem 1rem 0 1rem;
+  }
+  .summary-header {
+    padding: 1.2rem 1rem 0.8rem 1rem;
+  }
+  .summary-text {
+    font-size: 14px;
+  }
+}
 </style>
