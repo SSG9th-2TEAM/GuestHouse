@@ -36,8 +36,9 @@ const isAdminRoute = computed(() => route.path.startsWith('/admin'))
   border-bottom: 1px solid #e8ecf0;
   position: sticky;
   top: 0;
-  z-index: 200;
+  z-index: 1000; /* 200에서 1000으로 증가 */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  isolation: isolate; /* 새로운 stacking context 생성 */
 }
 
 .header-container {
