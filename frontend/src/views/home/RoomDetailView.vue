@@ -691,7 +691,7 @@ watch(filteredRooms, (rooms) => {
           <span class="rating">★ {{ guesthouse.rating }} (리뷰 {{ guesthouse.reviewCount }}개)</span>
           <span class="location">{{ guesthouse.address }}</span>
         </div>
-        <div class="description-row">
+        <div class="description-row" v-if="guesthouse.description">
           <h2 class="info-title">소개</h2>
           <p class="description">
             {{ guesthouse.description }}
