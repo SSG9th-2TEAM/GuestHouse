@@ -20,7 +20,7 @@ const activeOverlays = ref([])
 const isLoading = ref(false)
 const isMapVisible = ref(false)
 const wishlistIds = ref(new Set())
-const clusterer = ref(null)
+
 
 const MAP_STATE_KEY = 'mapview:lastState'
 
@@ -460,13 +460,7 @@ onMounted(() => {
 
     mapInstance.value = new window.kakao.maps.Map(mapContainer.value, options)
 
-    // Initialize Clusterer
-    clusterer.value = new window.kakao.maps.MarkerClusterer({
-      map: mapInstance.value,
-      averageCenter: true,
-      minLevel: 8,
-      disableClickZoom: false,
-    })
+
 
     const disableAutoFit = () => {
       autoFitPending = false
@@ -482,10 +476,7 @@ onMounted(() => {
 
     // 드래그 종료 시 (화면 이동) -> 가격표 모드일 때 뷰포트 컬링 재계산
     window.kakao.maps.event.addListener(mapInstance.value, 'dragend', () => {
-      const level = mapInstance.value.getLevel()
-      if (level < 9) { // 가격표 모드일 때만 재계산
-        updateMarkers()
-      }
+      updateMarkers()
       scheduleLoad() // 데이터 추가 로딩 체크
     })
 
@@ -494,37 +485,12 @@ onMounted(() => {
   })
 })
 
-const renderClusterMode = (itemsWithCoords) => {
-  if (!clusterer.value) return
-  
-  // 기존 오버레이(가격표) 모두 제거
-  activeOverlays.value.forEach(({ overlay }) => overlay.setMap(null))
-  activeOverlays.value = []
 
-  // 클러스터러에 마커 추가
-  clusterer.value.clear()
-  
-  const markers = itemsWithCoords.map(item => {
-    const marker = new window.kakao.maps.Marker({
-      position: new window.kakao.maps.LatLng(item.lat, item.lng)
-    })
-    // 마커 클릭 시 상세 카드 오픈 등의 동작 연결 가능 (필요 시)
-    window.kakao.maps.event.addListener(marker, 'click', () => {
-       handleMarkerClick(item)
-    })
-    return marker
-  })
-  
-  clusterer.value.addMarkers(markers)
-}
 
 const renderOverlayMode = (itemsWithCoords) => {
   if (!mapInstance.value) return
   
-  // 클러스터러 데이터 제거
-  if (clusterer.value) {
-    clusterer.value.clear()
-  }
+
 
   const bounds = mapInstance.value.getBounds()
   
@@ -596,17 +562,8 @@ const updateMarkers = () => {
     selectedItem.value = nextSelected || null
   }
 
-  // 줌 레벨 확인
-  const level = mapInstance.value.getLevel()
-  
-  // 레벨이 높으면(줌 아웃) -> 클러스터 모드 (단순 마커 + 클러스터학)
-  // 레벨이 낮으면(줌 인) -> 오버레이 모드 (가격표 + 뷰포트 컬링)
-  // 기준 레벨: 9 (테스트해보고 조정 가능)
-  if (level >= 9) {
-    renderClusterMode(itemsWithCoords)
-  } else {
-    renderOverlayMode(itemsWithCoords)
-  }
+  // 항상 오버레이(가격표) 모드로 렌더링
+  renderOverlayMode(itemsWithCoords)
   
   return itemsWithCoords
 }
@@ -795,12 +752,20 @@ watch(
   z-index: 50;
 }
 
+@media (max-width: 768px) {
+  .list-btn-wrapper {
+    bottom: 1rem;
+  }
+}
+
 .list-floating-btn {
   background-color: #222;
   color: white;
   border: none;
   border-radius: 24px;
-  padding: 12px 20px;
+  width: 138px;
+  justify-content: center;
+  padding: 12px 10px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -808,7 +773,7 @@ watch(
   font-size: 0.95rem;
   box-shadow: 0 4px 12px rgba(0,0,0,0.25);
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: transform 0.2s, background-color 0.2s;
 }
 
 .list-floating-btn:hover {

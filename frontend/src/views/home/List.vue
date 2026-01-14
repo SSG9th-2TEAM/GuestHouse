@@ -806,7 +806,9 @@ watch(
   color: white;
   border: none;
   border-radius: 24px;
-  padding: 12px 20px;
+  width: 138px;
+  justify-content: center;
+  padding: 12px 10px;
   display: flex;
   align-items: center;
   gap: 8px;
