@@ -10,9 +10,9 @@
     <insert id="insertRoom" parameterType="com.ssg9th2team.geharbang.domain.room.entity.Room"
             useGeneratedKeys="true" keyProperty="room.roomId">
         INSERT INTO room(accommodations_id, room_name, price, weekend_price, min_guests, max_guests,
-                         room_description, main_image_url, room_status, bathroom_count, room_type, bed_count)
+                         room_description, room_introduction, main_image_url, room_status, bathroom_count, room_type, bed_count)
         VALUES (#{room.accommodationsId}, #{room.roomName}, #{room.price}, #{room.weekendPrice},
-                #{room.minGuests}, #{room.maxGuests}, #{room.roomDescription}, #{room.mainImageUrl},
+                #{room.minGuests}, #{room.maxGuests}, #{room.roomDescription}, #{room.roomIntroduction}, #{room.mainImageUrl},
                 COALESCE(#{room.roomStatus}, 1), #{room.bathroomCount}, #{room.roomType}, #{room.bedCount})
 
     </insert>
@@ -21,11 +21,11 @@
     <!--다중 객실 등록 (첫 숙소 등록시 객실 등록)-->
     <insert id="insertRooms">
         INSERT INTO room(accommodations_id, room_name, price, weekend_price, min_guests, max_guests,
-        room_description, main_image_url, room_status, bathroom_count, room_type, bed_count)
+        room_description, room_introduction, main_image_url, room_status, bathroom_count, room_type, bed_count)
         VALUES
         <foreach collection="rooms" item="room" separator=",">
             (#{accommodationsId}, #{room.roomName}, #{room.price}, #{room.weekendPrice},
-            #{room.minGuests}, #{room.maxGuests}, #{room.roomDescription}, #{room.mainImageUrl},
+            #{room.minGuests}, #{room.maxGuests}, #{room.roomDescription}, #{room.roomIntroduction}, #{room.mainImageUrl},
             COALESCE(#{room.roomStatus}, 1), #{room.bathroomCount}, #{room.roomType}, #{room.bedCount})
         </foreach>
     </insert>
@@ -43,6 +43,7 @@
                r.min_guests,
                r.max_guests,
                r.room_description,
+               r.room_introduction,
                r.main_image_url,
                r.room_status,
                r.bathroom_count,
@@ -65,6 +66,7 @@
             min_guests = #{room.minGuests},
             max_guests = #{room.maxGuests},
             room_description = #{room.roomDescription},
+            room_introduction = #{room.roomIntroduction},
             main_image_url = #{room.mainImageUrl},
             room_status = COALESCE(#{room.roomStatus}, 1),
             bathroom_count = #{room.bathroomCount},

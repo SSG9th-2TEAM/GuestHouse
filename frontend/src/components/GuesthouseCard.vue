@@ -229,6 +229,7 @@ const emit = defineEmits(['toggle-favorite'])
 .title {
   font-size: 0.95rem;
   font-weight: 600;
+  font-family: 'NanumSquareRound', sans-serif;
   color: var(--text-main);
   margin: 0;
   flex: 1;
