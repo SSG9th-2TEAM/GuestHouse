@@ -414,6 +414,53 @@ public class AccommodationServiceImpl implements AccommodationService {
 
     }
 
+    // 숙소 일괄 삭제
+    @Override
+    @Transactional
+    public void deleteAccommodations(List<Long> accommodationIds) {
+        if (accommodationIds == null || accommodationIds.isEmpty()) return;
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Reservation> reservations = reservationJpaRepository.findByAccommodationsIdIn(accommodationIds);
+        boolean hasActiveReservation = reservations.stream()
+                .anyMatch(r -> r.getReservationStatus() == 2 && r.getCheckout().isAfter(now));
+
+        if(hasActiveReservation) {
+            throw new IllegalStateException("예약된 정보가 있어 삭제할 수 없습니다.");
+        }
+
+        // 연관된 예약 정보 삭제
+        if (!reservations.isEmpty()) {
+            List<Long> reservationIds = reservations.stream().map(Reservation::getId).toList();
+            if(!reservationIds.isEmpty()){
+                List<Payment> payments = paymentJpaRepository.findByReservationIdIn(reservationIds);
+                List<Long> paymentIds = payments.stream().map(Payment::getId).toList();
+
+                if (!paymentIds.isEmpty()) {
+                    paymentRefundJpaRepository.deleteByPaymentIdIn(paymentIds);
+                    paymentRefundJpaRepository.flush();
+                }
+
+                paymentJpaRepository.deleteByReservationIdIn(reservationIds);
+                paymentJpaRepository.flush();
+            }
+
+            reservationJpaRepository.deleteAllInBatch(reservations);
+            reservationJpaRepository.flush();
+        }
+
+        // 위시리스트 삭제
+        wishlistMapper.deleteWishlistByAccommodationIdIn(accommodationIds);
+
+        // 연관 테이블 삭제
+        accommodationMapper.deleteAccommodationAmenitiesIn(accommodationIds);
+        accommodationMapper.deleteAccommodationThemesIn(accommodationIds);
+        accommodationMapper.deleteAccommodationImagesIn(accommodationIds);
+
+        // 숙소 삭제
+        accommodationMapper.deleteAccommodations(accommodationIds);
+    }
+
     private void validateThemeIds(List<Long> themeIds) {
         if (themeIds == null || themeIds.isEmpty()) return;
         List<Long> distinctIds = themeIds.stream().distinct().toList();

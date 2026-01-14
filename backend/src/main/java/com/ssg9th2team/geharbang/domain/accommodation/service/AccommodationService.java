@@ -4,6 +4,8 @@ import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationCreateReq
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationUpdateRequestDto;
 
+import java.util.List;
+
 public interface AccommodationService {
 
     // 숙소 등록
@@ -17,4 +19,7 @@ public interface AccommodationService {
 
     // 숙소 삭제
     void deleteAccommodation(Long accommodationsId);
+
+    // 숙소 일괄 삭제 (N+1 문제 해결)
+    void deleteAccommodations(List<Long> accommodationIds);
 }

@@ -33,6 +33,9 @@ public interface ReservationJpaRepository
         @Query("SELECT r FROM Reservation r WHERE r.accommodationsId = :accommodationsId AND r.isDeleted = false")
         List<Reservation> findByAccommodationsId(@Param("accommodationsId") Long accommodationsId);
 
+        @Query("SELECT r FROM Reservation r WHERE r.accommodationsId IN :accommodationsIds AND r.isDeleted = false")
+        List<Reservation> findByAccommodationsIdIn(@Param("accommodationsIds") List<Long> accommodationsIds);
+
         @Query("SELECT r FROM Reservation r WHERE r.userId = :userId AND r.isDeleted = false ORDER BY r.createdAt DESC")
         List<Reservation> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
 
