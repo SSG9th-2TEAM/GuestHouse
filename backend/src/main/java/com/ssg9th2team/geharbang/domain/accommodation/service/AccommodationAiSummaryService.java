@@ -10,10 +10,13 @@ import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.HtmlUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,6 +27,9 @@ public class AccommodationAiSummaryService {
     private final ReviewMapper reviewMapper;
     private final ReviewJpaRepository reviewRepository;
     private final RoomJpaRepository roomRepository;
+
+    private static final int PRICE_THRESHOLD_BUDGET = 30000;
+    private static final int PRICE_THRESHOLD_REASONABLE = 80000;
 
     private static final Map<String, String> TIP_MAP = Map.of(
             "파티", "파티 참석을 원하시면 미리 신청하세요! 새로운 만남이 기다리고 있습니다.",
@@ -59,18 +65,23 @@ public class AccommodationAiSummaryService {
 
         // 2. 가격 및 객실 정보 조회 (다차원 분석)
         List<Room> rooms = roomRepository.findByAccommodationsId(accommodationId);
+        
+        // NPE 방지: price가 null인 경우 필터링
         int minPrice = rooms.stream()
-                .mapToInt(Room::getPrice)
+                .map(Room::getPrice)
+                .filter(Objects::nonNull)
+                .mapToInt(Integer::intValue)
                 .min()
                 .orElse(0);
+                
         boolean hasDormitory = rooms.stream()
-                .anyMatch(room -> room.getRoomName().contains("도미토리"));
+                .anyMatch(room -> room.getRoomName() != null && room.getRoomName().contains("도미토리"));
 
-        // 가격대별 멘트
+        // 가격대별 멘트 (매직 넘버 제거)
         String priceMent;
-        if (minPrice <= 30000) {
+        if (minPrice <= PRICE_THRESHOLD_BUDGET) {
             priceMent = "갓성비! 부담 없이 머물기 좋은 알뜰 숙소";
-        } else if (minPrice <= 80000) {
+        } else if (minPrice <= PRICE_THRESHOLD_REASONABLE) {
             priceMent = "가격과 시설의 균형이 잡힌 합리적인 숙소";
         } else {
             priceMent = "특별한 날을 위한 프리미엄 감성 숙소";
@@ -79,7 +90,7 @@ public class AccommodationAiSummaryService {
         // 타겟 추천 멘트
         String targetMent = hasDormitory ? "혼자 온 여행객도 어색하지 않은 분위기" : "프라이빗한 휴식을 원하는 분들에게 추천";
         
-        // Introduction 조합 (HTML 태그 사용)
+        // Introduction 조합
         String introMent = String.format("이곳은 <strong>%s</strong>로, <strong>%s</strong>입니다.", priceMent, targetMent);
 
 
@@ -161,16 +172,14 @@ public class AccommodationAiSummaryService {
         } else if (containsAny(firstTag, "청결", "깨끗", "관리")) {
             return "들어서자마자 느껴지는 <strong>쾌적함과 청결함</strong>이 돋보이는 곳입니다. 위생에 민감한 여행객들도 안심하고 머물 수 있습니다.";
         } else {
-            return String.format("다녀간 여행객들이 입을 모아 <strong>'%s'</strong> 점을 칭찬하는 곳입니다. 실제 데이터가 증명하는 실패 없는 선택이 될 것입니다.", firstTag);
+            // XSS 방지: 사용자 입력값(태그명)을 HTML Escape 처리
+            String safeTagName = HtmlUtils.htmlEscape(firstTag);
+            return String.format("다녀간 여행객들이 입을 모아 <strong>'%s'</strong> 점을 칭찬하는 곳입니다. 실제 데이터가 증명하는 실패 없는 선택이 될 것입니다.", safeTagName);
         }
     }
 
+    // Helper 메소드 간소화 (Stream API 사용)
     private boolean containsAny(String text, String... keywords) {
-        for (String keyword : keywords) {
-            if (text.contains(keyword)) {
-                return true;
-            }
-        }
-        return false;
+        return Arrays.stream(keywords).anyMatch(text::contains);
     }
 }

@@ -110,43 +110,55 @@ onUnmounted(() => {
       v-if="!isLoaded && !isLoading && !isError"
       class="ai-btn"
       @click="loadSummary"
+      aria-label="AI 숙소 요약 보기"
     >
       ✨ AI 숙소 요약 보기
     </button>
 
-    <div v-if="isLoading" class="skeleton-loader">
+    <div v-if="isLoading" class="skeleton-loader" role="status" aria-label="요약 정보를 불러오는 중입니다">
       <div class="skeleton-line title"></div>
       <div class="skeleton-line"></div>
       <div class="skeleton-line"></div>
       <div class="skeleton-line short"></div>
     </div>
 
-    <div v-if="isError" class="error-box">
+    <div v-if="isError" class="error-box" role="alert">
       <p>요약 정보를 불러오는데 실패했습니다.</p>
       <button class="retry-btn" @click="loadSummary">재시도</button>
     </div>
 
     <div v-if="isLoaded" class="summary-box">
       <div class="summary-header">
-        <span class="ai-icon">✨</span>
+        <span class="ai-icon" aria-hidden="true">✨</span>
         <span class="ai-title">AI 숙소 요약</span>
       </div>
 
-      <div class="summary-content" :style="contentStyle">
+      <div
+        id="summary-content"
+        class="summary-content"
+        :style="contentStyle"
+        :aria-expanded="isExpanded"
+      >
         <p class="summary-text">
           <span v-html="displayedSummary"></span>
-          <span class="cursor" v-if="displayedSummary.length < fullSummaryHtml.length">|</span>
+          <span class="cursor" v-if="displayedSummary.length < fullSummaryHtml.length" aria-hidden="true">|</span>
         </p>
-        <div v-if="!isExpanded" class="fade-out"></div>
+        <div v-if="!isExpanded" class="fade-out" aria-hidden="true"></div>
       </div>
 
-      <button class="expand-btn" @click="toggleExpand">
+      <button
+        class="expand-btn"
+        @click="toggleExpand"
+        :aria-expanded="isExpanded"
+        aria-controls="summary-content"
+        :aria-label="isExpanded ? '요약 내용 접기' : '요약 내용 더보기'"
+      >
         {{ isExpanded ? '접기' : '⌄ 더보기' }}
       </button>
 
       <div class="summary-footer" v-if="footerData">
         <span v-if="footerData.reviewCount > 0">
-          🔍 최근 <strong>{{ footerData.reviewCount }}건</strong>의 실제 방문자 리뷰와 데이터를 <br class="mobile-break"> 기반으로 분석했습니다.
+          🔍 최근 <strong>{{ footerData.reviewCount }}건</strong>의 실제 방문자 리뷰와 <br class="mobile-break">데이터를 기반으로 분석했습니다.
         </span>
         <span v-else>
           🔍 숙소 상세 정보를 기반으로 분석했습니다.
