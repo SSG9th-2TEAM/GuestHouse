@@ -2,13 +2,13 @@ package com.ssg9th2team.geharbang.domain.search.service;
 
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
-import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
 import com.ssg9th2team.geharbang.domain.search.dto.SearchResolveResponse;
 import com.ssg9th2team.geharbang.domain.search.dto.SearchSortType;
 import com.ssg9th2team.geharbang.domain.search.dto.SearchSuggestionResponse;
 import com.ssg9th2team.geharbang.domain.search.repository.SearchRepository;
 import com.ssg9th2team.geharbang.domain.search.repository.SearchResolveProjection;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -48,7 +48,6 @@ public class SearchServiceImpl implements SearchService {
         SearchSortType sortType = SearchSortType.fromValue(sort);
         PageRequest pageable = PageRequest.of(page, size, sortType.toSort());
         String normalizedKeyword = normalizeKeyword(keyword);
-        Page<ListDtoProjection> resultPage;
 
         boolean hasBounds = minLat != null && maxLat != null && minLng != null && maxLng != null;
         boolean hasStayDates = checkin != null && checkout != null;
@@ -63,113 +62,28 @@ public class SearchServiceImpl implements SearchService {
             east = Math.max(minLng, maxLng);
         }
 
-        boolean hasThemes = themeIds != null && !themeIds.isEmpty();
-        if (hasStayDates) {
-            if (hasThemes && hasBounds) {
-                resultPage = searchRepository.searchPublicListByThemeAndBounds(
-                        themeIds,
-                        normalizedKeyword,
-                        south,
-                        north,
-                        west,
-                        east,
-                        checkin,
-                        checkout,
-                        guestCount,
-                        minPrice,
-                        maxPrice,
-                        includeUnavailable,
-                        pageable);
-            } else if (hasThemes) {
-                resultPage = searchRepository.searchPublicListByTheme(
-                        themeIds,
-                        normalizedKeyword,
-                        checkin,
-                        checkout,
-                        guestCount,
-                        minPrice,
-                        maxPrice,
-                        includeUnavailable,
-                        pageable);
-            } else if (hasBounds) {
-                resultPage = searchRepository.searchPublicListByBounds(
-                        normalizedKeyword,
-                        south,
-                        north,
-                        west,
-                        east,
-                        checkin,
-                        checkout,
-                        guestCount,
-                        minPrice,
-                        maxPrice,
-                        includeUnavailable,
-                        pageable);
-            } else {
-                resultPage = searchRepository.searchPublicList(
-                        normalizedKeyword,
-                        checkin,
-                        checkout,
-                        guestCount,
-                        minPrice,
-                        maxPrice,
-                        includeUnavailable,
-                        pageable);
-            }
-        } else {
-            if (hasThemes && hasBounds) {
-                resultPage = searchRepository.searchPublicListByThemeAndBoundsNoDates(
-                        themeIds,
-                        normalizedKeyword,
-                        south,
-                        north,
-                        west,
-                        east,
-                        guestCount,
-                        minPrice,
-                        maxPrice,
-                        includeUnavailable,
-                        pageable);
-            } else if (hasThemes) {
-                resultPage = searchRepository.searchPublicListByThemeNoDates(
-                        themeIds,
-                        normalizedKeyword,
-                        guestCount,
-                        minPrice,
-                        maxPrice,
-                        includeUnavailable,
-                        pageable);
-            } else if (hasBounds) {
-                resultPage = searchRepository.searchPublicListByBoundsNoDates(
-                        normalizedKeyword,
-                        south,
-                        north,
-                        west,
-                        east,
-                        guestCount,
-                        minPrice,
-                        maxPrice,
-                        includeUnavailable,
-                        pageable);
-            } else {
-                resultPage = searchRepository.searchPublicListNoDates(
-                        normalizedKeyword,
-                        guestCount,
-                        minPrice,
-                        maxPrice,
-                        includeUnavailable,
-                        pageable);
-            }
-        }
+        var resultPage = searchRepository.searchDynamic(
+                themeIds,
+                normalizedKeyword,
+                south,
+                north,
+                west,
+                east,
+                checkin,
+                checkout,
+                guestCount,
+                minPrice,
+                maxPrice,
+                includeUnavailable,
+                pageable);
 
-        List<ListDto> items = resultPage.getContent().stream()
-                .map(this::toListDto)
-                .toList();
-
-        return PublicListResponse.of(items, resultPage);
+        return PublicListResponse.of(
+                resultPage.getContent(),
+                resultPage);
     }
 
     @Override
+    @Cacheable(value = "searchSuggestions", key = "#keyword", unless = "#keyword == null || #keyword.length() < 2")
     public List<SearchSuggestionResponse> suggestPublicSearch(String keyword, int limit) {
         String normalizedKeyword = normalizeKeyword(keyword);
         if (normalizedKeyword == null || normalizedKeyword.length() < MIN_KEYWORD_LENGTH) {
@@ -221,23 +135,5 @@ public class SearchServiceImpl implements SearchService {
         }
         String normalized = keyword.trim();
         return normalized.isEmpty() ? null : normalized;
-    }
-
-    private ListDto toListDto(ListDtoProjection projection) {
-        return ListDto.builder()
-                .accommodationsId(projection.getAccommodationsId())
-                .accommodationsName(projection.getAccommodationsName())
-                .shortDescription(projection.getShortDescription())
-                .city(projection.getCity())
-                .district(projection.getDistrict())
-                .township(projection.getTownship())
-                .latitude(projection.getLatitude())
-                .longitude(projection.getLongitude())
-                .minPrice(projection.getMinPrice())
-                .rating(projection.getRating())
-                .reviewCount(projection.getReviewCount())
-                .maxGuests(projection.getMaxGuests())
-                .imageUrl(projection.getImageUrl())
-                .build();
     }
 }
