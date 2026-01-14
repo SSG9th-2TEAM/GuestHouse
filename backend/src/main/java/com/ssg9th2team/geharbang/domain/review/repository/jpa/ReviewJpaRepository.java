@@ -42,4 +42,7 @@ public interface ReviewJpaRepository extends JpaRepository<ReviewEntity, Long> {
 
   // 숙소별 최신 리뷰 조회
   List<ReviewEntity> findByAccommodationsIdAndIsDeletedFalse(Long accommodationsId, Pageable pageable);
+
+  // 숙소별 전체 리뷰 개수 조회
+  long countByAccommodationsIdAndIsDeletedFalse(Long accommodationsId);
 }

@@ -30,4 +30,7 @@ public interface ReviewMapper {
 
     // 리뷰 태그 삭제 (review_tag_map)
     void deleteReviewTags(@Param("reviewId") Long reviewId);
+
+    // 숙소별 상위 3개 태그 조회
+    List<String> selectTop3TagsByAccommodationId(@Param("accommodationId") Long accommodationId);
 }

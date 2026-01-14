@@ -7,7 +7,7 @@ defineOptions({
 })
 
 onMounted(() => {
-  // console.log('AiSummarySection Mounted!') // 디버깅 로그는 잠시 주석 처리
+  // console.log('AiSummarySection Mounted!')
 })
 
 const props = defineProps({
@@ -17,10 +17,38 @@ const props = defineProps({
   }
 })
 
-const summary = ref('')
+const fullSummary = ref('') // 전체 텍스트 저장
+const displayedSummary = ref('') // 화면에 표시될 텍스트 (타자기 효과용)
 const isLoading = ref(false)
 const isError = ref(false)
 const isLoaded = ref(false)
+
+const typeWriterEffect = (text) => {
+  let i = 0;
+  displayedSummary.value = ''; // 초기화
+
+  // HTML 태그를 고려한 타자기 효과 로직
+  // 태그 문자열('<', '>')을 감지해서 태그는 한 번에 출력하는 방식으로 구현.
+  const interval = setInterval(() => {
+    if (i >= text.length) {
+      clearInterval(interval);
+      return;
+    }
+
+    // 현재 문자가 '<' 이면 태그가 끝날 때까지('>') 한 번에 추가
+    if (text[i] === '<') {
+      const tagEndIndex = text.indexOf('>', i);
+      if (tagEndIndex !== -1) {
+        displayedSummary.value += text.substring(i, tagEndIndex + 1);
+        i = tagEndIndex + 1;
+        return;
+      }
+    }
+
+    displayedSummary.value += text[i];
+    i++;
+  }, 20); // 20ms 간격 (빠르게)
+}
 
 const loadSummary = async () => {
   if (isLoading.value || isLoaded.value) return
@@ -31,8 +59,10 @@ const loadSummary = async () => {
   try {
     const response = await fetchAiSummary(props.accommodationId)
     if (response.ok && response.data?.summary) {
-      summary.value = response.data.summary
+      fullSummary.value = response.data.summary
       isLoaded.value = true
+      // 로딩이 끝나면 타자기 효과 시작
+      typeWriterEffect(fullSummary.value)
     } else {
       throw new Error('Failed to load summary')
     }
@@ -67,7 +97,11 @@ const loadSummary = async () => {
         <span class="ai-icon">✨</span>
         <span class="ai-title">AI 숙소 요약</span>
       </div>
-      <p class="summary-text">{{ summary }}</p>
+      <!-- v-html로 변경하여 HTML 태그 적용 -->
+      <p class="summary-text">
+        <span v-html="displayedSummary"></span>
+        <span class="cursor" v-if="displayedSummary.length < fullSummary.length">|</span>
+      </p>
     </div>
   </div>
 </template>
@@ -109,6 +143,7 @@ const loadSummary = async () => {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   margin-top: 1rem;
+  min-height: 200px; /* 타자기 효과 중 높이 변화 방지 */
 }
 
 .summary-header {
@@ -124,12 +159,27 @@ const loadSummary = async () => {
 }
 
 .summary-text {
-  white-space: pre-line;
   line-height: 1.8;
   color: #4b5563;
   font-size: 15px;
   margin: 0;
   letter-spacing: -0.01em;
+}
+
+/* 커서 깜빡임 효과 */
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background-color: #6366f1;
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 @keyframes slideUp {
