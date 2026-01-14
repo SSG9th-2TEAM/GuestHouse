@@ -115,41 +115,16 @@ public class OpenAiSummaryClient implements AiSummaryClient {
         }
     }
 
+    // 변경된 DTO 생성자에 맞춰 더미 데이터 반환 (현재 사용하지 않는 메소드)
     public AccommodationAiSummaryResponse generateGuestSummary(String description, List<ReviewEntity> reviews) {
-        if (!isConfigured()) {
-            throw new HostReportAiException("OpenAI is not configured");
-        }
-
-        try {
-            Map<String, Object> requestBody = buildGuestRequest(description, reviews);
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(apiKey);
-
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                    baseUrl + "/chat/completions",
-                    entity,
-                    String.class
-            );
-
-            String content = extractContent(response.getBody());
-            if (content == null || content.isBlank()) {
-                throw new HostReportAiException("OpenAI response missing content");
-            }
-
-            return new AccommodationAiSummaryResponse(content);
-        } catch (HttpStatusCodeException ex) {
-            log.warn("OpenAI guest summary request failed: status={} body={}", ex.getStatusCode(), ex.getResponseBodyAsString());
-            throw new HostReportAiException("OpenAI request failed", ex);
-        } catch (RestClientException ex) {
-            log.warn("OpenAI guest summary request failed: {}", ex.getMessage());
-            throw new HostReportAiException("OpenAI request failed", ex);
-        } catch (JsonProcessingException ex) {
-            log.warn("OpenAI guest summary parsing failed: {}", ex.getMessage());
-            throw new HostReportAiException("OpenAI response parsing failed", ex);
-        }
+        return new AccommodationAiSummaryResponse(
+                "숙소 이름",
+                "위치 태그",
+                List.of("#키워드1", "#키워드2"),
+                "분위기 설명",
+                "이용 꿀팁",
+                0
+        );
     }
 
     private Map<String, Object> buildGuestRequest(String description, List<ReviewEntity> reviews) {

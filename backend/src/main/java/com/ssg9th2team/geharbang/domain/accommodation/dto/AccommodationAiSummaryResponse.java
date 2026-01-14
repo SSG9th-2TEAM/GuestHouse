@@ -1,14 +1,17 @@
 package com.ssg9th2team.geharbang.domain.accommodation.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.RequiredArgsConstructor;
+
+import java.util.List;
 
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class AccommodationAiSummaryResponse {
-    private String summary;
+    private final String accommodationName;
+    private final String locationTag;
+    private final List<String> keywords;
+    private final String moodDescription;
+    private final String tip;
+    private final long reviewCount;
 }

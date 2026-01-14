@@ -1,13 +1,9 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { fetchAiSummary } from '@/api/accommodation'
 
 defineOptions({
   name: 'AiSummarySection'
-})
-
-onMounted(() => {
-  // console.log('AiSummarySection Mounted!')
 })
 
 const props = defineProps({
@@ -17,37 +13,52 @@ const props = defineProps({
   }
 })
 
-const fullSummary = ref('') // 전체 텍스트 저장
-const displayedSummary = ref('') // 화면에 표시될 텍스트 (타자기 효과용)
+const fullSummaryHtml = ref('')
+const displayedSummary = ref('')
 const isLoading = ref(false)
 const isError = ref(false)
 const isLoaded = ref(false)
+let typeWriterInterval = null
 
-const typeWriterEffect = (text) => {
+const typeWriterEffect = (htmlContent) => {
   let i = 0;
-  displayedSummary.value = ''; // 초기화
+  displayedSummary.value = '';
 
-  // HTML 태그를 고려한 타자기 효과 로직
-  // 태그 문자열('<', '>')을 감지해서 태그는 한 번에 출력하는 방식으로 구현.
-  const interval = setInterval(() => {
-    if (i >= text.length) {
-      clearInterval(interval);
+  if (typeWriterInterval) clearInterval(typeWriterInterval);
+
+  typeWriterInterval = setInterval(() => {
+    if (i >= htmlContent.length) {
+      clearInterval(typeWriterInterval);
       return;
     }
 
-    // 현재 문자가 '<' 이면 태그가 끝날 때까지('>') 한 번에 추가
-    if (text[i] === '<') {
-      const tagEndIndex = text.indexOf('>', i);
+    if (htmlContent[i] === '<') {
+      const tagEndIndex = htmlContent.indexOf('>', i);
       if (tagEndIndex !== -1) {
-        displayedSummary.value += text.substring(i, tagEndIndex + 1);
+        displayedSummary.value += htmlContent.substring(i, tagEndIndex + 1);
         i = tagEndIndex + 1;
         return;
       }
     }
 
-    displayedSummary.value += text[i];
+    displayedSummary.value += htmlContent[i];
     i++;
-  }, 20); // 20ms 간격 (빠르게)
+  }, 20);
+}
+
+const buildSummaryHtml = (data) => {
+  const { accommodationName, locationTag, keywords, moodDescription, tip, reviewCount } = data;
+
+  const keywordsHtml = keywords.join(' ');
+  const footerHtml = reviewCount > 0
+    ? `<span class="footer-text">🔍 최근 <strong>${reviewCount}건</strong>의 실제 방문자 리뷰와 데이터를 기반으로 분석했습니다.</span>`
+    : `<span class="footer-text">🔍 숙소 상세 정보를 기반으로 분석했습니다.</span>`;
+
+  return `<strong>${accommodationName}</strong>은(는) <strong>${locationTag}</strong>에 위치한 매력적인 숙소입니다.<br><br>` +
+         `🔑 <strong>핵심 키워드</strong>: ${keywordsHtml} #제주감성<br><br>` +
+         `🏡 <strong>분위기 & 특징</strong><br>${moodDescription}<br><br>` +
+         `💡 <strong>AI의 이용 꿀팁</strong><br>${tip}<br><br>` +
+         footerHtml;
 }
 
 const loadSummary = async () => {
@@ -58,11 +69,10 @@ const loadSummary = async () => {
 
   try {
     const response = await fetchAiSummary(props.accommodationId)
-    if (response.ok && response.data?.summary) {
-      fullSummary.value = response.data.summary
+    if (response.ok && response.data) {
+      fullSummaryHtml.value = buildSummaryHtml(response.data)
       isLoaded.value = true
-      // 로딩이 끝나면 타자기 효과 시작
-      typeWriterEffect(fullSummary.value)
+      typeWriterEffect(fullSummaryHtml.value)
     } else {
       throw new Error('Failed to load summary')
     }
@@ -73,12 +83,16 @@ const loadSummary = async () => {
     isLoading.value = false
   }
 }
+
+onUnmounted(() => {
+  if (typeWriterInterval) clearInterval(typeWriterInterval);
+})
 </script>
 
 <template>
   <div class="ai-summary-section">
     <button
-      v-if="!isLoaded && !isLoading"
+      v-if="!isLoaded && !isLoading && !isError"
       class="ai-btn"
       @click="loadSummary"
     >
@@ -92,15 +106,19 @@ const loadSummary = async () => {
       <div class="skeleton-line short"></div>
     </div>
 
+    <div v-if="isError" class="error-box">
+      <p>요약 정보를 불러오는데 실패했습니다.</p>
+      <button class="retry-btn" @click="loadSummary">재시도</button>
+    </div>
+
     <div v-if="isLoaded" class="summary-box">
       <div class="summary-header">
         <span class="ai-icon">✨</span>
         <span class="ai-title">AI 숙소 요약</span>
       </div>
-      <!-- v-html로 변경하여 HTML 태그 적용 -->
       <p class="summary-text">
         <span v-html="displayedSummary"></span>
-        <span class="cursor" v-if="displayedSummary.length < fullSummary.length">|</span>
+        <span class="cursor" v-if="displayedSummary.length < fullSummaryHtml.length">|</span>
       </p>
     </div>
   </div>
@@ -134,7 +152,6 @@ const loadSummary = async () => {
   box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
 }
 
-/* 카드 디자인 핵심 */
 .summary-box {
   background: #ffffff;
   border: 1px solid #e5e7eb;
@@ -143,7 +160,7 @@ const loadSummary = async () => {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   margin-top: 1rem;
-  min-height: 200px; /* 타자기 효과 중 높이 변화 방지 */
+  min-height: 200px;
 }
 
 .summary-header {
@@ -166,7 +183,15 @@ const loadSummary = async () => {
   letter-spacing: -0.01em;
 }
 
-/* 커서 깜빡임 효과 */
+/* Footer Text Style (Global style needed for v-html or deep selector) */
+:deep(.footer-text) {
+  font-size: 13px;
+  color: #9ca3af;
+  margin-top: 20px;
+  text-align: right;
+  display: block;
+}
+
 .cursor {
   display: inline-block;
   width: 2px;
@@ -187,7 +212,6 @@ const loadSummary = async () => {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* 로딩 스켈레톤도 카드에 맞게 수정 */
 .skeleton-loader {
   background: white;
   border: 1px solid #e5e7eb;
@@ -203,24 +227,34 @@ const loadSummary = async () => {
   margin-bottom: 10px;
   animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
-.skeleton-line.title {
-  width: 40%;
-  height: 20px;
-  margin-bottom: 1rem;
-}
-.skeleton-line.short {
-  width: 70%;
-}
-.skeleton-line:last-child {
-  margin-bottom: 0;
-}
+.skeleton-line.title { width: 40%; height: 20px; margin-bottom: 1rem; }
+.skeleton-line.short { width: 70%; }
+.skeleton-line:last-child { margin-bottom: 0; }
 
 @keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: .5;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
 }
+
+.error-box {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  border-radius: 12px;
+  text-align: center;
+  color: #991b1b;
+}
+
+.retry-btn {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.retry-btn:hover { background: #dc2626; }
 </style>
