@@ -245,7 +245,6 @@ const loadRecommendations = async () => {
     }
   } catch (error) {
     console.error('Failed to load recommendations', error)
-  } finally {
     isLoadingRecommendations.value = false
   }
 }
@@ -258,6 +257,100 @@ onMounted(() => {
   loadWishlist()
   loadRecommendations()
 })
+
+/* Drag-to-Scroll Logic with Momentum */
+const isDown = ref(false)
+const startX = ref(0)
+const scrollLeftState = ref(0)
+const activeContainer = ref(null)
+const isDragging = ref(false)
+
+// Momentum state
+const velX = ref(0)
+const lastPageX = ref(0)
+const momentumID = ref(null)
+
+const startDrag = (e) => {
+  if (momentumID.value) {
+    cancelAnimationFrame(momentumID.value)
+    momentumID.value = null
+  }
+  isDown.value = true
+  activeContainer.value = e.currentTarget
+  activeContainer.value.classList.add('is-dragging')
+  
+  startX.value = e.pageX - e.currentTarget.offsetLeft
+  lastPageX.value = e.pageX
+  scrollLeftState.value = e.currentTarget.scrollLeft
+  velX.value = 0
+  isDragging.value = false
+  
+  window.addEventListener('mousemove', doDrag)
+  window.addEventListener('mouseup', stopDrag)
+}
+
+const stopDrag = () => {
+  if (!isDown.value) return
+  isDown.value = false
+  
+  window.removeEventListener('mousemove', doDrag)
+  window.removeEventListener('mouseup', stopDrag)
+  
+  if (!activeContainer.value) return
+
+  // Begin momentum
+  beginMomentum(activeContainer.value)
+  
+  activeContainer.value = null
+  
+  setTimeout(() => {
+    isDragging.value = false
+  }, 50)
+}
+
+const doDrag = (e) => {
+  if (!isDown.value || !activeContainer.value) return
+  e.preventDefault()
+  
+  const x = e.pageX - activeContainer.value.offsetLeft
+  
+  // Calculate delta for velocity
+  const delta = e.pageX - lastPageX.value
+  lastPageX.value = e.pageX
+  velX.value = delta
+
+  const walk = (x - startX.value) * 1.5 // Scroll-fast
+  activeContainer.value.scrollLeft = scrollLeftState.value - walk
+  
+  if (Math.abs(walk) > 5) {
+    isDragging.value = true
+  }
+}
+
+const beginMomentum = (element) => {
+  // Cancel previous
+  if (momentumID.value) cancelAnimationFrame(momentumID.value)
+  
+  const loop = () => {
+    if (!element) return
+    element.scrollLeft -= velX.value
+    velX.value *= 0.95 // Decay factor
+    
+    if (Math.abs(velX.value) > 0.5) {
+      momentumID.value = requestAnimationFrame(loop)
+    } else {
+      // Momentum stopped
+      element.classList.remove('is-dragging')
+      momentumID.value = null
+    }
+  }
+  momentumID.value = requestAnimationFrame(loop)
+}
+
+const handleCardClick = (id) => {
+  if (isDragging.value) return
+  router.push(`/room/${id}`)
+}
 </script>
 
 <template>
@@ -288,7 +381,10 @@ onMounted(() => {
           <span>✨ 당신을 위한 맞춤 추천</span>
         </h2>
       </div>
-      <div class="row-scroll">
+      <div 
+        class="row-scroll"
+        @mousedown="startDrag"
+      >
         <GuesthouseCard 
           v-for="item in recommendations" 
           :key="item.id"
@@ -302,7 +398,7 @@ onMounted(() => {
           :image-url="item.imageUrl"
           :is-favorite="wishlistIds.has(item.id)"
           @toggle-favorite="toggleWishlist"
-          @click="router.push(`/room/${item.id}`)"
+          @click="handleCardClick(item.id)"
           class="row-card"
         />
       </div>
@@ -341,7 +437,11 @@ onMounted(() => {
           <span class="theme-title-arrow">&#8594;</span>
         </h2>
       </div>
-      <div v-if="section.items.length" class="row-scroll">
+      <div 
+        v-if="section.items.length" 
+        class="row-scroll"
+        @mousedown="startDrag"
+      >
         <GuesthouseCard 
           v-for="item in visibleItems(section.items)" 
           :key="item.id"
@@ -355,7 +455,7 @@ onMounted(() => {
           :image-url="item.imageUrl"
           :is-favorite="wishlistIds.has(item.id)"
           @toggle-favorite="toggleWishlist"
-          @click="router.push(`/room/${item.id}`)"
+          @click="handleCardClick(item.id)"
           class="row-card"
         />
         <div
@@ -520,6 +620,15 @@ onMounted(() => {
   overflow-x: auto;
   padding-bottom: 0.5rem;
   scroll-snap-type: x mandatory;
+  /* 모바일 터치 스크롤 부드럽게 */
+  -webkit-overflow-scrolling: touch; 
+}
+
+/* 드래그 중일 때는 스냅 해제하여 부드럽게 이동 */
+.row-scroll.is-dragging {
+  scroll-snap-type: none !important;
+  cursor: grabbing;
+  user-select: none;
 }
 
 .row-card {
