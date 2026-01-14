@@ -24,6 +24,10 @@ public interface UserCouponService {
     void restoreCoupon(Long userId, Long userCouponId);
 
 
+    // 첫 예약 쿠폰 발급 후 사용자가 예약 취소 -> 첫 예약 쿠폰 회수
+    void revokeFirstReservationCoupon (Long userId);
+
+
     // 리뷰 3회 달성 시 쿠폰 자동 발급 (ReviewService에서 호출)
     boolean issueReviewRewardCoupon(Long userId);
 
@@ -55,4 +59,6 @@ public interface UserCouponService {
      * @return 초기화된 쿠폰 개수
      */
     int resetDailyCouponIssuedTracking();
+
+
 }
