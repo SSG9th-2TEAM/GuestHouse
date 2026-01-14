@@ -1,6 +1,7 @@
 package com.ssg9th2team.geharbang.domain.review.host.controller;
 
-import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.auth.entity.User;
+import com.ssg9th2team.geharbang.global.common.annotation.CurrentUser;
 import com.ssg9th2team.geharbang.domain.review.host.dto.HostReviewReplyRequest;
 import com.ssg9th2team.geharbang.domain.review.host.dto.HostReviewReplyResponse;
 import com.ssg9th2team.geharbang.domain.review.host.dto.HostReviewReportRequest;
@@ -8,7 +9,6 @@ import com.ssg9th2team.geharbang.domain.review.host.dto.HostReviewResponse;
 import com.ssg9th2team.geharbang.domain.review.host.dto.HostReviewSummaryResponse;
 import com.ssg9th2team.geharbang.domain.review.host.service.HostReviewService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,12 +25,13 @@ import java.util.List;
 public class HostReviewController {
 
     private final HostReviewService hostReviewService;
-    private final UserRepository userRepository;
 
     @GetMapping("/summary")
-    public HostReviewSummaryResponse summary(Authentication authentication) {
-        Long hostId = resolveHostId(authentication);
-        return hostReviewService.getSummary(hostId);
+    public HostReviewSummaryResponse summary(@CurrentUser User user) {
+        if (user == null) {
+            throw new com.ssg9th2team.geharbang.global.exception.AccessDeniedException("User not authenticated");
+        }
+        return hostReviewService.getSummary(user.getId());
     }
 
     @GetMapping
@@ -39,36 +40,32 @@ public class HostReviewController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "latest") String sort,
-            Authentication authentication
-    ) {
-        Long hostId = resolveHostId(authentication);
-        return hostReviewService.getReviews(hostId, accommodationId, page, size, sort);
+            @CurrentUser User user) {
+        if (user == null) {
+            throw new com.ssg9th2team.geharbang.global.exception.AccessDeniedException("User not authenticated");
+        }
+        return hostReviewService.getReviews(user.getId(), accommodationId, page, size, sort);
     }
 
     @PostMapping("/{reviewId}/reply")
     public HostReviewReplyResponse upsertReply(
             @PathVariable Long reviewId,
             @RequestBody HostReviewReplyRequest request,
-            Authentication authentication
-    ) {
-        Long hostId = resolveHostId(authentication);
-        return hostReviewService.upsertReply(hostId, reviewId, request != null ? request.getContent() : null);
+            @CurrentUser User user) {
+        if (user == null) {
+            throw new com.ssg9th2team.geharbang.global.exception.AccessDeniedException("User not authenticated");
+        }
+        return hostReviewService.upsertReply(user.getId(), reviewId, request != null ? request.getContent() : null);
     }
 
     @PostMapping("/{reviewId}/report")
     public void reportReview(
             @PathVariable Long reviewId,
             @RequestBody HostReviewReportRequest request,
-            Authentication authentication
-    ) {
-        Long hostId = resolveHostId(authentication);
-        hostReviewService.reportReview(hostId, reviewId, request != null ? request.getReason() : null);
-    }
-
-    private Long resolveHostId(Authentication authentication) {
-        String email = authentication.getName();
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"))
-                .getId();
+            @CurrentUser User user) {
+        if (user == null) {
+            throw new com.ssg9th2team.geharbang.global.exception.AccessDeniedException("User not authenticated");
+        }
+        hostReviewService.reportReview(user.getId(), reviewId, request != null ? request.getReason() : null);
     }
 }

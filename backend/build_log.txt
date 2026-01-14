@@ -1,0 +1,754 @@
+﻿> Task :compileJava UP-TO-DATE
+> Task :nodeSetup UP-TO-DATE
+> Task :npmSetup SKIPPED
+> Task :npmInstall UP-TO-DATE
+
+> Task :npmBuild
+
+> guesthouse-web@0.0.0 build
+> vite build
+
+[36mvite v7.2.7 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m??[39m 328 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m    0.78 kB[22m[1m[22m[2m ??gzip:  0.50 kB[22m
+[2mdist/[22m[32massets/logo-UtKVyqUN.png                       [39m[1m[2m   56.24 kB[22m[1m[22m
+[2mdist/[22m[32massets/event2-BNDMLIJq.png                     [39m[1m[2m  318.86 kB[22m[1m[22m
+[2mdist/[22m[32massets/404_house-CDnMIsqM.png                  [39m[1m[2m  331.40 kB[22m[1m[22m
+[2mdist/[22m[32massets/event3-BGrT5m1p.png                     [39m[1m[2m  361.53 kB[22m[1m[22m
+[2mdist/[22m[32massets/event4-DC_3G3en.png                     [39m[1m[2m  374.12 kB[22m[1m[22m
+[2mdist/[22m[32massets/home-banner-BEw4KG_1.png                [39m[1m[2m1,756.58 kB[22m[1m[22m
+[2mdist/[22m[35massets/AdminBarChart-DZmy7QAB.css              [39m[1m[2m    0.06 kB[22m[1m[22m[2m ??gzip:  0.08 kB[22m
+[2mdist/[22m[35massets/AdminBadge-CoNEuSE_.css                 [39m[1m[2m    0.63 kB[22m[1m[22m[2m ??gzip:  0.30 kB[22m
+[2mdist/[22m[35massets/AdminDashboardLayout-BRvkueC6.css       [39m[1m[2m    0.68 kB[22m[1m[22m[2m ??gzip:  0.34 kB[22m
+[2mdist/[22m[35massets/ResetPasswordSuccessView-4Vfem4AS.css   [39m[1m[2m    0.98 kB[22m[1m[22m[2m ??gzip:  0.44 kB[22m
+[2mdist/[22m[35massets/AdminTableCard-CMUp1-Qk.css             [39m[1m[2m    1.02 kB[22m[1m[22m[2m ??gzip:  0.43 kB[22m
+[2mdist/[22m[35massets/HostGateNotice-gszWngsY.css             [39m[1m[2m    1.20 kB[22m[1m[22m[2m ??gzip:  0.52 kB[22m
+[2mdist/[22m[35massets/OAuth2RedirectHandler-CZlj3_VB.css      [39m[1m[2m    1.21 kB[22m[1m[22m[2m ??gzip:  0.51 kB[22m
+[2mdist/[22m[35massets/PaymentFailView-x9XUuEfI.css            [39m[1m[2m    1.23 kB[22m[1m[22m[2m ??gzip:  0.55 kB[22m
+[2mdist/[22m[35massets/NotFoundView-DI1wkV3v.css               [39m[1m[2m    1.37 kB[22m[1m[22m[2m ??gzip:  0.61 kB[22m
+[2mdist/[22m[35massets/AdminWeeklyReportView-C7sG7Tcy.css      [39m[1m[2m    1.40 kB[22m[1m[22m[2m ??gzip:  0.53 kB[22m
+[2mdist/[22m[35massets/AdminStatCard-Bb9XiL1K.css              [39m[1m[2m    1.47 kB[22m[1m[22m[2m ??gzip:  0.55 kB[22m
+[2mdist/[22m[35massets/WishlistView-6dVQQNL7.css               [39m[1m[2m    1.75 kB[22m[1m[22m[2m ??gzip:  0.67 kB[22m
+[2mdist/[22m[35massets/PaymentView-BSHvRUTv.css                [39m[1m[2m    1.90 kB[22m[1m[22m[2m ??gzip:  0.68 kB[22m
+[2mdist/[22m[35massets/FindEmailView-ixGNgvuc.css              [39m[1m[2m    1.94 kB[22m[1m[22m[2m ??gzip:  0.65 kB[22m
+[2mdist/[22m[35massets/ResetPasswordView-BF15i3cz.css          [39m[1m[2m    2.03 kB[22m[1m[22m[2m ??gzip:  0.69 kB[22m
+[2mdist/[22m[35massets/AdminLayout-BRzXZ-D5.css                [39m[1m[2m    2.35 kB[22m[1m[22m[2m ??gzip:  0.81 kB[22m
+[2mdist/[22m[35massets/PaymentSuccessView-D_gSzK75.css         [39m[1m[2m    2.59 kB[22m[1m[22m[2m ??gzip:  0.81 kB[22m
+[2mdist/[22m[35massets/BookingSuccessView-BD41hYbW.css         [39m[1m[2m    2.60 kB[22m[1m[22m[2m ??gzip:  0.82 kB[22m
+[2mdist/[22m[35massets/PolicyView-BTqx49O1.css                 [39m[1m[2m    2.61 kB[22m[1m[22m[2m ??gzip:  0.81 kB[22m
+[2mdist/[22m[35massets/CouponView-BVmIiuOK.css                 [39m[1m[2m    2.83 kB[22m[1m[22m[2m ??gzip:  0.81 kB[22m
+[2mdist/[22m[35massets/HostDashboardView-DBv-CnGv.css          [39m[1m[2m    3.74 kB[22m[1m[22m[2m ??gzip:  1.14 kB[22m
+[2mdist/[22m[35massets/EventView-BxJpIBcO.css                  [39m[1m[2m    3.83 kB[22m[1m[22m[2m ??gzip:  1.15 kB[22m
+[2mdist/[22m[35massets/ReviewHistoryView-DF9jifwB.css          [39m[1m[2m    3.84 kB[22m[1m[22m[2m ??gzip:  1.09 kB[22m
+[2mdist/[22m[35massets/AdminAuditLogView-BWiLsVIE.css          [39m[1m[2m    3.86 kB[22m[1m[22m[2m ??gzip:  1.18 kB[22m
+[2mdist/[22m[35massets/ReservationHistoryView-_dW6oWXn.css     [39m[1m[2m    3.98 kB[22m[1m[22m[2m ??gzip:  1.13 kB[22m
+[2mdist/[22m[35massets/AdminIssuesView-CAEGx8ri.css            [39m[1m[2m    4.03 kB[22m[1m[22m[2m ??gzip:  1.06 kB[22m
+[2mdist/[22m[35massets/HostAccommodationView-ClyAYkKM.css      [39m[1m[2m    4.09 kB[22m[1m[22m[2m ??gzip:  1.18 kB[22m
+[2mdist/[22m[35massets/AdminPaymentsView-DIv0y05z.css          [39m[1m[2m    4.15 kB[22m[1m[22m[2m ??gzip:  1.11 kB[22m
+[2mdist/[22m[35massets/FindPasswordView-BWLPypzA.css           [39m[1m[2m    4.18 kB[22m[1m[22m[2m ??gzip:  1.11 kB[22m
+[2mdist/[22m[35massets/AdminBookingsView-x2DNT0A8.css          [39m[1m[2m    4.25 kB[22m[1m[22m[2m ??gzip:  1.15 kB[22m
+[2mdist/[22m[35massets/BookingView-CZ0B7jPp.css                [39m[1m[2m    4.30 kB[22m[1m[22m[2m ??gzip:  1.22 kB[22m
+[2mdist/[22m[35massets/MapView-Cw4Fvq-s.css                    [39m[1m[2m    4.41 kB[22m[1m[22m[2m ??gzip:  1.29 kB[22m
+[2mdist/[22m[35massets/DeleteAccountView-_4XDeaO6.css          [39m[1m[2m    4.48 kB[22m[1m[22m[2m ??gzip:  1.07 kB[22m
+[2mdist/[22m[35massets/FilterModal-FhVc53Fs.css                [39m[1m[2m    4.66 kB[22m[1m[22m[2m ??gzip:  1.32 kB[22m
+[2mdist/[22m[35massets/LoginView-BZ7mIpK3.css                  [39m[1m[2m    4.68 kB[22m[1m[22m[2m ??gzip:  1.24 kB[22m
+[2mdist/[22m[35massets/accommodationUtils-DeQnOX4X.css         [39m[1m[2m    4.68 kB[22m[1m[22m[2m ??gzip:  1.39 kB[22m
+[2mdist/[22m[35massets/ReservationCancelView-BbiVzzvX.css      [39m[1m[2m    4.91 kB[22m[1m[22m[2m ??gzip:  1.23 kB[22m
+[2mdist/[22m[35massets/AdminDashboardView-BFbxkcEd.css         [39m[1m[2m    5.79 kB[22m[1m[22m[2m ??gzip:  1.19 kB[22m
+[2mdist/[22m[35massets/List-BrEuPJ2A.css                       [39m[1m[2m    5.90 kB[22m[1m[22m[2m ??gzip:  1.63 kB[22m
+[2mdist/[22m[35massets/WriteReviewView-DB0OCbQH.css            [39m[1m[2m    6.01 kB[22m[1m[22m[2m ??gzip:  1.43 kB[22m
+[2mdist/[22m[35massets/HostReviewView-CH1n0LdV.css             [39m[1m[2m    6.54 kB[22m[1m[22m[2m ??gzip:  1.73 kB[22m
+[2mdist/[22m[35massets/ProfileView-ESPRfzg-.css                [39m[1m[2m    6.72 kB[22m[1m[22m[2m ??gzip:  1.69 kB[22m
+[2mdist/[22m[35massets/AdminReportsView-GCvWXvGr.css           [39m[1m[2m    7.06 kB[22m[1m[22m[2m ??gzip:  1.94 kB[22m
+[2mdist/[22m[35massets/AdminUsersView-BUpc3Zqs.css             [39m[1m[2m    7.57 kB[22m[1m[22m[2m ??gzip:  1.98 kB[22m
+[2mdist/[22m[35massets/RegisterView-DDqcyKU2.css               [39m[1m[2m   10.03 kB[22m[1m[22m[2m ??gzip:  2.17 kB[22m
+[2mdist/[22m[35massets/AdminAccommodationsView-BiqH0QnB.css    [39m[1m[2m   10.38 kB[22m[1m[22m[2m ??gzip:  2.47 kB[22m
+[2mdist/[22m[35massets/HostRevenueView-Xm3IcrpY.css            [39m[1m[2m   10.51 kB[22m[1m[22m[2m ??gzip:  2.43 kB[22m
+[2mdist/[22m[35massets/SocialSignupView-Bh4g_sou.css           [39m[1m[2m   10.91 kB[22m[1m[22m[2m ??gzip:  2.40 kB[22m
+[2mdist/[22m[35massets/HomeView-gsk5A2yf.css                   [39m[1m[2m   11.41 kB[22m[1m[22m[2m ??gzip:  2.90 kB[22m
+[2mdist/[22m[35massets/HostHomeView-BP8ziiMU.css               [39m[1m[2m   11.71 kB[22m[1m[22m[2m ??gzip:  2.59 kB[22m
+[2mdist/[22m[35massets/HostBookingView-CtEotKTn.css            [39m[1m[2m   15.64 kB[22m[1m[22m[2m ??gzip:  3.00 kB[22m
+[2mdist/[22m[35massets/HostAccommodationRegister-B5m0tZGf.css  [39m[1m[2m   19.68 kB[22m[1m[22m[2m ??gzip:  3.84 kB[22m
+[2mdist/[22m[35massets/HostReportView-DFLpfdBK.css             [39m[1m[2m   22.26 kB[22m[1m[22m[2m ??gzip:  3.89 kB[22m
+[2mdist/[22m[35massets/HostAccommodationEdit-BYFaCxq4.css      [39m[1m[2m   23.37 kB[22m[1m[22m[2m ??gzip:  4.37 kB[22m
+[2mdist/[22m[35massets/RoomDetailView-CkO19pcB.css             [39m[1m[2m   33.07 kB[22m[1m[22m[2m ??gzip:  5.97 kB[22m
+[2mdist/[22m[35massets/index-DsayVPKh.css                      [39m[1m[2m   41.47 kB[22m[1m[22m[2m ??gzip:  7.73 kB[22m
+[2mdist/[22m[36massets/hostAccommodation-dVoT88Rq.js           [39m[1m[2m    0.11 kB[22m[1m[22m[2m ??gzip:  0.12 kB[22m
+[2mdist/[22m[36massets/ai-C_9iq1Cn.js                          [39m[1m[2m    0.15 kB[22m[1m[22m[2m ??gzip:  0.16 kB[22m
+[2mdist/[22m[36massets/theme-DPdp4bcB.js                       [39m[1m[2m    0.28 kB[22m[1m[22m[2m ??gzip:  0.17 kB[22m
+[2mdist/[22m[36massets/wishlist-B7TRy9kB.js                    [39m[1m[2m    0.31 kB[22m[1m[22m[2m ??gzip:  0.21 kB[22m
+[2mdist/[22m[36massets/userClient-CF2lwv0n.js                  [39m[1m[2m    0.34 kB[22m[1m[22m[2m ??gzip:  0.22 kB[22m
+[2mdist/[22m[36massets/adminData-ZmZ3C3cR.js                   [39m[1m[2m    0.37 kB[22m[1m[22m[2m ??gzip:  0.24 kB[22m
+[2mdist/[22m[36massets/AdminBadge-BqzLCMzI.js                  [39m[1m[2m    0.42 kB[22m[1m[22m[2m ??gzip:  0.31 kB[22m
+[2mdist/[22m[36massets/NavStay-8fMJEA23.js                     [39m[1m[2m    0.47 kB[22m[1m[22m[2m ??gzip:  0.32 kB[22m
+[2mdist/[22m[36massets/chartSeries-o4DA8yhq.js                 [39m[1m[2m    0.57 kB[22m[1m[22m[2m ??gzip:  0.35 kB[22m
+[2mdist/[22m[36massets/AdminTableCard-ClEe1yeq.js              [39m[1m[2m    0.60 kB[22m[1m[22m[2m ??gzip:  0.36 kB[22m
+[2mdist/[22m[36massets/accommodation-Bu26QaGj.js               [39m[1m[2m    0.67 kB[22m[1m[22m[2m ??gzip:  0.40 kB[22m
+[2mdist/[22m[36massets/couponApi-PHCsduoL.js                   [39m[1m[2m    0.78 kB[22m[1m[22m[2m ??gzip:  0.41 kB[22m
+[2mdist/[22m[36massets/NotFoundView-nV7DUXsV.js                [39m[1m[2m    0.80 kB[22m[1m[22m[2m ??gzip:  0.58 kB[22m
+[2mdist/[22m[36massets/PaymentFailView-zIMhtRvk.js             [39m[1m[2m    0.87 kB[22m[1m[22m[2m ??gzip:  0.58 kB[22m
+[2mdist/[22m[36massets/wishlist1-CGHpcCkz.js                   [39m[1m[2m    0.98 kB[22m[1m[22m[2m ??gzip:  0.79 kB[22m
+[2mdist/[22m[36massets/reservationApi-I0eVoVKv.js              [39m[1m[2m    1.00 kB[22m[1m[22m[2m ??gzip:  0.48 kB[22m
+[2mdist/[22m[36massets/AdminDashboardLayout-DuZj8FQx.js        [39m[1m[2m    1.02 kB[22m[1m[22m[2m ??gzip:  0.65 kB[22m
+[2mdist/[22m[36massets/ResetPasswordSuccessView-B8jqtDmo.js    [39m[1m[2m    1.08 kB[22m[1m[22m[2m ??gzip:  0.69 kB[22m
+[2mdist/[22m[36massets/AdminStatCard-CsGXNlbC.js               [39m[1m[2m    1.15 kB[22m[1m[22m[2m ??gzip:  0.60 kB[22m
+[2mdist/[22m[36massets/HostGateNotice-DmljLQqr.js              [39m[1m[2m    1.16 kB[22m[1m[22m[2m ??gzip:  0.56 kB[22m
+[2mdist/[22m[36massets/adminReservationPolicy-98qYny6c.js      [39m[1m[2m    1.20 kB[22m[1m[22m[2m ??gzip:  0.53 kB[22m
+[2mdist/[22m[36massets/reviewApi-Dgr8GNEb.js                   [39m[1m[2m    1.40 kB[22m[1m[22m[2m ??gzip:  0.55 kB[22m
+[2mdist/[22m[36massets/useListingFilters-ONJWtJlW.js           [39m[1m[2m    1.51 kB[22m[1m[22m[2m ??gzip:  0.69 kB[22m
+[2mdist/[22m[36massets/adminApi-CwDK7asB.js                    [39m[1m[2m    1.58 kB[22m[1m[22m[2m ??gzip:  0.55 kB[22m
+[2mdist/[22m[36massets/AdminLayout-BbIU9ZCy.js                 [39m[1m[2m    1.73 kB[22m[1m[22m[2m ??gzip:  0.91 kB[22m
+[2mdist/[22m[36massets/WishlistView-DDPgrWpL.js                [39m[1m[2m    2.32 kB[22m[1m[22m[2m ??gzip:  1.33 kB[22m
+[2mdist/[22m[36massets/FindEmailView-qWGKovKu.js               [39m[1m[2m    2.32 kB[22m[1m[22m[2m ??gzip:  1.26 kB[22m
+[2mdist/[22m[36massets/OAuth2RedirectHandler-CDipRI9B.js       [39m[1m[2m    2.47 kB[22m[1m[22m[2m ??gzip:  1.33 kB[22m
+[2mdist/[22m[36massets/ResetPasswordView-BVmik65a.js           [39m[1m[2m    2.90 kB[22m[1m[22m[2m ??gzip:  1.42 kB[22m
+[2mdist/[22m[36massets/PaymentSuccessView-SBiI2gaF.js          [39m[1m[2m    3.57 kB[22m[1m[22m[2m ??gzip:  1.75 kB[22m
+[2mdist/[22m[36massets/CouponView-DJkNoSKz.js                  [39m[1m[2m    3.79 kB[22m[1m[22m[2m ??gzip:  1.72 kB[22m
+[2mdist/[22m[36massets/formatters-BE-0ymhR.js                  [39m[1m[2m    4.22 kB[22m[1m[22m[2m ??gzip:  1.79 kB[22m
+[2mdist/[22m[36massets/accommodationUtils-HEoy-TLT.js          [39m[1m[2m    4.25 kB[22m[1m[22m[2m ??gzip:  2.52 kB[22m
+[2mdist/[22m[36massets/PaymentView-B9hsLXDc.js                 [39m[1m[2m    4.54 kB[22m[1m[22m[2m ??gzip:  2.02 kB[22m
+[2mdist/[22m[36massets/ReviewHistoryView-Cjx4D1Ai.js           [39m[1m[2m    4.55 kB[22m[1m[22m[2m ??gzip:  2.15 kB[22m
+[2mdist/[22m[36massets/HostDashboardView-zEqd39sE.js           [39m[1m[2m    4.59 kB[22m[1m[22m[2m ??gzip:  1.74 kB[22m
+[2mdist/[22m[36massets/BookingSuccessView-Jm-fS2x4.js          [39m[1m[2m    4.79 kB[22m[1m[22m[2m ??gzip:  1.94 kB[22m
+[2mdist/[22m[36massets/AdminWeeklyReportView-awGmHHjS.js       [39m[1m[2m    5.00 kB[22m[1m[22m[2m ??gzip:  2.31 kB[22m
+[2mdist/[22m[36massets/FilterModal-DfdG_dS-.js                 [39m[1m[2m    5.42 kB[22m[1m[22m[2m ??gzip:  2.56 kB[22m
+[2mdist/[22m[36massets/HostAccommodationView-C9GeqsaN.js       [39m[1m[2m    5.49 kB[22m[1m[22m[2m ??gzip:  2.48 kB[22m
+[2mdist/[22m[36massets/LoginView-4ONOHHg7.js                   [39m[1m[2m    5.81 kB[22m[1m[22m[2m ??gzip:  2.72 kB[22m
+[2mdist/[22m[36massets/EventView-3YNqJGlu.js                   [39m[1m[2m    6.05 kB[22m[1m[22m[2m ??gzip:  2.85 kB[22m
+[2mdist/[22m[36massets/ReservationCancelView-D72sfMrQ.js       [39m[1m[2m    6.86 kB[22m[1m[22m[2m ??gzip:  3.00 kB[22m
+[2mdist/[22m[36massets/DeleteAccountView-CHG02WaJ.js           [39m[1m[2m    6.98 kB[22m[1m[22m[2m ??gzip:  2.99 kB[22m
+[2mdist/[22m[36massets/ProfileView-HWF3507V.js                 [39m[1m[2m    7.23 kB[22m[1m[22m[2m ??gzip:  2.84 kB[22m
+[2mdist/[22m[36massets/ReservationHistoryView-Dw2Lv90a.js      [39m[1m[2m    8.36 kB[22m[1m[22m[2m ??gzip:  2.81 kB[22m
+[2mdist/[22m[36massets/HostReviewView-c1cj72L9.js              [39m[1m[2m    8.69 kB[22m[1m[22m[2m ??gzip:  3.39 kB[22m
+[2mdist/[22m[36massets/List-BE9KlwYs.js                        [39m[1m[2m    8.88 kB[22m[1m[22m[2m ??gzip:  3.95 kB[22m
+[2mdist/[22m[36massets/BookingView-Bfm3sDbE.js                 [39m[1m[2m    9.18 kB[22m[1m[22m[2m ??gzip:  3.86 kB[22m
+[2mdist/[22m[36massets/FindPasswordView-BFj9_zib.js            [39m[1m[2m    9.89 kB[22m[1m[22m[2m ??gzip:  3.42 kB[22m
+[2mdist/[22m[36massets/MapView-BYiYpOs-.js                     [39m[1m[2m   10.28 kB[22m[1m[22m[2m ??gzip:  4.14 kB[22m
+[2mdist/[22m[36massets/WriteReviewView-B8HEWCwy.js             [39m[1m[2m   10.53 kB[22m[1m[22m[2m ??gzip:  4.64 kB[22m
+[2mdist/[22m[36massets/AdminIssuesView-BRwrRpSP.js             [39m[1m[2m   11.89 kB[22m[1m[22m[2m ??gzip:  3.68 kB[22m
+[2mdist/[22m[36massets/AdminAuditLogView-DUBoCeTx.js           [39m[1m[2m   12.24 kB[22m[1m[22m[2m ??gzip:  4.26 kB[22m
+[2mdist/[22m[36massets/HomeView-D8lgeMMh.js                    [39m[1m[2m   12.58 kB[22m[1m[22m[2m ??gzip:  4.83 kB[22m
+[2mdist/[22m[36massets/AdminReportsView-D650GPaF.js            [39m[1m[2m   14.39 kB[22m[1m[22m[2m ??gzip:  5.34 kB[22m
+[2mdist/[22m[36massets/HostHomeView-CIYDbHz7.js                [39m[1m[2m   16.33 kB[22m[1m[22m[2m ??gzip:  6.02 kB[22m
+[2mdist/[22m[36massets/SocialSignupView-CaU0b3iS.js            [39m[1m[2m   16.58 kB[22m[1m[22m[2m ??gzip:  6.18 kB[22m
+[2mdist/[22m[36massets/AdminPaymentsView-CFEMdciw.js           [39m[1m[2m   17.34 kB[22m[1m[22m[2m ??gzip:  5.52 kB[22m
+[2mdist/[22m[36massets/HostRevenueView-DdTucwY5.js             [39m[1m[2m   17.49 kB[22m[1m[22m[2m ??gzip:  6.17 kB[22m
+[2mdist/[22m[36massets/AdminDashboardView-Bxt2FIXt.js          [39m[1m[2m   19.07 kB[22m[1m[22m[2m ??gzip:  5.88 kB[22m
+[2mdist/[22m[36massets/AdminBookingsView-DVQCNIY7.js           [39m[1m[2m   19.13 kB[22m[1m[22m[2m ??gzip:  5.81 kB[22m
+[2mdist/[22m[36massets/AdminUsersView-RwYKxWvb.js              [39m[1m[2m   20.63 kB[22m[1m[22m[2m ??gzip:  6.77 kB[22m
+[2mdist/[22m[36massets/AdminAccommodationsView-CDu2Fvsk.js     [39m[1m[2m   21.33 kB[22m[1m[22m[2m ??gzip:  7.01 kB[22m
+[2mdist/[22m[36massets/PolicyView-9qQxQaG8.js                  [39m[1m[2m   25.10 kB[22m[1m[22m[2m ??gzip:  8.56 kB[22m
+[2mdist/[22m[36massets/HostBookingView-Cc5LKF6N.js             [39m[1m[2m   26.42 kB[22m[1m[22m[2m ??gzip:  8.44 kB[22m
+[2mdist/[22m[36massets/RegisterView-_PtbPMqV.js                [39m[1m[2m   27.07 kB[22m[1m[22m[2m ??gzip:  8.94 kB[22m
+[2mdist/[22m[36massets/HostAccommodationRegister-C1DgK2QC.js   [39m[1m[2m   40.01 kB[22m[1m[22m[2m ??gzip: 11.77 kB[22m
+[2mdist/[22m[36massets/RoomDetailView-CXh_meQ7.js              [39m[1m[2m   41.01 kB[22m[1m[22m[2m ??gzip: 13.96 kB[22m
+[2mdist/[22m[36massets/HostAccommodationEdit-BPMFqJWb.js       [39m[1m[2m   41.39 kB[22m[1m[22m[2m ??gzip: 11.81 kB[22m
+[2mdist/[22m[36massets/HostReportView-W92tNsDQ.js              [39m[1m[2m   49.03 kB[22m[1m[22m[2m ??gzip: 13.62 kB[22m
+[2mdist/[22m[36massets/AdminBarChart-BlffDum1.js               [39m[1m[2m  155.01 kB[22m[1m[22m[2m ??gzip: 54.28 kB[22m
+[2mdist/[22m[36massets/index-CXDuYoXM.js                       [39m[1m[2m  242.21 kB[22m[1m[22m[2m ??gzip: 84.27 kB[22m
+[2mdist/[22m[36massets/reportExport-DvZZ7m0X.js                [39m[1m[2m  283.96 kB[22m[1m[22m[2m ??gzip: 95.40 kB[22m
+[32m??built in 5.40s[39m
+
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :resolveMainClassName UP-TO-DATE
+
+> Task :bootRun
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::               (v3.4.12)
+
+2026-01-14T12:06:48.981+09:00  INFO 1692 --- [geharbang] [           main] c.s.geharbang.GeharbangApplication       : Starting GeharbangApplication using Java 17.0.16 with PID 1692 (D:\GuestHouse\backend\build\classes\java\main started by leekm in D:\GuestHouse\backend)
+2026-01-14T12:06:48.982+09:00 DEBUG 1692 --- [geharbang] [           main] c.s.geharbang.GeharbangApplication       : Running with Spring Boot v3.4.12, Spring v6.2.14
+2026-01-14T12:06:48.984+09:00  INFO 1692 --- [geharbang] [           main] c.s.geharbang.GeharbangApplication       : No active profile set, falling back to 1 default profile: "default"
+2026-01-14T12:06:50.262+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-01-14T12:06:50.263+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Elasticsearch repositories in DEFAULT mode.
+2026-01-14T12:06:50.343+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.344+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.accommodation_theme.repository.AccommodationThemeRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.346+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.admin.repository.PlatformDailyStatsRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.347+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.ai_agent.repository.AgentChatMessageRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.348+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.ai_agent.repository.AgentChatRoomRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.350+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.auth.repository.AdminRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.352+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.auth.repository.UserRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.353+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.auth.repository.UserSocialRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.353+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chatbot.repository.ChatHistoryRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.356+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chatbot.repository.ChatRoomRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.358+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatMessageRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.360+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatRoomRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.361+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponInventoryRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.362+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.364+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.coupon.repository.jpa.UserCouponJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.365+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.main.repository.MainRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.366+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.368+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.368+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.profanity.repository.ForbiddenWordRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.370+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.report.repository.jpa.ReviewReportJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.371+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.372+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.reservation.repository.jpa.WaitlistJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.373+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.373+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.375+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.search.repository.SearchRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.375+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.theme.repository.ThemeRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.376+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.wishlist.repository.jpa.WishlistJpaRepository; If you want this repository to be a Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ElasticsearchRepository
+2026-01-14T12:06:50.377+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 109 ms. Found 0 Elasticsearch repository interfaces.
+2026-01-14T12:06:50.381+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-01-14T12:06:50.382+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Reactive Elasticsearch repositories in DEFAULT mode.
+2026-01-14T12:06:50.434+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.435+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.accommodation_theme.repository.AccommodationThemeRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.435+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.admin.repository.PlatformDailyStatsRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.435+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.ai_agent.repository.AgentChatMessageRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.435+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.ai_agent.repository.AgentChatRoomRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.435+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.auth.repository.AdminRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.435+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.auth.repository.UserRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.435+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.auth.repository.UserSocialRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.435+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chatbot.repository.ChatHistoryRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.435+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chatbot.repository.ChatRoomRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.437+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatMessageRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.437+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatRoomRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.437+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponInventoryRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.438+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.438+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.coupon.repository.jpa.UserCouponJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.438+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.main.repository.MainRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.439+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.439+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.439+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.profanity.repository.ForbiddenWordRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.439+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.report.repository.jpa.ReviewReportJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.439+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.439+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.reservation.repository.jpa.WaitlistJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.439+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.439+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.439+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.search.repository.SearchRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.440+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.theme.repository.ThemeRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.441+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Reactive Elasticsearch - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.wishlist.repository.jpa.WishlistJpaRepository; If you want this repository to be a Reactive Elasticsearch repository, consider annotating your entities with one of these annotations: org.springframework.data.elasticsearch.annotations.Document (preferred), or consider extending one of the following types with your repository: org.springframework.data.elasticsearch.repository.ReactiveElasticsearchRepository
+2026-01-14T12:06:50.441+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 56 ms. Found 0 Reactive Elasticsearch repository interfaces.
+2026-01-14T12:06:50.445+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-01-14T12:06:50.447+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-01-14T12:06:50.782+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 332 ms. Found 27 JPA repository interfaces.
+2026-01-14T12:06:50.794+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-01-14T12:06:50.795+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-01-14T12:06:50.852+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.852+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.accommodation_theme.repository.AccommodationThemeRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.852+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.admin.repository.PlatformDailyStatsRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.852+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.ai_agent.repository.AgentChatMessageRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.852+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.ai_agent.repository.AgentChatRoomRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.852+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.auth.repository.AdminRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.852+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.auth.repository.UserRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.852+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.auth.repository.UserSocialRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.853+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chatbot.repository.ChatHistoryRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.853+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chatbot.repository.ChatRoomRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.853+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatMessageRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.853+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatRoomRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.853+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponInventoryRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.853+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.853+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.coupon.repository.jpa.UserCouponJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.853+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.main.repository.MainRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.853+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.853+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.payment.repository.jpa.PaymentRefundJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.854+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.profanity.repository.ForbiddenWordRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.854+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.report.repository.jpa.ReviewReportJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.854+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.reservation.repository.jpa.ReservationJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.854+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.reservation.repository.jpa.WaitlistJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.854+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.854+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.854+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.search.repository.SearchRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.854+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.theme.repository.ThemeRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.854+09:00  INFO 1692 --- [geharbang] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.ssg9th2team.geharbang.domain.wishlist.repository.jpa.WishlistJpaRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-01-14T12:06:50.854+09:00  INFO 1692 --- [geharbang] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 51 ms. Found 0 Redis repository interfaces.
+2026-01-14T12:06:51.758+09:00  INFO 1692 --- [geharbang] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
+2026-01-14T12:06:51.776+09:00  INFO 1692 --- [geharbang] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-01-14T12:06:51.776+09:00  INFO 1692 --- [geharbang] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.49]
+2026-01-14T12:06:51.826+09:00  INFO 1692 --- [geharbang] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-01-14T12:06:51.828+09:00  INFO 1692 --- [geharbang] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2800 ms
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+2026-01-14T12:06:52.134+09:00  INFO 1692 --- [geharbang] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-01-14T12:06:52.176+09:00  INFO 1692 --- [geharbang] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.36.Final
+2026-01-14T12:06:52.208+09:00  INFO 1692 --- [geharbang] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-01-14T12:06:52.469+09:00  INFO 1692 --- [geharbang] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-01-14T12:06:52.498+09:00  INFO 1692 --- [geharbang] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-01-14T12:06:53.141+09:00  INFO 1692 --- [geharbang] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@3e0b1f03
+2026-01-14T12:06:53.145+09:00  INFO 1692 --- [geharbang] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-01-14T12:06:53.403+09:00  INFO 1692 --- [geharbang] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 8.0.44
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-01-14T12:06:53.409+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.sql.spi.DdlTypeRegistry          : addDescriptor(12, org.hibernate.type.descriptor.sql.internal.CapacityDependentDdlType@57df93c1) replaced previous registration(org.hibernate.type.descriptor.sql.internal.CapacityDependentDdlType@72998021)
+2026-01-14T12:06:53.409+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.sql.spi.DdlTypeRegistry          : addDescriptor(-9, org.hibernate.type.descriptor.sql.internal.CapacityDependentDdlType@761a0bbd) replaced previous registration(org.hibernate.type.descriptor.sql.internal.CapacityDependentDdlType@7a6e0f3c)
+2026-01-14T12:06:53.409+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.sql.spi.DdlTypeRegistry          : addDescriptor(-3, org.hibernate.type.descriptor.sql.internal.CapacityDependentDdlType@5184da2b) replaced previous registration(org.hibernate.type.descriptor.sql.internal.CapacityDependentDdlType@6fa2d0b2)
+2026-01-14T12:06:53.409+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.sql.spi.DdlTypeRegistry          : addDescriptor(4003, org.hibernate.type.descriptor.sql.internal.DdlTypeImpl@49c37918) replaced previous registration(org.hibernate.type.descriptor.sql.internal.DdlTypeImpl@43de88f3)
+2026-01-14T12:06:53.409+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.sql.spi.DdlTypeRegistry          : addDescriptor(4001, org.hibernate.type.descriptor.sql.internal.DdlTypeImpl@347c5721) replaced previous registration(org.hibernate.type.descriptor.sql.internal.DdlTypeImpl@4d22265c)
+2026-01-14T12:06:53.409+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.sql.spi.DdlTypeRegistry          : addDescriptor(4002, org.hibernate.type.descriptor.sql.internal.DdlTypeImpl@1f7b8d59) replaced previous registration(org.hibernate.type.descriptor.sql.internal.DdlTypeImpl@28551755)
+2026-01-14T12:06:53.409+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.sql.spi.DdlTypeRegistry          : addDescriptor(2004, org.hibernate.type.descriptor.sql.internal.CapacityDependentDdlType@7ec68821) replaced previous registration(org.hibernate.type.descriptor.sql.internal.DdlTypeImpl@220a5163)
+2026-01-14T12:06:53.409+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.sql.spi.DdlTypeRegistry          : addDescriptor(2005, org.hibernate.type.descriptor.sql.internal.CapacityDependentDdlType@6158113e) replaced previous registration(org.hibernate.type.descriptor.sql.internal.DdlTypeImpl@61375dff)
+2026-01-14T12:06:53.409+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.sql.spi.DdlTypeRegistry          : addDescriptor(2011, org.hibernate.type.descriptor.sql.internal.CapacityDependentDdlType@2bfa5678) replaced previous registration(org.hibernate.type.descriptor.sql.internal.DdlTypeImpl@5b8b9b2d)
+2026-01-14T12:06:53.411+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.jdbc.spi.JdbcTypeRegistry        : addDescriptor(NCharTypeDescriptor) replaced previous registration(CharTypeDescriptor)
+2026-01-14T12:06:53.412+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.jdbc.spi.JdbcTypeRegistry        : addDescriptor(NVarcharTypeDescriptor) replaced previous registration(VarcharTypeDescriptor)
+2026-01-14T12:06:53.413+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.jdbc.spi.JdbcTypeRegistry        : addDescriptor(LongNVarcharTypeDescriptor) replaced previous registration(LongVarcharTypeDescriptor)
+2026-01-14T12:06:53.414+09:00 DEBUG 1692 --- [geharbang] [           main] o.h.t.d.jdbc.spi.JdbcTypeRegistry        : addDescriptor(NClobTypeDescriptor(DEFAULT)) replaced previous registration(ClobTypeDescriptor(DEFAULT))
+2026-01-14T12:06:54.645+09:00  INFO 1692 --- [geharbang] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-01-14T12:06:54.903+09:00 ERROR 1692 --- [geharbang] [           main] j.LocalContainerEntityManagerFactoryBean : Failed to initialize JPA EntityManagerFactory: [PersistenceUnit: default] Unable to build Hibernate SessionFactory; nested exception is org.hibernate.tool.schema.spi.SchemaManagementException: Schema-validation: missing table [agent_chat_message]
+2026-01-14T12:06:54.904+09:00  WARN 1692 --- [geharbang] [           main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'entityManagerFactory' defined in class path resource [org/springframework/boot/autoconfigure/orm/jpa/HibernateJpaConfiguration.class]: [PersistenceUnit: default] Unable to build Hibernate SessionFactory; nested exception is org.hibernate.tool.schema.spi.SchemaManagementException: Schema-validation: missing table [agent_chat_message]
+2026-01-14T12:06:54.904+09:00  INFO 1692 --- [geharbang] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2026-01-14T12:06:55.330+09:00  INFO 1692 --- [geharbang] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+2026-01-14T12:06:55.333+09:00  INFO 1692 --- [geharbang] [           main] o.apache.catalina.core.StandardService   : Stopping service [Tomcat]
+2026-01-14T12:06:55.358+09:00  INFO 1692 --- [geharbang] [           main] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-01-14T12:06:55.376+09:00 ERROR 1692 --- [geharbang] [           main] o.s.boot.SpringApplication               : Application run failed
+
+org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'entityManagerFactory' defined in class path resource [org/springframework/boot/autoconfigure/orm/jpa/HibernateJpaConfiguration.class]: [PersistenceUnit: default] Unable to build Hibernate SessionFactory; nested exception is org.hibernate.tool.schema.spi.SchemaManagementException: Schema-validation: missing table [agent_chat_message]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1826) ~[spring-beans-6.2.14.jar:6.2.14]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:607) ~[spring-beans-6.2.14.jar:6.2.14]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:529) ~[spring-beans-6.2.14.jar:6.2.14]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:339) ~[spring-beans-6.2.14.jar:6.2.14]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:373) ~[spring-beans-6.2.14.jar:6.2.14]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:337) ~[spring-beans-6.2.14.jar:6.2.14]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:207) ~[spring-beans-6.2.14.jar:6.2.14]
+	at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:973) ~[spring-context-6.2.14.jar:6.2.14]
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:627) ~[spring-context-6.2.14.jar:6.2.14]
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:146) ~[spring-boot-3.4.12.jar:3.4.12]
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:752) ~[spring-boot-3.4.12.jar:3.4.12]
+	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:439) ~[spring-boot-3.4.12.jar:3.4.12]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:318) ~[spring-boot-3.4.12.jar:3.4.12]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1361) ~[spring-boot-3.4.12.jar:3.4.12]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1350) ~[spring-boot-3.4.12.jar:3.4.12]
+	at com.ssg9th2team.geharbang.GeharbangApplication.main(GeharbangApplication.java:14) ~[main/:na]
+Caused by: jakarta.persistence.PersistenceException: [PersistenceUnit: default] Unable to build Hibernate SessionFactory; nested exception is org.hibernate.tool.schema.spi.SchemaManagementException: Schema-validation: missing table [agent_chat_message]
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.buildNativeEntityManagerFactory(AbstractEntityManagerFactoryBean.java:431) ~[spring-orm-6.2.14.jar:6.2.14]
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.afterPropertiesSet(AbstractEntityManagerFactoryBean.java:400) ~[spring-orm-6.2.14.jar:6.2.14]
+	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.afterPropertiesSet(LocalContainerEntityManagerFactoryBean.java:366) ~[spring-orm-6.2.14.jar:6.2.14]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.invokeInitMethods(AbstractAutowireCapableBeanFactory.java:1873) ~[spring-beans-6.2.14.jar:6.2.14]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1822) ~[spring-beans-6.2.14.jar:6.2.14]
+	... 15 common frames omitted
+Caused by: org.hibernate.tool.schema.spi.SchemaManagementException: Schema-validation: missing table [agent_chat_message]
+	at org.hibernate.tool.schema.internal.AbstractSchemaValidator.validateTable(AbstractSchemaValidator.java:136) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.hibernate.tool.schema.internal.GroupedSchemaValidatorImpl.validateTables(GroupedSchemaValidatorImpl.java:46) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.hibernate.tool.schema.internal.AbstractSchemaValidator.performValidation(AbstractSchemaValidator.java:99) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.hibernate.tool.schema.internal.AbstractSchemaValidator.doValidation(AbstractSchemaValidator.java:77) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.hibernate.tool.schema.spi.SchemaManagementToolCoordinator.performDatabaseAction(SchemaManagementToolCoordinator.java:289) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.hibernate.tool.schema.spi.SchemaManagementToolCoordinator.lambda$process$5(SchemaManagementToolCoordinator.java:144) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at java.base/java.util.HashMap.forEach(HashMap.java:1421) ~[na:na]
+	at org.hibernate.tool.schema.spi.SchemaManagementToolCoordinator.process(SchemaManagementToolCoordinator.java:141) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.hibernate.boot.internal.SessionFactoryObserverForSchemaExport.sessionFactoryCreated(SessionFactoryObserverForSchemaExport.java:37) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.hibernate.internal.SessionFactoryObserverChain.sessionFactoryCreated(SessionFactoryObserverChain.java:35) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.hibernate.internal.SessionFactoryImpl.<init>(SessionFactoryImpl.java:324) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.hibernate.boot.internal.SessionFactoryBuilderImpl.build(SessionFactoryBuilderImpl.java:463) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl.build(EntityManagerFactoryBuilderImpl.java:1517) ~[hibernate-core-6.6.36.Final.jar:6.6.36.Final]
+	at org.springframework.orm.jpa.vendor.SpringHibernateJpaPersistenceProvider.createContainerEntityManagerFactory(SpringHibernateJpaPersistenceProvider.java:66) ~[spring-orm-6.2.14.jar:6.2.14]
+	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.createNativeEntityManagerFactory(LocalContainerEntityManagerFactoryBean.java:390) ~[spring-orm-6.2.14.jar:6.2.14]
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.buildNativeEntityManagerFactory(AbstractEntityManagerFactoryBean.java:419) ~[spring-orm-6.2.14.jar:6.2.14]
+	... 19 common frames omitted
+
+
+> Task :bootRun FAILED
+.\gradlew.bat : 
+위치 줄:1 문자:50
++ ... m Files\Java\jdk-21"; .\gradlew.bat bootRun --sta
+cktrace 2>&1 | Out-F ...
++                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String)  
+   [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':bootRun'.
+> Process 'command 'C:\Users\leekm\.jdks\corretto-17.0.
+16\bin\java.exe'' finished with non-zero exit value 1
+
+* Try:
+> Run with --info or --debug option to get more log out
+put.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+* Exception is:
+org.gradle.api.tasks.TaskExecutionException: Execution 
+failed for task ':bootRun'.
+	at org.gradle.api.internal.tasks.execution.ExecuteActi
+onsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsT
+askExecuter.java:130)
+	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(
+Try.java:293)
+	at org.gradle.api.internal.tasks.execution.ExecuteActi
+onsTaskExecuter.executeIfValid(ExecuteActionsTaskExecut
+er.java:128)
+	at org.gradle.api.internal.tasks.execution.ExecuteActi
+onsTaskExecuter.execute(ExecuteActionsTaskExecuter.java
+:116)
+	at org.gradle.api.internal.tasks.execution.ProblemsTas
+kPathTrackingTaskExecuter.execute(ProblemsTaskPathTrack
+ingTaskExecuter.java:41)
+	at org.gradle.api.internal.tasks.execution.FinalizePro
+pertiesTaskExecuter.execute(FinalizePropertiesTaskExecu
+ter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTask
+ExecutionModeExecuter.execute(ResolveTaskExecutionModeE
+xecuter.java:51)
+	at org.gradle.api.internal.tasks.execution.SkipTaskWit
+hNoActionsExecuter.execute(SkipTaskWithNoActionsExecute
+r.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfT
+askExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExcept
+ionTaskExecuter.execute(CatchExceptionTaskExecuter.java
+:36)
+	at org.gradle.api.internal.tasks.execution.EventFiring
+TaskExecuter$1.executeTask(EventFiringTaskExecuter.java
+:77)
+	at org.gradle.api.internal.tasks.execution.EventFiring
+TaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiring
+TaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$CallableBuildOperationWorker.execute(DefaultBui
+ldOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$CallableBuildOperationWorker.execute(DefaultBui
+ldOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.api.internal.tasks.execution.EventFiring
+TaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.exe
+cute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecution
+Graph$InvokeNodeExecutorsAction.execute(DefaultTaskExec
+utionGraph.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecution
+Graph$InvokeNodeExecutorsAction.execute(DefaultTaskExec
+utionGraph.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecution
+Graph$BuildOperationAwareExecutionAction.lambda$execute
+$0(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperatio
+nRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.execution.taskgraph.DefaultTaskExecution
+Graph$BuildOperationAwareExecutionAction.execute(Defaul
+tTaskExecutionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecution
+Graph$BuildOperationAwareExecutionAction.execute(Defaul
+tTaskExecutionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$Execu
+torWorker.execute(DefaultPlanExecutor.java:459)
+	at org.gradle.execution.plan.DefaultPlanExecutor$Execu
+torWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.internal.concurrent.ExecutorPolicy$Catch
+AndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecu
+tor$1.run(AbstractManagedExecutor.java:48)
+Caused by: org.gradle.process.internal.ExecException: P
+rocess 'command 'C:\Users\leekm\.jdks\corretto-17.0.16\
+bin\java.exe'' finished with non-zero exit value 1
+	at org.gradle.process.internal.DefaultExecHandle$ExecR
+esultImpl.assertNormalExitValue(DefaultExecHandle.java:
+442)
+	at org.gradle.process.internal.DefaultJavaExecAction.e
+xecute(DefaultJavaExecAction.java:58)
+	at org.gradle.api.tasks.JavaExec.exec(JavaExec.java:16
+6)
+	at org.springframework.boot.gradle.tasks.run.BootRun.e
+xec(BootRun.java:75)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAc
+cessor.invoke(DirectMethodHandleAccessor.java:103)
+	at org.gradle.internal.reflect.JavaMethod.invoke(JavaM
+ethod.java:125)
+	at org.gradle.api.internal.project.taskfactory.Standar
+dTaskAction.doExecute(StandardTaskAction.java:58)
+	at org.gradle.api.internal.project.taskfactory.Standar
+dTaskAction.execute(StandardTaskAction.java:51)
+	at org.gradle.api.internal.project.taskfactory.Standar
+dTaskAction.execute(StandardTaskAction.java:29)
+	at org.gradle.api.internal.tasks.execution.TaskExecuti
+on$3.run(TaskExecution.java:244)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$1.execute(DefaultBuildOperationRunner.java:30)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$1.execute(DefaultBuildOperationRunner.java:27)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.run(DefaultBuildOperationRunner.java:48)
+	at org.gradle.api.internal.tasks.execution.TaskExecuti
+on.executeAction(TaskExecution.java:229)
+	at org.gradle.api.internal.tasks.execution.TaskExecuti
+on.executeActions(TaskExecution.java:212)
+	at org.gradle.api.internal.tasks.execution.TaskExecuti
+on.executeWithPreviousOutputFiles(TaskExecution.java:19
+5)
+	at org.gradle.api.internal.tasks.execution.TaskExecuti
+on.execute(TaskExecution.java:162)
+	at org.gradle.internal.execution.steps.ExecuteStep.exe
+cuteInternal(ExecuteStep.java:105)
+	at org.gradle.internal.execution.steps.ExecuteStep.acc
+ess$000(ExecuteStep.java:44)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.c
+all(ExecuteStep.java:59)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.c
+all(ExecuteStep.java:56)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$CallableBuildOperationWorker.execute(DefaultBui
+ldOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$CallableBuildOperationWorker.execute(DefaultBui
+ldOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.internal.execution.steps.ExecuteStep.exe
+cute(ExecuteStep.java:56)
+	at org.gradle.internal.execution.steps.ExecuteStep.exe
+cute(ExecuteStep.java:44)
+	at org.gradle.internal.execution.steps.CancelExecution
+Step.execute(CancelExecutionStep.java:42)
+	at org.gradle.internal.execution.steps.TimeoutStep.exe
+cuteWithoutTimeout(TimeoutStep.java:75)
+	at org.gradle.internal.execution.steps.TimeoutStep.exe
+cute(TimeoutStep.java:55)
+	at org.gradle.internal.execution.steps.PreCreateOutput
+ParentsStep.execute(PreCreateOutputParentsStep.java:50)
+	at org.gradle.internal.execution.steps.PreCreateOutput
+ParentsStep.execute(PreCreateOutputParentsStep.java:28)
+	at org.gradle.internal.execution.steps.RemovePreviousO
+utputsStep.execute(RemovePreviousOutputsStep.java:67)
+	at org.gradle.internal.execution.steps.RemovePreviousO
+utputsStep.execute(RemovePreviousOutputsStep.java:37)
+	at org.gradle.internal.execution.steps.BroadcastChangi
+ngOutputsStep.execute(BroadcastChangingOutputsStep.java
+:61)
+	at org.gradle.internal.execution.steps.BroadcastChangi
+ngOutputsStep.execute(BroadcastChangingOutputsStep.java
+:26)
+	at org.gradle.internal.execution.steps.CaptureOutputsA
+fterExecutionStep.execute(CaptureOutputsAfterExecutionS
+tep.java:69)
+	at org.gradle.internal.execution.steps.CaptureOutputsA
+fterExecutionStep.execute(CaptureOutputsAfterExecutionS
+tep.java:46)
+	at org.gradle.internal.execution.steps.ResolveInputCha
+ngesStep.execute(ResolveInputChangesStep.java:40)
+	at org.gradle.internal.execution.steps.ResolveInputCha
+ngesStep.execute(ResolveInputChangesStep.java:29)
+	at org.gradle.internal.execution.steps.BuildCacheStep.
+executeWithoutCache(BuildCacheStep.java:189)
+	at org.gradle.internal.execution.steps.BuildCacheStep.
+lambda$execute$1(BuildCacheStep.java:75)
+	at org.gradle.internal.Either$Right.fold(Either.java:1
+75)
+	at org.gradle.internal.execution.caching.CachingState.
+fold(CachingState.java:62)
+	at org.gradle.internal.execution.steps.BuildCacheStep.
+execute(BuildCacheStep.java:73)
+	at org.gradle.internal.execution.steps.BuildCacheStep.
+execute(BuildCacheStep.java:48)
+	at org.gradle.internal.execution.steps.StoreExecutionS
+tateStep.execute(StoreExecutionStateStep.java:46)
+	at org.gradle.internal.execution.steps.StoreExecutionS
+tateStep.execute(StoreExecutionStateStep.java:35)
+	at org.gradle.internal.execution.steps.SkipUpToDateSte
+p.executeBecause(SkipUpToDateStep.java:75)
+	at org.gradle.internal.execution.steps.SkipUpToDateSte
+p.lambda$execute$2(SkipUpToDateStep.java:53)
+	at org.gradle.internal.execution.steps.SkipUpToDateSte
+p.execute(SkipUpToDateStep.java:53)
+	at org.gradle.internal.execution.steps.SkipUpToDateSte
+p.execute(SkipUpToDateStep.java:35)
+	at org.gradle.internal.execution.steps.legacy.MarkSnap
+shottingInputsFinishedStep.execute(MarkSnapshottingInpu
+tsFinishedStep.java:37)
+	at org.gradle.internal.execution.steps.legacy.MarkSnap
+shottingInputsFinishedStep.execute(MarkSnapshottingInpu
+tsFinishedStep.java:27)
+	at org.gradle.internal.execution.steps.ResolveIncremen
+talCachingStateStep.executeDelegate(ResolveIncrementalC
+achingStateStep.java:49)
+	at org.gradle.internal.execution.steps.ResolveIncremen
+talCachingStateStep.executeDelegate(ResolveIncrementalC
+achingStateStep.java:27)
+	at org.gradle.internal.execution.steps.AbstractResolve
+CachingStateStep.execute(AbstractResolveCachingStateSte
+p.java:71)
+	at org.gradle.internal.execution.steps.AbstractResolve
+CachingStateStep.execute(AbstractResolveCachingStateSte
+p.java:39)
+	at org.gradle.internal.execution.steps.ResolveChangesS
+tep.execute(ResolveChangesStep.java:65)
+	at org.gradle.internal.execution.steps.ResolveChangesS
+tep.execute(ResolveChangesStep.java:36)
+	at org.gradle.internal.execution.steps.ValidateStep.ex
+ecute(ValidateStep.java:107)
+	at org.gradle.internal.execution.steps.ValidateStep.ex
+ecute(ValidateStep.java:56)
+	at org.gradle.internal.execution.steps.AbstractCapture
+StateBeforeExecutionStep.execute(AbstractCaptureStateBe
+foreExecutionStep.java:64)
+	at org.gradle.internal.execution.steps.AbstractCapture
+StateBeforeExecutionStep.execute(AbstractCaptureStateBe
+foreExecutionStep.java:43)
+	at org.gradle.internal.execution.steps.AbstractSkipEmp
+tyWorkStep.executeWithNonEmptySources(AbstractSkipEmpty
+WorkStep.java:125)
+	at org.gradle.internal.execution.steps.AbstractSkipEmp
+tyWorkStep.execute(AbstractSkipEmptyWorkStep.java:56)
+	at org.gradle.internal.execution.steps.AbstractSkipEmp
+tyWorkStep.execute(AbstractSkipEmptyWorkStep.java:36)
+	at org.gradle.internal.execution.steps.legacy.MarkSnap
+shottingInputsStartedStep.execute(MarkSnapshottingInput
+sStartedStep.java:38)
+	at org.gradle.internal.execution.steps.LoadPreviousExe
+cutionStateStep.execute(LoadPreviousExecutionStateStep.
+java:36)
+	at org.gradle.internal.execution.steps.LoadPreviousExe
+cutionStateStep.execute(LoadPreviousExecutionStateStep.
+java:23)
+	at org.gradle.internal.execution.steps.HandleStaleOutp
+utsStep.execute(HandleStaleOutputsStep.java:75)
+	at org.gradle.internal.execution.steps.HandleStaleOutp
+utsStep.execute(HandleStaleOutputsStep.java:41)
+	at org.gradle.internal.execution.steps.AssignMutableWo
+rkspaceStep.lambda$execute$0(AssignMutableWorkspaceStep
+.java:35)
+	at org.gradle.api.internal.tasks.execution.TaskExecuti
+on$4.withWorkspace(TaskExecution.java:289)
+	at org.gradle.internal.execution.steps.AssignMutableWo
+rkspaceStep.execute(AssignMutableWorkspaceStep.java:31)
+	at org.gradle.internal.execution.steps.AssignMutableWo
+rkspaceStep.execute(AssignMutableWorkspaceStep.java:22)
+	at org.gradle.internal.execution.steps.ChoosePipelineS
+tep.execute(ChoosePipelineStep.java:40)
+	at org.gradle.internal.execution.steps.ChoosePipelineS
+tep.execute(ChoosePipelineStep.java:23)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuil
+dOperationFiringStep.lambda$execute$2(ExecuteWorkBuildO
+perationFiringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuil
+dOperationFiringStep.execute(ExecuteWorkBuildOperationF
+iringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuil
+dOperationFiringStep.execute(ExecuteWorkBuildOperationF
+iringStep.java:39)
+	at org.gradle.internal.execution.steps.IdentityCacheSt
+ep.execute(IdentityCacheStep.java:46)
+	at org.gradle.internal.execution.steps.IdentityCacheSt
+ep.execute(IdentityCacheStep.java:34)
+	at org.gradle.internal.execution.steps.IdentifyStep.ex
+ecute(IdentifyStep.java:48)
+	at org.gradle.internal.execution.steps.IdentifyStep.ex
+ecute(IdentifyStep.java:35)
+	at org.gradle.internal.execution.impl.DefaultExecution
+Engine$1.execute(DefaultExecutionEngine.java:64)
+	at org.gradle.api.internal.tasks.execution.ExecuteActi
+onsTaskExecuter.executeIfValid(ExecuteActionsTaskExecut
+er.java:127)
+	at org.gradle.api.internal.tasks.execution.ExecuteActi
+onsTaskExecuter.execute(ExecuteActionsTaskExecuter.java
+:116)
+	at org.gradle.api.internal.tasks.execution.ProblemsTas
+kPathTrackingTaskExecuter.execute(ProblemsTaskPathTrack
+ingTaskExecuter.java:41)
+7 actionable tasks: 2 executed, 5 up-to-date
+	at org.gradle.api.internal.tasks.execution.FinalizePro
+pertiesTaskExecuter.execute(FinalizePropertiesTaskExecu
+ter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTask
+ExecutionModeExecuter.execute(ResolveTaskExecutionModeE
+xecuter.java:51)
+	at org.gradle.api.internal.tasks.execution.SkipTaskWit
+hNoActionsExecuter.execute(SkipTaskWithNoActionsExecute
+r.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfT
+askExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExcept
+ionTaskExecuter.execute(CatchExceptionTaskExecuter.java
+:36)
+	at org.gradle.api.internal.tasks.execution.EventFiring
+TaskExecuter$1.executeTask(EventFiringTaskExecuter.java
+:77)
+	at org.gradle.api.internal.tasks.execution.EventFiring
+TaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiring
+TaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$CallableBuildOperationWorker.execute(DefaultBui
+ldOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$CallableBuildOperationWorker.execute(DefaultBui
+ldOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperatio
+nRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.api.internal.tasks.execution.EventFiring
+TaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.exe
+cute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecution
+Graph$InvokeNodeExecutorsAction.execute(DefaultTaskExec
+utionGraph.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecution
+Graph$InvokeNodeExecutorsAction.execute(DefaultTaskExec
+utionGraph.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecution
+Graph$BuildOperationAwareExecutionAction.lambda$execute
+$0(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperatio
+nRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.execution.taskgraph.DefaultTaskExecution
+Graph$BuildOperationAwareExecutionAction.execute(Defaul
+tTaskExecutionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecution
+Graph$BuildOperationAwareExecutionAction.execute(Defaul
+tTaskExecutionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$Execu
+torWorker.execute(DefaultPlanExecutor.java:459)
+	at org.gradle.execution.plan.DefaultPlanExecutor$Execu
+torWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.internal.concurrent.ExecutorPolicy$Catch
+AndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecu
+tor$1.run(AbstractManagedExecutor.java:48)
+
+
+BUILD FAILED in 16s

@@ -60,5 +60,19 @@ public interface AccommodationJpaRepository
                         """)
         List<Accommodation> findByKeywordInDescription(@Param("keyword") String keyword);
 
+        /**
+         * 위치(city/district/township)로 승인된 숙소 검색
+         */
+        @Query("""
+                        SELECT DISTINCT a FROM Accommodation a
+                        WHERE a.accommodationStatus = 1
+                        AND a.approvalStatus = 'APPROVED'
+                        AND (LOWER(a.city) LIKE LOWER(CONCAT('%', :location, '%'))
+                             OR LOWER(a.district) LIKE LOWER(CONCAT('%', :location, '%'))
+                             OR LOWER(a.township) LIKE LOWER(CONCAT('%', :location, '%')))
+                        ORDER BY a.rating DESC
+                        """)
+        List<Accommodation> findByLocation(@Param("location") String location);
+
         List<Accommodation> findByUserId(Long userId);
 }
