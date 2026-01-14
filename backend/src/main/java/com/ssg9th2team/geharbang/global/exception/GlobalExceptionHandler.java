@@ -81,7 +81,7 @@ public class GlobalExceptionHandler {
         if (shouldRedirectToLogin(request)) {
             return new RedirectView(failureRedirectUri);
         }
-        ErrorResponse response = new ErrorResponse(ex.getMessage());
+        ErrorResponse response = new ErrorResponse("서버 내부 오류가 발생했습니다.");
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
@@ -97,10 +97,15 @@ public class GlobalExceptionHandler {
 
     private boolean shouldRedirectToLogin(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
-        if (requestUri != null && requestUri.startsWith("/api/")) return false;
-        if (requestUri != null && requestUri.equals("/login")) return false;
-        if (requestUri != null && requestUri.startsWith("/login/oauth2/code/")) return true;
-        if (requestUri != null && requestUri.startsWith("/oauth2/authorization/")) return true;
+        if (requestUri == null) {
+            return false;
+        }
+        if (requestUri.startsWith("/api/") || requestUri.equals("/login")) {
+            return false;
+        }
+        if (requestUri.startsWith("/login/oauth2/code/") || requestUri.startsWith("/oauth2/authorization/")) {
+            return true;
+        }
         return false;
     }
 }
