@@ -394,5 +394,11 @@ onUnmounted(() => {
   .heart {
     font-size: 1.8rem;
   }
+
+  /* 3번째 배너(인덱스 2) 이미지만 약간 확대 및 아래로 이동 */
+  .carousel-slide:nth-child(3) .banner-image {
+    transform: scale(1.2) translateY(15px);
+    transform-origin: center center;
+  }
 }
 </style>
