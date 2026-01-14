@@ -702,14 +702,7 @@ watch(filteredRooms, (rooms) => {
           </p>
         </div>
         <div class="transport-info" v-if="guesthouse.transportInfo">
-          <h2 class="info-title">
-          <span class="info-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M4 11.5v6.3c0 .9.7 1.7 1.6 1.7h.7v1.1c0 .6.5 1.1 1.1 1.1s1.1-.5 1.1-1.1v-1.1h7.1v1.1c0 .6.5 1.1 1.1 1.1s1.1-.5 1.1-1.1v-1.1h.7c.9 0 1.6-.7 1.6-1.7v-6.3c0-2.5-2-4.5-4.5-4.5h-6.1c-2.5 0-4.5 2-4.5 4.5Zm12.1-2.6c1.5 0 2.7 1.2 2.7 2.6v.3H5.2v-.3c0-1.5 1.2-2.6 2.7-2.6h8.2Zm-9.6 7.4c-.5 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1Zm11.1 0c-.5 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1Z" />
-            </svg>
-          </span>
-            교통 정보
-          </h2>
+          <h2 class="info-title">교통 정보</h2>
           <p>{{ guesthouse.transportInfo }}</p>
         </div>
         <div class="contact-info" v-if="guesthouse.phone">
