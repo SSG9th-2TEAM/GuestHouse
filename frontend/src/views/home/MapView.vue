@@ -534,14 +534,27 @@ const renderOverlayMode = (itemsWithCoords) => {
     return bounds.contain(latlng)
   })
 
-  // 2. 기존 오버레이 중, 더 이상 화면에 없는 것은 제거
-  // (성능 최적화를 위해 전체 제거 후 다시 그리기보다 Diffing이 좋지만, 
-  //  구현 복잡도를 줄이기 위해 일단 전체 정리 후 렌더링 - 갯수가 적으므로 괜찮음)
-  activeOverlays.value.forEach(({ overlay }) => overlay.setMap(null))
-  activeOverlays.value = []
+  /* 2. Diffing 최적화 적용 */
+  const visibleIds = new Set(visibleItems.map(item => String(item.id)))
 
-  // 3. 보이는 아이템만 CustomOverlay 생성
+  // 2-1. 화면에서 사라진 오버레이 제거
+  activeOverlays.value = activeOverlays.value.filter(({ overlay, itemId }) => {
+    if (!visibleIds.has(String(itemId))) {
+      overlay.setMap(null) // 지도에서 제거
+      return false // 배열에서 제거
+    }
+    return true // 유지
+  })
+
+  // 이미 렌더링된 아이템 ID 집합
+  const existingIds = new Set(activeOverlays.value.map(o => String(o.itemId)))
+
+  // 2-2. 새로 화면에 나타난 아이템만 추가
   visibleItems.forEach(item => {
+    if (existingIds.has(String(item.id))) {
+      return // 이미 렌더링됨
+    }
+
     const position = new window.kakao.maps.LatLng(item.lat, item.lng)
 
     // Custom Overlay Content
