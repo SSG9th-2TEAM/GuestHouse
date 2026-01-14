@@ -191,7 +191,7 @@
   }
 
   .footer-container {
-    padding: 60px 40px 40px;
+    padding: 30px 40px 40px;
   }
 
   .footer-section h3 {

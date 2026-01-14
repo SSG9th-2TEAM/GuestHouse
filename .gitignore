@@ -204,3 +204,6 @@ scripts/test_email.sh
 **/src/main/resources/static/assets/
 src/main/resources/static/index.html
 ######
+backend/secrets.env
+backend/test-local.ps1
+backend/docker-compose.local.yml

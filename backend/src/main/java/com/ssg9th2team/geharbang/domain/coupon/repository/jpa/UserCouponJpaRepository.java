@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface UserCouponJpaRepository extends JpaRepository<UserCoupon, Long> {
 
@@ -34,4 +36,28 @@ public interface UserCouponJpaRepository extends JpaRepository<UserCoupon, Long>
     // [HIGH] OOM 방지: 전체 조회 시 Stream 사용
     @Query("select uc from UserCoupon uc")
     Stream<UserCoupon> streamAll();
+
+    /**
+     * 일일 선착순 쿠폰 재설정 시 사용
+     * 특정 쿠폰 ID로 발급된 모든 쿠폰을 삭제한다.
+     *
+     * @param couponId 삭제할 쿠폰 ID
+     * @return 삭제된 행 수
+     */
+    @Modifying
+    @Transactional
+    @Query("delete from UserCoupon uc where uc.couponId = :couponId")
+    int deleteByCouponId(@Param("couponId") Long couponId);
+
+    /**
+     * 일일 선착순 쿠폰 재설정 시 사용 (Bulk Delete)
+     * 특정 쿠폰 ID 리스트로 발급된 모든 쿠폰을 한 번에 삭제한다.
+     *
+     * @param couponIds 삭제할 쿠폰 ID 리스트
+     * @return 삭제된 행 수
+     */
+    @Modifying
+    @Transactional
+    @Query("delete from UserCoupon uc where uc.couponId in :couponIds")
+    int deleteByCouponIds(@Param("couponIds") List<Long> couponIds);
 }

@@ -28,6 +28,8 @@ public class RoomCreateDto {
     @NotNull
     private String roomDescription;
 
+    private String roomIntroduction;
+
     @NotNull
     private String mainImageUrl;
 

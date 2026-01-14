@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.coupon.entity.CouponInventory;
 import com.ssg9th2team.geharbang.domain.coupon.repository.jpa.CouponInventoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,12 @@ public class CouponInventoryService {
 
     private final CouponInventoryRepository couponInventoryRepository;
     private final StringRedisTemplate redisTemplate;
+
+    @Value("${coupon.issue.skip-db-finalize:false}")
+    private boolean skipDbFinalize;
+
+    @Value("${coupon.issue.async-enabled:true}")
+    private boolean asyncEnabled;
     
     private static final String COUPON_STOCK_KEY_PREFIX = "coupon:stock:";
 
@@ -30,38 +37,46 @@ public class CouponInventoryService {
      */
     @Transactional
     public boolean consumeSlotIfLimited(Long couponId) {
+        // 선착순 쿠폰이 아니면 바로 통과
+        if (!couponInventoryRepository.existsByCouponId(couponId)) {
+            return true;
+        }
+
         // 1단계: Redis 사전 검증 (원자적 연산)
         String redisKey = COUPON_STOCK_KEY_PREFIX + couponId;
         
         try {
             // Redis에서 해당 쿠폰 재고 값을 1 감소
             Long remaining = redisTemplate.opsForValue().decrement(redisKey);
-            // 남은 쿠폰이 없거나 쿠폰이 개수가 0보다 작다면 -> 100명중 50명은 팅김
+            // 남은 쿠폰이 없거나 쿠폰 남은 수량이 0보다 작다면 -> 100명중 50명은 팅김
+            // decrement는 -1 하는건데 쿠폰 개수가 0 -> -1  되면 다시 incremnet로 +1 시킴 ->  쿠폰 0 개
             if (remaining == null || remaining < 0) {
-                // Redis 복구
-                // decrement는 -1 하는건데 쿠폰 개수가 0 -> -1  되면 다시 incremnet로 +1 시킴 ->  쿠폰 0 개
                 if (remaining != null && remaining < 0) {
                     redisTemplate.opsForValue().increment(redisKey);
                 }
                 log.debug("쿠폰 {} Redis 재고 부족: remaining={}", couponId, remaining);
                 return false;
             }
-            
+
+            if (skipDbFinalize || asyncEnabled) {
+                return true;
+            }
+
             // Redis 통과 - 2단계: DB <- 최종 확정 100명만 여기 도착!
             return couponInventoryRepository.findWithLockByCouponId(couponId)
                     .map(inventory -> {
                         inventory.resetIfNeeded(LocalDate.now());
-                        
+
                         if (!inventory.hasAvailable()) {
                             // DB와 Redis 불일치 발견 - Redis 동기화
                             log.warn("쿠폰 {} Redis-DB 불일치 감지. Redis 0으로 초기화", couponId);
                             redisTemplate.opsForValue().set(redisKey, "0");
                             return false;
                         }
-                        
+
                         // DB에서 차감 성공
                         inventory.consumeOne();
-                        log.debug("쿠폰 {} 발급 성공 - DB 재고: {}, Redis 재고: {}", 
+                        log.debug("쿠폰 {} 발급 성공 - DB 재고: {}, Redis 재고: {}",
                                 couponId, inventory.getAvailableToday(), remaining);
                         return true;
                     })
@@ -143,5 +158,10 @@ public class CouponInventoryService {
             redisTemplate.opsForValue().set(redisKey, String.valueOf(inventory.getAvailableToday()));
             log.info("쿠폰 {} Redis 재고 동기화: {}", couponId, inventory.getAvailableToday());
         });
+    }
+
+    public void restoreRedisSlot(Long couponId) {
+        String redisKey = COUPON_STOCK_KEY_PREFIX + couponId;
+        redisTemplate.opsForValue().increment(redisKey);
     }
 }

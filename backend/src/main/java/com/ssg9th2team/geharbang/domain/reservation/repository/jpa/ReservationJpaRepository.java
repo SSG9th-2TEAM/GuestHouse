@@ -70,6 +70,14 @@ public interface ReservationJpaRepository
         int deleteCompletedReservation(@Param("reservationId") Long reservationId, @Param("now") LocalDateTime now);
 
         /**
+         * 취소된 예약 삭제 (Soft Delete)
+         * 상태가 9(취소)인 예약만 삭제 가능
+         */
+        @Modifying
+        @Query("UPDATE Reservation r SET r.isDeleted = true WHERE r.id = :reservationId AND r.reservationStatus = 9")
+        int deleteCancelledReservation(@Param("reservationId") Long reservationId);
+
+        /**
          * 같은 객실에 날짜가 겹치는 예약이 있는지 확인 (확정된 예약만)
          * 날짜 겹침 조건: 새 체크인 < 기존 체크아웃 AND 새 체크아웃 > 기존 체크인
          */

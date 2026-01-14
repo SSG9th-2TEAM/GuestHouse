@@ -56,6 +56,39 @@ const closeRoomImageModal = () => {
   roomModalImage.value = ''
   currentScale.value = 1
 }
+const isDescModalOpen = ref(false)
+const currentRoomDesc = ref('')
+
+const openDescModal = (desc) => {
+  currentRoomDesc.value = desc
+  isDescModalOpen.value = true
+}
+
+const closeDescModal = () => {
+  isDescModalOpen.value = false
+  currentRoomDesc.value = ''
+}
+
+const shouldShowMoreRoom = (room) => {
+  const intro = room?.introduction || ''
+  const desc = room?.description || ''
+  if (!intro && !desc) return false
+  const combined = [intro, desc].filter(Boolean).join('\n\n')
+  return combined.length > 80 || combined.includes('\n')
+}
+
+const shouldShowMore = (desc) => {
+  if (!desc) return false
+  // ??듭쟻??湲몄씠 泥댄겕 ?먮뒗 以꾨컮轅?臾몄옄 泥댄겕
+  return desc.length > 60 || desc.includes('\n')
+}
+
+const getFullDescription = (room) => {
+  const parts = []
+  if (room.introduction) parts.push(room.introduction)
+  if (room.description) parts.push(room.description)
+  return parts.join('\n\n')
+}
 </script>
 
 <template>
@@ -80,7 +113,19 @@ const closeRoomImageModal = () => {
         <div class="room-content">
           <div class="room-info">
             <h3>{{ room.name }}</h3>
-            <p>{{ room.desc }}</p>
+            <div class="room-text-info">
+              <p v-if="room.description" class="room-intro-text">{{ room.description }}</p>
+              <div v-if="room.introduction" class="room-desc-wrapper">
+                <p class="room-desc">{{ room.introduction }}</p>
+                <button 
+                  v-if="shouldShowMoreRoom(room)" 
+                  class="more-desc-btn" 
+                  @click.stop="openDescModal(getFullDescription(room))"
+                >
+                  더보기
+                </button>
+              </div>
+            </div>
             <span class="capacity">최대 {{ room.capacity }}명</span>
           </div>
           <div class="room-action">
@@ -103,7 +148,7 @@ const closeRoomImageModal = () => {
       </button>
     </div>
 
-    <!-- Unavailable Modal -->
+        <!-- Unavailable Modal -->
     <div v-if="isUnavailableModalOpen" class="modal-overlay" @click.self="isUnavailableModalOpen = false">
       <div class="modal-content unavailable-modal">
         <div class="modal-icon">🚫</div>
@@ -113,7 +158,7 @@ const closeRoomImageModal = () => {
       </div>
     </div>
 
-    <!-- Room Image Modal -->
+        <!-- Room Image Modal -->
     <div v-if="isRoomImageModalOpen" class="image-modal" @click="closeRoomImageModal">
       <div class="image-modal-content" @click.stop>
         <button class="image-modal-close" @click="closeRoomImageModal">닫기</button>
@@ -124,6 +169,15 @@ const closeRoomImageModal = () => {
           @wheel.prevent="handleWheel"
           :style="{ transform: `scale(${currentScale})`, transition: 'transform 0.1s ease-out' }"
         />
+      </div>
+    </div>
+
+    <!-- Description Modal -->
+    <div v-if="isDescModalOpen" class="modal-overlay" @click.self="closeDescModal">
+      <div class="modal-content desc-modal">
+        <h3>객실 소개</h3>
+        <p class="full-desc">{{ currentRoomDesc }}</p>
+        <button class="close-modal-btn" @click="closeDescModal">닫기</button>
       </div>
     </div>
   </div>
@@ -164,7 +218,8 @@ const closeRoomImageModal = () => {
 
 .room-media {
   flex: 0 0 320px; /* PC Fixed 320px */
-  height: 240px; /* PC Fixed 240px */
+  height: auto;
+  aspect-ratio: 4 / 3;
   border-radius: 10px;
   overflow: hidden;
   background: #e5e7eb;
@@ -201,12 +256,57 @@ const closeRoomImageModal = () => {
   min-width: 0;
 }
 
-.room-info h3 { margin: 0 0 0.3rem 0; font-size: 1.2rem; }
-.room-info p { color: #6b7280; font-size: 0.9rem; margin: 0 0 0.5rem 0; }
+.room-info h3 { margin: 0 0 0.5rem 0; font-size: 1.2rem; font-family: 'NanumSquareRound', sans-serif; }
+.room-text-info {
+  margin: 0 0 0.5rem 0;
+}
+.room-intro-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: 'NanumSquareRound', sans-serif;
+  color: #374151; /* gray-700 */
+  margin: 0 0 0.4rem 0;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.room-desc-wrapper {
+  margin: 0;
+}
+.room-desc { 
+  color: #6b7280; 
+  font-size: 0.9rem; 
+  margin: 0; 
+  line-height: 1.5;
+  word-break: break-all; /* 한글/영문 혼용 시 줄바꿈 처리 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2; /* 2줄까지만 표시 */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre-wrap; /* 줄바꿈은 인식되되 line-clamp로 자름 */
+}
+.more-desc-btn {
+  background: none;
+  border: none;
+  font-size: 0.8rem;
+  color: #999;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 2px;
+}
+.more-desc-btn:hover {
+  color: #666;
+}
+
 .capacity { font-size: 0.8rem; background: #eee; padding: 2px 6px; border-radius: 4px; }
 
 .room-action { text-align: right; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; }
-.price { font-weight: bold; font-size: 1.1rem; margin-bottom: 0.5rem; }
+.price { font-weight: bold; font-size: 1.1rem; margin-bottom: 0.5rem; font-family: 'NanumSquareRound', sans-serif; }
 
 .select-btn {
   padding: 0.5rem 1rem;
@@ -218,6 +318,7 @@ const closeRoomImageModal = () => {
   min-width: 72px;
   text-align: center;
   font-weight: 600;
+  font-family: 'NanumSquareRound', sans-serif;
 }
 .select-btn.active {
   background: #0f4c44;
@@ -282,6 +383,36 @@ const closeRoomImageModal = () => {
 }
 .close-modal-btn:hover { background: #f5f5f5; }
 
+/* Description Modal specific */
+.modal-content.desc-modal {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  text-align: left;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.desc-modal h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: center;
+}
+.full-desc {
+  white-space: pre-wrap; /* 원본 줄바꿈 적용 */
+  word-break: break-all;
+  line-height: 1.6;
+  color: #444;
+  font-size: 0.95rem;
+  overflow-y: auto;
+  flex: 1;
+  margin-bottom: 1rem;
+}
+
 /* Image Modal (Unified Style) */
 .image-modal {
   position: fixed;
@@ -325,6 +456,18 @@ const closeRoomImageModal = () => {
   cursor: pointer;
 }
 
+/* Tablet breakpoint */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .room-media {
+    flex: 0 0 200px;
+    aspect-ratio: 4 / 3;
+  }
+  .room-card {
+    gap: 1rem;
+    padding: 1rem;
+  }
+}
+
 @media (max-width: 768px) {
   .room-card {
     flex-direction: column;
@@ -334,7 +477,10 @@ const closeRoomImageModal = () => {
   .room-media {
     flex: none;
     width: 100%;
-    height: 180px;
+    max-width: 400px;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    margin: 0 auto;
   }
   .room-content {
     flex-direction: column;

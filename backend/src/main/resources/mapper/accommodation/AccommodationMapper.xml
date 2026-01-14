@@ -37,6 +37,7 @@
             <id property="roomId" column="roomId"/>
             <result property="roomName" column="roomName"/>
             <result property="roomDescription" column="roomDescription"/>
+            <result property="roomIntroduction" column="roomIntroduction"/>
             <result property="maxGuests" column="maxGuests"/>
             <result property="minGuests" column="minGuests"/>
             <result property="price" column="price"/>
@@ -283,6 +284,7 @@
             room_id AS roomId,
             room_name AS roomName,
             room_description AS roomDescription,
+            room_introduction AS roomIntroduction,
             max_guests AS maxGuests,
             min_guests AS minGuests,
             price,

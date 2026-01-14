@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDownloadableCoupons, issueCoupon, getMyCouponIds } from '@/api/couponApi'
-import { getAccessToken } from '@/api/authClient'
+import { getAccessToken, getUserId } from '@/api/authClient'
 
 const router = useRouter()
 const couponEvents = ref([])
@@ -13,8 +13,54 @@ const nextResetCountdown = ref('00:00:00')
 const countdownInterval = ref(null)
 const claimedCoupons = ref(new Set())
 const issuingMap = ref({})
+const isModalOpen = ref(false)
+const modalTitle = ref('')
+const modalMessage = ref('')
 
 const normalizeId = (value) => (value === null || value === undefined ? null : String(value))
+const claimedStorageKey = () => {
+  const userId = getUserId()
+  return userId ? `claimedCoupons:${userId}` : null
+}
+
+const getNextResetTs = () => {
+  const now = new Date()
+  const nextMidnight = new Date(now)
+  nextMidnight.setHours(24, 0, 0, 0)
+  return nextMidnight.getTime()
+}
+
+const loadLocalClaimedCoupons = () => {
+  const key = claimedStorageKey()
+  if (!key) return new Set()
+  const raw = sessionStorage.getItem(key)
+  if (!raw) return new Set()
+  try {
+    const data = JSON.parse(raw)
+    if (data?.expiresAt && Date.now() > data.expiresAt) {
+      sessionStorage.removeItem(key)
+      return new Set()
+    }
+    const ids = Array.isArray(data?.ids) ? data.ids : []
+    const normalized = ids
+      .map((id) => normalizeId(id))
+      .filter(Boolean)
+    return new Set(normalized)
+  } catch (error) {
+    console.warn('⚠️ [EventView] 로컬 쿠폰 데이터 파싱 실패:', error)
+    return new Set()
+  }
+}
+
+const saveLocalClaimedCoupons = (idsSet) => {
+  const key = claimedStorageKey()
+  if (!key) return
+  const payload = {
+    expiresAt: getNextResetTs(),
+    ids: Array.from(idsSet)
+  }
+  sessionStorage.setItem(key, JSON.stringify(payload))
+}
 
 const fetchCoupons = async () => {
   couponLoading.value = true
@@ -41,16 +87,23 @@ const fetchCoupons = async () => {
 }
 
 const loadClaimedCoupons = async () => {
+  if (!getAccessToken()) {
+    claimedCoupons.value = new Set()
+    return
+  }
   try {
     const ids = await getMyCouponIds()
     const normalized = new Set(
       (ids || [])
         .map((id) => normalizeId(id))
-        .filter((id) => id !== null)
+        .filter(Boolean)
     )
-    claimedCoupons.value = normalized
+    const merged = new Set(claimedCoupons.value)
+    normalized.forEach((id) => merged.add(id))
+    claimedCoupons.value = merged
+    saveLocalClaimedCoupons(merged)
   } catch (error) {
-    console.error('내 쿠폰 조회 실패:', error)
+    console.error('❌ [EventView] 쿠폰 목록 조회 실패:', error)
   }
 }
 
@@ -67,13 +120,12 @@ const startCountdown = () => {
 }
 
 const updateCountdown = async () => {
-  const now = new Date()
-  const nextMidnight = new Date(now)
-  nextMidnight.setHours(24, 0, 0, 0)
-  const diffMs = nextMidnight.getTime() - now.getTime()
+  const now = Date.now()
+  const diffMs = getNextResetTs() - now
   if (diffMs <= 0) {
     nextResetCountdown.value = '00:00:00'
     clearCountdown()
+    claimedCoupons.value = loadLocalClaimedCoupons()
     await fetchCoupons()
     await loadClaimedCoupons()
     startCountdown()
@@ -99,6 +151,25 @@ const isClaimed = (couponId) => {
   return key ? claimedCoupons.value.has(key) : false
 }
 
+const markClaimedCoupon = (couponId) => {
+  const key = normalizeId(couponId)
+  if (!key) return
+  const next = new Set(claimedCoupons.value)
+  next.add(key)
+  claimedCoupons.value = next
+  saveLocalClaimedCoupons(next)
+}
+
+const openModal = (title, message) => {
+  modalTitle.value = title
+  modalMessage.value = message
+  isModalOpen.value = true
+}
+
+const closeModal = () => {
+  isModalOpen.value = false
+}
+
 const handleClaimCoupon = async (coupon) => {
   if (!getAccessToken()) {
     alert('로그인이 필요한 서비스입니다.')
@@ -112,11 +183,17 @@ const handleClaimCoupon = async (coupon) => {
   issuingMap.value = { ...issuingMap.value, [key]: true }
   try {
     await issueCoupon(coupon.couponId)
-    await loadClaimedCoupons()
-    alert('쿠폰이 발급되었습니다. 쿠폰함에서 확인하세요.')
+    // 발급 성공 시 즉시 버튼 상태 업데이트 (새로고침 없이)
+    markClaimedCoupon(coupon.couponId)
+    // 백그라운드에서 쿠폰 목록 동기화
+    loadClaimedCoupons()
+    openModal('쿠폰 발급 완료', '쿠폰이 발급되었습니다. 쿠폰함에서 확인하세요.')
   } catch (error) {
     const message = error?.message || '쿠폰 발급에 실패했습니다.'
-    alert(message)
+    if (message.includes('이미 발급')) {
+      markClaimedCoupon(coupon.couponId)
+    }
+    openModal('쿠폰 발급 안내', message)
   } finally {
     const nextState = { ...issuingMap.value }
     delete nextState[key]
@@ -152,6 +229,7 @@ const formatPeriod = (start, end) => {
 }
 
 onMounted(async () => {
+  claimedCoupons.value = loadLocalClaimedCoupons()
   await fetchCoupons()
   await loadClaimedCoupons()
   await updateCountdown()
@@ -239,6 +317,14 @@ onUnmounted(() => {
       </article>
       </div>
     </section>
+
+    <div v-if="isModalOpen" class="event-modal-overlay" @click.self="closeModal">
+      <div class="event-modal-content" role="dialog" aria-modal="true">
+        <h3 class="event-modal-title">{{ modalTitle }}</h3>
+        <p class="event-modal-message">{{ modalMessage }}</p>
+        <button class="event-modal-btn" type="button" @click="closeModal">확인</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -433,6 +519,53 @@ onUnmounted(() => {
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+}
+
+.event-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.event-modal-content {
+  background: #fff;
+  border-radius: 18px;
+  padding: 24px 28px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
+}
+
+.event-modal-title {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  color: #0f172a;
+}
+
+.event-modal-message {
+  margin: 0 0 20px;
+  color: #475467;
+  white-space: pre-wrap;
+}
+
+.event-modal-btn {
+  border: none;
+  background: var(--brand-primary-strong, #6DC3BB);
+  color: var(--brand-on-primary, #0f172a);
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.event-modal-btn:hover {
+  background: var(--brand-primary, #BFE7DF);
 }
 
 @media (max-width: 640px) {

@@ -352,6 +352,22 @@ public class ReservationServiceImpl implements ReservationService {
 
         @Override
         @Transactional
+        public void deleteCancelledReservation(Long reservationId) {
+                Reservation r = reservationRepository.findById(reservationId)
+                                .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
+
+                if (r.getReservationStatus() != 9) {
+                        throw new IllegalArgumentException("취소된 예약만 삭제할 수 있습니다.");
+                }
+
+                int deleted = reservationRepository.deleteCancelledReservation(reservationId);
+                if (deleted == 0) {
+                        throw new IllegalArgumentException("예약 내역 삭제에 실패했습니다.");
+                }
+        }
+
+        @Override
+        @Transactional
         public int cleanupOldPendingReservations() {
                 // 10분 전 시간 계산
                 java.time.LocalDateTime cutoffTime = java.time.LocalDateTime.now().minusMinutes(10);
