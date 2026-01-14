@@ -291,11 +291,25 @@ public class AiAgentService {
             for (String pair : searchStr.split(",")) {
                 String[] kv = pair.split("=");
                 if (kv.length == 2) {
-                    switch (kv[0].trim()) {
-                        case "location" -> params.location = kv[1].trim();
-                        case "theme" -> params.theme = kv[1].trim();
-                        case "maxPrice" -> params.maxPrice = Integer.parseInt(kv[1].trim());
-                        case "guests" -> params.guests = Integer.parseInt(kv[1].trim());
+                    String key = kv[0].trim();
+                    String value = kv[1].trim();
+                    switch (key) {
+                        case "location" -> params.location = value;
+                        case "theme" -> params.theme = value;
+                        case "maxPrice" -> {
+                            try {
+                                params.maxPrice = Integer.parseInt(value);
+                            } catch (NumberFormatException e) {
+                                log.warn("Invalid maxPrice format from AI: {}", value);
+                            }
+                        }
+                        case "guests" -> {
+                            try {
+                                params.guests = Integer.parseInt(value);
+                            } catch (NumberFormatException e) {
+                                log.warn("Invalid guests format from AI: {}", value);
+                            }
+                        }
                     }
                 }
             }
@@ -366,33 +380,37 @@ public class AiAgentService {
     // ... (Existing variables)
 
     private List<AiAgentDto.AccommodationSummary> toSummaries(List<Accommodation> accommodations) {
-        return accommodations.stream()
-                .map(a -> {
-                    String thumbnailUrl = null;
-                    try {
-                        var fullInfo = accommodationMapper.selectAccommodationById(a.getAccommodationsId());
-                        if (fullInfo != null) {
-                            if (fullInfo.getMainImageUrl() != null) {
-                                thumbnailUrl = fullInfo.getMainImageUrl();
-                            } else if (fullInfo.getImages() != null && !fullInfo.getImages().isEmpty()) {
-                                thumbnailUrl = fullInfo.getImages().get(0).getImageUrl();
-                            }
-                        }
-                    } catch (Exception e) {
-                        log.warn("이미지 조회 실패: {}", a.getAccommodationsId());
-                    }
+        if (accommodations.isEmpty()) {
+            return Collections.emptyList();
+        }
 
-                    return AiAgentDto.AccommodationSummary.builder()
-                            .id(a.getAccommodationsId())
-                            .name(a.getAccommodationsName())
-                            .city(a.getCity())
-                            .district(a.getDistrict())
-                            .rating(a.getRating())
-                            .reviewCount(a.getReviewCount())
-                            .minPrice(a.getMinPrice())
-                            .thumbnailUrl(thumbnailUrl)
-                            .build();
-                })
+        List<Long> accommodationIds = accommodations.stream()
+                .map(Accommodation::getAccommodationsId)
+                .collect(Collectors.toList());
+
+        Map<Long, String> imageMap = new HashMap<>();
+        try {
+            List<com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationImageDto> images = accommodationMapper
+                    .selectMainImagesByAccommodationIds(accommodationIds);
+
+            for (var img : images) {
+                imageMap.put(img.getAccommodationsId(), img.getImageUrl());
+            }
+        } catch (Exception e) {
+            log.warn("이미지 일괄 조회 실패", e);
+        }
+
+        return accommodations.stream()
+                .map(a -> AiAgentDto.AccommodationSummary.builder()
+                        .id(a.getAccommodationsId())
+                        .name(a.getAccommodationsName())
+                        .city(a.getCity())
+                        .district(a.getDistrict())
+                        .rating(a.getRating())
+                        .reviewCount(a.getReviewCount())
+                        .minPrice(a.getMinPrice())
+                        .thumbnailUrl(imageMap.get(a.getAccommodationsId()))
+                        .build())
                 .collect(Collectors.toList());
     }
 }
