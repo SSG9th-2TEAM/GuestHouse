@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   latitude: {
@@ -153,8 +153,27 @@ const renderKakaoMap = async () => {
   })
 }
 
+let observer = null
+
 onMounted(() => {
-  renderKakaoMap()
+  if (!kakaoMapRef.value) return
+
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      renderKakaoMap()
+      observer.disconnect()
+      observer = null
+    }
+  }, { rootMargin: '200px' }) // 미리 로드하기 위해 200px 여유
+
+  observer.observe(kakaoMapRef.value)
+})
+
+onBeforeUnmount(() => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
 })
 
 watch(

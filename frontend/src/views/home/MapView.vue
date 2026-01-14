@@ -377,55 +377,7 @@ const syncMarkerFavoriteState = () => {
   })
 }
 
-const updateMarkers = () => {
-  if (!mapInstance.value) return
 
-  // Clear existing markers
-  activeOverlays.value.forEach(({ overlay }) => overlay.setMap(null))
-  activeOverlays.value = []
-
-  const itemsWithCoords = getItemsWithCoords()
-
-  if (selectedItem.value) {
-    const nextSelected = itemsWithCoords.find(item => item.id === selectedItem.value.id)
-    selectedItem.value = nextSelected || null
-  }
-
-  // Create new markers
-  itemsWithCoords.forEach(item => {
-    const position = new window.kakao.maps.LatLng(item.lat, item.lng)
-
-    // Custom Overlay Content
-    const content = document.createElement('div')
-    content.className = 'price-marker'
-    const isSelected = selectedItem.value && String(selectedItem.value.id) === String(item.id)
-    if (isSelected) {
-      content.classList.add('price-marker--active')
-    }
-    if (wishlistIds.value.has(item.id)) {
-      content.classList.add('price-marker--favorite')
-    }
-    content.innerHTML = `₩${item.price.toLocaleString()}`
-    
-    content.onclick = () => {
-      handleMarkerClick(item)
-    }
-
-    // Creating Custom Overlay
-    const customOverlay = new window.kakao.maps.CustomOverlay({
-      position: position,
-      content: content,
-      yAnchor: 1 
-    })
-
-    customOverlay.setMap(mapInstance.value)
-    activeOverlays.value.push({ overlay: customOverlay, element: content, itemId: item.id })
-  })
-
-  syncMarkerActiveState()
-  syncMarkerFavoriteState()
-  return itemsWithCoords
-}
 
 const getItemsWithCoords = () => {
   const minValue = searchStore.minPrice
@@ -498,26 +450,17 @@ onMounted(() => {
     return
   }
 
-  window.kakao.maps.load(() => {
-    if (!mapContainer.value) return
-
-    const savedState = route.query.from === 'list' ? null : loadMapState()
-    // Use level from query param as fallback (after login redirect)
-    const levelFromQuery = Number(route.query.level)
-    const effectiveLevel = savedState?.level ?? (Number.isFinite(levelFromQuery) ? levelFromQuery : 13)
-    if (savedState || route.query.selectedId) {
-      autoFitPending = false
-    }
-
-    const options = {
-      center: savedState
-        ? new window.kakao.maps.LatLng(savedState.lat, savedState.lng)
-        : new window.kakao.maps.LatLng(36.5, 127.8), // Center of South Korea approximate
-      level: effectiveLevel,
-      draggable: true
-    }
+    const clusterer = ref(null)
 
     mapInstance.value = new window.kakao.maps.Map(mapContainer.value, options)
+
+    // Initialize Clusterer
+    clusterer.value = new window.kakao.maps.MarkerClusterer({
+      map: mapInstance.value,
+      averageCenter: true,
+      minLevel: 8, // 클러스터링을 적용할 최소 레벨 (8레벨 이상부터 클러스터링)
+      disableClickZoom: false, // 클러스터 클릭 시 줌 동작 허용
+    })
 
     const disableAutoFit = () => {
       autoFitPending = false
@@ -526,14 +469,127 @@ onMounted(() => {
     window.kakao.maps.event.addListener(mapInstance.value, 'dragstart', disableAutoFit)
     window.kakao.maps.event.addListener(mapInstance.value, 'zoom_start', disableAutoFit)
 
-    window.kakao.maps.event.addListener(mapInstance.value, 'idle', () => {
-      scheduleLoad()
+    // 줌 레벨 변경 시 렌더링 모드 전환 (클러스터 <-> 가격표)
+    window.kakao.maps.event.addListener(mapInstance.value, 'zoom_changed', () => {
+      updateMarkers()
     })
 
-    // Initial render
+    // 드래그 종료 시 (화면 이동) -> 가격표 모드일 때 뷰포트 컬링 재계산
+    window.kakao.maps.event.addListener(mapInstance.value, 'dragend', () => {
+      const level = mapInstance.value.getLevel()
+      if (level < 9) { // 가격표 모드일 때만 재계산
+        updateMarkers()
+      }
+      scheduleLoad() // 데이터 추가 로딩 체크
+    })
+
+    // 초기 로드
     scheduleLoad()
   })
-})
+
+const renderClusterMode = (itemsWithCoords) => {
+  if (!clusterer.value) return
+  
+  // 기존 오버레이(가격표) 모두 제거
+  activeOverlays.value.forEach(({ overlay }) => overlay.setMap(null))
+  activeOverlays.value = []
+
+  // 클러스터러에 마커 추가
+  clusterer.value.clear()
+  
+  const markers = itemsWithCoords.map(item => {
+    const marker = new window.kakao.maps.Marker({
+      position: new window.kakao.maps.LatLng(item.lat, item.lng)
+    })
+    // 마커 클릭 시 상세 카드 오픈 등의 동작 연결 가능 (필요 시)
+    window.kakao.maps.event.addListener(marker, 'click', () => {
+       handleMarkerClick(item)
+    })
+    return marker
+  })
+  
+  clusterer.value.addMarkers(markers)
+}
+
+const renderOverlayMode = (itemsWithCoords) => {
+  if (!mapInstance.value) return
+  
+  // 클러스터러 데이터 제거
+  if (clusterer.value) {
+    clusterer.value.clear()
+  }
+
+  const bounds = mapInstance.value.getBounds()
+  
+  // 1. 현재 화면(Bounds)에 들어오는 아이템만 필터링 (Viewport Culling)
+  const visibleItems = itemsWithCoords.filter(item => {
+    const latlng = new window.kakao.maps.LatLng(item.lat, item.lng)
+    return bounds.contain(latlng)
+  })
+
+  // 2. 기존 오버레이 중, 더 이상 화면에 없는 것은 제거
+  // (성능 최적화를 위해 전체 제거 후 다시 그리기보다 Diffing이 좋지만, 
+  //  구현 복잡도를 줄이기 위해 일단 전체 정리 후 렌더링 - 갯수가 적으므로 괜찮음)
+  activeOverlays.value.forEach(({ overlay }) => overlay.setMap(null))
+  activeOverlays.value = []
+
+  // 3. 보이는 아이템만 CustomOverlay 생성
+  visibleItems.forEach(item => {
+    const position = new window.kakao.maps.LatLng(item.lat, item.lng)
+
+    // Custom Overlay Content
+    const content = document.createElement('div')
+    content.className = 'price-marker'
+    const isSelected = selectedItem.value && String(selectedItem.value.id) === String(item.id)
+    if (isSelected) {
+      content.classList.add('price-marker--active')
+    }
+    if (wishlistIds.value.has(item.id)) {
+      content.classList.add('price-marker--favorite')
+    }
+    content.innerHTML = `₩${item.price.toLocaleString()}`
+    
+    content.onclick = () => {
+      handleMarkerClick(item)
+    }
+
+    const customOverlay = new window.kakao.maps.CustomOverlay({
+      position: position,
+      content: content,
+      yAnchor: 1 
+    })
+
+    customOverlay.setMap(mapInstance.value)
+    activeOverlays.value.push({ overlay: customOverlay, element: content, itemId: item.id })
+  })
+
+  syncMarkerActiveState()
+  syncMarkerFavoriteState()
+}
+
+const updateMarkers = () => {
+  if (!mapInstance.value) return
+  
+  const itemsWithCoords = getItemsWithCoords()
+  if (selectedItem.value) {
+    const nextSelected = itemsWithCoords.find(item => item.id === selectedItem.value.id)
+    selectedItem.value = nextSelected || null
+  }
+
+  // 줌 레벨 확인
+  const level = mapInstance.value.getLevel()
+  
+  // 레벨이 높으면(줌 아웃) -> 클러스터 모드 (단순 마커 + 클러스터학)
+  // 레벨이 낮으면(줌 인) -> 오버레이 모드 (가격표 + 뷰포트 컬링)
+  // 기준 레벨: 9 (테스트해보고 조정 가능)
+  if (level >= 9) {
+    renderClusterMode(itemsWithCoords)
+  } else {
+    renderOverlayMode(itemsWithCoords)
+  }
+  
+  return itemsWithCoords
+}
 
 onBeforeUnmount(() => {
   saveMapState()
