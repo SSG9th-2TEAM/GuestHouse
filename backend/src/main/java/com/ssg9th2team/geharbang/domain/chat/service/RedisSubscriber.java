@@ -23,7 +23,7 @@ public class RedisSubscriber {
      */
     public void sendMessage(String publishMessage) {
         try {
-            log.debug("Redis received message: {}", publishMessage);
+            log.info("Redis received message: {}", publishMessage);
             JsonNode jsonNode = objectMapper.readTree(publishMessage);
             Long roomId = null;
             Object messageToSend = null;
@@ -43,8 +43,9 @@ public class RedisSubscriber {
 
             if (roomId != null && messageToSend != null) {
                 // WebSocket 구독자에게 채팅방별로 메시지 전송
-                log.debug("Sending message to WS topic /topic/chatroom/{}: {}", roomId, messageToSend);
+                log.info("Sending message to WS topic /topic/chatroom/{}: {}", roomId, messageToSend);
                 messagingTemplate.convertAndSend("/topic/chatroom/" + roomId, messageToSend);
+                log.info("Message sent successfully to /topic/chatroom/{}", roomId);
             } else {
                 log.warn("Invalid message format received from Redis. RoomId or Message is null. Raw: {}", publishMessage);
             }
