@@ -11,7 +11,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public interface SearchRepository extends JpaRepository<Accommodation, Long> {
+public interface SearchRepository extends JpaRepository<Accommodation, Long>, SearchRepositoryCustom {
     @Query(value = """
             SELECT DISTINCT a.accommodations_name
             FROM accommodation a
