@@ -45,6 +45,16 @@ public interface AccommodationMapper {
 
     void deleteAccommodationThemes(@Param("accommodationsId") Long accommodationsId); // 테마 삭제
 
+    // ===== 일괄 삭제 (N+1 문제 해결) =====
+
+    void deleteAccommodations(@Param("accommodationIds") List<Long> accommodationIds);
+
+    void deleteAccommodationImagesIn(@Param("accommodationIds") List<Long> accommodationIds);
+
+    void deleteAccommodationAmenitiesIn(@Param("accommodationIds") List<Long> accommodationIds);
+
+    void deleteAccommodationThemesIn(@Param("accommodationIds") List<Long> accommodationIds);
+
     // 숙소 대표 이미지 조회 (sort_order = 0)
     String selectMainImageUrl(@Param("accommodationsId") Long accommodationsId);
 

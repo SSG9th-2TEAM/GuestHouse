@@ -11,7 +11,7 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,8 +31,9 @@ public class RealtimeChatService {
     private final RealtimeChatRoomRepository chatRoomRepository;
     private final RealtimeChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
-    private final SimpMessagingTemplate messagingTemplate;
     private final AccommodationMapper accommodationMapper;
+    private final RedisPublisher redisPublisher;
+    private final ChannelTopic channelTopic;
 
     // 유저의 채팅방 목록 조회
     @Transactional(readOnly = true)
@@ -188,8 +189,8 @@ public class RealtimeChatService {
 
         // 채팅방 전체에 읽음 알림 브로드캐스트 (해당 방을 구독 중인 모든 사용자가 수신)
         log.info("Broadcasting read receipt to room {} by user {}", roomId, readerUserId);
-        messagingTemplate.convertAndSend(
-                "/topic/chatroom/" + roomId,
+        redisPublisher.publish(
+                channelTopic,
                 Map.of(
                         "type", "MESSAGES_READ",
                         "roomId", roomId,

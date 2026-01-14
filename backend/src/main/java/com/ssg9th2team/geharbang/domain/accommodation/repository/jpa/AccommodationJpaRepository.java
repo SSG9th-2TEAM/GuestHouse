@@ -74,4 +74,5 @@ public interface AccommodationJpaRepository
                         """)
         List<Accommodation> findByLocation(@Param("location") String location);
 
+        List<Accommodation> findByUserId(Long userId);
 }
