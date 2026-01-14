@@ -136,7 +136,7 @@ jobs:
         # Public 서버에서 Private 서버로 전송 및 Docker 이미지 Pull & 재시작
         ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.PUBLIC_SERVER_IP }} << 'EOF'
           scp /tmp/docker-compose.yml root@${{ secrets.PRIVATE_SERVER_IP }}:~/applications/thismo/
-          ssh root@${{ secrets.PRIVATE_SERVER_IP }} "cd ~/applications/thismo && docker-compose pull && docker-compose up -d"
+          ssh root@${{ secrets.PRIVATE_SERVER_IP }} "cd ~/applications/thismo && docker-compose pull && docker-compose up -d && docker system prune -a -f"
           rm /tmp/docker-compose.yml
         EOF
 

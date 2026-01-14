@@ -5,8 +5,7 @@ services:
     restart: always
     ports:
       - "6379:6379"
-    networks:
-      - mysql_default
+
     command: redis-server --appendonly yes
     logging:
       driver: "json-file"
@@ -27,7 +26,7 @@ services:
     environment:
       - REDIS_HOST=redis
       - GOOGLE_CLOUD_CREDENTIALS_LOCATION=file:/app/googlevision/ocr-test-480914-b8a930bfbdc0.json
-      - DB_HOST=mysql
+      - DB_HOST=${DB_HOST}
       - DB_PORT=3306
     logging:
       driver: "json-file"
@@ -36,13 +35,9 @@ services:
         max-file: "3"
     volumes:
       - ./googlevision:/app/googlevision
-    networks:
-      - mysql_default
+
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       - redis
 
-networks:
-  mysql_default:
-    external: true
