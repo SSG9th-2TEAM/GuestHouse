@@ -26,19 +26,21 @@ public class JwtTokenProvider {
     private final SecretKey key;/// 암호화에 사용할 비밀 키
     private final long accessTokenExpiration;/// Access 토큰 유효 시간
     private final long refreshTokenExpiration;/// Refresh 토큰 유효 시간
+    private final CustomUserDetailsService userDetailsService;
 
     /// 생성자 application.properties에 적은 설정값들을 가져와 초기화
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secretKey,/// 비밀키
             @Value("${jwt.access-token-expiration}") long accessTokenExpiration,/// 접근토큰
-            @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration) {/// 리프래시 토큰
-
+            @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration,/// 리프래시 토큰
+            CustomUserDetailsService userDetailsService) {
 
         /// BASE 64로 인코딩된 비밀키를 디코딩해서 실제 암호화 키 객체로 만들기
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         this.key = Keys.hmacShaKeyFor(keyBytes);
         this.accessTokenExpiration = accessTokenExpiration;
         this.refreshTokenExpiration = refreshTokenExpiration;
+        this.userDetailsService = userDetailsService;
     }
 
     /// Access Token 생성
@@ -78,17 +80,10 @@ public class JwtTokenProvider {
             throw new RuntimeException("권한 정보가 없는 토큰입니다.");///오류 던져
         }
 
-        /// Spring Security에서 권한을 GrantedAuthority라는 객체로 관리
-        /// 권한 목록 생성
-        Collection<? extends GrantedAuthority> authorities =
-                Arrays.stream(claims.get("auth").toString().split(","))
-                        .map(SimpleGrantedAuthority::new)
-                        .collect(Collectors.toList());
+        // DB에서 사용자 정보 로드 (CustomUserDetails 반환)
+        UserDetails userDetails = userDetailsService.loadUserByUsername(claims.getSubject());
 
-        /// 사용자 객체 생성 (UserDetails) 검증된 유저 정보를 담은 신분증
-        UserDetails principal = new User(claims.getSubject(), "", authorities);
-
-        return new UsernamePasswordAuthenticationToken(principal, "", authorities);
+        return new UsernamePasswordAuthenticationToken(userDetails, "", userDetails.getAuthorities());
     }
 
     // 토큰 검증`
