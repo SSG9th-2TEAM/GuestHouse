@@ -8,7 +8,6 @@ import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.dto.MainAccommodationListResponse;
-import com.ssg9th2team.geharbang.domain.main.repository.AccommodationListProjection;
 import com.ssg9th2team.geharbang.domain.main.repository.MainRepository;
 import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
@@ -99,28 +98,15 @@ public class MainServiceTest {
         AccommodationTheme at2_3 = new AccommodationTheme(acc2, theme3);
         AccommodationTheme at3_3 = new AccommodationTheme(acc3, theme3);
 
-        List<AccommodationListProjection> allProjections = allAccommodations.stream()
-                .map(this::mockProjection).toList();
-        List<AccommodationListProjection> oceanViewProjections = List.of(acc1, acc2).stream()
-                .map(this::mockProjection).toList();
-        List<AccommodationListProjection> busanProjections = List.of(acc1, acc3).stream()
-                .map(this::mockProjection).toList();
-        List<AccommodationListProjection> partyProjections = List.of(acc1).stream()
-                .map(this::mockProjection).toList();
-
-        lenient()
-                .when(mainRepository.findAllProjectedByAccommodationStatusAndApprovalStatus(1, ApprovalStatus.APPROVED))
-                .thenReturn(allProjections);
-        lenient().when(mainRepository.findApprovedByKeyword("오션뷰")).thenReturn(oceanViewProjections);
-        lenient().when(mainRepository.findApprovedByKeyword("부산")).thenReturn(busanProjections);
-        lenient().when(mainRepository.findApprovedByKeyword("파티")).thenReturn(partyProjections);
+        lenient().when(mainRepository.findByAccommodationStatusAndApprovalStatus(1, ApprovalStatus.APPROVED)).thenReturn(allAccommodations);
+        lenient().when(mainRepository.findApprovedByKeyword("오션뷰")).thenReturn(List.of(acc1, acc2));
+        lenient().when(mainRepository.findApprovedByKeyword("부산")).thenReturn(List.of(acc1, acc3));
+        lenient().when(mainRepository.findApprovedByKeyword("파티")).thenReturn(List.of(acc1));
         lenient().when(userRepository.findById(1L)).thenReturn(Optional.of(userWithThemes));
         lenient().when(userRepository.findById(2L)).thenReturn(Optional.of(userWithoutThemes));
-        lenient().when(accommodationThemeRepository.findByAccommodationIds(anyList()))
-                .thenReturn(List.of(at1_1, at1_2, at2_1, at2_3, at3_3));
+        lenient().when(accommodationThemeRepository.findByAccommodationIds(anyList())).thenReturn(List.of(at1_1, at1_2, at2_1, at2_3, at3_3));
         lenient().when(mainRepository.findRepresentativeImages(anyList())).thenReturn(Collections.emptyList());
-        lenient().when(roomJpaRepository.findMaxGuestsByAccommodationIds(anyList()))
-                .thenReturn(Collections.emptyList());
+        lenient().when(roomJpaRepository.findMaxGuestsByAccommodationIds(anyList())).thenReturn(Collections.emptyList());
     }
 
     @Test
@@ -153,16 +139,13 @@ public class MainServiceTest {
     @Test
     @DisplayName("테마 필터 사용 시 추천 로직은 무시되고 필터링된 결과만 반환된다")
     void testFilteringWithThemeIds() {
-        List<AccommodationListProjection> topicProjections = List.of(acc2, acc3).stream()
-                .map(this::mockProjection).toList();
-        when(mainRepository.findByThemeIds(anyList())).thenReturn(topicProjections);
+        when(mainRepository.findByThemeIds(anyList())).thenReturn(List.of(acc2, acc3));
 
         MainAccommodationListResponse response = mainService.getMainAccommodationList(1L, List.of(3L), null);
 
         assertThat(response.getRecommendedAccommodations()).isEmpty();
         assertThat(response.getGeneralAccommodations()).hasSize(2);
-        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccommodationsName)
-                .collect(Collectors.toList());
+        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccommodationsName).collect(Collectors.toList());
         assertThat(names).containsExactlyInAnyOrder("조용한 오션뷰 숙소", "숲속의 조용한 집");
     }
 
@@ -172,8 +155,7 @@ public class MainServiceTest {
         MainAccommodationListResponse response = mainService.getMainAccommodationList(2L, null, "오션뷰");
 
         assertThat(response.getRecommendedAccommodations()).isEmpty();
-        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccommodationsName)
-                .collect(Collectors.toList());
+        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccommodationsName).collect(Collectors.toList());
         assertThat(names).containsExactlyInAnyOrder("오션뷰 파티하우스", "조용한 오션뷰 숙소");
     }
 
@@ -183,17 +165,14 @@ public class MainServiceTest {
         MainAccommodationListResponse response = mainService.getMainAccommodationList(2L, null, "부산");
 
         assertThat(response.getRecommendedAccommodations()).isEmpty();
-        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccommodationsName)
-                .collect(Collectors.toList());
+        List<String> names = response.getGeneralAccommodations().stream().map(ListDto::getAccommodationsName).collect(Collectors.toList());
         assertThat(names).containsExactlyInAnyOrder("오션뷰 파티하우스", "숲속의 조용한 집");
     }
 
     @Test
     @DisplayName("검색어와 테마 필터를 함께 사용하면 교집합만 반환된다")
     void testFilteringWithKeywordAndThemeIds() {
-        List<AccommodationListProjection> filteredProjections = List.of(acc2).stream()
-                .map(this::mockProjection).toList();
-        when(mainRepository.findByThemeIdsAndKeyword(eq(List.of(3L)), eq("오션뷰"))).thenReturn(filteredProjections);
+        when(mainRepository.findByThemeIdsAndKeyword(eq(List.of(3L)), eq("오션뷰"))).thenReturn(List.of(acc2));
 
         MainAccommodationListResponse response = mainService.getMainAccommodationList(1L, List.of(3L), "오션뷰");
 
@@ -210,18 +189,5 @@ public class MainServiceTest {
         assertThat(response.getRecommendedAccommodations()).hasSize(1);
         assertThat(response.getRecommendedAccommodations().get(0).getAccommodationsName()).isEqualTo("오션뷰 파티하우스");
         assertThat(response.getGeneralAccommodations()).isEmpty();
-    }
-
-    private AccommodationListProjection mockProjection(Accommodation acc) {
-        AccommodationListProjection mock = org.mockito.Mockito.mock(AccommodationListProjection.class);
-        lenient().when(mock.getAccommodationsId()).thenReturn(acc.getAccommodationsId());
-        lenient().when(mock.getAccommodationsName()).thenReturn(acc.getAccommodationsName());
-        lenient().when(mock.getCity()).thenReturn(acc.getCity());
-        lenient().when(mock.getDistrict()).thenReturn(acc.getDistrict());
-        lenient().when(mock.getTownship()).thenReturn(acc.getTownship());
-        lenient().when(mock.getRating()).thenReturn(acc.getRating());
-        lenient().when(mock.getReviewCount()).thenReturn(acc.getReviewCount());
-        // Add other necessary getters if used by BaseMainService
-        return mock;
     }
 }

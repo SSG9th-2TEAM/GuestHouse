@@ -2,13 +2,12 @@ package com.ssg9th2team.geharbang.domain.search.service;
 
 import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
+import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
 import com.ssg9th2team.geharbang.domain.search.dto.SearchResolveResponse;
-import com.ssg9th2team.geharbang.domain.search.dto.SearchSortType;
 import com.ssg9th2team.geharbang.domain.search.dto.SearchSuggestionResponse;
 import com.ssg9th2team.geharbang.domain.search.repository.SearchRepository;
 import com.ssg9th2team.geharbang.domain.search.repository.SearchResolveProjection;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -17,14 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.jpa.domain.JpaSort;
+import org.springframework.data.domain.Sort;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class SearchServiceImpl implements SearchService {
-
-    // 검색 제안 상수
-    private static final int MAX_SUGGESTION_LIMIT = 20;
-    private static final int MIN_KEYWORD_LENGTH = 2;
 
     private final SearchRepository searchRepository;
 
@@ -45,9 +43,34 @@ public class SearchServiceImpl implements SearchService {
             Integer maxPrice,
             boolean includeUnavailable,
             String sort) {
-        SearchSortType sortType = SearchSortType.fromValue(sort);
-        PageRequest pageable = PageRequest.of(page, size, sortType.toSort());
+        Sort sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
+        if (sort != null && !sort.isEmpty()) {
+            switch (sort) {
+                case "reviews":
+                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "reviewCount");
+                    break;
+                case "rating":
+                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "rating");
+                    break;
+                case "priceHigh":
+                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "minPrice");
+                    break;
+                case "priceLow":
+                    sortObj = JpaSort.unsafe(Sort.Direction.ASC, "minPrice");
+                    break;
+                case "recommended":
+                default:
+                    if ("recommended".equals(sort)) {
+                        sortObj = JpaSort.unsafe(Sort.Direction.DESC, "(bayesianScore)");
+                    } else {
+                        sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
+                    }
+                    break;
+            }
+        }
+        PageRequest pageable = PageRequest.of(page, size, sortObj);
         String normalizedKeyword = normalizeKeyword(keyword);
+        Page<ListDtoProjection> resultPage;
 
         boolean hasBounds = minLat != null && maxLat != null && minLng != null && maxLng != null;
         boolean hasStayDates = checkin != null && checkout != null;
@@ -62,37 +85,122 @@ public class SearchServiceImpl implements SearchService {
             east = Math.max(minLng, maxLng);
         }
 
-        var resultPage = searchRepository.searchDynamic(
-                themeIds,
-                normalizedKeyword,
-                south,
-                north,
-                west,
-                east,
-                checkin,
-                checkout,
-                guestCount,
-                minPrice,
-                maxPrice,
-                includeUnavailable,
-                pageable);
+        boolean hasThemes = themeIds != null && !themeIds.isEmpty();
+        if (hasStayDates) {
+            if (hasThemes && hasBounds) {
+                resultPage = searchRepository.searchPublicListByThemeAndBounds(
+                        themeIds,
+                        normalizedKeyword,
+                        south,
+                        north,
+                        west,
+                        east,
+                        checkin,
+                        checkout,
+                        guestCount,
+                        minPrice,
+                        maxPrice,
+                        includeUnavailable,
+                        pageable);
+            } else if (hasThemes) {
+                resultPage = searchRepository.searchPublicListByTheme(
+                        themeIds,
+                        normalizedKeyword,
+                        checkin,
+                        checkout,
+                        guestCount,
+                        minPrice,
+                        maxPrice,
+                        includeUnavailable,
+                        pageable);
+            } else if (hasBounds) {
+                resultPage = searchRepository.searchPublicListByBounds(
+                        normalizedKeyword,
+                        south,
+                        north,
+                        west,
+                        east,
+                        checkin,
+                        checkout,
+                        guestCount,
+                        minPrice,
+                        maxPrice,
+                        includeUnavailable,
+                        pageable);
+            } else {
+                resultPage = searchRepository.searchPublicList(
+                        normalizedKeyword,
+                        checkin,
+                        checkout,
+                        guestCount,
+                        minPrice,
+                        maxPrice,
+                        includeUnavailable,
+                        pageable);
+            }
+        } else {
+            if (hasThemes && hasBounds) {
+                resultPage = searchRepository.searchPublicListByThemeAndBoundsNoDates(
+                        themeIds,
+                        normalizedKeyword,
+                        south,
+                        north,
+                        west,
+                        east,
+                        guestCount,
+                        minPrice,
+                        maxPrice,
+                        includeUnavailable,
+                        pageable);
+            } else if (hasThemes) {
+                resultPage = searchRepository.searchPublicListByThemeNoDates(
+                        themeIds,
+                        normalizedKeyword,
+                        guestCount,
+                        minPrice,
+                        maxPrice,
+                        includeUnavailable,
+                        pageable);
+            } else if (hasBounds) {
+                resultPage = searchRepository.searchPublicListByBoundsNoDates(
+                        normalizedKeyword,
+                        south,
+                        north,
+                        west,
+                        east,
+                        guestCount,
+                        minPrice,
+                        maxPrice,
+                        includeUnavailable,
+                        pageable);
+            } else {
+                resultPage = searchRepository.searchPublicListNoDates(
+                        normalizedKeyword,
+                        guestCount,
+                        minPrice,
+                        maxPrice,
+                        includeUnavailable,
+                        pageable);
+            }
+        }
 
-        return PublicListResponse.of(
-                resultPage.getContent(),
-                resultPage);
+        List<ListDto> items = resultPage.getContent().stream()
+                .map(this::toListDto)
+                .toList();
+
+        return PublicListResponse.of(items, resultPage);
     }
 
     @Override
-    @Cacheable(value = "searchSuggestions", key = "#keyword", unless = "#keyword == null || #keyword.length() < 2")
     public List<SearchSuggestionResponse> suggestPublicSearch(String keyword, int limit) {
         String normalizedKeyword = normalizeKeyword(keyword);
-        if (normalizedKeyword == null || normalizedKeyword.length() < MIN_KEYWORD_LENGTH) {
+        if (normalizedKeyword == null || normalizedKeyword.length() < 2) {
             return List.of();
         }
         if (limit <= 0) {
             return List.of();
         }
-        int safeLimit = Math.min(limit, MAX_SUGGESTION_LIMIT);
+        int safeLimit = Math.min(limit, 20);
         int regionLimit = (safeLimit + 1) / 2;
         int accommodationLimit = safeLimit / 2;
 
@@ -109,8 +217,8 @@ public class SearchServiceImpl implements SearchService {
                         .map(SearchSuggestionResponse::region),
                 accommodationNames.stream()
                         .filter(name -> name != null && !name.trim().isEmpty())
-                        .map(SearchSuggestionResponse::accommodation))
-                .toList();
+                        .map(SearchSuggestionResponse::accommodation)
+        ).toList();
     }
 
     @Override
@@ -135,5 +243,23 @@ public class SearchServiceImpl implements SearchService {
         }
         String normalized = keyword.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private ListDto toListDto(ListDtoProjection projection) {
+        return ListDto.builder()
+                .accommodationsId(projection.getAccommodationsId())
+                .accommodationsName(projection.getAccommodationsName())
+                .shortDescription(projection.getShortDescription())
+                .city(projection.getCity())
+                .district(projection.getDistrict())
+                .township(projection.getTownship())
+                .latitude(projection.getLatitude())
+                .longitude(projection.getLongitude())
+                .minPrice(projection.getMinPrice())
+                .rating(projection.getRating())
+                .reviewCount(projection.getReviewCount())
+                .maxGuests(projection.getMaxGuests())
+                .imageUrl(projection.getImageUrl())
+                .build();
     }
 }
