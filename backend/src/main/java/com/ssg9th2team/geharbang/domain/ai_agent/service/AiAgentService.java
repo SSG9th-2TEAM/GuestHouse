@@ -40,11 +40,21 @@ public class AiAgentService {
     @Value("${GEMINI_API_KEY:}")
     private String geminiApiKey;
 
-    @Value("${GEMINI_MODEL:gemini-1.5-flash}")
+    @Value("${GEMINI_MODEL:gemini-flash-latest}")
     private String geminiModel;
 
     @Value("${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}")
     private String geminiBaseUrl;
+
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        log.info("AiAgentService initialized with Model: {}", geminiModel);
+        String maskedKey = (geminiApiKey != null && geminiApiKey.length() > 8)
+                ? geminiApiKey.substring(0, 4) + "****" + geminiApiKey.substring(geminiApiKey.length() - 4)
+                : "NULL/SHORT";
+        log.info("AiAgentService API Key: {}", maskedKey);
+        log.info("AiAgentService Base URL: {}", geminiBaseUrl);
+    }
 
     private static final String SYSTEM_PROMPT = """
             당신은 제주도 게스트하우스/숙소 추천 전문 AI 어시스턴트 "지금이곳"입니다.
@@ -61,9 +71,10 @@ public class AiAgentService {
 
             응답 규칙:
             1. 항상 친근하고 도움이 되는 톤으로 응답하세요
-            2. 숙소 검색이 필요하면 [SEARCH] 태그 사용: [SEARCH:location=애월,theme=PARTY,maxPrice=100000]
-            3. 숙소 추천 시 간단한 설명과 함께 추천 이유를 설명하세요
-            4. 사용자가 더 자세한 정보를 원하면 제공하세요
+            2. 숙소 검색이 필요하면 **반드시** [SEARCH] 태그를 먼저 출력하세요.
+               예시: [SEARCH:location=애월,theme=PARTY,maxPrice=100000,guests=2]
+            3. [SEARCH] 태그 없이 특정 숙소 이름(예: '달빛마당 펜션')을 절대 지어내서 추천하지 마세요.
+            4. 사용자가 조건을 말하면 조건을 분석해서 [SEARCH] 태그를 생성하는 것이 최우선입니다.
             5. 예약이나 결제는 서비스 내에서 진행하도록 안내하세요
             """;
 
