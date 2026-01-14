@@ -5,6 +5,8 @@ import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
 import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
 import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
 import com.ssg9th2team.geharbang.domain.review.repository.mybatis.ReviewMapper;
+import com.ssg9th2team.geharbang.domain.room.entity.Room;
+import com.ssg9th2team.geharbang.domain.room.repository.jpa.RoomJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,7 @@ public class AccommodationAiSummaryService {
     private final AccommodationJpaRepository accommodationRepository;
     private final ReviewMapper reviewMapper;
     private final ReviewJpaRepository reviewRepository;
+    private final RoomJpaRepository roomRepository;
 
     private static final Map<String, String> TIP_MAP = Map.of(
             "파티", "파티 참석을 원하시면 미리 신청하세요! 새로운 만남이 기다리고 있습니다.",
@@ -54,6 +57,32 @@ public class AccommodationAiSummaryService {
         List<String> topTags = reviewMapper.selectTop3TagsByAccommodationId(accommodationId);
         long reviewCount = reviewRepository.countByAccommodationsIdAndIsDeletedFalse(accommodationId);
 
+        // 2. 가격 및 객실 정보 조회 (다차원 분석)
+        List<Room> rooms = roomRepository.findByAccommodationsId(accommodationId);
+        int minPrice = rooms.stream()
+                .mapToInt(Room::getPrice)
+                .min()
+                .orElse(0);
+        boolean hasDormitory = rooms.stream()
+                .anyMatch(room -> room.getRoomName().contains("도미토리"));
+
+        // 가격대별 멘트
+        String priceMent;
+        if (minPrice <= 30000) {
+            priceMent = "갓성비! 부담 없이 머물기 좋은 알뜰 숙소";
+        } else if (minPrice <= 80000) {
+            priceMent = "가격과 시설의 균형이 잡힌 합리적인 숙소";
+        } else {
+            priceMent = "특별한 날을 위한 프리미엄 감성 숙소";
+        }
+
+        // 타겟 추천 멘트
+        String targetMent = hasDormitory ? "혼자 온 여행객도 어색하지 않은 분위기" : "프라이빗한 휴식을 원하는 분들에게 추천";
+        
+        // Introduction 조합 (HTML 태그 사용)
+        String introMent = String.format("이곳은 <strong>%s</strong>로, <strong>%s</strong>입니다.", priceMent, targetMent);
+
+
         List<String> keywords = new ArrayList<>();
         String moodDescription;
         String tip = DEFAULT_TIP;
@@ -65,9 +94,9 @@ public class AccommodationAiSummaryService {
                     .collect(Collectors.toList());
 
             String firstTag = topTags.get(0);
-
-            // 문맥 인식 분위기 설명 생성
-            moodDescription = generateMoodDescription(topTags);
+            
+            // 문맥 인식 분위기 설명 생성 (Intro + Tag 분석)
+            moodDescription = introMent + " " + generateMoodDescription(topTags);
 
             // 팁 생성 (Map 활용)
             for (Map.Entry<String, String> entry : TIP_MAP.entrySet()) {
@@ -82,22 +111,22 @@ public class AccommodationAiSummaryService {
             if (description.contains("파티")) {
                 keywords.add("#파티맛집");
                 keywords.add("#새로운만남");
-                moodDescription = "활기찬 에너지와 새로운 만남이 있는 곳입니다.";
+                moodDescription = introMent + " 활기찬 에너지와 새로운 만남이 있는 곳입니다.";
                 tip = TIP_MAP.get("파티");
             } else if (description.contains("조용") || description.contains("힐링")) {
                 keywords.add("#조용한저녁");
                 keywords.add("#불멍타임");
-                moodDescription = "조용한 휴식과 온전한 힐링을 즐길 수 있는 곳입니다.";
+                moodDescription = introMent + " 조용한 휴식과 온전한 힐링을 즐길 수 있는 곳입니다.";
                 tip = TIP_MAP.get("조용");
             } else if (description.contains("감성")) {
                 keywords.add("#감성숙소");
                 keywords.add("#인생샷명소");
-                moodDescription = "감각적인 인테리어와 포토존이 가득한 곳입니다.";
+                moodDescription = introMent + " 감각적인 인테리어와 포토존이 가득한 곳입니다.";
                 tip = TIP_MAP.get("감성");
             } else {
                 keywords.add("#가성비갑");
                 keywords.add("#편안한잠자리");
-                moodDescription = "편안하고 아늑한 잠자리를 제공하는 가성비 좋은 숙소입니다.";
+                moodDescription = introMent + " 편안하고 아늑한 잠자리를 제공하는 가성비 좋은 숙소입니다.";
             }
         }
 

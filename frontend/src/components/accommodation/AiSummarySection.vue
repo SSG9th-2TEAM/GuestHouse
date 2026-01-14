@@ -18,12 +18,11 @@ const displayedSummary = ref('')
 const isLoading = ref(false)
 const isError = ref(false)
 const isLoaded = ref(false)
-const isExpanded = ref(false) // 더보기 상태 관리
+const isExpanded = ref(false)
 let typeWriterInterval = null
 
-// 더보기 상태에 따라 보여줄 텍스트 결정 (CSS로 제어하지만, 타자기 효과 완료 후 텍스트 유지용)
 const contentStyle = computed(() => ({
-  maxHeight: isExpanded.value ? '1000px' : '180px', // 접혔을 때 높이 제한
+  maxHeight: isExpanded.value ? '1000px' : '180px',
   overflow: 'hidden',
   transition: 'max-height 0.5s ease-in-out',
   position: 'relative'
@@ -59,7 +58,6 @@ const buildSummaryHtml = (data) => {
   const { accommodationName, locationTag, keywords, moodDescription, tip, reviewCount } = data;
 
   const keywordsHtml = keywords.join(' ');
-  // Footer는 별도 영역으로 분리하기 위해 본문 HTML에서는 제외하고 데이터로 저장
   footerData.value = { reviewCount };
 
   return `<strong>${accommodationName}</strong>은(는) <strong>${locationTag}</strong>에 위치한 매력적인 숙소입니다.<br><br>` +
@@ -95,7 +93,6 @@ const loadSummary = async () => {
 
 const toggleExpand = () => {
   isExpanded.value = !isExpanded.value;
-  // 더보기 클릭 시 전체 텍스트 바로 표시 (타자기 효과 중단)
   if (isExpanded.value && displayedSummary.value.length < fullSummaryHtml.value.length) {
     if (typeWriterInterval) clearInterval(typeWriterInterval);
     displayedSummary.value = fullSummaryHtml.value;
@@ -140,19 +137,16 @@ onUnmounted(() => {
           <span v-html="displayedSummary"></span>
           <span class="cursor" v-if="displayedSummary.length < fullSummaryHtml.length">|</span>
         </p>
-        <!-- Fade out effect -->
         <div v-if="!isExpanded" class="fade-out"></div>
       </div>
 
-      <!-- 더보기 버튼 -->
       <button class="expand-btn" @click="toggleExpand">
         {{ isExpanded ? '접기' : '⌄ 더보기' }}
       </button>
 
-      <!-- Footer 영역 분리 -->
       <div class="summary-footer" v-if="footerData">
         <span v-if="footerData.reviewCount > 0">
-          🔍 최근 <strong>{{ footerData.reviewCount }}건</strong>의 실제 방문자 리뷰와 데이터를 기반으로 분석했습니다.
+          🔍 최근 <strong>{{ footerData.reviewCount }}건</strong>의 실제 방문자 리뷰와 데이터를 <br class="mobile-break"> 기반으로 분석했습니다.
         </span>
         <span v-else>
           🔍 숙소 상세 정보를 기반으로 분석했습니다.
@@ -198,7 +192,7 @@ onUnmounted(() => {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   margin-top: 1rem;
-  overflow: hidden; /* 내부 컨텐츠 넘침 방지 */
+  overflow: hidden;
 }
 
 .summary-header {
@@ -258,6 +252,11 @@ onUnmounted(() => {
   text-align: center;
   font-size: 13px;
   color: #9ca3af;
+  line-height: 1.5;
+}
+
+.mobile-break {
+  display: none;
 }
 
 .cursor {
@@ -336,6 +335,9 @@ onUnmounted(() => {
   }
   .summary-text {
     font-size: 14px;
+  }
+  .mobile-break {
+    display: block;
   }
 }
 </style>
