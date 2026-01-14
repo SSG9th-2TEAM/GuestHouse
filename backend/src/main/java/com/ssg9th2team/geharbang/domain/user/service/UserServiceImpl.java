@@ -18,8 +18,11 @@ import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepositor
 import com.ssg9th2team.geharbang.domain.user.dto.DeleteAccountRequest;
 import com.ssg9th2team.geharbang.domain.user.dto.UpdateProfileRequest;
 import com.ssg9th2team.geharbang.domain.wishlist.repository.jpa.WishlistJpaRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +34,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class UserServiceImpl implements UserService {
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
     private final ReservationJpaRepository reservationRepository;
     private final UserSocialRepository userSocialRepository;
@@ -67,15 +74,12 @@ public class UserServiceImpl implements UserService {
 
             // --- 연관 데이터 삭제 시작 ---
 
-            // [추가] Chatbot 데이터 삭제
-            List<com.ssg9th2team.geharbang.domain.chatbot.entity.ChatRoom> chatbotRooms = chatbotRoomRepository.findByUserOrderByUpdatedAtDesc(user);
-            if (!chatbotRooms.isEmpty()) {
-                for (com.ssg9th2team.geharbang.domain.chatbot.entity.ChatRoom room : chatbotRooms) {
-                    chatbotHistoryRepository.deleteByChatRoom(room);
-                }
-                chatbotRoomRepository.deleteAll(chatbotRooms);
-                log.info("사용자 {}의 챗봇 기록 삭제 완료", email);
-            }
+            // [추가] Chatbot 데이터 삭제 (JDBC로 직접 삭제)
+            int historyDeleted = jdbcTemplate.update(
+                "DELETE FROM chatbot_history WHERE chat_room_id IN (SELECT chat_room_id FROM chatbot_room WHERE user_id = ?)",
+                userId);
+            int roomDeleted = jdbcTemplate.update("DELETE FROM chatbot_room WHERE user_id = ?", userId);
+            log.info("사용자 {}의 챗봇 기록 삭제 완료 (히스토리 {}건, 방 {}건)", email, historyDeleted, roomDeleted);
 
             // [추가] 실시간 채팅 데이터 삭제 (채팅방 및 메시지)
             List<com.ssg9th2team.geharbang.domain.chat.RealtimeChatRoom> chatRooms = realtimeChatRoomRepository.findByGuestUserIdOrHostUserId(userId, userId);
@@ -83,7 +87,7 @@ public class UserServiceImpl implements UserService {
                 for (com.ssg9th2team.geharbang.domain.chat.RealtimeChatRoom room : chatRooms) {
                     realtimeChatMessageRepository.deleteByChatRoomId(room.getId());
                 }
-                realtimeChatRoomRepository.deleteAll(chatRooms);
+                realtimeChatRoomRepository.deleteAllInBatch(chatRooms);
                 log.info("사용자 {}의 실시간 채팅방 {}개 및 메시지 삭제 완료", email, chatRooms.size());
             }
 
@@ -150,14 +154,24 @@ public class UserServiceImpl implements UserService {
             // 11. 소셜 로그인 정보 삭제
             List<UserSocial> userSocials = userSocialRepository.findByUser(user);
             if (!userSocials.isEmpty()) {
-                userSocialRepository.deleteAll(userSocials);
+                userSocialRepository.deleteAllInBatch(userSocials);
                 log.info("사용자 {}의 연결된 소셜 로그인 정보 {}개 삭제", email, userSocials.size());
             }
 
-            // 11. 최종 사용자 삭제
+            // [추가] 사용자 테마 정보 삭제
+            int themeDeleted = jdbcTemplate.update("DELETE FROM user_theme WHERE user_id = ?", userId);
+            log.info("사용자 {}의 테마 정보 {}건 삭제 완료", email, themeDeleted);
+
+            // 12. 최종 사용자 삭제
             log.info("사용자 {} 탈퇴 처리 시작. 사유: {}, 기타: {}", email, deleteAccountRequest.getReasons(),
                     deleteAccountRequest.getOtherReason());
-            userRepository.delete(user);
+
+            // 영속성 컨텍스트의 변경 내용을 DB에 반영하고 초기화
+            entityManager.flush();
+            entityManager.clear();
+
+            // JDBC로 직접 삭제
+            jdbcTemplate.update("DELETE FROM users WHERE user_id = ?", userId);
             log.info("사용자 {} 탈퇴 성공", email);
 
         } catch (IllegalArgumentException | IllegalStateException e) {
