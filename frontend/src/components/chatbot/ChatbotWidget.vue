@@ -51,7 +51,17 @@ watch(() => realtimeChatStore.roomNotifications.length, (newLength) => {
 
 // Combined messages computed property
 const currentMessages = computed(() => {
-    return activeTab.value === 'chat' ? realtimeChatStore.messages : messages.value;
+    if (activeTab.value === 'chat') {
+        // 메시지 시간순 정렬 (오름차순: 과거 -> 최신)
+        // Redis ZSet Score가 꼬였을 경우를 대비해 클라이언트에서 재정렬
+        return [...realtimeChatStore.messages].sort((a, b) => {
+            if (!a.createdAt && !b.createdAt) return 0;
+            if (!a.createdAt) return -1;
+            if (!b.createdAt) return 1;
+            return new Date(a.createdAt) - new Date(b.createdAt);
+        });
+    }
+    return messages.value;
 });
 
 // --- Existing state for chatbot ---
