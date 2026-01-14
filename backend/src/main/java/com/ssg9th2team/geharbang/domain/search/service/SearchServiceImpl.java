@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.main.dto.ListDto;
 import com.ssg9th2team.geharbang.domain.main.dto.PublicListResponse;
 import com.ssg9th2team.geharbang.domain.main.repository.ListDtoProjection;
 import com.ssg9th2team.geharbang.domain.search.dto.SearchResolveResponse;
+import com.ssg9th2team.geharbang.domain.search.dto.SearchSortType;
 import com.ssg9th2team.geharbang.domain.search.dto.SearchSuggestionResponse;
 import com.ssg9th2team.geharbang.domain.search.repository.SearchRepository;
 import com.ssg9th2team.geharbang.domain.search.repository.SearchResolveProjection;
@@ -16,13 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.springframework.data.jpa.domain.JpaSort;
-import org.springframework.data.domain.Sort;
-
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class SearchServiceImpl implements SearchService {
+
+    // 검색 제안 상수
+    private static final int MAX_SUGGESTION_LIMIT = 20;
+    private static final int MIN_KEYWORD_LENGTH = 2;
 
     private final SearchRepository searchRepository;
 
@@ -43,32 +45,8 @@ public class SearchServiceImpl implements SearchService {
             Integer maxPrice,
             boolean includeUnavailable,
             String sort) {
-        Sort sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
-        if (sort != null && !sort.isEmpty()) {
-            switch (sort) {
-                case "reviews":
-                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "reviewCount");
-                    break;
-                case "rating":
-                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "rating");
-                    break;
-                case "priceHigh":
-                    sortObj = JpaSort.unsafe(Sort.Direction.DESC, "minPrice");
-                    break;
-                case "priceLow":
-                    sortObj = JpaSort.unsafe(Sort.Direction.ASC, "minPrice");
-                    break;
-                case "recommended":
-                default:
-                    if ("recommended".equals(sort)) {
-                        sortObj = JpaSort.unsafe(Sort.Direction.DESC, "(bayesianScore)");
-                    } else {
-                        sortObj = JpaSort.unsafe(Sort.Direction.DESC, "accommodationsId");
-                    }
-                    break;
-            }
-        }
-        PageRequest pageable = PageRequest.of(page, size, sortObj);
+        SearchSortType sortType = SearchSortType.fromValue(sort);
+        PageRequest pageable = PageRequest.of(page, size, sortType.toSort());
         String normalizedKeyword = normalizeKeyword(keyword);
         Page<ListDtoProjection> resultPage;
 
@@ -194,13 +172,13 @@ public class SearchServiceImpl implements SearchService {
     @Override
     public List<SearchSuggestionResponse> suggestPublicSearch(String keyword, int limit) {
         String normalizedKeyword = normalizeKeyword(keyword);
-        if (normalizedKeyword == null || normalizedKeyword.length() < 2) {
+        if (normalizedKeyword == null || normalizedKeyword.length() < MIN_KEYWORD_LENGTH) {
             return List.of();
         }
         if (limit <= 0) {
             return List.of();
         }
-        int safeLimit = Math.min(limit, 20);
+        int safeLimit = Math.min(limit, MAX_SUGGESTION_LIMIT);
         int regionLimit = (safeLimit + 1) / 2;
         int accommodationLimit = safeLimit / 2;
 
@@ -217,8 +195,8 @@ public class SearchServiceImpl implements SearchService {
                         .map(SearchSuggestionResponse::region),
                 accommodationNames.stream()
                         .filter(name -> name != null && !name.trim().isEmpty())
-                        .map(SearchSuggestionResponse::accommodation)
-        ).toList();
+                        .map(SearchSuggestionResponse::accommodation))
+                .toList();
     }
 
     @Override
