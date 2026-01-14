@@ -84,9 +84,11 @@ public class UserServiceImpl implements UserService {
             // [추가] 실시간 채팅 데이터 삭제 (채팅방 및 메시지)
             List<com.ssg9th2team.geharbang.domain.chat.RealtimeChatRoom> chatRooms = realtimeChatRoomRepository.findByGuestUserIdOrHostUserId(userId, userId);
             if (!chatRooms.isEmpty()) {
-                for (com.ssg9th2team.geharbang.domain.chat.RealtimeChatRoom room : chatRooms) {
-                    realtimeChatMessageRepository.deleteByChatRoomId(room.getId());
-                }
+                List<Long> chatRoomIds = chatRooms.stream()
+                        .map(com.ssg9th2team.geharbang.domain.chat.RealtimeChatRoom::getId)
+                        .collect(Collectors.toList());
+
+                realtimeChatMessageRepository.deleteByChatRoomIdIn(chatRoomIds);
                 realtimeChatRoomRepository.deleteAllInBatch(chatRooms);
                 log.info("사용자 {}의 실시간 채팅방 {}개 및 메시지 삭제 완료", email, chatRooms.size());
             }
@@ -94,10 +96,12 @@ public class UserServiceImpl implements UserService {
             // [추가] 호스트인 경우 숙소 삭제
             List<com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation> accommodations = accommodationJpaRepository.findByUserId(userId);
             if (!accommodations.isEmpty()) {
-                for (com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation accommodation : accommodations) {
-                    // 숙소 삭제 서비스 호출 (관련 룸, 이미지 등 연쇄 삭제 위임)
-                    accommodationService.deleteAccommodation(accommodation.getAccommodationsId());
-                }
+                List<Long> accommodationIds = accommodations.stream()
+                        .map(com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation::getAccommodationsId)
+                        .collect(Collectors.toList());
+
+                // 숙소 일괄 삭제 서비스 호출 (N+1 문제 해결)
+                accommodationService.deleteAccommodations(accommodationIds);
                 log.info("사용자 {}의 숙소 {}개 삭제 완료", email, accommodations.size());
             }
 

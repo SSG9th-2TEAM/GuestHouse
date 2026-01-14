@@ -64,4 +64,13 @@
         DELETE FROM wishlist
         WHERE accommodations_id = #{accommodationsId}
     </delete>
+
+    <!-- 여러 숙소 삭제 시 연관된 위시리스트 일괄 삭제 -->
+    <delete id="deleteWishlistByAccommodationIdIn">
+        DELETE FROM wishlist
+        WHERE accommodations_id IN
+        <foreach collection="accommodationIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
 </mapper>

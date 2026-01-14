@@ -23,4 +23,8 @@ public interface RealtimeChatMessageRepository extends JpaRepository<RealtimeCha
     @Modifying
     @Query("DELETE FROM RealtimeChatMessage m WHERE m.chatRoomId = :chatRoomId")
     void deleteByChatRoomId(@Param("chatRoomId") Long chatRoomId);
+
+    @Modifying
+    @Query("DELETE FROM RealtimeChatMessage m WHERE m.chatRoomId IN :chatRoomIds")
+    void deleteByChatRoomIdIn(@Param("chatRoomIds") List<Long> chatRoomIds);
 }
