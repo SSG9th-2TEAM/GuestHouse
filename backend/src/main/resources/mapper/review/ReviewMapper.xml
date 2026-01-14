@@ -31,7 +31,6 @@
         WHERE r.accommodations_id = #{accommodationsId}
           AND r.is_deleted = 0
         ORDER BY r.created_at DESC
-        LIMIT 30
     </select>
 
 
