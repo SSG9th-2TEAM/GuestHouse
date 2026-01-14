@@ -64,36 +64,55 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-// 배너 이미지 목록
-const banners = [
+// 화면 크기 감지
+const isMobile = ref(false)
+
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+
+// 배너 이미지 기본 정보
+const bannerData = [
   { 
-    image: new URL('@/assets/home-banner.png', import.meta.url).href, 
+    desktop: new URL('@/assets/home-banner.png', import.meta.url).href,
+    mobile: new URL('@/assets/home-banner.png', import.meta.url).href,
     alt: '좋은 사람, 좋은 장소, 좋은 시간',
-    link: null // 클릭해도 이동 안 함
+    link: null
   },
   { 
-    image: new URL('@/assets/banners/event2.png', import.meta.url).href, 
-    alt: '3박 이상 장기숙박 할인 - 여름 특가 쿠폰',
-    link: '/events' // 이벤트 페이지로 이동
+    desktop: new URL('@/assets/banners/event2.png', import.meta.url).href,
+    mobile: new URL('@/assets/banners/event2-mobile.png', import.meta.url).href,
+    alt: '3박 이상 장기숙박 할인 - 겨울 특가 쿠폰',
+    link: '/events'
   },
   { 
-    image: new URL('@/assets/banners/event3.png', import.meta.url).href, 
+    desktop: new URL('@/assets/banners/event3.png', import.meta.url).href,
+    mobile: new URL('@/assets/banners/event3-mobile.png', import.meta.url).href,
     alt: '오늘의 선착순 50 - 7천원 즉시 할인',
-    link: '/events' // 이벤트 페이지로 이동
+    link: '/events'
   },
   {
-    image: new URL('@/assets/banners/event4.png', import.meta.url).href,
+    desktop: new URL('@/assets/banners/event4.png', import.meta.url).href,
+    mobile: new URL('@/assets/banners/event4.png', import.meta.url).href,
     alt: '아직도 솔로야? - 게스트하우스 파티에서 새로운 인연을 만나보세요',
-    overlayText: '아직도 솔로야?', // 텍스트 추가
-    overlaySubText: '스테이블 게스트하우스 올래?', // 서브 텍스트 수정
-    link: '/room/135' // 135번 객실 상세 페이지로 이동
+    overlayText: '아직도 솔로야?',
+    overlaySubText: '스테이블 게스트하우스 올래?',
+    link: '/room/135'
   }
 ]
+
+// 반응형 배너 이미지 (화면 크기에 따라 자동 전환)
+const banners = computed(() => {
+  return bannerData.map(banner => ({
+    ...banner,
+    image: isMobile.value ? banner.mobile : banner.desktop
+  }))
+})
 
 const currentIndex = ref(0)
 let autoSlideInterval = null
@@ -107,12 +126,12 @@ const handleBannerClick = (banner) => {
 
 // 다음 슬라이드
 const nextSlide = () => {
-  currentIndex.value = (currentIndex.value + 1) % banners.length
+  currentIndex.value = (currentIndex.value + 1) % banners.value.length
 }
 
 // 이전 슬라이드
 const prevSlide = () => {
-  currentIndex.value = (currentIndex.value - 1 + banners.length) % banners.length
+  currentIndex.value = (currentIndex.value - 1 + banners.value.length) % banners.value.length
 }
 
 // 특정 슬라이드로 이동
@@ -136,13 +155,16 @@ const resetAutoSlide = () => {
   startAutoSlide()
 }
 
-// 컴포넌트 마운트 시 자동 슬라이드 시작
+// 컴포넌트 마운트 시 설정
 onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
   startAutoSlide()
 })
 
-// 컴포넌트 언마운트 시 자동 슬라이드 정리
+// 컴포넌트 언마운트 시 정리
 onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
   if (autoSlideInterval) {
     clearInterval(autoSlideInterval)
   }

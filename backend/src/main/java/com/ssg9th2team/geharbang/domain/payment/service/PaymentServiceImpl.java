@@ -297,11 +297,16 @@ public class PaymentServiceImpl implements PaymentService {
             paymentRefundRepository.save(paymentRefund);
             reservation.updateRefunded();
             reservationRepository.save(reservation);
+            
             // 환불 금액이 0이어도 쿠폰은 복구
             if (reservation.getUserCouponId() != null) {
                 userCouponService.restoreCoupon(reservation.getUserId(), reservation.getUserCouponId());
                 log.info("쿠폰 복구 완료 (환불 불가 정책/0원 환불): userCouponId={}", reservation.getUserCouponId());
             }
+            
+            // 첫 예약 쿠폰 회수 (예약 취소로 인해 첫 예약이 아니게 됨)
+            userCouponService.revokeFirstReservationCoupon(reservation.getUserId());
+            
             log.info("0원 환불 처리 완료: reservationId={}", reservation.getId());
             return PaymentResponseDto.from(payment);
         }
@@ -350,6 +355,9 @@ public class PaymentServiceImpl implements PaymentService {
                 userCouponService.restoreCoupon(reservation.getUserId(), reservation.getUserCouponId());
                 log.info("쿠폰 복구 완료: userCouponId={}", reservation.getUserCouponId());
             }
+            
+            // 첫 예약 쿠폰 회수 (예약 취소로 인해 첫 예약이 아니게 됨)
+            userCouponService.revokeFirstReservationCoupon(reservation.getUserId());
 
             log.info("환불 처리 완료: reservationId={}, refundAmount={}", reservation.getId(), actualRefundAmount);
 
