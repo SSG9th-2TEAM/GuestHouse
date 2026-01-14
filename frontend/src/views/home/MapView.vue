@@ -20,6 +20,7 @@ const activeOverlays = ref([])
 const isLoading = ref(false)
 const isMapVisible = ref(false)
 const wishlistIds = ref(new Set())
+const clusterer = ref(null)
 
 const MAP_STATE_KEY = 'mapview:lastState'
 
@@ -450,7 +451,12 @@ onMounted(() => {
     return
   }
 
-    const clusterer = ref(null)
+  window.kakao.maps.load(() => {
+    const savedState = loadMapState()
+    const options = {
+      center: new window.kakao.maps.LatLng(savedState?.lat ?? 33.361418, savedState?.lng ?? 126.529417), // Default to Jeju center
+      level: savedState?.level ?? 10
+    }
 
     mapInstance.value = new window.kakao.maps.Map(mapContainer.value, options)
 
@@ -458,8 +464,8 @@ onMounted(() => {
     clusterer.value = new window.kakao.maps.MarkerClusterer({
       map: mapInstance.value,
       averageCenter: true,
-      minLevel: 8, // 클러스터링을 적용할 최소 레벨 (8레벨 이상부터 클러스터링)
-      disableClickZoom: false, // 클러스터 클릭 시 줌 동작 허용
+      minLevel: 8,
+      disableClickZoom: false,
     })
 
     const disableAutoFit = () => {
@@ -486,6 +492,7 @@ onMounted(() => {
     // 초기 로드
     scheduleLoad()
   })
+})
 
 const renderClusterMode = (itemsWithCoords) => {
   if (!clusterer.value) return
