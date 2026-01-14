@@ -1,0 +1,118 @@
+package com.ssg9th2team.geharbang.domain.accommodation.service;
+
+import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationAiSummaryResponse;
+import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
+import com.ssg9th2team.geharbang.domain.accommodation.repository.jpa.AccommodationJpaRepository;
+import com.ssg9th2team.geharbang.domain.review.repository.jpa.ReviewJpaRepository;
+import com.ssg9th2team.geharbang.domain.review.repository.mybatis.ReviewMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class AccommodationAiSummaryService {
+
+    private final AccommodationJpaRepository accommodationRepository;
+    private final ReviewMapper reviewMapper;
+    private final ReviewJpaRepository reviewRepository;
+
+    private static final Map<String, String> TIP_MAP = Map.of(
+            "파티", "파티 참석을 원하시면 미리 신청하세요! 새로운 만남이 기다리고 있습니다.",
+            "조용", "조용한 휴식을 위해 소등 시간을 지켜주세요. 온전한 쉼을 즐길 수 있습니다.",
+            "힐링", "조용한 휴식을 위해 소등 시간을 지켜주세요. 온전한 쉼을 즐길 수 있습니다.",
+            "뷰", "인생샷 포인트는 옥상입니다! 카메라를 꼭 챙기세요.",
+            "사진", "인생샷 포인트는 옥상입니다! 카메라를 꼭 챙기세요.",
+            "감성", "인생샷 포인트는 옥상입니다! 카메라를 꼭 챙기세요.",
+            "깨끗", "깔끔한 잠자리에서 꿀잠 예약입니다. 편안한 밤 보내세요.",
+            "침구", "깔끔한 잠자리에서 꿀잠 예약입니다. 편안한 밤 보내세요.",
+            "조식", "조식 맛집으로 소문난 곳입니다. 아침 식사를 꼭 챙겨 드세요!",
+            "맛", "조식 맛집으로 소문난 곳입니다. 아침 식사를 꼭 챙겨 드세요!"
+    );
+
+    private static final String DEFAULT_TIP = "인기 숙소이니 마감 전 예약을 서두르세요! 체크인 전 짐 보관 가능 여부를 미리 확인하면 더 편한 여행이 될 거예요.";
+
+    @Transactional(readOnly = true)
+    public AccommodationAiSummaryResponse generateSummary(Long accommodationId) {
+        Accommodation accommodation = accommodationRepository.findById(accommodationId)
+                .orElseThrow(() -> new IllegalArgumentException("Accommodation not found: " + accommodationId));
+
+        String name = accommodation.getAccommodationsName();
+        String address = String.format("%s %s %s %s",
+                accommodation.getCity(),
+                accommodation.getDistrict(),
+                accommodation.getTownship(),
+                accommodation.getAddressDetail()).trim();
+        String description = accommodation.getAccommodationsDescription() != null ? accommodation.getAccommodationsDescription() : "";
+
+        // 1. 상위 3개 태그 조회
+        List<String> topTags = reviewMapper.selectTop3TagsByAccommodationId(accommodationId);
+        long reviewCount = reviewRepository.countByAccommodationsIdAndIsDeletedFalse(accommodationId);
+
+        List<String> keywords = new ArrayList<>();
+        String moodDescription;
+        String tip = DEFAULT_TIP;
+
+        if (!topTags.isEmpty()) {
+            // 태그 데이터 기반 분석
+            keywords = topTags.stream()
+                    .map(tag -> "#" + tag.replace(" ", ""))
+                    .collect(Collectors.toList());
+
+            String firstTag = topTags.get(0);
+            String secondTag = topTags.size() > 1 ? topTags.get(1) : "";
+
+            if (!secondTag.isEmpty()) {
+                moodDescription = String.format("이 숙소를 다녀간 여행객들은 '%s', '%s' 점을 최고의 장점으로 꼽았습니다. 실제 데이터가 증명하는 찐 맛집입니다!", firstTag, secondTag);
+            } else {
+                moodDescription = String.format("이 숙소를 다녀간 여행객들은 '%s' 점을 최고의 장점으로 꼽았습니다. 실제 데이터가 증명하는 찐 맛집입니다!", firstTag);
+            }
+
+            // 팁 생성 (Map 활용)
+            for (Map.Entry<String, String> entry : TIP_MAP.entrySet()) {
+                if (firstTag.contains(entry.getKey())) {
+                    tip = entry.getValue();
+                    break;
+                }
+            }
+
+        } else {
+            // 소개글 기반 분석 (Fallback)
+            if (description.contains("파티")) {
+                keywords.add("#파티맛집");
+                keywords.add("#새로운만남");
+                moodDescription = "활기찬 에너지와 새로운 만남이 있는 곳입니다.";
+                tip = TIP_MAP.get("파티");
+            } else if (description.contains("조용") || description.contains("힐링")) {
+                keywords.add("#조용한저녁");
+                keywords.add("#불멍타임");
+                moodDescription = "조용한 휴식과 온전한 힐링을 즐길 수 있는 곳입니다.";
+                tip = TIP_MAP.get("조용");
+            } else if (description.contains("감성")) {
+                keywords.add("#감성숙소");
+                keywords.add("#인생샷명소");
+                moodDescription = "감각적인 인테리어와 포토존이 가득한 곳입니다.";
+                tip = TIP_MAP.get("감성");
+            } else {
+                keywords.add("#가성비갑");
+                keywords.add("#편안한잠자리");
+                moodDescription = "편안하고 아늑한 잠자리를 제공하는 가성비 좋은 숙소입니다.";
+            }
+        }
+
+        // 위치 태그 생성
+        String locationTag;
+        if (address.contains("애월")) locationTag = "제주 서쪽의 핫플, 애월";
+        else if (address.contains("성산")) locationTag = "일출이 아름다운 성산";
+        else if (address.contains("함덕")) locationTag = "에메랄드빛 바다, 함덕";
+        else if (address.contains("서귀포")) locationTag = "따뜻한 남쪽 나라, 서귀포";
+        else locationTag = "제주 여행의 중심";
+
+        return new AccommodationAiSummaryResponse(name, locationTag, keywords, moodDescription, tip, reviewCount);
+    }
+}

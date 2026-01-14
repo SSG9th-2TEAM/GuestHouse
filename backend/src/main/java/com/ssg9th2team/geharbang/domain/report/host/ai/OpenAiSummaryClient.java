@@ -4,10 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationAiSummaryResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewAiSummaryRequest;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewAiSummaryResponse;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportRecentRow;
 import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportSummaryResponse;
+import com.ssg9th2team.geharbang.domain.review.entity.ReviewEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -111,6 +113,45 @@ public class OpenAiSummaryClient implements AiSummaryClient {
             log.warn("OpenAI summary parsing failed: {}", ex.getMessage());
             throw new HostReportAiException("OpenAI response parsing failed", ex);
         }
+    }
+
+    // 변경된 DTO 생성자에 맞춰 더미 데이터 반환 (현재 사용하지 않는 메소드)
+    public AccommodationAiSummaryResponse generateGuestSummary(String description, List<ReviewEntity> reviews) {
+        return new AccommodationAiSummaryResponse(
+                "숙소 이름",
+                "위치 태그",
+                List.of("#키워드1", "#키워드2"),
+                "분위기 설명",
+                "이용 꿀팁",
+                0
+        );
+    }
+
+    private Map<String, Object> buildGuestRequest(String description, List<ReviewEntity> reviews) {
+        String reviewText = reviews.stream()
+                .limit(10)
+                .map(r -> "- " + trimContent(r.getContent()))
+                .collect(Collectors.joining("\n"));
+
+        String prompt = String.format(Locale.KOREA,
+                "너는 여행객을 위해 숙소의 매력을 핵심만 짚어주는 친절한 가이드야.\n" +
+                        "아래 제공된 숙소 소개글과 실제 투숙객 리뷰를 바탕으로 숙소를 요약해줘.\n" +
+                        "출력은 줄글이 아닌, 이모지와 함께 3가지 핵심 포인트(분위기, 장점, 추천 대상)로 요약해서 보여줘.\n" +
+                        "마크다운 포맷은 사용하지 말고, 텍스트로만 출력해.\n\n" +
+                        "[숙소 소개글]\n%s\n\n" +
+                        "[최신 리뷰]\n%s",
+                description != null ? description : "정보 없음",
+                reviewText.isEmpty() ? "리뷰 없음" : reviewText
+        );
+
+        Map<String, Object> system = Map.of("role", "system", "content", "너는 여행객을 위한 친절한 숙소 가이드야.");
+        Map<String, Object> user = Map.of("role", "user", "content", prompt);
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", model);
+        body.put("messages", List.of(system, user));
+        body.put("temperature", 0.7);
+        body.put("max_tokens", 500);
+        return body;
     }
 
     private Map<String, Object> buildRequest(HostReviewReportSummaryResponse summary, HostReviewAiSummaryRequest request) {
