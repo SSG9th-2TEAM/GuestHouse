@@ -258,6 +258,39 @@
         WHERE accommodations_id = #{accommodationsId}
     </delete>
 
+    <!-- 일괄 삭제 쿼리들 -->
+    <delete id="deleteAccommodations">
+        DELETE FROM accommodation
+        WHERE accommodations_id IN
+        <foreach collection="accommodationIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteAccommodationAmenitiesIn">
+        DELETE FROM accommodation_amenity
+        WHERE accommodations_id IN
+        <foreach collection="accommodationIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteAccommodationImagesIn">
+        DELETE FROM accommodation_image
+        WHERE accommodations_id IN
+        <foreach collection="accommodationIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteAccommodationThemesIn">
+        DELETE FROM accommodation_theme
+        WHERE accommodations_id IN
+        <foreach collection="accommodationIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
 
 
 

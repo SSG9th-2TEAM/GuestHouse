@@ -2,6 +2,7 @@ package com.ssg9th2team.geharbang.domain.wishlist.repository.mybatis;
 
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseDto;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -16,4 +17,7 @@ public interface WishlistMapper {
 
     // 호스트가 숙소 정보 삭제 -> 사용자가 찜한 숙소위시리스트에서 삭제
     void deleteWishlistByAccommodationId(Long accommodationsId);
+
+    // 여러 숙소 일괄 삭제
+    void deleteWishlistByAccommodationIdIn(@Param("accommodationIds") List<Long> accommodationIds);
 }
