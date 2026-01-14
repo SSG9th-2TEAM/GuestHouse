@@ -417,21 +417,14 @@ public class UserCouponServiceImpl implements UserCouponService {
     @Override
     @Transactional
     public void revokeFirstReservationCoupon(Long userId) {
-        // 1. 사용자의 ISSUED 상태 쿠폰 중 FIRST_RESERVATION 트리거 타입 쿠폰 조회
+        // N+1 쿼리 방지: JOIN을 사용하여 한 번의 쿼리로 조회
         List<UserCoupon> firstReservationCoupons = userCouponJpaRepository
-                .findByUserIdAndStatus(userId, UserCouponStatus.ISSUED) // 1단계: 사용자가 가지고 있는 사용 가능한 쿠폰 목록 가져오기
-                .stream()  // 리스트를 하나씩 처리하는 흐름(Stream) 시작
-                .filter(userCoupon -> {  // 조건에 맞는 것만 남기기 (필터링)
-                    // 각 쿠폰의 상세 정보를 DB에서 조회
-                    Coupon coupon = couponJpaRepository.findById(userCoupon.getCouponId()).orElse(null);
-                    // 쿠폰이 존재하고 && 트리거 타입이 FIRST_RESERVATION인 것만 통과
-                    return coupon != null && coupon.getTriggerType() == CouponTriggerType.FIRST_RESERVATION;
-                })
-                .toList();  // 필터링된 결과를 다시 리스트로 변환
-        // 2. 첫 예약 쿠폰이 있으면 삭제
-        if (!firstReservationCoupons.isEmpty()) {  // 비어있지 않으면 (쿠폰이 1개 이상 있으면)
-            userCouponJpaRepository.deleteAll(firstReservationCoupons);  // DB에서 삭제
-            evictUserCouponCache(userId, "ISSUED");  // 캐시 무효화
+                .findUserCouponsByTriggerType(userId, UserCouponStatus.ISSUED, CouponTriggerType.FIRST_RESERVATION);
+        
+        // 첫 예약 쿠폰이 있으면 삭제
+        if (!firstReservationCoupons.isEmpty()) {
+            userCouponJpaRepository.deleteAll(firstReservationCoupons);
+            evictUserCouponCache(userId, "ISSUED");
             log.info("첫 예약 쿠폰 회수 - userId: {}, 개수: {}", userId, firstReservationCoupons.size());
         }
     }

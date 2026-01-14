@@ -259,7 +259,7 @@ onUnmounted(() => {
 
 .banner-image {
   width: 100%;
-  height: 480px;
+  height: 400px;
   display: block;
   object-fit: cover;
   object-position: center;
@@ -368,7 +368,7 @@ onUnmounted(() => {
   }
 
   .banner-image {
-    height: 280px;
+    height: 220px;
   }
 
   .overlay-text {

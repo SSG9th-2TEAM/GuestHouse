@@ -38,6 +38,11 @@ const pastReservations = computed(() => {
   })
 })
 
+// 취소된 예약 (reservationStatus === 9)
+const cancelledReservations = computed(() => {
+  return reservations.value.filter(r => r.reservationStatus === 9)
+})
+
 // 탭별 필터링 (쿠폰함 스타일)
 const filteredReservations = computed(() => {
   if (activeTab.value === 'ACTIVE') {
@@ -50,11 +55,6 @@ const filteredReservations = computed(() => {
     return pastReservations.value
   }
   return []
-})
-
-// 취소된 예약 (reservationStatus === 9)
-const cancelledReservations = computed(() => {
-  return reservations.value.filter(r => r.reservationStatus === 9)
 })
 
 // 날짜 포맷 (YYYY.MM.DD)
@@ -152,6 +152,19 @@ const handleDelete = async (id) => {
     } catch (error) {
       console.error('삭제 실패:', error)
       errorMessage.value = '이용 완료된 예약만 삭제할 수 있습니다.'
+    }
+  }
+}
+
+// 취소 내역에서 삭제
+const handleDeleteCancelled = async (id) => {
+  if (confirm('취소 내역에서 삭제하시겠습니까?')) {
+    try {
+      await deleteCancelledReservation(id)
+      reservations.value = reservations.value.filter(r => r.reservationId !== id)
+    } catch (error) {
+      console.error('취소 내역 삭제 실패:', error)
+      errorMessage.value = error.message || '취소 내역을 삭제하는데 실패했습니다.'
     }
   }
 }
