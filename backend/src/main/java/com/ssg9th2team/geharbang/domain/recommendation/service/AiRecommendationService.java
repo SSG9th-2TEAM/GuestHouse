@@ -72,6 +72,9 @@ public class AiRecommendationService {
 
     private static final int MAX_RECOMMENDATIONS = 10;
     private static final int QUERY_LIMIT = 20;
+    private static final int LOCATION_QUERY_LIMIT = 50;
+    private static final Set<String> GENERIC_KEYWORDS = Set.of(
+            "숙소", "호텔", "펜션", "게스트하우스", "지역", "여행", "근처", "추천", "좋은", "예쁜", "좋아", "싶어");
 
     /**
      * 사용자 자연어 입력을 분석하여 숙소 추천
@@ -175,8 +178,21 @@ public class AiRecommendationService {
      * 병렬 검색 실행
      */
     private Set<Long> executeParallelSearch(AnalysisResult analysisResult) {
-        Set<Long> matchedIds = Collections.synchronizedSet(new LinkedHashSet<>());
+        Set<Long> contentMatchedIds = Collections.synchronizedSet(new LinkedHashSet<>());
+        Set<Long> locationMatchedIds = Collections.synchronizedSet(new LinkedHashSet<>());
         List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        // 0. 위치 기반 검색 (비동기)
+        String location = analysisResult.location();
+        if (location != null && !location.isBlank()) {
+            futures.add(CompletableFuture.runAsync(() -> {
+                List<Accommodation> locationMatched = accommodationRepository.findByLocation(location);
+                locationMatched.stream()
+                        .limit(LOCATION_QUERY_LIMIT)
+                        .forEach(acc -> locationMatchedIds.add(acc.getAccommodationsId()));
+                log.info("위치 검색 결과: {} -> {}개", location, locationMatchedIds.size());
+            }, executor));
+        }
 
         // 1. 테마 기반 검색 (비동기)
         if (!analysisResult.themes().isEmpty()) {
@@ -185,7 +201,7 @@ public class AiRecommendationService {
                         .findByThemeCategories(analysisResult.themes());
                 themeMatched.stream()
                         .limit(QUERY_LIMIT)
-                        .forEach(acc -> matchedIds.add(acc.getAccommodationsId()));
+                        .forEach(acc -> contentMatchedIds.add(acc.getAccommodationsId()));
             }, executor));
         }
 
@@ -195,7 +211,7 @@ public class AiRecommendationService {
                 List<Accommodation> keywordMatched = accommodationRepository.findByKeywordInDescription(keyword);
                 keywordMatched.stream()
                         .limit(QUERY_LIMIT / 2)
-                        .forEach(acc -> matchedIds.add(acc.getAccommodationsId()));
+                        .forEach(acc -> contentMatchedIds.add(acc.getAccommodationsId()));
             }, executor));
         }
 
@@ -205,7 +221,7 @@ public class AiRecommendationService {
                 List<Long> reviewMatchedIds = reviewRepository.findAccommodationIdsByKeywordInContent(keyword);
                 reviewMatchedIds.stream()
                         .limit(QUERY_LIMIT / 2)
-                        .forEach(matchedIds::add);
+                        .forEach(contentMatchedIds::add);
             }, executor));
         }
 
@@ -217,7 +233,26 @@ public class AiRecommendationService {
             log.warn("병렬 검색 일부 타임아웃: {}", e.getMessage());
         }
 
-        return matchedIds;
+        // 위치가 지정된 경우: 위치 결과 우선 반환 (컨텐츠 매칭은 정렬용)
+        if (!locationMatchedIds.isEmpty()) {
+            // 컨텐츠 매칭 결과를 앞에 배치 (우선순위)
+            Set<Long> result = new LinkedHashSet<>();
+
+            // 1. 위치+컨텐츠 교집합을 먼저 추가 (최우선)
+            for (Long id : locationMatchedIds) {
+                if (contentMatchedIds.contains(id)) {
+                    result.add(id);
+                }
+            }
+            // 2. 나머지 위치 결과 추가
+            result.addAll(locationMatchedIds);
+
+            log.info("위치 기반 결과: 총 {}개 (교집합 우선: {}개)", result.size(),
+                    result.stream().filter(contentMatchedIds::contains).count());
+            return result;
+        } else {
+            return contentMatchedIds;
+        }
     }
 
     /**
@@ -241,22 +276,24 @@ public class AiRecommendationService {
 
     private String buildAnalysisPrompt(String userQuery) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("당신은 숙소 추천 전문가입니다. 사용자의 여행 선호도를 분석하여 적합한 테마와 검색 키워드를 추출하세요.\n\n");
+        prompt.append("당신은 숙소 추천 전문가입니다. 사용자의 여행 선호도를 분석하여 적합한 테마, 검색 키워드, 그리고 위치를 추출하세요.\n\n");
         prompt.append("테마 목록:\n");
         for (ThemeCategory category : ThemeCategory.values()) {
             prompt.append("- ").append(category.name()).append(" (").append(category.getKoreanName()).append(")\n");
         }
+        prompt.append("\n제주도 주요 지역: 애월, 함덕, 성산, 중문, 서귀포, 협재, 한림, 표선, 우도, 이호, 월정리, 김녕, 세화, 한경, 대정, 안덕, 조천\n");
         prompt.append("\n사용자 입력: \"").append(userQuery).append("\"\n\n");
         prompt.append("반드시 아래 JSON 형식으로만 응답하세요:\n");
         prompt.append(
-                "{\"themes\": [\"THEME1\"], \"keywords\": [\"키워드1\", \"키워드2\"], \"confidence\": 0.85, \"reasoning\": \"분석 이유\"}\n");
-        prompt.append("themes: 1~2개 (일치하는 테마가 없으면 빈 리스트 [] 가능), keywords: 1~3개 (짧게, 핵심 단어 위주)\n");
+                "{\"themes\": [\"THEME1\"], \"keywords\": [\"키워드1\"], \"location\": \"지역명\", \"confidence\": 0.85, \"reasoning\": \"분석 이유\"}\n");
+        prompt.append("themes: 1~2개, keywords: 1~3개, location: 지역명 (없으면 빈 문자열 \"\")\n");
         prompt.append("예시:\n");
-        prompt.append("- \"술 마시고 놀고 싶어\" -> themes: [\"PARTY\", \"FOOD\"], keywords: [\"파티\", \"술\", \"안주\"]\n");
         prompt.append(
-                "- \"헌팅하고 새로운 사람 만나고 싶어\" -> themes: [\"MEETING\", \"PARTY\"], keywords: [\"헌팅\", \"만남\", \"게스트하우스\"]\n");
-        prompt.append("- \"조용히 쉬고 싶어\" -> themes: [\"VIBE\", \"NATURE\"], keywords: [\"조용\", \"휴식\", \"힐링\"]\n");
-        prompt.append("- \"공항 근처 숙소\" -> themes: [], keywords: [\"공항\", \"근처\"]");
+                "- \"애월에서 놀고 싶어\" -> {\"themes\": [\"PLAY\"], \"keywords\": [\"놀이\"], \"location\": \"애월\", ...}\n");
+        prompt.append(
+                "- \"성산 근처 파티 숙소\" -> {\"themes\": [\"PARTY\"], \"keywords\": [\"파티\"], \"location\": \"성산\", ...}\n");
+        prompt.append(
+                "- \"조용히 쉬고 싶어\" -> {\"themes\": [\"VIBE\"], \"keywords\": [\"조용\", \"휴식\"], \"location\": \"\", ...}");
         return prompt.toString();
     }
 
@@ -302,18 +339,33 @@ public class AiRecommendationService {
         List<String> keywords = new ArrayList<>();
         analysisNode.path("keywords").forEach(node -> keywords.add(node.asText()));
 
+        String location = analysisNode.path("location").asText("");
         double confidence = analysisNode.path("confidence").asDouble(0.5);
         String reasoning = analysisNode.path("reasoning").asText("AI 분석 결과");
 
-        log.info("Gemini 분석: themes={}, keywords={}", themes, keywords);
-        return new AnalysisResult(themes, keywords.stream().limit(3).collect(Collectors.toList()), confidence,
-                reasoning);
+        log.info("Gemini 분석: themes={}, keywords={}, location={}", themes, keywords, location);
+        return new AnalysisResult(themes, keywords.stream().limit(3).collect(Collectors.toList()),
+                location, confidence, reasoning);
     }
 
     private AnalysisResult fallbackKeywordMatching(String userQuery) {
         List<String> matchedThemes = new ArrayList<>();
         List<String> extractedKeywords = new ArrayList<>();
+        String extractedLocation = "";
         String query = userQuery.toLowerCase();
+
+        // 제주도 지역명 사전
+        List<String> jejuLocations = List.of(
+                "애월", "함덕", "성산", "중문", "서귀포", "협재", "한림", "표선", "우도",
+                "이호", "월정리", "김녕", "세화", "한경", "대정", "안덕", "조천", "제주시");
+
+        // 위치 추출
+        for (String loc : jejuLocations) {
+            if (query.contains(loc)) {
+                extractedLocation = loc;
+                break;
+            }
+        }
 
         Map<String, List<String>> keywordMap = Map.of(
                 "NATURE", List.of("자연", "산", "숲", "풍경", "경치", "바다", "해변"),
@@ -325,7 +377,7 @@ public class AiRecommendationService {
                 "FACILITY", List.of("수영장", "바베큐", "온천"),
                 "FOOD", List.of("맛집", "조식", "음식"),
                 "CULTURE", List.of("문화", "역사", "전통"),
-                "PLAY", List.of("게임", "오락", "놀이"));
+                "PLAY", List.of("게임", "오락", "놀이", "놀고"));
 
         for (Map.Entry<String, List<String>> entry : keywordMap.entrySet()) {
             for (String keyword : entry.getValue()) {
@@ -343,13 +395,21 @@ public class AiRecommendationService {
         if (extractedKeywords.isEmpty()) {
             String[] words = userQuery.split("\\s+");
             for (String word : words) {
-                if (word.length() >= 2 && extractedKeywords.size() < 3) {
+                // 제주 지역명과 일반적인 키워드는 제외
+                if (word.length() >= 2 && extractedKeywords.size() < 3
+                        && !jejuLocations.contains(word)
+                        && !GENERIC_KEYWORDS.contains(word)) {
                     extractedKeywords.add(word);
                 }
             }
         }
 
-        return new AnalysisResult(matchedThemes, extractedKeywords, 0.6, "키워드 매칭 결과");
+        // 일반적인 키워드 제거
+        extractedKeywords.removeIf(GENERIC_KEYWORDS::contains);
+
+        log.info("Fallback 분석: themes={}, keywords={}, location={}", matchedThemes, extractedKeywords,
+                extractedLocation);
+        return new AnalysisResult(matchedThemes, extractedKeywords, extractedLocation, 0.6, "키워드 매칭 결과");
     }
 
     private AiRecommendationResponse.AccommodationSummary toAccommodationSummary(Accommodation acc,
@@ -367,6 +427,7 @@ public class AiRecommendationService {
                 .build();
     }
 
-    private record AnalysisResult(List<String> themes, List<String> keywords, Double confidence, String reasoning) {
+    private record AnalysisResult(List<String> themes, List<String> keywords, String location, Double confidence,
+            String reasoning) {
     }
 }

@@ -271,6 +271,11 @@ const router = createRouter({
             component: () => import('../views/policy/PolicyView.vue')
         },
         {
+            path: '/ai-agent',
+            name: 'ai-agent',
+            component: () => import('../views/ai/AiAgentView.vue')
+        },
+        {
             path: '/:pathMatch(.*)*',
             name: 'not-found',
             component: () => import('../views/NotFoundView.vue')
@@ -286,7 +291,8 @@ router.beforeEach(async (to, from, next) => {
     const isHostRoute = to.path.startsWith('/host');
     const protectedPaths = [
         '/profile', '/reservations', '/wishlist', '/coupons',
-        '/reviews', '/write-review', '/delete-account', '/booking', '/payment'
+        '/reviews', '/write-review', '/delete-account', '/booking', '/payment',
+        '/ai-agent'
     ];
     const requiresAuth = protectedPaths.some(path => to.path.startsWith(path));
 
