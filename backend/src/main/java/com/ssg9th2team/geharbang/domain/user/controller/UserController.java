@@ -7,8 +7,8 @@ import com.ssg9th2team.geharbang.domain.user.service.UserService;
 import com.ssg9th2team.geharbang.domain.user.dto.UpdateProfileRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import com.ssg9th2team.geharbang.global.common.annotation.CurrentUser;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,24 +20,30 @@ public class UserController {
 
     // 현재 로그인한 사용자 정보 조회
     @GetMapping("/me")
-    public ResponseEntity<UserResponse> getCurrentUser(Authentication authentication) {
-        String email = authentication.getName();
-        User user = userService.getUserByEmail(email);
+    public ResponseEntity<UserResponse> getCurrentUser(@CurrentUser User user) {
+        if (user == null) {
+            return ResponseEntity.status(401).build(); // or throw AccessDeniedException
+        }
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
     @PatchMapping("/me/profile")
-    public ResponseEntity<Void> updateUserProfile(Authentication authentication, @Valid @RequestBody UpdateProfileRequest request) {
-        String email = authentication.getName();
-        userService.updateUserProfile(email, request);
+    public ResponseEntity<Void> updateUserProfile(@CurrentUser User user,
+            @Valid @RequestBody UpdateProfileRequest request) {
+        if (user == null) {
+            return ResponseEntity.status(401).build();
+        }
+        userService.updateUserProfile(user.getEmail(), request);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/me")
-    public ResponseEntity<Void> deleteUser(Authentication authentication,
+    public ResponseEntity<Void> deleteUser(@CurrentUser User user,
             @RequestBody DeleteAccountRequest deleteAccountRequest) {
-        String email = authentication.getName();
-        userService.deleteUser(email, deleteAccountRequest);
+        if (user == null) {
+            return ResponseEntity.status(401).build();
+        }
+        userService.deleteUser(user.getEmail(), deleteAccountRequest);
         return ResponseEntity.noContent().build();
     }
 }

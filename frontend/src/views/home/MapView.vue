@@ -21,6 +21,7 @@ const isLoading = ref(false)
 const isMapVisible = ref(false)
 const wishlistIds = ref(new Set())
 
+
 const MAP_STATE_KEY = 'mapview:lastState'
 
 const loadMapState = () => {
@@ -377,55 +378,7 @@ const syncMarkerFavoriteState = () => {
   })
 }
 
-const updateMarkers = () => {
-  if (!mapInstance.value) return
 
-  // Clear existing markers
-  activeOverlays.value.forEach(({ overlay }) => overlay.setMap(null))
-  activeOverlays.value = []
-
-  const itemsWithCoords = getItemsWithCoords()
-
-  if (selectedItem.value) {
-    const nextSelected = itemsWithCoords.find(item => item.id === selectedItem.value.id)
-    selectedItem.value = nextSelected || null
-  }
-
-  // Create new markers
-  itemsWithCoords.forEach(item => {
-    const position = new window.kakao.maps.LatLng(item.lat, item.lng)
-
-    // Custom Overlay Content
-    const content = document.createElement('div')
-    content.className = 'price-marker'
-    const isSelected = selectedItem.value && String(selectedItem.value.id) === String(item.id)
-    if (isSelected) {
-      content.classList.add('price-marker--active')
-    }
-    if (wishlistIds.value.has(item.id)) {
-      content.classList.add('price-marker--favorite')
-    }
-    content.innerHTML = `₩${item.price.toLocaleString()}`
-    
-    content.onclick = () => {
-      handleMarkerClick(item)
-    }
-
-    // Creating Custom Overlay
-    const customOverlay = new window.kakao.maps.CustomOverlay({
-      position: position,
-      content: content,
-      yAnchor: 1 
-    })
-
-    customOverlay.setMap(mapInstance.value)
-    activeOverlays.value.push({ overlay: customOverlay, element: content, itemId: item.id })
-  })
-
-  syncMarkerActiveState()
-  syncMarkerFavoriteState()
-  return itemsWithCoords
-}
 
 const getItemsWithCoords = () => {
   const minValue = searchStore.minPrice
@@ -499,25 +452,15 @@ onMounted(() => {
   }
 
   window.kakao.maps.load(() => {
-    if (!mapContainer.value) return
-
-    const savedState = route.query.from === 'list' ? null : loadMapState()
-    // Use level from query param as fallback (after login redirect)
-    const levelFromQuery = Number(route.query.level)
-    const effectiveLevel = savedState?.level ?? (Number.isFinite(levelFromQuery) ? levelFromQuery : 13)
-    if (savedState || route.query.selectedId) {
-      autoFitPending = false
-    }
-
+    const savedState = loadMapState()
     const options = {
-      center: savedState
-        ? new window.kakao.maps.LatLng(savedState.lat, savedState.lng)
-        : new window.kakao.maps.LatLng(36.5, 127.8), // Center of South Korea approximate
-      level: effectiveLevel,
-      draggable: true
+      center: new window.kakao.maps.LatLng(savedState?.lat ?? 33.361418, savedState?.lng ?? 126.529417), // Default to Jeju center
+      level: savedState?.level ?? 10
     }
 
     mapInstance.value = new window.kakao.maps.Map(mapContainer.value, options)
+
+
 
     const disableAutoFit = () => {
       autoFitPending = false
@@ -526,14 +469,104 @@ onMounted(() => {
     window.kakao.maps.event.addListener(mapInstance.value, 'dragstart', disableAutoFit)
     window.kakao.maps.event.addListener(mapInstance.value, 'zoom_start', disableAutoFit)
 
-    window.kakao.maps.event.addListener(mapInstance.value, 'idle', () => {
-      scheduleLoad()
+    // 줌 레벨 변경 시 렌더링 모드 전환 (클러스터 <-> 가격표)
+    window.kakao.maps.event.addListener(mapInstance.value, 'zoom_changed', () => {
+      updateMarkers()
     })
 
-    // Initial render
+    // 드래그 종료 시 (화면 이동) -> 가격표 모드일 때 뷰포트 컬링 재계산
+    window.kakao.maps.event.addListener(mapInstance.value, 'dragend', () => {
+      updateMarkers()
+      scheduleLoad() // 데이터 추가 로딩 체크
+    })
+
+    // 초기 로드
     scheduleLoad()
   })
 })
+
+
+
+const renderOverlayMode = (itemsWithCoords) => {
+  if (!mapInstance.value) return
+  
+
+
+  const bounds = mapInstance.value.getBounds()
+  
+  // 1. 현재 화면(Bounds)에 들어오는 아이템만 필터링 (Viewport Culling)
+  const visibleItems = itemsWithCoords.filter(item => {
+    const latlng = new window.kakao.maps.LatLng(item.lat, item.lng)
+    return bounds.contain(latlng)
+  })
+
+  /* 2. Diffing 최적화 적용 */
+  const visibleIds = new Set(visibleItems.map(item => String(item.id)))
+
+  // 2-1. 화면에서 사라진 오버레이 제거
+  activeOverlays.value = activeOverlays.value.filter(({ overlay, itemId }) => {
+    if (!visibleIds.has(String(itemId))) {
+      overlay.setMap(null) // 지도에서 제거
+      return false // 배열에서 제거
+    }
+    return true // 유지
+  })
+
+  // 이미 렌더링된 아이템 ID 집합
+  const existingIds = new Set(activeOverlays.value.map(o => String(o.itemId)))
+
+  // 2-2. 새로 화면에 나타난 아이템만 추가
+  visibleItems.forEach(item => {
+    if (existingIds.has(String(item.id))) {
+      return // 이미 렌더링됨
+    }
+
+    const position = new window.kakao.maps.LatLng(item.lat, item.lng)
+
+    // Custom Overlay Content
+    const content = document.createElement('div')
+    content.className = 'price-marker'
+    const isSelected = selectedItem.value && String(selectedItem.value.id) === String(item.id)
+    if (isSelected) {
+      content.classList.add('price-marker--active')
+    }
+    if (wishlistIds.value.has(item.id)) {
+      content.classList.add('price-marker--favorite')
+    }
+    content.innerHTML = `₩${item.price.toLocaleString()}`
+    
+    content.onclick = () => {
+      handleMarkerClick(item)
+    }
+
+    const customOverlay = new window.kakao.maps.CustomOverlay({
+      position: position,
+      content: content,
+      yAnchor: 1 
+    })
+
+    customOverlay.setMap(mapInstance.value)
+    activeOverlays.value.push({ overlay: customOverlay, element: content, itemId: item.id })
+  })
+
+  syncMarkerActiveState()
+  syncMarkerFavoriteState()
+}
+
+const updateMarkers = () => {
+  if (!mapInstance.value) return
+  
+  const itemsWithCoords = getItemsWithCoords()
+  if (selectedItem.value) {
+    const nextSelected = itemsWithCoords.find(item => item.id === selectedItem.value.id)
+    selectedItem.value = nextSelected || null
+  }
+
+  // 항상 오버레이(가격표) 모드로 렌더링
+  renderOverlayMode(itemsWithCoords)
+  
+  return itemsWithCoords
+}
 
 onBeforeUnmount(() => {
   saveMapState()
@@ -719,12 +752,20 @@ watch(
   z-index: 50;
 }
 
+@media (max-width: 768px) {
+  .list-btn-wrapper {
+    bottom: 1rem;
+  }
+}
+
 .list-floating-btn {
   background-color: #222;
   color: white;
   border: none;
   border-radius: 24px;
-  padding: 12px 20px;
+  width: 138px;
+  justify-content: center;
+  padding: 12px 10px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -732,7 +773,7 @@ watch(
   font-size: 0.95rem;
   box-shadow: 0 4px 12px rgba(0,0,0,0.25);
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: transform 0.2s, background-color 0.2s;
 }
 
 .list-floating-btn:hover {

@@ -297,73 +297,77 @@ public class PaymentServiceImpl implements PaymentService {
             paymentRefundRepository.save(paymentRefund);
             reservation.updateRefunded();
             reservationRepository.save(reservation);
+            
             // 환불 금액이 0이어도 쿠폰은 복구
             if (reservation.getUserCouponId() != null) {
                 userCouponService.restoreCoupon(reservation.getUserId(), reservation.getUserCouponId());
                 log.info("쿠폰 복구 완료 (환불 불가 정책/0원 환불): userCouponId={}", reservation.getUserCouponId());
             }
+            
             log.info("0원 환불 처리 완료: reservationId={}", reservation.getId());
-            return PaymentResponseDto.from(payment);
-        }
+        } else {
+            // 토스페이먼츠 결제 취소 API 호출
+            try {
+                RestTemplate restTemplate = new RestTemplate();
+                restTemplate.getMessageConverters()
+                        .add(0, new org.springframework.http.converter.StringHttpMessageConverter(StandardCharsets.UTF_8));
 
-        // 토스페이먼츠 결제 취소 API 호출
-        try {
-            RestTemplate restTemplate = new RestTemplate();
-            restTemplate.getMessageConverters()
-                    .add(0, new org.springframework.http.converter.StringHttpMessageConverter(StandardCharsets.UTF_8));
+                String encodedSecretKey = Base64.getEncoder()
+                        .encodeToString((secretKey + ":").getBytes(StandardCharsets.UTF_8));
 
-            String encodedSecretKey = Base64.getEncoder()
-                    .encodeToString((secretKey + ":").getBytes(StandardCharsets.UTF_8));
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(new MediaType("application", "json", StandardCharsets.UTF_8));
+                headers.set("Authorization", "Basic " + encodedSecretKey);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(new MediaType("application", "json", StandardCharsets.UTF_8));
-            headers.set("Authorization", "Basic " + encodedSecretKey);
+                Map<String, Object> body = new HashMap<>();
+                body.put("cancelReason", reason);
+                if (actualRefundAmount < approvedAmount) {
+                    body.put("cancelAmount", actualRefundAmount); // 부분 취소
+                }
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("cancelReason", reason);
-            if (actualRefundAmount < approvedAmount) {
-                body.put("cancelAmount", actualRefundAmount); // 부분 취소
+                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+                String cancelUrl = "https://api.tosspayments.com/v1/payments/" + payment.getPgPaymentKey() + "/cancel";
+
+                ResponseEntity<String> response = restTemplate.exchange(
+                        cancelUrl,
+                        HttpMethod.POST,
+                        entity,
+                        String.class);
+
+                log.info("토스페이먼츠 취소 응답: status={}", response.getStatusCode());
+
+                // 환불 성공 - payment_refund 테이블 업데이트
+                paymentRefund.updateRefundSuccess(payment.getPgPaymentKey(), LocalDateTime.now());
+                paymentRefundRepository.save(paymentRefund);
+
+                // 예약 상태 업데이트 (취소/환불)
+                reservation.updateRefunded();
+                reservationRepository.save(reservation);
+
+                // 쿠폰 복구 처리
+                if (reservation.getUserCouponId() != null) {
+                    userCouponService.restoreCoupon(reservation.getUserId(), reservation.getUserCouponId());
+                    log.info("쿠폰 복구 완료: userCouponId={}", reservation.getUserCouponId());
+                }
+
+                log.info("환불 처리 완료: reservationId={}, refundAmount={}", reservation.getId(), actualRefundAmount);
+
+            } catch (Exception e) {
+                log.error("결제 취소 실패", e);
+
+                // 환불 실패 - payment_refund 테이블 업데이트
+                paymentRefund.updateRefundFailed("CANCEL_FAILED", e.getMessage());
+                paymentRefundRepository.save(paymentRefund);
+
+                throw new RuntimeException("환불 처리에 실패했습니다: " + e.getMessage());
             }
-
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-
-            String cancelUrl = "https://api.tosspayments.com/v1/payments/" + payment.getPgPaymentKey() + "/cancel";
-
-            ResponseEntity<String> response = restTemplate.exchange(
-                    cancelUrl,
-                    HttpMethod.POST,
-                    entity,
-                    String.class);
-
-            log.info("토스페이먼츠 취소 응답: status={}", response.getStatusCode());
-
-            // 환불 성공 - payment_refund 테이블 업데이트
-            paymentRefund.updateRefundSuccess(payment.getPgPaymentKey(), LocalDateTime.now());
-            paymentRefundRepository.save(paymentRefund);
-
-            // 예약 상태 업데이트 (취소/환불)
-            reservation.updateRefunded();
-            reservationRepository.save(reservation);
-
-            // 쿠폰 복구 처리
-            if (reservation.getUserCouponId() != null) {
-                userCouponService.restoreCoupon(reservation.getUserId(), reservation.getUserCouponId());
-                log.info("쿠폰 복구 완료: userCouponId={}", reservation.getUserCouponId());
-            }
-
-            log.info("환불 처리 완료: reservationId={}, refundAmount={}", reservation.getId(), actualRefundAmount);
-
-            return PaymentResponseDto.from(payment);
-
-        } catch (Exception e) {
-            log.error("결제 취소 실패", e);
-
-            // 환불 실패 - payment_refund 테이블 업데이트
-            paymentRefund.updateRefundFailed("CANCEL_FAILED", e.getMessage());
-            paymentRefundRepository.save(paymentRefund);
-
-            throw new RuntimeException("환불 처리에 실패했습니다: " + e.getMessage());
         }
+        
+        // 첫 예약 쿠폰 회수 (예약 취소로 인해 첫 예약이 아니게 됨) - 공통 처리
+        userCouponService.revokeFirstReservationCoupon(reservation.getUserId());
+        
+        return PaymentResponseDto.from(payment);
     }
 
     private Long extractReservationId(String orderId) {

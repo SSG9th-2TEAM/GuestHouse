@@ -13,6 +13,9 @@ const errorMessage = ref('')
 // 예약 데이터
 const reservations = ref([])
 
+// 탭 상태
+const activeTab = ref('ACTIVE') // ACTIVE | CANCELLED | COMPLETED
+
 // 오늘 날짜
 const today = new Date()
 today.setHours(0, 0, 0, 0)
@@ -38,6 +41,20 @@ const pastReservations = computed(() => {
 // 취소된 예약 (reservationStatus === 9)
 const cancelledReservations = computed(() => {
   return reservations.value.filter(r => r.reservationStatus === 9)
+})
+
+// 탭별 필터링 (쿠폰함 스타일)
+const filteredReservations = computed(() => {
+  if (activeTab.value === 'ACTIVE') {
+    return upcomingReservations.value
+  }
+  if (activeTab.value === 'CANCELLED') {
+    return cancelledReservations.value
+  }
+  if (activeTab.value === 'COMPLETED') {
+    return pastReservations.value
+  }
+  return []
 })
 
 // 날짜 포맷 (YYYY.MM.DD)
@@ -139,6 +156,19 @@ const handleDelete = async (id) => {
   }
 }
 
+// 취소 내역에서 삭제
+const handleDeleteCancelled = async (id) => {
+  if (confirm('취소 내역에서 삭제하시겠습니까?')) {
+    try {
+      await deleteCancelledReservation(id)
+      reservations.value = reservations.value.filter(r => r.reservationId !== id)
+    } catch (error) {
+      console.error('취소 내역 삭제 실패:', error)
+      errorMessage.value = error.message || '취소 내역을 삭제하는데 실패했습니다.'
+    }
+  }
+}
+
 // 예정된 예약 카드 클릭 → 예약완료 상세 페이지
 const handleUpcomingClick = (item) => {
   router.push({
@@ -181,6 +211,28 @@ onMounted(() => {
       <h1 class="page-title">예약 내역</h1>
     </div>
 
+    <!-- 탭 내비게이션 -->
+    <div class="tab-nav">
+      <button 
+        :class="['tab-btn', { active: activeTab === 'ACTIVE' }]"
+        @click="activeTab = 'ACTIVE'"
+      >
+        예약내역
+      </button>
+      <button 
+        :class="['tab-btn', { active: activeTab === 'CANCELLED' }]"
+        @click="activeTab = 'CANCELLED'"
+      >
+        취소내역
+      </button>
+      <button 
+        :class="['tab-btn', { active: activeTab === 'COMPLETED' }]"
+        @click="activeTab = 'COMPLETED'"
+      >
+        이용완료
+      </button>
+    </div>
+
     <!-- 로딩 상태 -->
     <div v-if="isLoading" class="loading-state">
       <p>예약 내역을 불러오는 중...</p>
@@ -193,168 +245,157 @@ onMounted(() => {
     </div>
 
     <template v-else>
-      <!-- 예약 내역 -->
+      <!-- 탭별 예약 목록 -->
       <section class="section">
-        <h2 class="section-title">예약 내역</h2>
-
-        <div v-if="upcomingReservations.length === 0" class="empty-state">
-          예약 내역이 없습니다.
+        <!-- 빈 상태 -->
+        <div v-if="filteredReservations.length === 0" class="empty-state">
+          <span v-if="activeTab === 'ACTIVE'">예약 내역이 없습니다.</span>
+          <span v-else-if="activeTab === 'CANCELLED'">취소 내역이 없습니다.</span>
+          <span v-else>이용 완료된 내역이 없습니다.</span>
         </div>
 
+        <!-- 예약 목록 -->
         <div v-else class="card-list">
-          <div 
-            v-for="item in upcomingReservations" 
-            :key="item.reservationId" 
-            class="res-card clickable" 
-            role="link"
-            tabindex="0"
-            @click="handleUpcomingClick(item)"
-            @keydown.enter="handleUpcomingClick(item)"
-          >
-            <div class="card-content">
-              <img
-                  :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
-                  class="card-img"
-                  :alt="item.accommodationName || '숙소 이미지'"
-              />
-              <div class="card-info">
-                <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
-                <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
-                <div class="res-details">
-                  <span>체크인</span> <span class="val">{{ formatDate(item.checkin) }}</span>
-                </div>
-                <div class="res-details">
-                  <span>체크아웃</span> <span class="val">{{ formatDate(item.checkout) }}</span>
-                </div>
-                <div class="res-details">
-                  <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
-                  <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
-                </div>
-                <div class="res-price">
-                  결제금액 <span class="price-val">{{ item.finalPaymentAmount?.toLocaleString() || 0 }}원</span>
+          <!-- 예정된 예약 (ACTIVE 탭) -->
+          <template v-if="activeTab ===  'ACTIVE'">
+            <div 
+              v-for="item in filteredReservations" 
+              :key="item.reservationId" 
+              class="res-card clickable" 
+              role="link"
+              tabindex="0"
+              @click="handleUpcomingClick(item)"
+              @keydown.enter="handleUpcomingClick(item)"
+            >
+              <div class="card-content">
+                <img
+                    :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
+                    class="card-img"
+                    :alt="item.accommodationName || '숙소 이미지'"
+                />
+                <div class="card-info">
+                  <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
+                  <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
+                  <div class="res-details">
+                    <span>체크인</span> <span class="val">{{ formatDate(item.checkin) }}</span>
+                  </div>
+                  <div class="res-details">
+                    <span>체크아웃</span> <span class="val">{{ formatDate(item.checkout) }}</span>
+                  </div>
+                  <div class="res-details">
+                    <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
+                    <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
+                  </div>
+                  <div class="res-price">
+                    결제금액 <span class="price-val">{{ item.finalPaymentAmount?.toLocaleString() || 0 }}원</span>
+                  </div>
                 </div>
               </div>
+
+              <div class="card-actions" @click.stop>
+                <button class="action-btn outline" @click="handleCancel(item)">예약 취소</button>
+              </div>
             </div>
+          </template>
 
-            <div class="card-actions" @click.stop>
-              <button class="action-btn outline" @click="handleCancel(item)">예약 취소</button>
-            </div>
-          </div>
-        </div>
-      </section>
+          <!-- 취소된 예약 (CANCELLED 탭) -->
+          <template v-if="activeTab === 'CANCELLED'">
+            <router-link 
+              v-for="item in filteredReservations" 
+              :key="item.reservationId" 
+              :to="`/room/${item.accommodationsId}`"
+              class="res-card clickable cancelled"
+            >
+              <div class="card-content">
+                <img
+                    :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
+                    class="card-img"
+                    :alt="item.accommodationName || '숙소 이미지'"
+                />
+                <div class="card-info">
+                  <div class="cancelled-badge">취소됨</div>
+                  <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
+                  <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
+                  <div class="res-details">
+                    <span>예약일</span> <span class="val">{{ formatDate(item.checkin) }} ~ {{ formatDate(item.checkout) }}</span>
+                  </div>
+                  <div class="res-details">
+                    <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
+                    <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
+                  </div>
+                  </div>
 
-      <!-- 취소 내역 -->
-      <section class="section">
-        <h2 class="section-title">취소 내역</h2>
-
-        <div v-if="cancelledReservations.length === 0" class="empty-state">
-          취소 내역이 없습니다.
-        </div>
-
-        <div v-else class="card-list">
-          <router-link 
-            v-for="item in cancelledReservations" 
-            :key="item.reservationId" 
-            :to="`/room/${item.accommodationsId}`"
-            class="res-card clickable cancelled"
-          >
-            <div class="card-content">
-              <img
-                  :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
-                  class="card-img"
-                  :alt="item.accommodationName || '숙소 이미지'"
-              />
-              <div class="card-info">
-                <div class="cancelled-badge">취소됨</div>
-                <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
-                <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
-                <div class="res-details">
-                  <span>예약일</span> <span class="val">{{ formatDate(item.checkin) }} ~ {{ formatDate(item.checkout) }}</span>
+                <!-- 삭제 버튼 (이벤트 버블링 방지) -->
+                <div class="card-action-overlay" @click.prevent.stop>
+                  <button
+                    class="icon-btn delete-small"
+                    @click="handleDeleteCancelled(item.reservationId)"
+                    title="내역 삭제"
+                  >🗑</button>
                 </div>
-                <div class="res-details">
-                  <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
-                  <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
-                </div>
-                </div>
+              </div>
+            </router-link>
+          </template>
 
-              <!-- 삭제 버튼 (이벤트 버블링 방지) -->
-              <div class="card-action-overlay" @click.prevent.stop>
+          <!-- 이용 완료 (COMPLETED 탭) -->
+          <template v-if="activeTab === 'COMPLETED'">
+            <div 
+              v-for="item in filteredReservations" 
+              :key="item.reservationId" 
+              class="res-card clickable" 
+              role="link"
+              tabindex="0"
+              @click="handlePastClick(item)"
+              @keydown.enter="handlePastClick(item)"
+            >
+              <div class="card-content">
+                <img
+                    :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
+                    class="card-img"
+                    :alt="item.accommodationName || '숙소 이미지'"
+                />
+                <div class="card-info">
+                  <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
+                  <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
+                  <div class="res-details">
+                    <span>이용일</span> <span class="val">{{ formatDate(item.checkin) }} ~ {{ formatDate(item.checkout) }}</span>
+                  </div>
+                  <div class="res-details">
+                    <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
+                    <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
+                  </div>
+                  <div class="res-price">
+                    결제금액 <span class="price-val">{{ item.finalPaymentAmount?.toLocaleString() || 0 }}원</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card-actions" @click.stop>
+                <template v-if="!item.hasReview">
+                   <button
+                    class="action-btn review"
+                    :class="{ disabled: !isReviewable(item.checkout) }"
+                    @click="handleWriteReview(item)"
+                    :disabled="!isReviewable(item.checkout)"
+                  >
+                    {{ isReviewable(item.checkout) ? '리뷰 작성하기' : '작성 기한 만료' }}
+                  </button>
+                </template>
+                <template v-else>
+                  <button class="action-btn review completed" disabled>
+                    리뷰 등록 완료
+                  </button>
+                </template>
+                
                 <button
-                  class="icon-btn delete-small"
-                  @click="handleDeleteCancelled(item.reservationId)"
-                  title="내역 삭제"
+                  class="icon-btn delete"
+                  @click="handleDelete(item.reservationId)"
+                  :disabled="!isDeletable(item.checkout)"
+                  :title="isDeletable(item.checkout) ? '내역 삭제' : '이용 완료 후 삭제 가능'"
                 >🗑</button>
               </div>
             </div>
-          </router-link>
-        </div>
-      </section>
-
-      <!-- 이용 완료 -->
-      <section class="section">
-        <h2 class="section-title">이용 완료</h2>
-
-        <div v-if="pastReservations.length === 0" class="empty-state">
-          이용 완료된 내역이 없습니다.
-        </div>
-
-        <div v-else class="card-list">
-          <div 
-            v-for="item in pastReservations" 
-            :key="item.reservationId" 
-            class="res-card clickable" 
-            role="link"
-            tabindex="0"
-            @click="handlePastClick(item)"
-            @keydown.enter="handlePastClick(item)"
-          >
-            <div class="card-content">
-              <img
-                  :src="getThumbnailUrl(item.accommodationImageUrl) || `https://picsum.photos/seed/${item.accommodationsId}/200/200`"
-                  class="card-img"
-                  :alt="item.accommodationName || '숙소 이미지'"
-              />
-              <div class="card-info">
-                <h3 class="res-title">{{ item.accommodationName || '숙소명 없음' }}</h3>
-                <p class="res-loc">{{ item.accommodationAddress || '주소 없음' }}</p>
-                <div class="res-details">
-                  <span>이용일</span> <span class="val">{{ formatDate(item.checkin) }} ~ {{ formatDate(item.checkout) }}</span>
-                </div>
-                <div class="res-details">
-                  <span>인원</span> <span class="val">{{ item.guestCount }}명</span>
-                  <span class="spacer">숙박</span> <span class="val">{{ item.stayNights }}박</span>
-                </div>
-                <div class="res-price">
-                  결제금액 <span class="price-val">{{ item.finalPaymentAmount?.toLocaleString() || 0 }}원</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="card-actions" @click.stop>
-              <template v-if="!item.hasReview">
-                 <button
-                  class="action-btn review"
-                  :class="{ disabled: !isReviewable(item.checkout) }"
-                  @click="handleWriteReview(item)"
-                  :disabled="!isReviewable(item.checkout)"
-                >
-                  {{ isReviewable(item.checkout) ? '리뷰 작성하기' : '작성 기한 만료' }}
-                </button>
-              </template>
-              <template v-else>
-                <button class="action-btn review completed" disabled>
-                  리뷰 등록 완료
-                </button>
-              </template>
-              
-              <button
-                class="icon-btn delete"
-                @click="handleDelete(item.reservationId)"
-                :disabled="!isDeletable(item.checkout)"
-                :title="isDeletable(item.checkout) ? '내역 삭제' : '이용 완료 후 삭제 가능'"
-              >🗑</button>
-            </div>
-          </div>
+          </template>
         </div>
       </section>
     </template>
@@ -385,6 +426,37 @@ onMounted(() => {
 .page-title {
   font-size: 1.3rem;
   font-weight: 700;
+}
+
+/* 탭 네비게이션 */
+.tab-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #eee;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  color: #333;
+  border-bottom-color: #333;
+}
+
+.tab-btn:hover:not(.active) {
+  color: #333;
+  background: #f9f9f9;
 }
 
 .section {

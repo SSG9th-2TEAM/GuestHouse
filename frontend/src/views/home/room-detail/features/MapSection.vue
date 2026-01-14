@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   latitude: {
@@ -153,8 +153,41 @@ const renderKakaoMap = async () => {
   })
 }
 
+let observer = null
+
 onMounted(() => {
-  renderKakaoMap()
+  if (!kakaoMapRef.value) return
+
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      renderKakaoMap()
+      observer.disconnect()
+      observer = null
+    }
+  }, { rootMargin: '200px' }) // 미리 로드하기 위해 200px 여유
+
+  observer.observe(kakaoMapRef.value)
+})
+
+onBeforeUnmount(() => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+  // 메모리 누수 방지를 위해 지도 인스턴스 파괴
+  // (Kakao Maps API 문서 권장 사항)
+  /*
+    참고: Kakao Maps SDK 버전에 따라 destroy 메서드가 없을 수도 있으므로,
+    존재 여부를 확인 후 호출하거나 try-catch로 감싸는 것이 안전할 수 있습니다.
+    여기서는 일반적인 패턴인 존재 여부 확인 후 호출 방식을 사용하지 않고,
+    제공된 레퍼런스 코드를 따르되 안전장치를 살짝 고려합니다.
+   */
+  if (kakaoMap && typeof kakaoMap.destroy === 'function') {
+      // 3. destroy() 메서드 존재 시 호출
+      kakaoMap.destroy(); 
+  }
+  kakaoMap = null;
+  kakaoMarker = null;
 })
 
 watch(
@@ -207,7 +240,7 @@ const openKakaoNavi = () => {
       카카오맵으로 길찾기
     </button>
     
-    <p class="map-info">{{ transportText }}</p>
+    <p v-if="transportInfo" class="map-info">{{ transportText }}</p>
   </section>
 </template>
 
