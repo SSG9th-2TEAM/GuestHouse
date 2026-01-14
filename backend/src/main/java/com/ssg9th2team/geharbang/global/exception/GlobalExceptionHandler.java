@@ -8,8 +8,20 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.ssg9th2team.geharbang.global.dto.ErrorResponse;
+import com.ssg9th2team.geharbang.global.lock.LockAcquisitionException;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.servlet.view.RedirectView;
+
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @Value("${oauth2.failure-redirect-uri:/login}")
+    private String failureRedirectUri;
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleResourceNotFoundException(ResourceNotFoundException ex) {
@@ -35,6 +47,60 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
-    // Add other exception handlers as needed (e.g.,
-    // MethodArgumentNotValidException)
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+        log.warn("IllegalArgumentException: {}", ex.getMessage());
+        ErrorResponse response = new ErrorResponse(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalStateException(IllegalStateException ex) {
+        log.warn("IllegalStateException: {}", ex.getMessage());
+        ErrorResponse response = new ErrorResponse(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleEntityNotFoundException(EntityNotFoundException ex) {
+        log.warn("EntityNotFoundException: {}", ex.getMessage());
+        ErrorResponse response = new ErrorResponse(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(LockAcquisitionException.class)
+    public ResponseEntity<ErrorResponse> handleLockAcquisitionException(LockAcquisitionException ex) {
+        log.warn("LockAcquisitionException: {}", ex.getMessage());
+        ErrorResponse response = new ErrorResponse(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public Object handleRuntimeException(RuntimeException ex, HttpServletRequest request) {
+        log.error("RuntimeException: {}", ex.getMessage(), ex);
+        if (shouldRedirectToLogin(request)) {
+            return new RedirectView(failureRedirectUri);
+        }
+        ErrorResponse response = new ErrorResponse(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public Object handleException(Exception ex, HttpServletRequest request) {
+        log.error("Unhandled Exception: ", ex);
+        if (shouldRedirectToLogin(request)) {
+            return new RedirectView(failureRedirectUri);
+        }
+        ErrorResponse response = new ErrorResponse("서버 내부 오류가 발생했습니다.");
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    private boolean shouldRedirectToLogin(HttpServletRequest request) {
+        String requestUri = request.getRequestURI();
+        if (requestUri != null && requestUri.startsWith("/api/")) return false;
+        if (requestUri != null && requestUri.equals("/login")) return false;
+        if (requestUri != null && requestUri.startsWith("/login/oauth2/code/")) return true;
+        if (requestUri != null && requestUri.startsWith("/oauth2/authorization/")) return true;
+        return false;
+    }
 }
