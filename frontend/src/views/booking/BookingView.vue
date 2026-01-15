@@ -304,7 +304,8 @@ const handlePayment = async () => {
       isCapacityError.value = false
       isErrorModalOpen.value = true
     } else {
-      errorMessage.value = '예약 처리 중 오류가 발생했습니다.<br>다시 시도해주세요.'
+      // 그 외 에러는 서버에서 전달받은 메시지 표시
+      errorMessage.value = error.message || '예약 처리 중 오류가 발생했습니다.<br>다시 시도해주세요.'
       isCapacityError.value = false
       isErrorModalOpen.value = true
     }
