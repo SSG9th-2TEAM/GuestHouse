@@ -8,7 +8,7 @@ import { useRealtimeChatStore } from '@/stores/realtimeChatStore';
 const realtimeChatStore = useRealtimeChatStore();
 
 // --- New state for tabs & real-time chat ---
-const activeTab = ref('chatbot');
+const activeTab = ref('faq');
 const realtimeChatRooms = ref([]);
 const currentChatRoom = ref(null); // This will hold the full room object
 const messageInput = ref(''); // For the real-time chat input
@@ -576,16 +576,16 @@ const goHome = () => {
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div v-else class="tab-buttons">
-          <button @click="switchTab('chatbot')" :class="{ active: activeTab === 'chatbot' }" class="tab-btn">FAQ</button>
+          <button @click="switchTab('faq')" :class="{ active: activeTab === 'faq' }" class="tab-btn">FAQ</button>
           <button @click="switchTab('chat')" :class="{ active: activeTab === 'chat' }" class="tab-btn">채팅방</button>
         </div>
-        <span v-if="viewMode === 'chat'" class="header-title">{{ activeTab === 'chatbot' ? '지금이곳' : currentChatRoom?.accommodationName || '채팅' }}</span>
+        <span v-if="viewMode === 'chat'" class="header-title">{{ activeTab === 'faq' ? '지금이곳' : currentChatRoom?.accommodationName || '채팅' }}</span>
         <button class="close-btn" @click="toggleChat">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6L18 18" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
       <div v-if="viewMode === 'list'" class="room-list-container">
-        <template v-if="activeTab === 'chatbot'">
+        <template v-if="activeTab === 'faq'">
           <div v-if="isLoading && chatRooms.length === 0" class="loading-bubble"><span></span><span></span><span></span></div>
           <div v-else-if="chatRooms.length === 0" class="empty-state"><p>문의 내역이 없습니다.</p><p class="sub-text">새 문의하기를 눌러 대화를 시작하세요.</p></div>
           <div v-else class="room-list">
@@ -621,7 +621,7 @@ const goHome = () => {
       <div v-else-if="viewMode === 'chat'" class="chat-container">
         <div class="messages-area" ref="chatContainer">
             <!-- Chatbot Messages -->
-            <template v-if="activeTab === 'chatbot'">
+            <template v-if="activeTab === 'faq'">
                 <div v-for="(msg, index) in messages" :key="`bot-${index}`" class="message-row" :class="msg.type">
                     <div v-if="msg.type === 'bot'" class="bot-container"><div class="bot-profile"><img src="/icon.png" alt="Bot" /></div><div class="bot-content"><div class="bot-name">지금이곳</div><div class="message-bubble bot-bubble"><div class="message-text" style="white-space: pre-wrap;">{{ msg.text }}</div></div><div v-if="msg.showMenu" class="menu-grid"><button v-for="(cat, idx) in menuCategories" :key="idx" class="menu-btn" @click="selectOption(cat.label)"><span class="menu-emoji">{{ cat.emoji }}</span><span class="menu-label">{{ cat.label }}</span></button></div><div v-if="msg.options && msg.options.length > 0" class="options-list"><button v-for="(opt, idx) in msg.options" :key="idx" class="option-btn" @click="selectOption(opt.fullText)">{{ opt.fullText }}</button></div><div v-if="msg.showHome" class="home-btn-container"><button class="home-btn" @click="goHome">처음으로</button></div><div class="message-time">{{ msg.time }}</div></div></div>
                     <div v-else class="user-container"><div class="message-bubble user-bubble">{{ msg.text }}</div><div class="message-time">{{ msg.time }}</div></div>
