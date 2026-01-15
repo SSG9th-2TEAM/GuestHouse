@@ -1,13 +1,13 @@
 package com.ssg9th2team.geharbang.domain.accommodation.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationAiSummaryResponse;
 import com.ssg9th2team.geharbang.domain.accommodation.entity.Accommodation;
-import com.ssg9th2team.geharbang.domain.report.host.ai.HostReportAiException;
 import com.ssg9th2team.geharbang.domain.review.entity.ReviewEntity;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -59,7 +59,7 @@ public class OpenAiGuestSummaryClient implements GuestSummaryClient {
     @Override
     public AccommodationAiSummaryResponse generate(Accommodation accommodation, List<ReviewEntity> reviews, List<String> topTags, int minPrice, boolean hasDormitory) {
         if (!isConfigured()) {
-            throw new HostReportAiException("OpenAI is not configured");
+            throw new GuestSummaryAiException("OpenAI is not configured");
         }
 
         try {
@@ -78,19 +78,19 @@ public class OpenAiGuestSummaryClient implements GuestSummaryClient {
 
             String content = extractContent(response.getBody());
             if (content == null || content.isBlank()) {
-                throw new HostReportAiException("OpenAI response missing content");
+                throw new GuestSummaryAiException("OpenAI response missing content");
             }
 
             return parseResponse(content, accommodation);
         } catch (HttpStatusCodeException ex) {
             log.warn("OpenAI guest summary request failed: status={} body={}", ex.getStatusCode(), ex.getResponseBodyAsString());
-            throw new HostReportAiException("OpenAI request failed", ex);
+            throw new GuestSummaryAiException("OpenAI request failed", ex);
         } catch (RestClientException ex) {
             log.warn("OpenAI guest summary request failed: {}", ex.getMessage());
-            throw new HostReportAiException("OpenAI request failed", ex);
+            throw new GuestSummaryAiException("OpenAI request failed", ex);
         } catch (JsonProcessingException ex) {
             log.warn("OpenAI guest summary parsing failed: {}", ex.getMessage());
-            throw new HostReportAiException("OpenAI response parsing failed", ex);
+            throw new GuestSummaryAiException("OpenAI response parsing failed", ex);
         }
     }
 
@@ -153,12 +153,13 @@ public class OpenAiGuestSummaryClient implements GuestSummaryClient {
     }
 
     private AccommodationAiSummaryResponse parseResponse(String content, Accommodation accommodation) throws JsonProcessingException {
-        Map<String, Object> parsed = objectMapper.readValue(content, new TypeReference<Map<String, Object>>() {});
+        // 내부 DTO를 사용하여 안전하게 파싱
+        OpenAiResponseDto dto = objectMapper.readValue(content, OpenAiResponseDto.class);
         
-        String locationTag = (String) parsed.getOrDefault("locationTag", "제주 여행의 중심");
-        List<String> keywords = (List<String>) parsed.getOrDefault("keywords", List.of("#제주감성"));
-        String moodDescription = (String) parsed.getOrDefault("moodDescription", "편안한 휴식을 제공하는 숙소입니다.");
-        String tip = (String) parsed.getOrDefault("tip", "인기 숙소이니 예약을 서두르세요!");
+        String locationTag = dto.getLocationTag() != null ? dto.getLocationTag() : "제주 여행의 중심";
+        List<String> keywords = dto.getKeywords() != null ? dto.getKeywords() : List.of("#제주감성");
+        String moodDescription = dto.getMoodDescription() != null ? dto.getMoodDescription() : "편안한 휴식을 제공하는 숙소입니다.";
+        String tip = dto.getTip() != null ? dto.getTip() : "인기 숙소이니 예약을 서두르세요!";
 
         return new AccommodationAiSummaryResponse(
                 accommodation.getAccommodationsName(),
@@ -168,5 +169,15 @@ public class OpenAiGuestSummaryClient implements GuestSummaryClient {
                 tip,
                 0 // Service에서 채움
         );
+    }
+
+    // JSON 파싱용 내부 DTO
+    @Getter
+    @NoArgsConstructor
+    private static class OpenAiResponseDto {
+        private String locationTag;
+        private List<String> keywords;
+        private String moodDescription;
+        private String tip;
     }
 }

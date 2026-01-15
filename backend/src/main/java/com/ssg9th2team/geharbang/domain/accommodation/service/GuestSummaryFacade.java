@@ -23,7 +23,7 @@ public class GuestSummaryFacade {
             try {
                 log.info("Generating guest summary using OpenAI...");
                 return openAiClient.generate(accommodation, reviews, topTags, minPrice, hasDormitory);
-            } catch (RuntimeException e) { // HostReportAiException은 RuntimeException의 자식이므로 통합
+            } catch (GuestSummaryAiException e) { // 전용 예외를 명시적으로 잡음
                 log.warn("OpenAI generation failed. Falling back to Rule-based logic.", e);
             }
         } else {
