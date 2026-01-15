@@ -146,10 +146,23 @@ const loadRooms = async () => {
 }
 
 const createNewRoom = async () => {
-  const response = await createAgentRoom()
-  if (response.ok) {
-    await loadRooms()
-    selectRoom(response.data.roomId)
+  if (isLoading.value) return // 중복 호출 방지
+  
+  isLoading.value = true
+  try {
+    const response = await createAgentRoom()
+    if (response.ok && response.data?.roomId) {
+      await loadRooms()
+      selectRoom(response.data.roomId)
+    } else {
+      console.error('새 채팅방 생성 실패:', response)
+      alert('새 채팅방을 만들지 못했습니다. 다시 시도해주세요.')
+    }
+  } catch (error) {
+    console.error('새 채팅방 생성 오류:', error)
+    alert('오류가 발생했습니다. 다시 시도해주세요.')
+  } finally {
+    isLoading.value = false
   }
 }
 
