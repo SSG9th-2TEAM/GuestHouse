@@ -10,8 +10,11 @@ export const useRealtimeChatStore = defineStore('realtimeChat', {
         currentRoomId: null,
         messages: [],
         subscription: null,
+        notificationSubscription: null, // 사용자별 알림 구독
         reconnectAttempts: 0,
         token: null,
+        // 실시간 알림으로 받은 채팅방 업데이트 정보
+        roomNotifications: [],
     }),
 
     actions: {
@@ -47,6 +50,14 @@ export const useRealtimeChatStore = defineStore('realtimeChat', {
                         this.connected = true;
                         this.reconnectAttempts = 0;
                         console.log('WebSocket connected successfully. Connected state:', this.connected);
+
+                        // 사용자별 알림 채널 구독
+                        const currentUser = getUserInfo();
+                        const userId = currentUser?.userId || currentUser?.id;
+                        if (userId) {
+                            this.subscribeToNotifications(userId);
+                        }
+
                         // 연결 안정화를 위해 약간의 딜레이 후 구독
                         if (this.currentRoomId) {
                             setTimeout(() => {
@@ -109,14 +120,17 @@ export const useRealtimeChatStore = defineStore('realtimeChat', {
                         const data = JSON.parse(message.body);
                         const currentUser = getUserInfo();
 
+                        // 현재 사용자 ID 가져오기 (userId 또는 id)
+                        const myId = currentUser?.userId || currentUser?.id;
+
                         // 읽음 알림 처리 (type이 MESSAGES_READ인 경우)
                         if (data.type === 'MESSAGES_READ') {
                             console.log('Received read receipt:', data);
                             // 읽은 사람이 나 자신이 아닌 경우에만 처리 (상대방이 읽었을 때)
-                            if (currentUser && data.readerId !== currentUser.userId) {
+                            if (myId && Number(data.readerId) !== Number(myId)) {
                                 // 내가 보낸 메시지들을 읽음 처리 - 배열을 새로 생성하여 반응성 트리거
                                 this.messages = this.messages.map(msg => {
-                                    if (msg.senderUserId === currentUser.userId) {
+                                    if (Number(msg.senderUserId) === Number(myId)) {
                                         return { ...msg, readByRecipient: true };
                                     }
                                     return msg;
@@ -127,8 +141,8 @@ export const useRealtimeChatStore = defineStore('realtimeChat', {
                         }
 
                         // 일반 메시지 처리
-                        // Initialize readByRecipient for new messages
-                        data.readByRecipient = data.senderUserId === currentUser?.userId ? false : undefined;
+                        // Initialize readByRecipient for new messages (내가 보낸 메시지는 false, 상대방 메시지는 undefined)
+                        data.readByRecipient = myId && Number(data.senderUserId) === Number(myId) ? false : undefined;
                         this.messages.push(data);
                     },
                     (error) => {
@@ -139,6 +153,43 @@ export const useRealtimeChatStore = defineStore('realtimeChat', {
             } catch (error) {
                 console.error('Error during subscription:', error);
             }
+        },
+
+        // 사용자별 알림 채널 구독
+        subscribeToNotifications(userId) {
+            if (!this.connected || !this.stompClient || !this.stompClient.active) {
+                console.error('Cannot subscribe to notifications, not connected.');
+                return;
+            }
+
+            if (this.notificationSubscription) {
+                console.log('Unsubscribing from previous notification channel');
+                this.notificationSubscription.unsubscribe();
+            }
+
+            try {
+                this.notificationSubscription = this.stompClient.subscribe(
+                    `/topic/user/${userId}/notifications`,
+                    (message) => {
+                        console.log('Received notification:', message);
+                        const data = JSON.parse(message.body);
+
+                        if (data.type === 'NEW_MESSAGE') {
+                            console.log('New message notification:', data);
+                            // 채팅방 목록 업데이트를 위한 알림 저장
+                            this.roomNotifications.push(data);
+                        }
+                    }
+                );
+                console.log(`Successfully subscribed to notifications for user: ${userId}`);
+            } catch (error) {
+                console.error('Error subscribing to notifications:', error);
+            }
+        },
+
+        // 알림 목록 초기화
+        clearNotifications() {
+            this.roomNotifications = [];
         },
 
         sendMessage(roomId, content) {
@@ -158,6 +209,16 @@ export const useRealtimeChatStore = defineStore('realtimeChat', {
             console.log('Message published successfully');
         },
 
+        leaveRoom() {
+            if (this.subscription) {
+                this.subscription.unsubscribe();
+                this.subscription = null;
+            }
+            this.currentRoomId = null;
+            this.messages = [];
+            console.log('Left chat room');
+        },
+
         disconnect() {
             if (this.stompClient) {
                 this.stompClient.deactivate();
@@ -165,7 +226,9 @@ export const useRealtimeChatStore = defineStore('realtimeChat', {
             this.connected = false;
             this.currentRoomId = null;
             this.subscription = null;
+            this.notificationSubscription = null;
             this.messages = [];
+            this.roomNotifications = [];
             this.token = null;
             this.reconnectAttempts = 0;
         }

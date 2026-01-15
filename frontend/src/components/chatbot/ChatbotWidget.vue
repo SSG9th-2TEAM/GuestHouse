@@ -8,7 +8,7 @@ import { useRealtimeChatStore } from '@/stores/realtimeChatStore';
 const realtimeChatStore = useRealtimeChatStore();
 
 // --- New state for tabs & real-time chat ---
-const activeTab = ref('chatbot');
+const activeTab = ref('faq');
 const realtimeChatRooms = ref([]);
 const currentChatRoom = ref(null); // This will hold the full room object
 const messageInput = ref(''); // For the real-time chat input
@@ -18,9 +18,50 @@ const totalUnreadCount = computed(() => {
   return realtimeChatRooms.value.reduce((total, room) => total + (room.unreadCount || 0), 0);
 });
 
+// 새 메시지 알림 감시 - 실시간으로 채팅방 목록 업데이트
+watch(() => realtimeChatStore.roomNotifications.length, (newLength) => {
+    if (newLength > 0) {
+        const notifications = [...realtimeChatStore.roomNotifications];
+        realtimeChatStore.clearNotifications();
+
+        notifications.forEach(notification => {
+            // 해당 채팅방 찾아서 업데이트
+            const room = realtimeChatRooms.value.find(r => Number(r.id) === Number(notification.roomId));
+            if (room) {
+                room.unreadCount = notification.unreadCount;
+                room.lastMessage = notification.lastMessage;
+                room.lastMessageTime = notification.lastMessageTime;
+                console.log('Updated room from notification:', room);
+            } else {
+                // 채팅방 목록에 없으면 새로고침
+                console.log('Room not found in list, reloading...');
+                loadRealtimeChatRooms();
+            }
+        });
+
+        // 최신 메시지 순으로 재정렬
+        realtimeChatRooms.value.sort((a, b) => {
+            if (!a.lastMessageTime && !b.lastMessageTime) return 0;
+            if (!a.lastMessageTime) return 1;
+            if (!b.lastMessageTime) return -1;
+            return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
+        });
+    }
+});
+
 // Combined messages computed property
 const currentMessages = computed(() => {
-    return activeTab.value === 'chat' ? realtimeChatStore.messages : messages.value;
+    if (activeTab.value === 'chat') {
+        // 메시지 시간순 정렬 (오름차순: 과거 -> 최신)
+        // Redis ZSet Score가 꼬였을 경우를 대비해 클라이언트에서 재정렬
+        return [...realtimeChatStore.messages].sort((a, b) => {
+            if (!a.createdAt && !b.createdAt) return 0;
+            if (!a.createdAt) return -1;
+            if (!b.createdAt) return 1;
+            return new Date(a.createdAt) - new Date(b.createdAt);
+        });
+    }
+    return messages.value;
 });
 
 // --- Existing state for chatbot ---
@@ -90,11 +131,12 @@ const enterRealtimeChatRoom = async (room) => {
         });
         if (res.ok) {
             const fetchedMessages = await res.json();
+            const myId = currentUser.value?.userId || currentUser.value?.id;
             // Initialize readByRecipient property for each message
             realtimeChatStore.messages = fetchedMessages.map(msg => ({
                 ...msg,
                 // For messages sent by current user, set readByRecipient based on backend's isRead field
-                readByRecipient: msg.senderUserId === currentUser.value?.userId ? msg.isRead : undefined
+                readByRecipient: myId && Number(msg.senderUserId) === Number(myId) ? msg.isRead : undefined
             }));
         } else {
             realtimeChatStore.messages = [];
@@ -131,6 +173,45 @@ const isHost = (room) => {
     return currentUser.value.userId === room.hostUserId;
 };
 
+// 기본 게스트 아바타 이미지 (SVG 데이터 URI)
+const defaultGuestAvatar = "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='100'%20height='100'%20viewBox='0%200%2024%2024'%3e%3ccircle%20cx='12'%20cy='12'%20r='12'%20fill='%23E0E0E0'/%3e%3cpath%20d='M20%2021v-2a4%204%200%200%200-4-4H8a4%204%200%200%200-4%204v2'%20fill='none'%20stroke='%239E9E9E'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3c/path%3e%3ccircle%20cx='12'%20cy='7'%20r='4'%20fill='none'%20stroke='%239E9E9E'%20stroke-width='2'%3e%3c/circle%3e%3c/svg%3e";
+
+// 현재 사용자 기준으로 상대방 정보 가져오기
+const getOtherUserName = (room) => {
+    if (!currentUser.value || !room) return '상대방';
+    if (isHost(room)) {
+        return room.guestName || '게스트';
+    } else {
+        return room.hostName || '호스트';
+    }
+};
+
+// 상대방 프로필 이미지 가져오기 (호스트면 게스트 아바타, 게스트면 숙소 이미지)
+const getOtherUserProfileImage = (room) => {
+    if (!room) return '/icon.png';
+    if (isHost(room)) {
+        // 호스트가 보는 화면: 게스트 프로필 (기본 아바타)
+        return room.guestProfileImage || defaultGuestAvatar;
+    } else {
+        // 게스트가 보는 화면: 숙소 이미지
+        return room.accommodationImage || '/icon.png';
+    }
+};
+
+// 현재 사용자 ID 가져오기 (userId 또는 id)
+const getCurrentUserId = () => {
+    if (!currentUser.value) return null;
+    return currentUser.value.userId || currentUser.value.id;
+};
+
+// 현재 사용자가 메시지를 보낸 사람인지 확인 (타입 맞춰서 비교)
+const isMyMessage = (msg) => {
+    const myId = getCurrentUserId();
+    if (!myId) return false;
+    // 숫자/문자열 타입 차이를 고려하여 비교
+    return Number(msg.senderUserId) === Number(myId);
+};
+
 // Watch for incoming messages to scroll down
 watch(() => realtimeChatStore.messages, () => {
     if (activeTab.value === 'chat') {
@@ -141,18 +222,20 @@ watch(() => realtimeChatStore.messages, () => {
 }, { deep: true });
 
 // Auto-read messages when they arrive while viewing chat room
-watch(() => realtimeChatStore.messages, (newMessages, oldMessages) => {
+watch(() => realtimeChatStore.messages.length, (newLength, oldLength) => {
     if (activeTab.value === 'chat' && currentChatRoom.value && viewMode.value === 'chat') {
         // Check if new message was added
-        if (newMessages.length > oldMessages.length) {
-            const latestMessage = newMessages[newMessages.length - 1];
-            // If message is from other user, mark as read automatically
-            if (latestMessage.senderUserId !== currentUser.value?.userId) {
+        if (newLength > oldLength) {
+            const latestMessage = realtimeChatStore.messages[realtimeChatStore.messages.length - 1];
+            // If message is from other user, mark as read automatically (즉시 호출)
+            const myId = getCurrentUserId();
+            if (latestMessage && myId && Number(latestMessage.senderUserId) !== Number(myId)) {
+                console.log('New message from other user detected, marking as read...');
                 markCurrentRoomAsRead();
             }
         }
     }
-}, { deep: true });
+});
 
 const markCurrentRoomAsRead = async () => {
     if (!currentChatRoom.value) return;
@@ -327,6 +410,13 @@ const toggleChat = async () => {
     } else {
       await loadRooms();
     }
+  } else {
+    // 닫힐 때 채팅방 나가기 처리 (구독 해지)
+    if (activeTab.value === 'chat') {
+        realtimeChatStore.leaveRoom();
+        currentChatRoom.value = null;
+        viewMode.value = 'list'; // 다음에 열 때 목록부터 보이게
+    }
   }
 };
 
@@ -408,6 +498,11 @@ const enterRoom = async (roomId) => {
 };
 
 const goBackToList = () => {
+  // 실시간 채팅방에서 나갈 때 구독 해지
+  if (activeTab.value === 'chat') {
+    realtimeChatStore.leaveRoom();
+  }
+  
   viewMode.value = 'list';
   currentRoomId.value = null;
   currentChatRoom.value = null; // Clear real-time chat room as well
@@ -465,7 +560,13 @@ const goHome = () => {
 <template>
   <div class="chatbot-wrapper" :style="wrapperStyle">
     <button class="chat-launcher" @mousedown="startDrag" @touchstart="startDrag" :class="{ 'is-open': isOpen, 'is-dragging': hasMoved }">
-      <img src="/icon.png" alt="Chat" v-if="!isOpen" />
+      <!-- Chat Icon (SVG) - Bubble Style -->
+      <svg v-if="!isOpen" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM20 16H6L4 18V4H20V16Z" fill="#0f766e"/>
+        <circle cx="8" cy="10" r="1.5" fill="white"/>
+        <circle cx="12" cy="10" r="1.5" fill="white"/>
+        <circle cx="16" cy="10" r="1.5" fill="white"/>
+      </svg>
       <span v-if="!isOpen && totalUnreadCount > 0" class="notification-badge">{{ totalUnreadCount }}</span>
       <span v-if="isOpen" class="close-icon">✕</span>
     </button>
@@ -475,16 +576,16 @@ const goHome = () => {
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div v-else class="tab-buttons">
-          <button @click="switchTab('chatbot')" :class="{ active: activeTab === 'chatbot' }" class="tab-btn">챗봇</button>
+          <button @click="switchTab('faq')" :class="{ active: activeTab === 'faq' }" class="tab-btn">FAQ</button>
           <button @click="switchTab('chat')" :class="{ active: activeTab === 'chat' }" class="tab-btn">채팅방</button>
         </div>
-        <span v-if="viewMode === 'chat'" class="header-title">{{ activeTab === 'chatbot' ? '지금이곳' : currentChatRoom?.accommodationName || '채팅' }}</span>
+        <span v-if="viewMode === 'chat'" class="header-title">{{ activeTab === 'faq' ? '지금이곳' : currentChatRoom?.accommodationName || '채팅' }}</span>
         <button class="close-btn" @click="toggleChat">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6L18 18" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
       <div v-if="viewMode === 'list'" class="room-list-container">
-        <template v-if="activeTab === 'chatbot'">
+        <template v-if="activeTab === 'faq'">
           <div v-if="isLoading && chatRooms.length === 0" class="loading-bubble"><span></span><span></span><span></span></div>
           <div v-else-if="chatRooms.length === 0" class="empty-state"><p>문의 내역이 없습니다.</p><p class="sub-text">새 문의하기를 눌러 대화를 시작하세요.</p></div>
           <div v-else class="room-list">
@@ -505,10 +606,10 @@ const goHome = () => {
             <div v-else-if="realtimeChatRooms.length === 0" class="empty-state"><p>진행중인 대화가 없습니다</p><p class="sub-text">숙소 예약 후 호스트와 대화를 시작할 수 있습니다.</p></div>
             <div v-else class="room-list">
                 <div v-for="room in realtimeChatRooms" :key="room.id" class="room-item" @click="enterRealtimeChatRoom(room)">
-                    <div class="room-icon"><img :src="room.accommodationImage || '/icon.png'" alt="숙소" /></div>
+                    <div class="room-icon"><img :src="getOtherUserProfileImage(room)" alt="프로필" /></div>
                     <div class="room-info">
                         <div class="room-sender">{{ room.accommodationName }}</div>
-                        <div class="room-subtitle">호스트: {{ isHost(room) ? '게스트와 대화' : room.hostName }}</div>
+                        <div class="room-subtitle">{{ isHost(room) ? '게스트: ' + (room.guestName || '게스트') : '호스트: ' + (room.hostName || '호스트') }}</div>
                         <div class="room-msg">{{ room.lastMessage || '아직 메시지가 없습니다' }}</div>
                         <div class="room-time">{{ formatTime(room.lastMessageTime) }}</div>
                     </div>
@@ -520,7 +621,7 @@ const goHome = () => {
       <div v-else-if="viewMode === 'chat'" class="chat-container">
         <div class="messages-area" ref="chatContainer">
             <!-- Chatbot Messages -->
-            <template v-if="activeTab === 'chatbot'">
+            <template v-if="activeTab === 'faq'">
                 <div v-for="(msg, index) in messages" :key="`bot-${index}`" class="message-row" :class="msg.type">
                     <div v-if="msg.type === 'bot'" class="bot-container"><div class="bot-profile"><img src="/icon.png" alt="Bot" /></div><div class="bot-content"><div class="bot-name">지금이곳</div><div class="message-bubble bot-bubble"><div class="message-text" style="white-space: pre-wrap;">{{ msg.text }}</div></div><div v-if="msg.showMenu" class="menu-grid"><button v-for="(cat, idx) in menuCategories" :key="idx" class="menu-btn" @click="selectOption(cat.label)"><span class="menu-emoji">{{ cat.emoji }}</span><span class="menu-label">{{ cat.label }}</span></button></div><div v-if="msg.options && msg.options.length > 0" class="options-list"><button v-for="(opt, idx) in msg.options" :key="idx" class="option-btn" @click="selectOption(opt.fullText)">{{ opt.fullText }}</button></div><div v-if="msg.showHome" class="home-btn-container"><button class="home-btn" @click="goHome">처음으로</button></div><div class="message-time">{{ msg.time }}</div></div></div>
                     <div v-else class="user-container"><div class="message-bubble user-bubble">{{ msg.text }}</div><div class="message-time">{{ msg.time }}</div></div>
@@ -528,19 +629,23 @@ const goHome = () => {
             </template>
             <!-- Real-time Chat Messages -->
             <template v-if="activeTab === 'chat'">
-                <div v-for="msg in currentMessages" :key="`rt-${msg.id}`" class="message-row" :class="currentUser && msg.senderUserId === currentUser.userId ? 'user' : 'bot'">
-                    <div v-if="currentUser && msg.senderUserId !== currentUser.userId" class="bot-container">
-                        <div class="bot-profile"><img :src="currentChatRoom.accommodationImage || '/icon.png'" alt="Host" /></div>
+                <div v-for="msg in currentMessages" :key="`rt-${msg.id}`" class="message-row" :class="isMyMessage(msg) ? 'user' : 'bot'">
+                    <!-- 상대방(게스트 또는 호스트)의 메시지 -->
+                    <div v-if="!isMyMessage(msg)" class="bot-container">
+                        <div class="bot-profile">
+                            <img :src="getOtherUserProfileImage(currentChatRoom)" alt="상대방" />
+                        </div>
                         <div class="bot-content">
-                            <div class="bot-name">{{ currentChatRoom.hostName }}</div>
+                            <div class="bot-name">{{ msg.senderName || '상대방' }}</div>
                             <div class="message-bubble bot-bubble"><div class="message-text" style="white-space: pre-wrap;">{{ msg.messageContent }}</div></div>
                             <div class="message-time">{{ formatTime(msg.createdAt) }}</div>
                         </div>
                     </div>
+                    <!-- 내가 보낸 메시지 -->
                     <div v-else class="user-container">
                         <div class="message-bubble user-bubble">{{ msg.messageContent }}</div>
                         <div class="message-meta">
-                            <span v-if="!msg.readByRecipient" class="unread-indicator">1</span>
+                            <span v-if="msg.readByRecipient === false" class="unread-indicator">1</span>
                             <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
                         </div>
                     </div>
@@ -565,7 +670,7 @@ const goHome = () => {
 
 <style scoped>
 /* General Wrapper */
-.chatbot-wrapper{position:fixed;bottom:160px;right:35px;z-index:9999;font-family:'Pretendard',sans-serif}.chat-launcher{width:60px;height:60px;border-radius:50%;background:white;border:1px solid #ddd;box-shadow:0 4px 12px rgba(0,0,0,0.15);cursor:grab;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s;user-select:none;touch-action:none}.chat-launcher:hover{transform:scale(1.05)}.chat-launcher.is-dragging{cursor:grabbing;box-shadow:0 8px 20px rgba(0,0,0,0.25);transform:scale(1.1)}.chat-launcher img{width:32px;height:32px;pointer-events:none}.close-icon{font-size:24px;color:#333}.chatbot-window{position:absolute;bottom:70px;right:0;width:380px;height:500px;max-height:calc(100vh - 180px);background:#fff;border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,0.12);display:flex;flex-direction:column;overflow:hidden;border:1px solid #eee}
+.chatbot-wrapper{position:fixed;bottom:160px;right:35px;z-index:9999;font-family:'Pretendard',sans-serif}.chat-launcher{width:50px;height:50px;border-radius:50%;background:white;border:1px solid #ddd;box-shadow:0 4px 12px rgba(0,0,0,0.15);cursor:grab;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s;user-select:none;touch-action:none}.chat-launcher:hover{transform:scale(1.05)}.chat-launcher.is-dragging{cursor:grabbing;box-shadow:0 8px 20px rgba(0,0,0,0.25);transform:scale(1.1)}.chat-launcher img{width:24px;height:24px;pointer-events:none}.close-icon{font-size:24px;color:#333}.chatbot-window{position:absolute;bottom:70px;right:0;width:380px;height:500px;max-height:calc(100vh - 180px);background:#fff;border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,0.12);display:flex;flex-direction:column;overflow:hidden;border:1px solid #eee}
 .notification-badge{position:absolute;top:-5px;right:-5px;background-color:red;color:white;border-radius:50%;width:24px;height:24px;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:bold;border:2px solid white}
 
 /* Header */

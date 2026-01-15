@@ -1,4 +1,12 @@
-package com.ssg9th2team.geharbang.global.error;
+package com.ssg9th2team.geharbang.global.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import com.ssg9th2team.geharbang.global.dto.ErrorResponse;
 import com.ssg9th2team.geharbang.global.lock.LockAcquisitionException;
@@ -6,18 +14,39 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.view.RedirectView;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 
 @Slf4j
-@RestControllerAdvice
+@RestControllerAdvice("globalExceptionHandlerV2") // 빈 이름 명시적 지정하여 충돌 회피
 public class GlobalExceptionHandler {
 
     @Value("${oauth2.failure-redirect-uri:/login}")
     private String failureRedirectUri;
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleResourceNotFoundException(ResourceNotFoundException ex) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Not Found");
+        response.put("message", ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> handleAccessDeniedException(AccessDeniedException ex) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Forbidden");
+        response.put("message", ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(DuplicateResourceException.class)
+    public ResponseEntity<Map<String, String>> handleDuplicateResourceException(DuplicateResourceException ex) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Conflict");
+        response.put("message", ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
@@ -30,7 +59,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalStateException(IllegalStateException ex) {
         log.warn("IllegalStateException: {}", ex.getMessage());
         ErrorResponse response = new ErrorResponse(ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.CONFLICT); // 409 에러
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(EntityNotFoundException.class)
@@ -44,65 +73,48 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleLockAcquisitionException(LockAcquisitionException ex) {
         log.warn("LockAcquisitionException: {}", ex.getMessage());
         ErrorResponse response = new ErrorResponse(ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.CONFLICT); // 409 Conflict
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleHttpRequestMethodNotSupportedException(
+            HttpRequestMethodNotSupportedException ex) {
+        log.warn("HttpRequestMethodNotSupportedException: {}", ex.getMessage());
+        ErrorResponse response = new ErrorResponse(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.METHOD_NOT_ALLOWED);
     }
 
     @ExceptionHandler(RuntimeException.class)
     public Object handleRuntimeException(RuntimeException ex, HttpServletRequest request) {
         log.error("RuntimeException: {}", ex.getMessage(), ex);
-
-        // 브라우저 요청(HTML)인 경우 로그인 페이지로 리다이렉트
         if (shouldRedirectToLogin(request)) {
-            log.info("Redirecting browser request to login page due to RuntimeException");
             return new RedirectView(failureRedirectUri);
         }
-
-        // API 요청인 경우 JSON 응답
-        ErrorResponse response = new ErrorResponse(ex.getMessage());
+        ErrorResponse response = new ErrorResponse("서버 내부 오류가 발생했습니다.");
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(Exception.class)
     public Object handleException(Exception ex, HttpServletRequest request) {
         log.error("Unhandled Exception: ", ex);
-
-        // 브라우저 요청(HTML)인 경우 로그인 페이지로 리다이렉트
         if (shouldRedirectToLogin(request)) {
-            log.info("Redirecting browser request to login page due to exception");
             return new RedirectView(failureRedirectUri);
         }
-
-        // API 요청인 경우 JSON 응답
         ErrorResponse response = new ErrorResponse("서버 내부 오류가 발생했습니다.");
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    /**
-     * 브라우저의 HTML 요청인지 확인 (리다이렉트 대상)
-     */
     private boolean shouldRedirectToLogin(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
-
-        // API 경로는 항상 JSON 응답
-        if (requestUri != null && requestUri.startsWith("/api/")) {
+        if (requestUri == null) {
             return false;
         }
-
-        // 이미 /login 경로면 리다이렉트하지 않음 (무한 루프 방지)
-        if (requestUri != null && requestUri.equals("/login")) {
+        if (requestUri.startsWith("/api/") || requestUri.equals("/login")) {
             return false;
         }
-
-        // OAuth2 콜백 경로는 리다이렉트 대상
-        if (requestUri != null && requestUri.startsWith("/login/oauth2/code/")) {
+        if (requestUri.startsWith("/login/oauth2/code/") || requestUri.startsWith("/oauth2/authorization/")) {
             return true;
         }
-
-        // OAuth2 authorization 경로는 리다이렉트 대상
-        if (requestUri != null && requestUri.startsWith("/oauth2/authorization/")) {
-            return true;
-        }
-
         return false;
     }
 }

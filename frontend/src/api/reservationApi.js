@@ -13,7 +13,9 @@ export async function createReservation(data) {
     })
 
     if (!response.ok) {
-        throw new Error(`예약 생성 실패: ${response.status}`)
+        // 백엔드에서 전달된 에러 메시지가 있으면 사용, 없으면 상태 코드 반환
+        const errorMsg = response.data?.message || `예약 생성 실패: ${response.status}`
+        throw new Error(errorMsg)
     }
 
     return response.data

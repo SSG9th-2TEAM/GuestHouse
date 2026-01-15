@@ -22,9 +22,18 @@ UPDATE theme SET theme_name = '반려동물' WHERE theme_name = '냥집사/멍�
 DELETE FROM theme WHERE theme_name = '반려동물 동반';
 
 -- 6. 테마 순서 변경 (솔로 <-> 바비큐)
--- ID 기반 스왑은 로컬 DB 상태에 의존하므로, 이름 기반으로 강제 업데이트 (필요시)
-UPDATE theme SET theme_name = '바비큐 파티', theme_image_url = 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Meat%20on%20bone/3D/meat_on_bone_3d.png' WHERE theme_id = 119;
-UPDATE theme SET theme_name = '솔로 파티', theme_image_url = 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Heart%20on%20fire/3D/heart_on_fire_3d.png' WHERE theme_id = 136;
+-- ID 기반 스왑은 로컬 DB 상태에 의존하므로, 이름 기반으로 안전하게 업데이트 (Unique Key 충돌 방지 포함)
+UPDATE theme SET theme_name = 'TEMP_SWAP_THEME' WHERE theme_name = '솔로 파티';
+
+UPDATE theme 
+SET theme_name = '솔로 파티', 
+    theme_image_url = 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Heart%20on%20fire/3D/heart_on_fire_3d.png' 
+WHERE theme_name = '바비큐 파티';
+
+UPDATE theme 
+SET theme_name = '바비큐 파티', 
+    theme_image_url = 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Meat%20on%20bone/3D/meat_on_bone_3d.png' 
+WHERE theme_name = 'TEMP_SWAP_THEME';
 
 -- 7. 숙소 매핑 추가
 INSERT IGNORE INTO accommodation_theme (accommodations_id, theme_id) 

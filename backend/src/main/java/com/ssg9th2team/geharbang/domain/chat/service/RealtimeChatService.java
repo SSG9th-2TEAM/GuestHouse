@@ -1,11 +1,9 @@
 package com.ssg9th2team.geharbang.domain.chat.service;
 
 import com.ssg9th2team.geharbang.domain.accommodation.repository.mybatis.AccommodationMapper;
-import com.ssg9th2team.geharbang.domain.chat.RealtimeChatMessage;
 import com.ssg9th2team.geharbang.domain.chat.RealtimeChatRoom;
 import com.ssg9th2team.geharbang.domain.chat.dto.ChatMessageDto;
 import com.ssg9th2team.geharbang.domain.chat.dto.ChatRoomDto;
-import com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatMessageRepository;
 import com.ssg9th2team.geharbang.domain.chat.repository.RealtimeChatRoomRepository;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
@@ -15,8 +13,12 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,11 +31,12 @@ import java.util.stream.Stream;
 public class RealtimeChatService {
 
     private final RealtimeChatRoomRepository chatRoomRepository;
-    private final RealtimeChatMessageRepository chatMessageRepository;
+    private final RedisChatMessageService redisChatMessageService; // Redis로 변경
     private final UserRepository userRepository;
     private final AccommodationMapper accommodationMapper;
     private final RedisPublisher redisPublisher;
     private final ChannelTopic channelTopic;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // 유저의 채팅방 목록 조회
     @Transactional(readOnly = true)
@@ -46,20 +49,15 @@ public class RealtimeChatService {
             return Collections.emptyList();
         }
 
-        Set<Long> otherUserIds = rooms.stream()
-                .map(room -> {
-                    if (userId.equals(room.getGuestUserId())) {
-                        return room.getHostUserId();
-                    } else {
-                        return room.getGuestUserId();
-                    }
-                })
+        // 모든 참여자(호스트, 게스트) ID 수집
+        Set<Long> allUserIds = rooms.stream()
+                .flatMap(room -> Stream.of(room.getHostUserId(), room.getGuestUserId()))
                 .collect(Collectors.toSet());
-        log.info("상대방 사용자 이름 조회를 위한 ID 목록: {}", otherUserIds);
+        log.info("모든 참여자 사용자 ID 목록: {}", allUserIds);
 
-        Map<Long, User> userMap = userRepository.findAllById(otherUserIds).stream()
+        Map<Long, User> userMap = userRepository.findAllById(allUserIds).stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
-        log.info("상대방 사용자 정보 {}건을 찾았습니다.", userMap.size());
+        log.info("사용자 정보 {}건을 찾았습니다.", userMap.size());
 
         // N+1 문제 해결: 모든 숙소의 대표 이미지를 한 번에 조회
         List<Long> accommodationIds = rooms.stream()
@@ -91,6 +89,15 @@ public class RealtimeChatService {
             User otherUser = userMap.get(otherUserId);
             otherUserName = (otherUser != null) ? otherUser.getNickname() : "알 수 없는 사용자";
 
+            // 호스트와 게스트 정보 조회
+            User hostUser = userMap.get(room.getHostUserId());
+            User guestUser = userMap.get(room.getGuestUserId());
+
+            String hostName = (hostUser != null) ? hostUser.getNickname() : "알 수 없는 호스트";
+            String guestName = (guestUser != null) ? guestUser.getNickname() : "알 수 없는 게스트";
+            String hostProfileImage = null; // User 엔티티에 프로필 이미지 없음, 필요시 추가
+            String guestProfileImage = null;
+
             String currentImageUrl = imageMap.get(room.getAccommodationId());
 
             return ChatRoomDto.builder()
@@ -101,6 +108,10 @@ public class RealtimeChatService {
                 .accommodationImage(currentImageUrl) // Use the fresh URL
                 .hostUserId(room.getHostUserId())
                 .guestUserId(room.getGuestUserId())
+                .hostName(hostName)
+                .guestName(guestName)
+                .hostProfileImage(hostProfileImage)
+                .guestProfileImage(guestProfileImage)
                 .otherParticipantName(otherUserName)
                 .lastMessage(room.getLastMessage())
                 .lastMessageTime(room.getLastMessageTime())
@@ -108,12 +119,19 @@ public class RealtimeChatService {
                 .build();
         }).collect(Collectors.toList());
 
+        // 최신 메시지 시간 기준으로 정렬 (내림차순 - 최신이 먼저)
+        chatRoomDtos.sort((a, b) -> {
+            if (a.getLastMessageTime() == null && b.getLastMessageTime() == null) return 0;
+            if (a.getLastMessageTime() == null) return 1;
+            if (b.getLastMessageTime() == null) return -1;
+            return b.getLastMessageTime().compareTo(a.getLastMessageTime());
+        });
+
         log.info("사용자 ID {}에게 {}개의 채팅방 DTO를 반환합니다.", userId, chatRoomDtos.size());
         return chatRoomDtos;
     }
 
-    // 특정 채팅방의 메시지 조회
-    @Transactional(readOnly = true)
+    // 특정 채팅방의 메시지 조회 (Redis에서 조회)
     public List<ChatMessageDto> getRoomMessages(Long roomId, Long currentUserId) {
         RealtimeChatRoom chatRoom = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("Chat room not found"));
@@ -123,12 +141,11 @@ public class RealtimeChatService {
             throw new SecurityException("User is not a participant of this chat room");
         }
 
-        return chatMessageRepository.findByChatRoomIdOrderByCreatedAtAsc(roomId).stream()
-                .map(ChatMessageDto::fromEntity)
-                .collect(Collectors.toList());
+        // Redis에서 메시지 조회
+        return redisChatMessageService.getMessages(roomId);
     }
 
-    // 메시지 저장
+    // 메시지 저장 (Redis에 저장)
     @Transactional
     public ChatMessageDto saveMessage(Long roomId, Long senderUserId, String content) {
         RealtimeChatRoom chatRoom = chatRoomRepository.findById(roomId)
@@ -137,35 +154,47 @@ public class RealtimeChatService {
         User sender = userRepository.findById(senderUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Sender not found"));
 
-        // 메시지 엔티티 생성
-        RealtimeChatMessage message = RealtimeChatMessage.builder()
-                .chatRoomId(roomId)
-                .senderUserId(senderUserId)
-                .senderName(sender.getName())
-                .messageContent(content)
-                .createdAt(LocalDateTime.now())
-                .isRead(false) // 초기에는 읽지 않은 상태
-                .build();
-
-        RealtimeChatMessage savedMessage = chatMessageRepository.save(message);
+        // Redis에 메시지 저장
+        ChatMessageDto savedMessage = redisChatMessageService.saveMessage(
+                roomId, senderUserId, sender.getNickname(), content);
 
         // 채팅방 정보 업데이트 (마지막 메시지, 시간, 안 읽은 메시지 수)
         chatRoom.setLastMessage(content);
-        chatRoom.setLastMessageTime(message.getCreatedAt());
+        chatRoom.setLastMessageTime(savedMessage.getCreatedAt());
 
-        // 메시지를 보낸 사람이 아닌 다른 참여자의 unreadCount 증가
+        // 메시지를 보낸 사람이 아닌 다른 참여자의 unreadCount 증가 및 수신자 ID 확인
+        Long recipientUserId = null;
+        int newUnreadCount = 0;
         if (chatRoom.getHostUserId().equals(senderUserId)) {
-            chatRoom.setGuestUnreadCount(chatRoom.getGuestUnreadCount() + 1);
+            newUnreadCount = chatRoom.getGuestUnreadCount() + 1;
+            chatRoom.setGuestUnreadCount(newUnreadCount);
+            recipientUserId = chatRoom.getGuestUserId();
         } else if (chatRoom.getGuestUserId().equals(senderUserId)) {
-            chatRoom.setHostUnreadCount(chatRoom.getHostUnreadCount() + 1);
+            newUnreadCount = chatRoom.getHostUnreadCount() + 1;
+            chatRoom.setHostUnreadCount(newUnreadCount);
+            recipientUserId = chatRoom.getHostUserId();
         }
-        chatRoom.setUpdatedAt(LocalDateTime.now());
+        chatRoom.setUpdatedAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")));
         chatRoomRepository.save(chatRoom);
 
-        return ChatMessageDto.fromEntity(savedMessage);
+        // 수신자에게 새 메시지 알림 전송 (채팅방 목록 업데이트용)
+        if (recipientUserId != null) {
+            Map<String, Object> notification = new HashMap<>();
+            notification.put("type", "NEW_MESSAGE");
+            notification.put("roomId", roomId);
+            notification.put("unreadCount", newUnreadCount);
+            notification.put("lastMessage", content);
+            notification.put("lastMessageTime", savedMessage.getCreatedAt().toString());
+            notification.put("senderName", sender.getNickname());
+
+            log.info("Sending notification to user {}: {}", recipientUserId, notification);
+            messagingTemplate.convertAndSend("/topic/user/" + recipientUserId + "/notifications", notification);
+        }
+
+        return savedMessage;
     }
 
-    // 메시지 읽음 처리
+    // 메시지 읽음 처리 (Redis에서 처리)
     @Transactional
     public void markMessagesAsRead(Long roomId, Long readerUserId) {
         RealtimeChatRoom chatRoom = chatRoomRepository.findById(roomId)
@@ -176,8 +205,8 @@ public class RealtimeChatService {
             throw new SecurityException("User is not a participant of this chat room");
         }
 
-        // 해당 채팅방에서 현재 유저가 보낸 메시지를 제외하고 읽지 않은 메시지를 모두 읽음 처리
-        chatMessageRepository.markMessagesAsReadForRoomAndUser(roomId, readerUserId);
+        // Redis에서 읽음 처리
+        redisChatMessageService.markMessagesAsRead(roomId, readerUserId);
 
         // 채팅방의 unreadCount를 0으로 초기화
         if (chatRoom.getHostUserId().equals(readerUserId)) {
