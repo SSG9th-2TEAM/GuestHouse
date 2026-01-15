@@ -14,7 +14,12 @@
           @click="handleBannerClick(banner)"
         >
           <img :src="banner.image" :alt="banner.alt" class="banner-image" />
-          <!-- CSS 텍스트 오버레이 추가 -->
+          <!-- 메인 배너 텍스트 오버레이 (좌하단 스타일) -->
+          <div v-if="banner.overlayCaption || banner.overlayTitle" class="main-banner-overlay">
+            <h2 v-if="banner.overlayCaption" class="main-banner-caption">{{ banner.overlayCaption }}</h2>
+            <h1 v-if="banner.overlayTitle" class="main-banner-title">{{ banner.overlayTitle }}</h1>
+          </div>
+          <!-- CSS 텍스트 오버레이 추가 (이벤트 배너용) -->
           <div v-if="banner.overlayText" class="banner-overlay">
             <div class="overlay-text-wrapper">
               <span class="overlay-text">
@@ -82,6 +87,8 @@ const bannerData = [
     desktop: new URL('@/assets/home-banner.png', import.meta.url).href,
     mobile: new URL('@/assets/home-banner.png', import.meta.url).href,
     alt: '좋은 사람, 좋은 장소, 좋은 시간',
+    overlayCaption: '좋은 사람, 좋은 장소, 좋은 시간',
+    overlayTitle: '지금 이곳',
     link: null
   },
   { 
@@ -257,6 +264,32 @@ onUnmounted(() => {
   filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
 }
 
+/* 메인 배너 오버레이 스타일 (좌하단) */
+.main-banner-overlay {
+  position: absolute;
+  left: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 5;
+  max-width: calc(100% - 3rem);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.main-banner-caption {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.main-banner-title {
+  margin: 0.3rem 0 0;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
 .banner-image {
   width: 100%;
   height: 400px;
@@ -393,6 +426,20 @@ onUnmounted(() => {
 
   .heart {
     font-size: 1.8rem;
+  }
+
+  /* 메인 배너 오버레이 모바일 스타일 */
+  .main-banner-overlay {
+    left: 1rem;
+    bottom: 1rem;
+  }
+
+  .main-banner-caption {
+    font-size: 0.9rem;
+  }
+
+  .main-banner-title {
+    font-size: 1.5rem;
   }
 
   /* 3번째 배너(인덱스 2) 이미지만 약간 확대 및 아래로 이동 */

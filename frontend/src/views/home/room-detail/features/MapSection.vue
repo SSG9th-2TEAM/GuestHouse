@@ -240,7 +240,7 @@ const openKakaoNavi = () => {
       카카오맵으로 길찾기
     </button>
     
-    <p v-if="transportInfo" class="map-info">{{ transportText }}</p>
+
   </section>
 </template>
 
