@@ -15,10 +15,18 @@ public class CustomOAuth2User implements OAuth2User {
 
     private User user;
     private Map<String, Object> attributes;
+    private boolean needsAccountLink; // 기존 자사 가입자와 소셜 계정 연결 필요 여부
 
     public CustomOAuth2User(User user, Map<String, Object> attributes) {
         this.user = user;
         this.attributes = attributes;
+        this.needsAccountLink = false;
+    }
+
+    public CustomOAuth2User(User user, Map<String, Object> attributes, boolean needsAccountLink) {
+        this.user = user;
+        this.attributes = attributes;
+        this.needsAccountLink = needsAccountLink;
     }
 
     @Override

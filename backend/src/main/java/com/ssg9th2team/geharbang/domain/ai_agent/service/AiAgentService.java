@@ -387,15 +387,15 @@ public class AiAgentService {
                     .collect(Collectors.toList());
         }
 
-        // 승인된 숙소만, 평점순 정렬, 최대 5개
-        return results.stream()
+        // 승인된 숙소만 필터링
+        List<Accommodation> approved = results.stream()
                 .filter(a -> a.getApprovalStatus() == ApprovalStatus.APPROVED)
                 .filter(a -> a.getAccommodationStatus() != null && a.getAccommodationStatus() == 1)
-                .sorted((a, b) -> {
-                    Double ratingA = a.getRating() != null ? a.getRating() : 0.0;
-                    Double ratingB = b.getRating() != null ? b.getRating() : 0.0;
-                    return ratingB.compareTo(ratingA);
-                })
+                .collect(Collectors.toList());
+
+        // 무작위로 섞어서 최대 5개 반환
+        Collections.shuffle(approved);
+        return approved.stream()
                 .limit(5)
                 .collect(Collectors.toList());
     }

@@ -18,7 +18,7 @@ import org.springframework.web.servlet.view.RedirectView;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 
 @Slf4j
-@RestControllerAdvice
+@RestControllerAdvice("globalExceptionHandlerV2") // 빈 이름 명시적 지정하여 충돌 회피
 public class GlobalExceptionHandler {
 
     @Value("${oauth2.failure-redirect-uri:/login}")

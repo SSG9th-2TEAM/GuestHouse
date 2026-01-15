@@ -47,8 +47,23 @@ public class Waitlist {
     @Builder.Default
     private Boolean isNotified = false;
 
+    @Column(name = "notified_at")
+    private LocalDateTime notifiedAt;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    // 대기 등록 최대 개수
+    public static final int MAX_WAITLIST_PER_USER = 3;
+
+    // 예약 기회 유효 시간 (24시간)
+    public static final int RESERVATION_OPPORTUNITY_HOURS = 24;
+
+    // 알림 가능 최소 일수 (체크인 7일 전까지만 알림)
+    public static final int MIN_DAYS_BEFORE_CHECKIN = 7;
 
     @PrePersist
     protected void onCreate() {
@@ -57,8 +72,25 @@ public class Waitlist {
 
     /**
      * 알림 발송 완료 처리
+     * 24시간 예약 기회 부여
      */
     public void markAsNotified() {
+        markAsNotified(LocalDateTime.now());
+    }
+
+    public void markAsNotified(LocalDateTime notificationTime) {
         this.isNotified = true;
+        this.notifiedAt = notificationTime;
+        this.expiresAt = this.notifiedAt.plusHours(RESERVATION_OPPORTUNITY_HOURS);
+    }
+
+    /**
+     * 알림이 만료되었는지 확인 (24시간 경과)
+     */
+    public boolean isExpired() {
+        if (expiresAt == null) {
+            return false;
+        }
+        return LocalDateTime.now().isAfter(expiresAt);
     }
 }
