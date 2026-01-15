@@ -291,7 +291,10 @@ const handlePayment = async () => {
     })
   } catch (error) {
     console.error('예약 생성 실패:', error)
-    if (error.message.includes('409') || error.message.includes('Conflict')) {
+    if (error.message.includes('정원') || error.message.includes('capacity')) {
+      errorMessage.value = '죄송합니다. 해당 날짜의 정원이 다 찼습니다.<br>다른 날짜를 선택해주세요.'
+      isErrorModalOpen.value = true
+    } else if (error.message.includes('409') || error.message.includes('Conflict')) {
       errorMessage.value = '선택하신 날짜에 이미 예약이 존재합니다.<br>다른 날짜를 선택해주세요.'
       isErrorModalOpen.value = true
     } else {
