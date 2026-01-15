@@ -48,4 +48,7 @@ public interface AuthService {
 
     // 소셜 회원가입 완료
     UserResponse completeSocialSignup(Long userId, CompleteSocialSignupRequest request);
+
+    // 자사 계정과 소셜 계정 연결
+    UserResponse linkSocialAccount(Long userId, String provider, String providerId);
 }
