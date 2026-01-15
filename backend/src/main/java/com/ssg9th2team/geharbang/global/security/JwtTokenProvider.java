@@ -86,7 +86,8 @@ public class JwtTokenProvider {
         
         /// 이메일로 실제 User 엔티티 조회
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다: " + email));
+                .orElseThrow(() -> new org.springframework.security.core.userdetails.UsernameNotFoundException(
+                        "사용자를 찾을 수 없습니다: " + email));
 
         /// CustomUserDetails 생성 (실제 User 엔티티 포함)
         UserDetails principal = new CustomUserDetails(user);
