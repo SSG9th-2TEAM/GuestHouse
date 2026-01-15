@@ -58,11 +58,12 @@ public class CouponInventoryService {
                 return false;
             }
 
-            if (skipDbFinalize || asyncEnabled) {
+            // Redis 통과 여부와 관계없이 skip 설정에 따라 DB 검증 수행
+            if (skipDbFinalize) {
                 return true;
             }
 
-            // Redis 통과 - 2단계: DB <- 최종 확정 100명만 여기 도착!
+            // Redis 통과 - 2단계: DB <- 최종 확정 (비동기 모드에서도 수행)
             return couponInventoryRepository.findWithLockByCouponId(couponId)
                     .map(inventory -> {
                         inventory.resetIfNeeded(LocalDate.now());

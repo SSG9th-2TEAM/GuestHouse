@@ -311,7 +311,7 @@ onUnmounted(() => {
             v-if="coupon.code === flashCouponCode"
             class="flash-countdown"
           >
-            리셋 {{ nextResetCountdown }}
+            {{ nextResetCountdown }}
           </span>
         </div>
       </article>
