@@ -84,17 +84,42 @@ const isResubmittedRecently = (id) => {
   return Date.now() - Number(timestamp) <= resubmitWindowMs
 }
 
-const normalizeAccommodation = (item) => {
+const normalizeAccommodation = (item) =>{
   const id = item.accommodationsId ?? item.accommodationId ?? item.id
   const name = item.accommodationsName ?? item.name ?? ''
   const approvalStatus = item.approvalStatus ?? item.reviewStatus ?? null
   const isResubmitted = item.isResubmitted === 1 || item.isResubmitted === true
-  const statusSource = approvalStatus ?? item.status ?? item.accommodationStatus
-  let status = normalizeStatus(statusSource)
+  
+  // accommodationStatus: 0 = 운영중지, 1 = 운영중  
+  const accommodationStatus = item.accommodationStatus ?? item.accommodation_status
   const rejectionReason = item.rejectionReason ?? item.rejectReason ?? item.approvalReason ?? item.reason ?? ''
-  if (status === 'rejected' && isResubmittedRecently(id)) {
-    status = 'pending'
+  
+  // 상태 결정 로직
+  let status
+  const normalizedApproval = approvalStatus ? String(approvalStatus).toLowerCase() : ''
+  
+  // 1. 반려 상태 확인
+  if (normalizedApproval === 'rejected') {
+    // 재제출 확인
+    if (isResubmittedRecently(id)) {
+      status = 'pending'
+    } else {
+      status = 'rejected'
+    }
   }
+  // 2. 검수중 상태 확인  
+  else if (normalizedApproval === 'pending') {
+    status = rejectionReason ? 'reinspection' : 'pending'
+  }
+  // 3. 승인됨 - accommodationStatus로 운영 여부 결정
+  else if (normalizedApproval === 'approved') {
+    status = (accommodationStatus === 1) ? 'active' : 'inactive'
+  }
+  // 4. 기타 상태
+  else {
+    status = normalizeStatus(item.status ?? item.accommodationStatus ?? 'inactive')
+  }
+  
   const location = [item.city, item.district, item.township, item.address]
     .filter(Boolean)
     .join(' ')
@@ -113,7 +138,8 @@ const normalizeAccommodation = (item) => {
     images: Array.isArray(images) ? images : [images].filter(Boolean),
     rejectionReason,
     approvalStatus,
-    isResubmitted
+    isResubmitted,
+    accommodationStatus
   }
 }
 

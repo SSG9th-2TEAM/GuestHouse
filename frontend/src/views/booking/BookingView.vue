@@ -311,7 +311,26 @@ const handlePayment = async () => {
       <button class="icon-btn" @click="goBack">←</button>
     </header>
 
-    <div class="container content">
+    <!-- 로딩 스켈레톤 -->
+    <div v-if="isDataLoading" class="container content">
+      <div class="skeleton-title"></div>
+      <div class="skeleton-card">
+        <div class="skeleton-image"></div>
+        <div class="skeleton-body">
+          <div class="skeleton-line wide"></div>
+          <div class="skeleton-line medium"></div>
+          <div class="skeleton-line short"></div>
+          <div class="skeleton-divider"></div>
+          <div class="skeleton-line medium"></div>
+          <div class="skeleton-line medium"></div>
+          <div class="skeleton-divider"></div>
+          <div class="skeleton-line short"></div>
+          <div class="skeleton-line wide"></div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="container content">
       <h1 class="page-title">검토 후 계속 진행</h1>
 
       <!-- Booking Card -->
@@ -662,6 +681,7 @@ const handlePayment = async () => {
   background-color: var(--primary);
   color: #004d40;
   padding: 1rem;
+  border: none;
   border-radius: 8px;
   font-size: 1.1rem;
   font-weight: bold;
@@ -742,5 +762,71 @@ const handlePayment = async () => {
 
 .error-message {
   display: none;
+}
+
+/* Skeleton Loading Styles */
+.skeleton-title {
+  height: 24px;
+  width: 60%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+
+.skeleton-card {
+  border: 1px solid #eee;
+  border-radius: 16px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.skeleton-image {
+  height: 200px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-body {
+  padding: 1.5rem;
+}
+
+.skeleton-line {
+  height: 16px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 0.8rem;
+}
+
+.skeleton-line.wide {
+  width: 100%;
+}
+
+.skeleton-line.medium {
+  width: 70%;
+}
+
+.skeleton-line.short {
+  width: 40%;
+}
+
+.skeleton-divider {
+  height: 1px;
+  background: #eee;
+  margin: 1rem 0;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 </style>

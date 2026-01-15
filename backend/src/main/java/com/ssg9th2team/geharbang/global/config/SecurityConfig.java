@@ -61,13 +61,14 @@ public class SecurityConfig {
                                 // 요청 권한 설정
                                 .authorizeHttpRequests(auth -> auth
                                                 // 인증이 필요한 API 경로
-                                                .requestMatchers("/api/user/**").authenticated()
+                                               .requestMatchers("/api/user/**").authenticated()
                                                 .requestMatchers("/api/reservations/**").authenticated()
                                                 .requestMatchers("/api/reviews/write/**").authenticated()
                                                 .requestMatchers("/api/coupons/my").authenticated()
                                                 .requestMatchers("/api/coupons/my/ids").authenticated()
                                                 .requestMatchers("/api/coupons/issue").authenticated()
                                                 .requestMatchers("/api/coupons/*/use").authenticated()
+                                                .requestMatchers("/api/wishlist", "/api/wishlist/**").authenticated()
                                                 .requestMatchers("/api/host/**").authenticated()
                                                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                                                 // 그 외 모든 요청은 허용 (SPA에서 프론트엔드 라우팅 처리)

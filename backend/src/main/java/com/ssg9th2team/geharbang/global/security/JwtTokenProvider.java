@@ -9,9 +9,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.auth.entity.User;
 
 import javax.crypto.SecretKey;
 import java.util.Arrays;
@@ -26,21 +27,21 @@ public class JwtTokenProvider {
     private final SecretKey key;/// 암호화에 사용할 비밀 키
     private final long accessTokenExpiration;/// Access 토큰 유효 시간
     private final long refreshTokenExpiration;/// Refresh 토큰 유효 시간
-    private final CustomUserDetailsService userDetailsService;
+    private final UserRepository userRepository;/// 사용자 정보 조회용
 
     /// 생성자 application.properties에 적은 설정값들을 가져와 초기화
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secretKey,/// 비밀키
             @Value("${jwt.access-token-expiration}") long accessTokenExpiration,/// 접근토큰
             @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration,/// 리프래시 토큰
-            CustomUserDetailsService userDetailsService) {
+            UserRepository userRepository) {/// 사용자 저장소
 
         /// BASE 64로 인코딩된 비밀키를 디코딩해서 실제 암호화 키 객체로 만들기
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         this.key = Keys.hmacShaKeyFor(keyBytes);
         this.accessTokenExpiration = accessTokenExpiration;
         this.refreshTokenExpiration = refreshTokenExpiration;
-        this.userDetailsService = userDetailsService;
+        this.userRepository = userRepository;
     }
 
     /// Access Token 생성
@@ -80,10 +81,22 @@ public class JwtTokenProvider {
             throw new RuntimeException("권한 정보가 없는 토큰입니다.");///오류 던져
         }
 
-        // DB에서 사용자 정보 로드 (CustomUserDetails 반환)
-        UserDetails userDetails = userDetailsService.loadUserByUsername(claims.getSubject());
+        /// 토큰에서 이메일 추출
+        String email = claims.getSubject();
+        
+        /// 이메일로 실제 User 엔티티 조회
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new org.springframework.security.core.userdetails.UsernameNotFoundException(
+                        "사용자를 찾을 수 없습니다: " + email));
 
-        return new UsernamePasswordAuthenticationToken(userDetails, "", userDetails.getAuthorities());
+        /// CustomUserDetails 생성 (실제 User 엔티티 포함)
+        UserDetails principal = new CustomUserDetails(user);
+
+        /// Spring Security에서 권한을 GrantedAuthority라는 객체로 관리
+        /// 권한 목록 생성
+        Collection<? extends GrantedAuthority> authorities = principal.getAuthorities();
+
+        return new UsernamePasswordAuthenticationToken(principal, "", authorities);
     }
 
     // 토큰 검증`
