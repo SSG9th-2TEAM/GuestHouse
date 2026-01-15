@@ -36,6 +36,8 @@ public class WaitlistService {
 
     /**
      * 대기 목록 등록
+     * - 1인당 최대 3개 제한
+     * - 중복 대기 등록 확인
      */
     @Transactional
     public Long registerWaitlist(Long roomId, Long accommodationId, LocalDateTime checkin,
@@ -45,6 +47,14 @@ public class WaitlistService {
         String email = authentication.getName();
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("인증된 사용자를 찾을 수 없습니다: " + email));
+
+        // 1인당 대기 등록 개수 제한 확인
+        int currentWaitlistCount = waitlistRepository.countByUserIdAndIsNotifiedFalse(user.getId());
+        if (currentWaitlistCount >= Waitlist.MAX_WAITLIST_PER_USER) {
+            throw new IllegalStateException(
+                    "대기 등록은 최대 " + Waitlist.MAX_WAITLIST_PER_USER + "개까지만 가능합니다. " +
+                            "현재 등록 수: " + currentWaitlistCount);
+        }
 
         // 중복 대기 등록 확인
         if (waitlistRepository.existsByUserIdAndRoomIdAndCheckinAndCheckoutAndIsNotifiedFalse(
@@ -62,8 +72,8 @@ public class WaitlistService {
                 .build();
 
         Waitlist saved = waitlistRepository.save(waitlist);
-        log.info("대기 목록 등록: userId={}, roomId={}, date={} ~ {}",
-                user.getId(), roomId, checkin, checkout);
+        log.info("대기 목록 등록: userId={}, roomId={}, date={} ~ {}, 현재 대기 수: {}",
+                user.getId(), roomId, checkin, checkout, currentWaitlistCount + 1);
         return saved.getId();
     }
 
@@ -91,19 +101,33 @@ public class WaitlistService {
 
     /**
      * 빈자리 발생 시 대기자에게 알림 발송
-     * (미결제 예약 정리 후 호출)
+     * - 체크인 7일 이상 전: 이메일 발송 + 24시간 예약 기회
+     * - 체크인 7일 미만: 대기 자동 삭제 (알림 없음)
      */
     @Transactional
     public void notifyWaitingUsers(Long roomId, LocalDateTime checkin, LocalDateTime checkout) {
-        List<Waitlist> waitingList = waitlistRepository.findWaitingByRoomAndDateRange(
-                roomId, checkin, checkout);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime minCheckinDate = now.plusDays(Waitlist.MIN_DAYS_BEFORE_CHECKIN);
 
-        if (waitingList.isEmpty()) {
+        // 1. 7일 미만인 대기 자동 삭제 (알림 없이)
+        List<Waitlist> expiredWaitlists = waitlistRepository.findExpiredBeforeMinDays(
+                roomId, checkin, checkout, minCheckinDate);
+
+        if (!expiredWaitlists.isEmpty()) {
+            waitlistRepository.deleteAll(expiredWaitlists);
+            log.info("체크인 7일 미만 대기 삭제: roomId={}, 삭제 수={}", roomId, expiredWaitlists.size());
+        }
+
+        // 2. 7일 이상 전인 대기자에게만 알림 발송
+        List<Waitlist> eligibleWaitlists = waitlistRepository.findEligibleForNotification(
+                roomId, checkin, checkout, minCheckinDate);
+
+        if (eligibleWaitlists.isEmpty()) {
             return;
         }
 
         // 대기자의 이메일 정보 일괄 조회 (N+1 방지)
-        java.util.Set<Long> userIds = waitingList.stream()
+        java.util.Set<Long> userIds = eligibleWaitlists.stream()
                 .map(Waitlist::getUserId)
                 .collect(java.util.stream.Collectors.toSet());
 
@@ -121,8 +145,8 @@ public class WaitlistService {
         String accommodationName = accommodation != null ? accommodation.getAccommodationsName() : "숙소";
         String roomName = room.getRoomName() != null ? room.getRoomName() : "객실";
 
-        // 대기자들에게 알림 발송
-        for (Waitlist waitlist : waitingList) {
+        // 대기자들에게 알림 발송 (24시간 예약 기회 부여)
+        for (Waitlist waitlist : eligibleWaitlists) {
             String email = userEmails.get(waitlist.getUserId());
             if (email == null) {
                 log.warn("대기자 사용자 정보를 찾을 수 없음: userId={}", waitlist.getUserId());
@@ -135,11 +159,57 @@ public class WaitlistService {
                         roomName,
                         checkin.format(DATE_FORMATTER),
                         checkout.format(DATE_FORMATTER));
-                waitlist.markAsNotified();
-                log.info("대기자 알림 발송 완료: email={}, roomId={}", email, roomId);
+                waitlist.markAsNotified(now); // 일관된 알림 시각 사용 (메서드 진입 시점 now)
+                log.info("대기자 알림 발송 완료: email={}, roomId={}, 만료시각={}",
+                        email, roomId, waitlist.getExpiresAt());
             } catch (Exception e) {
                 log.error("대기자 알림 발송 실패: email={}, error={}", email, e.getMessage());
             }
         }
+    }
+
+    /**
+     * 24시간 만료된 알림 처리
+     * - 만료된 대기 삭제
+     * - 다음 대기자에게 기회 부여는 별도 로직 필요 시 확장
+     */
+    @Transactional
+    public int processExpiredNotifications() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Waitlist> expiredList = waitlistRepository.findExpiredNotifications(now);
+
+        if (expiredList.isEmpty()) {
+            return 0;
+        }
+
+        waitlistRepository.deleteAll(expiredList);
+        log.info("24시간 만료 대기 삭제: {}건", expiredList.size());
+        return expiredList.size();
+    }
+
+    /**
+     * 지난 체크인 날짜의 대기 정리
+     */
+    @Transactional
+    public int cleanupPastCheckinWaitlists() {
+        LocalDateTime now = LocalDateTime.now();
+        int deleted = waitlistRepository.deleteByCheckinBefore(now);
+        if (deleted > 0) {
+            log.info("체크인 지난 대기 삭제: {}건", deleted);
+        }
+        return deleted;
+    }
+
+    /**
+     * 30일 이상 된 오래된 대기 정리
+     */
+    @Transactional
+    public int cleanupOldWaitlists() {
+        LocalDateTime cutoffTime = LocalDateTime.now().minusDays(30);
+        int deleted = waitlistRepository.deleteOldWaitlist(cutoffTime);
+        if (deleted > 0) {
+            log.info("30일 이상 오래된 대기 삭제: {}건", deleted);
+        }
+        return deleted;
     }
 }

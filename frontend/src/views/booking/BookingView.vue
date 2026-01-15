@@ -5,6 +5,7 @@ import { createReservation } from '@/api/reservationApi'
 import { fetchAccommodationDetail } from '@/api/accommodation'
 import { getCurrentUser } from '@/api/userClient'
 import { getMyCoupons } from '@/api/couponApi'
+import { registerWaitlist } from '@/api/waitlistApi'
 
 const router = useRouter()
 const route = useRoute()
@@ -213,6 +214,9 @@ const selectedCoupon = ref(null)
 const isLoading = ref(false)
 const errorMessage = ref('')
 const isErrorModalOpen = ref(false)
+const isCapacityError = ref(false)
+const isWaitlistLoading = ref(false)
+const waitlistRegistered = ref(false)
 
 // 쿠폰 할인 금액 계산
 const calculateDiscount = (coupon, price) => {
@@ -292,18 +296,78 @@ const handlePayment = async () => {
   } catch (error) {
     console.error('예약 생성 실패:', error)
     if (error.message.includes('정원') || error.message.includes('capacity')) {
-      errorMessage.value = '죄송합니다. 해당 날짜의 정원이 다 찼습니다.<br>다른 날짜를 선택해주세요.'
+      errorMessage.value = '죄송합니다. 해당 날짜의 정원이 다 찼습니다.<br>다른 날짜를 선택하시거나 대기 등록을 해주세요.'
+      isCapacityError.value = true
       isErrorModalOpen.value = true
     } else if (error.message.includes('409') || error.message.includes('Conflict')) {
       errorMessage.value = '선택하신 날짜에 이미 예약이 존재합니다.<br>다른 날짜를 선택해주세요.'
+      isCapacityError.value = false
       isErrorModalOpen.value = true
     } else {
       errorMessage.value = '예약 처리 중 오류가 발생했습니다.<br>다시 시도해주세요.'
+      isCapacityError.value = false
       isErrorModalOpen.value = true
     }
   } finally {
     isLoading.value = false
   }
+}
+
+// 대기 등록 처리
+const handleWaitlistRegister = async () => {
+  isWaitlistLoading.value = true
+  try {
+    if (!booking.value.checkin || !booking.value.checkout) {
+      errorMessage.value = '대기 등록을 하시려면 날짜를 먼저 선택해주세요.'
+      isCapacityError.value = false
+      isErrorModalOpen.value = true
+      isWaitlistLoading.value = false
+      return
+    }
+
+    const checkinDate = new Date(booking.value.checkin)
+    const checkoutDate = new Date(booking.value.checkout)
+
+    const waitlistData = {
+      roomId: booking.value.roomId,
+      accommodationId: booking.value.accommodationsId,
+      checkin: checkinDate.toISOString(),
+      checkout: checkoutDate.toISOString(),
+      guestCount: booking.value.guestCount
+    }
+
+    const response = await registerWaitlist(waitlistData)
+    if (response && response.ok) {
+      waitlistRegistered.value = true
+    } else {
+      errorMessage.value = '대기 등록에 실패했습니다. 다시 시도해주세요.'
+      isCapacityError.value = false
+      isErrorModalOpen.value = true
+    }
+  } catch (error) {
+    console.error('대기 등록 오류:', error)
+    if (error.message.includes('이미 대기')) {
+      // 이미 등록된 경우, 사용자에게 혼란을 주지 않기 위해 성공 상태로 처리합니다.
+      waitlistRegistered.value = true
+    } else if (error.message.includes('최대') || error.message.includes('3개')) {
+      errorMessage.value = '대기 등록은 최대 3개까지만 가능합니다.'
+      isCapacityError.value = false
+      isErrorModalOpen.value = true
+    } else {
+      errorMessage.value = '대기 등록 중 오류가 발생했습니다.'
+      isCapacityError.value = false
+      isErrorModalOpen.value = true
+    }
+  } finally {
+    isWaitlistLoading.value = false
+  }
+}
+
+// 에러 모달 닫기
+const closeErrorModal = () => {
+  isErrorModalOpen.value = false
+  isCapacityError.value = false
+  waitlistRegistered.value = false
 }
 </script>
 
@@ -451,7 +515,23 @@ const handlePayment = async () => {
       <div class="modal-icon error">⚠️</div>
       <h3>예약 실패</h3>
       <p class="modal-desc" v-html="errorMessage"></p>
-      <button class="close-modal-btn" @click="isErrorModalOpen = false">확인</button>
+      
+      <!-- 대기 등록 성공 메시지 -->
+      <div v-if="waitlistRegistered" class="waitlist-success">
+        ✅ 대기 등록이 완료되었습니다!<br>빈자리 발생 시 이메일로 알려드립니다.
+      </div>
+      
+      <!-- 대기 등록 버튼 (정원 초과 에러이고 아직 등록 안했을 때) -->
+      <button 
+        v-if="isCapacityError && !waitlistRegistered" 
+        class="waitlist-btn" 
+        :disabled="isWaitlistLoading"
+        @click="handleWaitlistRegister"
+      >
+        {{ isWaitlistLoading ? '등록 중...' : '대기 등록하기' }}
+      </button>
+      
+      <button class="close-modal-btn" @click="closeErrorModal">확인</button>
     </div>
   </div>
 </template>
@@ -831,5 +911,39 @@ const handlePayment = async () => {
   100% {
     background-position: 200% 0;
   }
+}
+
+/* 대기 등록 버튼 스타일 */
+.waitlist-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #0064FF 0%, #0052CC 100%);
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 0.8rem;
+  transition: opacity 0.2s;
+}
+
+.waitlist-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.waitlist-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.waitlist-success {
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 </style>
