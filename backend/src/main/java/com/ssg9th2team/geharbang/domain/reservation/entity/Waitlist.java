@@ -75,8 +75,12 @@ public class Waitlist {
      * 24시간 예약 기회 부여
      */
     public void markAsNotified() {
+        markAsNotified(LocalDateTime.now());
+    }
+
+    public void markAsNotified(LocalDateTime notificationTime) {
         this.isNotified = true;
-        this.notifiedAt = LocalDateTime.now();
+        this.notifiedAt = notificationTime;
         this.expiresAt = this.notifiedAt.plusHours(RESERVATION_OPPORTUNITY_HOURS);
     }
 

@@ -159,7 +159,7 @@ public class WaitlistService {
                         roomName,
                         checkin.format(DATE_FORMATTER),
                         checkout.format(DATE_FORMATTER));
-                waitlist.markAsNotified(); // 알림 시각 + 만료 시각(24시간 후) 설정
+                waitlist.markAsNotified(now); // 일관된 알림 시각 사용 (메서드 진입 시점 now)
                 log.info("대기자 알림 발송 완료: email={}, roomId={}, 만료시각={}",
                         email, roomId, waitlist.getExpiresAt());
             } catch (Exception e) {

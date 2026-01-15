@@ -318,7 +318,9 @@ const handleWaitlistRegister = async () => {
   isWaitlistLoading.value = true
   try {
     if (!booking.value.checkin || !booking.value.checkout) {
-      alert('대기 등록을 하시려면 날짜를 먼저 선택해주세요.')
+      errorMessage.value = '대기 등록을 하시려면 날짜를 먼저 선택해주세요.'
+      isCapacityError.value = false
+      isErrorModalOpen.value = true
       isWaitlistLoading.value = false
       return
     }
@@ -335,20 +337,26 @@ const handleWaitlistRegister = async () => {
     }
 
     const response = await registerWaitlist(waitlistData)
-    if (response.ok) {
+    if (response && response.ok) {
       waitlistRegistered.value = true
     } else {
-      alert('대기 등록에 실패했습니다. 다시 시도해주세요.')
+      errorMessage.value = '대기 등록에 실패했습니다. 다시 시도해주세요.'
+      isCapacityError.value = false
+      isErrorModalOpen.value = true
     }
   } catch (error) {
     console.error('대기 등록 오류:', error)
     if (error.message.includes('이미 대기')) {
-      alert('이미 대기 등록되어 있습니다.')
+      // 이미 등록된 경우, 사용자에게 혼란을 주지 않기 위해 성공 상태로 처리합니다.
       waitlistRegistered.value = true
     } else if (error.message.includes('최대') || error.message.includes('3개')) {
-      alert('대기 등록은 최대 3개까지만 가능합니다.')
+      errorMessage.value = '대기 등록은 최대 3개까지만 가능합니다.'
+      isCapacityError.value = false
+      isErrorModalOpen.value = true
     } else {
-      alert('대기 등록 중 오류가 발생했습니다.')
+      errorMessage.value = '대기 등록 중 오류가 발생했습니다.'
+      isCapacityError.value = false
+      isErrorModalOpen.value = true
     }
   } finally {
     isWaitlistLoading.value = false
