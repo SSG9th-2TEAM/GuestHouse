@@ -709,9 +709,7 @@ onMounted(() => {
     justify-content: center;
   }
 
-  .toggle-sidebar-btn {
-    display: none; /* 모바일에서는 사이드바 토글 숨김 */
-  }
+  /* 사이드바 토글 버튼은 계속 표시 */
 
   .messages-container {
     padding: 16px;
