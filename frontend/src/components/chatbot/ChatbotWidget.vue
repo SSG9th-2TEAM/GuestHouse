@@ -561,11 +561,11 @@ const goHome = () => {
   <div class="chatbot-wrapper" :style="wrapperStyle">
     <button class="chat-launcher" @mousedown="startDrag" @touchstart="startDrag" :class="{ 'is-open': isOpen, 'is-dragging': hasMoved }">
       <!-- Chat Icon (SVG) - Bubble Style -->
-      <svg v-if="!isOpen" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg v-if="!isOpen" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM20 16H6L4 18V4H20V16Z" fill="#0f766e"/>
-        <circle cx="8" cy="10" r="1.5" fill="#0f766e"/>
-        <circle cx="12" cy="10" r="1.5" fill="#0f766e"/>
-        <circle cx="16" cy="10" r="1.5" fill="#0f766e"/>
+        <circle cx="8" cy="10" r="1.5" fill="white"/>
+        <circle cx="12" cy="10" r="1.5" fill="white"/>
+        <circle cx="16" cy="10" r="1.5" fill="white"/>
       </svg>
       <span v-if="!isOpen && totalUnreadCount > 0" class="notification-badge">{{ totalUnreadCount }}</span>
       <span v-if="isOpen" class="close-icon">✕</span>
@@ -670,7 +670,7 @@ const goHome = () => {
 
 <style scoped>
 /* General Wrapper */
-.chatbot-wrapper{position:fixed;bottom:160px;right:35px;z-index:9999;font-family:'Pretendard',sans-serif}.chat-launcher{width:50px;height:50px;border-radius:50%;background:white;border:1px solid #ddd;box-shadow:0 4px 12px rgba(0,0,0,0.15);cursor:grab;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s;user-select:none;touch-action:none}.chat-launcher:hover{transform:scale(1.05)}.chat-launcher.is-dragging{cursor:grabbing;box-shadow:0 8px 20px rgba(0,0,0,0.25);transform:scale(1.1)}.chat-launcher img{width:32px;height:32px;pointer-events:none}.close-icon{font-size:24px;color:#333}.chatbot-window{position:absolute;bottom:70px;right:0;width:380px;height:500px;max-height:calc(100vh - 180px);background:#fff;border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,0.12);display:flex;flex-direction:column;overflow:hidden;border:1px solid #eee}
+.chatbot-wrapper{position:fixed;bottom:160px;right:35px;z-index:9999;font-family:'Pretendard',sans-serif}.chat-launcher{width:50px;height:50px;border-radius:50%;background:white;border:1px solid #ddd;box-shadow:0 4px 12px rgba(0,0,0,0.15);cursor:grab;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s;user-select:none;touch-action:none}.chat-launcher:hover{transform:scale(1.05)}.chat-launcher.is-dragging{cursor:grabbing;box-shadow:0 8px 20px rgba(0,0,0,0.25);transform:scale(1.1)}.chat-launcher img{width:24px;height:24px;pointer-events:none}.close-icon{font-size:24px;color:#333}.chatbot-window{position:absolute;bottom:70px;right:0;width:380px;height:500px;max-height:calc(100vh - 180px);background:#fff;border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,0.12);display:flex;flex-direction:column;overflow:hidden;border:1px solid #eee}
 .notification-badge{position:absolute;top:-5px;right:-5px;background-color:red;color:white;border-radius:50%;width:24px;height:24px;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:bold;border:2px solid white}
 
 /* Header */
