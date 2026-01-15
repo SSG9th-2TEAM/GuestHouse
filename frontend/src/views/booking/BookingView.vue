@@ -317,12 +317,14 @@ const handlePayment = async () => {
 const handleWaitlistRegister = async () => {
   isWaitlistLoading.value = true
   try {
-    const checkinDate = booking.value.checkin 
-      ? new Date(booking.value.checkin) 
-      : new Date()
-    const checkoutDate = booking.value.checkout 
-      ? new Date(booking.value.checkout) 
-      : new Date()
+    if (!booking.value.checkin || !booking.value.checkout) {
+      alert('대기 등록을 하시려면 날짜를 먼저 선택해주세요.')
+      isWaitlistLoading.value = false
+      return
+    }
+
+    const checkinDate = new Date(booking.value.checkin)
+    const checkoutDate = new Date(booking.value.checkout)
 
     const waitlistData = {
       roomId: booking.value.roomId,
