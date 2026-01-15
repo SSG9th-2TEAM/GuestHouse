@@ -82,6 +82,15 @@
         <button @click="sendMessage(inputMessage)" :disabled="!inputMessage.trim() || isLoading">전송</button>
       </div>
     </div>
+
+    <!-- 모달 -->
+    <div v-if="isModalOpen" class="modal-overlay" @click.self="closeModal">
+      <div class="modal-content">
+        <div class="modal-icon">⚠️</div>
+        <p class="modal-message">{{ modalMessage }}</p>
+        <button class="modal-btn" @click="closeModal">확인</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -111,6 +120,20 @@ const inputMessage = ref('')
 const isLoading = ref(false)
 const isSidebarOpen = ref(true)
 const messagesContainer = ref(null)
+
+// 모달 상태
+const isModalOpen = ref(false)
+const modalMessage = ref('')
+
+const showModal = (message) => {
+  modalMessage.value = message
+  isModalOpen.value = true
+}
+
+const closeModal = () => {
+  isModalOpen.value = false
+  modalMessage.value = ''
+}
 
 // Formatters
 const formatDate = (dateStr) => {
@@ -146,10 +169,23 @@ const loadRooms = async () => {
 }
 
 const createNewRoom = async () => {
-  const response = await createAgentRoom()
-  if (response.ok) {
-    await loadRooms()
-    selectRoom(response.data.roomId)
+  if (isLoading.value) return // 중복 호출 방지
+  
+  isLoading.value = true
+  try {
+    const response = await createAgentRoom()
+    if (response.ok && response.data?.roomId) {
+      await loadRooms()
+      selectRoom(response.data.roomId)
+    } else {
+      console.error('새 채팅방 생성 실패:', response)
+      showModal('새 채팅방을 만들지 못했습니다. 다시 시도해주세요.')
+    }
+  } catch (error) {
+    console.error('새 채팅방 생성 오류:', error)
+    showModal('오류가 발생했습니다. 다시 시도해주세요.')
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -743,5 +779,69 @@ onMounted(() => {
     width: 100%;
     max-width: 280px;
   }
+}
+
+/* 모달 스타일 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  max-width: 320px;
+  width: 90%;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.modal-message {
+  font-size: 1rem;
+  color: #333;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+}
+
+.modal-btn {
+  background: #6DC3BB;
+  color: white;
+  border: none;
+  padding: 0.8rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.modal-btn:hover {
+  background: #5AB5AC;
 }
 </style>
