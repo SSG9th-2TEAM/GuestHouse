@@ -6,12 +6,10 @@ import com.ssg9th2team.geharbang.domain.report.host.dto.HostReviewReportSummaryR
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
-import org.springframework.stereotype.Component;
 
+// @Component  <-- 빈 등록 해제하여 충돌 방지
+// @Primary
 @Slf4j
-@Component
-@Primary
 @RequiredArgsConstructor
 public class AiSummaryClientFacade implements AiSummaryClient {
 
