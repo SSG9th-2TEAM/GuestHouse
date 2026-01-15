@@ -85,6 +85,11 @@ public class ReservationServiceImpl implements ReservationService {
                 java.time.LocalDate checkoutDate = java.time.LocalDateTime.ofInstant(
                                 requestDto.checkout(), java.time.ZoneOffset.UTC).toLocalDate();
 
+                // 1년 이후 예약 제한
+                if (checkinDate.isAfter(java.time.LocalDate.now().plusYears(1))) {
+                        throw new IllegalArgumentException("예약은 오늘부터 1년 이내만 가능합니다.");
+                }
+
                 // 시간 강제 설정: 체크인 15:00, 체크아웃 11:00
                 java.time.LocalDateTime checkinDateTime = checkinDate.atTime(15, 0);
                 java.time.LocalDateTime checkoutDateTime = checkoutDate.atTime(11, 0);

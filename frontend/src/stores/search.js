@@ -49,10 +49,30 @@ export const useSearchStore = defineStore('search', () => {
 
     // Actions
     const setStartDate = (date) => {
+        if (date) {
+            const maxDate = new Date()
+            maxDate.setDate(maxDate.getDate() + 365)
+            // 시간 불일치 방지 위해 날짜만 비교하거나 타임스탬프 비교
+            // 여기서는 간단히 타임스탬프로 비교
+            if (date.getTime() > maxDate.getTime()) {
+                alert('예약은 오늘부터 1년 이내만 가능합니다.')
+                startDate.value = null
+                return
+            }
+        }
         startDate.value = date
     }
 
     const setEndDate = (date) => {
+        if (date) {
+            const maxDate = new Date()
+            maxDate.setDate(maxDate.getDate() + 365)
+            if (date.getTime() > maxDate.getTime()) {
+                // 종료일도 1년 제한 (시작일 유효성 체크 팝업과 중복될 수 있어 팝업 생략 또는 포함)
+                endDate.value = null
+                return
+            }
+        }
         endDate.value = date
     }
 
