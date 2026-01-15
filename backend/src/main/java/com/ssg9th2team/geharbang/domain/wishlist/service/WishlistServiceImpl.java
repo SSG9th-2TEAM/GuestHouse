@@ -4,6 +4,7 @@ import com.ssg9th2team.geharbang.domain.accommodation.dto.AccommodationResponseD
 import com.ssg9th2team.geharbang.domain.wishlist.entity.Wishlist;
 import com.ssg9th2team.geharbang.domain.wishlist.repository.jpa.WishlistJpaRepository;
 import com.ssg9th2team.geharbang.domain.wishlist.repository.mybatis.WishlistMapper;
+import com.ssg9th2team.geharbang.global.exception.DuplicateResourceException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +25,7 @@ public class WishlistServiceImpl implements WishlistService {
         // 중복 검증
         boolean exists = wishlistJpaRepository.existsByUserIdAndAccommodationsId(userId, accommodationId);
         if (exists) {
-            throw new com.ssg9th2team.geharbang.global.exception.DuplicateResourceException("Wishlist already exists!");
+            throw new DuplicateResourceException("Wishlist already exists!");
         }
 
         Wishlist wishlist = Wishlist.builder()
