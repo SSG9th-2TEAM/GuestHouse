@@ -132,22 +132,38 @@ const toggleWishlist = async (id) => {
     return
   }
 
+  console.log('[toggleWishlist] 호출됨 - accommodationId:', id, 'isAuthenticated:', isAuthenticated())
+
   const isAdded = wishlistIds.value.has(id)
   if (isAdded) {
+    // 삭제
     wishlistIds.value.delete(id)
     try {
-      await removeWishlist(id)
+      const response = await removeWishlist(id)
+      if (!response.ok) {
+        // 실패 시 원복
+        wishlistIds.value.add(id)
+        alert(`위시리스트 삭제에 실패했습니다.\n상태 코드: ${response.status}\n에러: ${JSON.stringify(response.data)}`)
+      }
     } catch (e) {
       wishlistIds.value.add(id)
-      console.error(e)
+      console.error('[toggleWishlist] 삭제 중 에러:', e)
+      alert('위시리스트 삭제 중 오류가 발생했습니다.\n' + e.message)
     }
   } else {
+    // 추가
     wishlistIds.value.add(id)
     try {
-      await addWishlist(id)
+      const response = await addWishlist(id)
+      if (!response.ok) {
+        // 실패 시 원복
+        wishlistIds.value.delete(id)
+        alert(`위시리스트 추가에 실패했습니다.\n상태 코드: ${response.status}\n에러: ${JSON.stringify(response.data)}`)
+      }
     } catch (e) {
       wishlistIds.value.delete(id)
-      console.error(e)
+      console.error('[toggleWishlist] 추가 중 에러:', e)
+      alert('위시리스트 추가 중 오류가 발생했습니다.\n' + e.message)
     }
   }
 }
