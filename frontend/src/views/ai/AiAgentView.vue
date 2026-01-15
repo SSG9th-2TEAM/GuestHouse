@@ -24,6 +24,11 @@
     <!-- Chat Area -->
     <div class="chat-area" @click="closeSidebarOnMobile">
       <div class="chat-header">
+        <button class="back-btn" @click="goBack">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button class="toggle-sidebar-btn" @click.stop="toggleSidebar">☰</button>
         <h3>지금이곳 AI 🏠✨</h3>
       </div>
@@ -244,6 +249,10 @@ const goToDetail = (accId) => {
     window.open(`/room/${accId}`, '_blank')
 }
 
+const goBack = () => {
+  router.back()
+}
+
 onMounted(() => {
   loadRooms()
 })
@@ -380,6 +389,22 @@ onMounted(() => {
   display: flex;
   align-items: center;
   background-color: white;
+}
+
+.back-btn {
+  display: none; /* 데스크탑에서는 숨김 */
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  margin-right: 8px;
+  color: #333;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+}
+
+.back-btn:hover {
+  background-color: #f0f0f0;
 }
 
 .toggle-sidebar-btn {
@@ -639,24 +664,60 @@ onMounted(() => {
 /* Responsive */
 @media (max-width: 768px) {
   .ai-agent-container {
-    margin: 10px;
-    height: calc(100vh - 140px);
-    border-radius: 12px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile browsers */
+    border-radius: 0;
+    z-index: 9999;
+    border: none;
+    box-shadow: none;
   }
 
   .sidebar {
     position: absolute;
-    width: 200px; /* Narrower on mobile */
-    height: calc(100% - 0px); /* Stay within container */
+    width: 240px;
+    height: 100%;
     max-height: 100%;
     transform: translateX(-100%);
-    border-radius: 12px 0 0 12px;
-    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
+    border-radius: 0;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.15);
     overflow: hidden;
+    background-color: white;
   }
   
   .sidebar:not(.sidebar-hidden) {
     transform: translateX(0);
+  }
+
+  .chat-area {
+    border-radius: 0;
+  }
+
+  .chat-header {
+    padding: 15px 16px;
+    padding-top: env(safe-area-inset-top, 15px);
+  }
+
+  .back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 사이드바 토글 버튼은 계속 표시 */
+
+  .messages-container {
+    padding: 16px;
+  }
+
+  .input-area {
+    padding: 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
 
   .message-wrapper {
@@ -671,6 +732,16 @@ onMounted(() => {
 
   .room-title {
     max-width: 160px;
+  }
+
+  .suggestion-chips {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .suggestion-chips button {
+    width: 100%;
+    max-width: 280px;
   }
 }
 </style>
