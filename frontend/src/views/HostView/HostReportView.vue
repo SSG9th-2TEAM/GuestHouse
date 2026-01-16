@@ -1386,11 +1386,11 @@ watch(forecastFilters, () => {
               <div v-else-if="themeAiInsight" class="ai-grid theme-ai-grid">
                 <div class="ai-block ai-card ai-card--summary">
                   <div class="ai-card__head">
-                    <h4>핵심 요약</h4>
+                    <h4>트렌드 요약</h4>
                     <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
                   </div>
                   <ul class="ai-list">
-                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '핵심 요약', themeInsightLimits['핵심 요약'])" :key="item.key">
+                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '트렌드 요약', themeInsightLimits['핵심 요약'])" :key="item.key">
                       <span class="ai-main">{{ item.main }}</span>
                       <span v-if="item.showEvidence" class="ai-evidence">
                         {{ getEvidenceLabel() }}: {{ item.evidence }}
@@ -1414,11 +1414,11 @@ watch(forecastFilters, () => {
                 </div>
                 <div class="ai-block ai-card ai-card--negatives">
                   <div class="ai-card__head">
-                    <h4>개선 포인트</h4>
+                    <h4>보완할 점</h4>
                     <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
                   </div>
                   <ul class="ai-list">
-                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '개선 포인트', themeInsightLimits['개선 포인트'])" :key="item.key">
+                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '보완할 점', themeInsightLimits['개선 포인트'])" :key="item.key">
                       <span class="ai-main">{{ item.main }}</span>
                       <span v-if="item.showEvidence" class="ai-evidence">
                         {{ getEvidenceLabel() }}: {{ item.evidence }}
@@ -1426,7 +1426,7 @@ watch(forecastFilters, () => {
                     </li>
                   </ul>
                 </div>
-                <div class="ai-block ai-card ai-card--actions ai-wide">
+                <div class="ai-block ai-card ai-card--actions">
                   <div class="ai-card__head">
                     <h4>다음 액션</h4>
                     <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
@@ -1441,7 +1441,7 @@ watch(forecastFilters, () => {
                     </li>
                   </ul>
                 </div>
-                <div class="ai-block ai-card ai-card--monitoring ai-wide">
+                <div class="ai-block ai-card ai-card--monitoring">
                   <div class="ai-card__head">
                     <h4>모니터링</h4>
                     <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
@@ -1676,11 +1676,11 @@ watch(forecastFilters, () => {
           <div v-else-if="demandAiInsight" class="ai-grid demand-ai-grid">
             <div class="ai-block ai-card ai-card--summary">
               <div class="ai-card__head">
-                <h4>핵심 요약</h4>
+                <h4>수요 예측 요약</h4>
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="item in getSectionItemsParsed(demandAiInsight, '핵심 요약', demandInsightLimits['핵심 요약'])" :key="item.key">
+                <li v-for="item in getSectionItemsParsed(demandAiInsight, '수요 예측 요약', demandInsightLimits['핵심 요약'])" :key="item.key">
                   <span class="ai-main">{{ item.main }}</span>
                   <span v-if="item.showEvidence" class="ai-evidence">
                     {{ getEvidenceLabel() }}: {{ item.evidence }}
@@ -1690,11 +1690,11 @@ watch(forecastFilters, () => {
             </div>
             <div class="ai-block ai-card ai-card--analysis">
               <div class="ai-card__head">
-                <h4>해석 포인트</h4>
+                <h4>기회 요인</h4>
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="item in getSectionItemsParsed(demandAiInsight, '해석 포인트', demandInsightLimits['해석 포인트'])" :key="item.key">
+                <li v-for="item in getSectionItemsParsed(demandAiInsight, '기회 요인', demandInsightLimits['해석 포인트'])" :key="item.key">
                   <span class="ai-main">{{ item.main }}</span>
                   <span v-if="item.showEvidence" class="ai-evidence">
                     {{ getEvidenceLabel() }}: {{ item.evidence }}
@@ -1704,7 +1704,7 @@ watch(forecastFilters, () => {
             </div>
             <div class="ai-block ai-card ai-card--actions">
               <div class="ai-card__head">
-                <h4>운영 액션</h4>
+                <h4>다음 액션</h4>
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
@@ -1718,11 +1718,11 @@ watch(forecastFilters, () => {
             </div>
             <div class="ai-block ai-card ai-card--improve">
               <div class="ai-card__head">
-                <h4>개선 포인트</h4>
+                <h4>리스크 요인</h4>
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="item in getSectionItemsParsed(demandAiInsight, '개선 포인트', demandInsightLimits['개선 포인트'])" :key="item.key">
+                <li v-for="item in getSectionItemsParsed(demandAiInsight, '리스크 요인', demandInsightLimits['개선 포인트'])" :key="item.key">
                   <span class="ai-main">{{ item.main }}</span>
                   <span v-if="item.showEvidence" class="ai-evidence">
                     {{ getEvidenceLabel() }}: {{ item.evidence }}
@@ -1730,7 +1730,7 @@ watch(forecastFilters, () => {
                 </li>
               </ul>
             </div>
-            <div class="ai-block ai-card ai-card--monitoring ai-wide">
+            <div class="ai-block ai-card ai-card--monitoring">
               <div class="ai-card__head">
                 <h4>모니터링</h4>
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
@@ -3098,17 +3098,30 @@ watch(forecastFilters, () => {
   }
 }
 
-@media (min-width: 769px) and (max-width: 1023px) {
-  .ai-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
+@media (min-width: 769px) {
   .filters-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-card--overview,
+  .ai-card--summary {
+    grid-column: 1 / -1;
+  }
+
+  .ai-wide {
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 1024px) {
   .kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3125,70 +3138,6 @@ watch(forecastFilters, () => {
 
   .theme-grid {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  }
-
-  .ai-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .ai-grid.review-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .ai-grid.review-grid .ai-card--overview {
-    grid-column: 1;
-  }
-
-  .ai-grid.review-grid .ai-card--positives {
-    grid-column: 2;
-  }
-
-  .ai-grid.review-grid .ai-card--negatives {
-    grid-column: 3;
-  }
-
-  .ai-grid.review-grid .ai-card--actions {
-    grid-column: 1 / span 2;
-  }
-
-  .ai-grid.review-grid .ai-card--risks {
-    grid-column: 3;
-  }
-
-  .ai-grid.review-grid .ai-card--actions.ai-wide {
-    grid-column: 1 / -1;
-  }
-
-  .theme-ai-grid .ai-card--actions {
-    grid-column: 1 / span 2;
-  }
-
-  .theme-ai-grid .ai-card--monitoring {
-    grid-column: 1 / -1;
-  }
-
-  .demand-ai-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .demand-ai-grid .ai-card--summary {
-    grid-column: 1;
-  }
-
-  .demand-ai-grid .ai-card--analysis {
-    grid-column: 2;
-  }
-
-  .demand-ai-grid .ai-card--actions {
-    grid-column: 1;
-  }
-
-  .demand-ai-grid .ai-card--improve {
-    grid-column: 2;
-  }
-
-  .demand-ai-grid .ai-card--monitoring {
-    grid-column: 1 / -1;
   }
 
   .tag-chip-list {
@@ -3250,14 +3199,6 @@ watch(forecastFilters, () => {
 
   .kpi-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .ai-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .demand-ai-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
