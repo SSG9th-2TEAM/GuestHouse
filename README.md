@@ -31,7 +31,7 @@
 
 서비스의 안정성과 확장성을 고려하여 **3-Tier 분산 서버 구조**로 설계되었습니다.
 
-```mermaid
+```
 graph TD
     User[Client (Web/Mobile)] -->|HTTPS| Nginx[Nginx (Reverse Proxy)]
     
