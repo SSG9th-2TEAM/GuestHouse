@@ -85,7 +85,7 @@ graph TD
 
 ## 📂 Project Structure
 
-```bash
+```text
 GuestHouse
 ├── backend                 # Spring Boot Backend
 │   ├── src/main/java       # Source code
