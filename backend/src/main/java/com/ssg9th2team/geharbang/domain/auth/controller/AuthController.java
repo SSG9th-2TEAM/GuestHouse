@@ -5,6 +5,7 @@ import com.ssg9th2team.geharbang.domain.auth.dto.EmailRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindEmailResponse;
 import com.ssg9th2team.geharbang.domain.auth.dto.FindPasswordRequest;
+import com.ssg9th2team.geharbang.domain.auth.dto.LinkAccountRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.LoginRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.ResetPasswordRequest;
 import com.ssg9th2team.geharbang.domain.auth.dto.SignupRequest;
@@ -143,6 +144,26 @@ public class AuthController {
 
         log.info("소셜 회원가입 완료 요청: userId={}", user.getId());
         UserResponse userResponse = authService.completeSocialSignup(user.getId(), request);
+        return ResponseEntity.ok(userResponse);
+    }
+
+    // 자사 계정과 소셜 계정 연결
+    @PostMapping("/link-account")
+    public ResponseEntity<UserResponse> linkAccount(
+            @RequestHeader("Authorization") String authorization,
+            @Valid @RequestBody LinkAccountRequest request) {
+        // Bearer 토큰에서 실제 토큰 추출
+        String token = authorization.replace("Bearer ", "");
+
+        // 토큰에서 이메일 추출
+        String email = jwtTokenProvider.getUserEmailFromToken(token);
+
+        // 이메일로 사용자 조회
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        log.info("계정 통합 요청: userId={}, provider={}", user.getId(), request.getProvider());
+        UserResponse userResponse = authService.linkSocialAccount(user.getId(), request.getProvider(), request.getProviderId());
         return ResponseEntity.ok(userResponse);
     }
 }

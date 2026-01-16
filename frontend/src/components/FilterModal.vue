@@ -119,7 +119,7 @@ const CATEGORY_LABELS = {
   CULTURE: '문화',
   ACTIVITY: '액티비티',
   VIBE: '분위기',
-  PARTY: '파티/주류',
+  PARTY: '파티',
   MEETING: '만남/로맨스',
   PERSONA: '성향/동반',
   FACILITY: '시설/편의',
@@ -564,14 +564,16 @@ const resetFilter = () => {
 }
 
 .theme-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   min-height: 36px;
 }
 
 .theme-chip {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
+  justify-content: center;
   align-items: center;
   gap: 6px;
   border: 1px solid #ddd;

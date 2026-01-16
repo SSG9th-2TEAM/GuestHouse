@@ -24,6 +24,11 @@
     <!-- Chat Area -->
     <div class="chat-area" @click="closeSidebarOnMobile">
       <div class="chat-header">
+        <button class="back-btn" @click="goBack">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button class="toggle-sidebar-btn" @click.stop="toggleSidebar">☰</button>
         <h3>지금이곳 AI 🏠✨</h3>
       </div>
@@ -77,6 +82,15 @@
         <button @click="sendMessage(inputMessage)" :disabled="!inputMessage.trim() || isLoading">전송</button>
       </div>
     </div>
+
+    <!-- 모달 -->
+    <div v-if="isModalOpen" class="modal-overlay" @click.self="closeModal">
+      <div class="modal-content">
+        <div class="modal-icon">⚠️</div>
+        <p class="modal-message">{{ modalMessage }}</p>
+        <button class="modal-btn" @click="closeModal">확인</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -106,6 +120,20 @@ const inputMessage = ref('')
 const isLoading = ref(false)
 const isSidebarOpen = ref(true)
 const messagesContainer = ref(null)
+
+// 모달 상태
+const isModalOpen = ref(false)
+const modalMessage = ref('')
+
+const showModal = (message) => {
+  modalMessage.value = message
+  isModalOpen.value = true
+}
+
+const closeModal = () => {
+  isModalOpen.value = false
+  modalMessage.value = ''
+}
 
 // Formatters
 const formatDate = (dateStr) => {
@@ -141,10 +169,23 @@ const loadRooms = async () => {
 }
 
 const createNewRoom = async () => {
-  const response = await createAgentRoom()
-  if (response.ok) {
-    await loadRooms()
-    selectRoom(response.data.roomId)
+  if (isLoading.value) return // 중복 호출 방지
+  
+  isLoading.value = true
+  try {
+    const response = await createAgentRoom()
+    if (response.ok && response.data?.roomId) {
+      await loadRooms()
+      selectRoom(response.data.roomId)
+    } else {
+      console.error('새 채팅방 생성 실패:', response)
+      showModal('새 채팅방을 만들지 못했습니다. 다시 시도해주세요.')
+    }
+  } catch (error) {
+    console.error('새 채팅방 생성 오류:', error)
+    showModal('오류가 발생했습니다. 다시 시도해주세요.')
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -242,6 +283,10 @@ const closeSidebarOnMobile = () => {
 
 const goToDetail = (accId) => {
     window.open(`/room/${accId}`, '_blank')
+}
+
+const goBack = () => {
+  router.back()
 }
 
 onMounted(() => {
@@ -380,6 +425,22 @@ onMounted(() => {
   display: flex;
   align-items: center;
   background-color: white;
+}
+
+.back-btn {
+  display: none; /* 데스크탑에서는 숨김 */
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  margin-right: 8px;
+  color: #333;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+}
+
+.back-btn:hover {
+  background-color: #f0f0f0;
 }
 
 .toggle-sidebar-btn {
@@ -639,24 +700,60 @@ onMounted(() => {
 /* Responsive */
 @media (max-width: 768px) {
   .ai-agent-container {
-    margin: 10px;
-    height: calc(100vh - 140px);
-    border-radius: 12px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile browsers */
+    border-radius: 0;
+    z-index: 9999;
+    border: none;
+    box-shadow: none;
   }
 
   .sidebar {
     position: absolute;
-    width: 200px; /* Narrower on mobile */
-    height: calc(100% - 0px); /* Stay within container */
+    width: 240px;
+    height: 100%;
     max-height: 100%;
     transform: translateX(-100%);
-    border-radius: 12px 0 0 12px;
-    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
+    border-radius: 0;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.15);
     overflow: hidden;
+    background-color: white;
   }
   
   .sidebar:not(.sidebar-hidden) {
     transform: translateX(0);
+  }
+
+  .chat-area {
+    border-radius: 0;
+  }
+
+  .chat-header {
+    padding: 15px 16px;
+    padding-top: env(safe-area-inset-top, 15px);
+  }
+
+  .back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 사이드바 토글 버튼은 계속 표시 */
+
+  .messages-container {
+    padding: 16px;
+  }
+
+  .input-area {
+    padding: 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
 
   .message-wrapper {
@@ -672,5 +769,79 @@ onMounted(() => {
   .room-title {
     max-width: 160px;
   }
+
+  .suggestion-chips {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .suggestion-chips button {
+    width: 100%;
+    max-width: 280px;
+  }
+}
+
+/* 모달 스타일 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  max-width: 320px;
+  width: 90%;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.modal-message {
+  font-size: 1rem;
+  color: #333;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+}
+
+.modal-btn {
+  background: #6DC3BB;
+  color: white;
+  border: none;
+  padding: 0.8rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.modal-btn:hover {
+  background: #5AB5AC;
 }
 </style>

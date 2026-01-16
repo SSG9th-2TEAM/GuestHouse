@@ -125,6 +125,11 @@ const router = createRouter({
             component: () => import('../views/SocialSignupView/SocialSignupView.vue')
         },
         {
+            path: '/account-link',
+            name: 'account-link',
+            component: () => import('../views/AccountLinkView/AccountLinkView.vue')
+        },
+        {
             path: '/find-email',
             name: 'find-email',
             component: () => import('../views/LoginView/FindEmailView.vue')

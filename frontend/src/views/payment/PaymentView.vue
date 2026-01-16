@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getReservation } from '@/api/reservationApi'
 import { confirmPayment } from '@/api/paymentApi'
@@ -48,6 +48,40 @@ onMounted(async () => {
     errorMessage.value = '결제 페이지를 불러오는데 실패했습니다.'
   } finally {
     isLoading.value = false
+  }
+})
+
+onUnmounted(() => {
+  // Toss Payments 위젯/오버레이 강제 제거
+  try {
+    // 1. iframe 제거
+    const iframes = document.querySelectorAll('iframe')
+    iframes.forEach(iframe => {
+      if ((iframe.src && iframe.src.includes('tosspayments')) || 
+          (iframe.id && iframe.id.includes('tosspayments')) ||
+          (iframe.className && typeof iframe.className === 'string' && iframe.className.includes('tosspayments'))) {
+        iframe.remove()
+      }
+    })
+    
+    // 2. 오버레이/모달 컨테이너 제거 (div)
+    // Toss Payments는 보통 body 바로 아래에 div를 생성하여 오버레이를 띄움
+    // id나 class에 toss가 포함된 div를 찾아서 제거
+    const divs = document.querySelectorAll('div[id*="toss"], div[class*="toss"], div[class*="PaymentWidget"]')
+    divs.forEach(div => {
+       // 위젯 컨테이너 자체(#payment-method)는 제외하고, body 직계 자식인 모달 등만 제거
+       if (div.parentElement === document.body) {
+         div.remove()
+       }
+    })
+
+    // 3. body 스타일 초기화 (스크롤 잠금 해제)
+    document.body.style.overflow = ''
+    document.body.style.overflowY = ''
+    document.body.style.paddingRight = ''
+    
+  } catch (e) {
+    console.warn('Toss Payments Cleanup Failed:', e)
   }
 })
 

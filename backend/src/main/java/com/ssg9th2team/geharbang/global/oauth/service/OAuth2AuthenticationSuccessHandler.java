@@ -30,6 +30,9 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     @Value("${oauth2.signup-redirect-uri}")
     private String signupRedirectUri;
 
+    @Value("${oauth2.account-link-redirect-uri}")
+    private String accountLinkRedirectUri;
+
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
             Authentication authentication) throws IOException, ServletException {
@@ -58,6 +61,32 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         // CustomOAuth2User에서 User 정보 가져오기
         CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
         User user = oAuth2User.getUser();
+
+        // 계정 통합이 필요한 경우 (기존 자사 가입자 + 소셜 로그인 시도)
+        if (oAuth2User.isNeedsAccountLink()) {
+            log.info("Account link required - Redirecting to account link page: {}", user.getEmail());
+            String pendingProvider = (String) oAuth2User.getAttributes().get("pendingProvider");
+            String pendingProviderId = (String) oAuth2User.getAttributes().get("pendingProviderId");
+
+            return UriComponentsBuilder.fromUriString(accountLinkRedirectUri)
+                    .queryParam("accessToken", accessToken)
+                    .queryParam("refreshToken", refreshToken)
+                    .queryParam("provider", pendingProvider)
+                    .queryParam("providerId", pendingProviderId)
+                    .queryParam("email", user.getEmail())
+                    .build()
+                    .toUriString();
+        }
+
+        // 자사 가입자(password 있음)는 이미 회원가입이 완료된 사용자이므로 메인 페이지로 이동
+        if (user.getPassword() != null) {
+            log.info("Local signup user with social login - Redirecting to main page: {}", user.getEmail());
+            return UriComponentsBuilder.fromUriString(redirectUri)
+                    .queryParam("accessToken", accessToken)
+                    .queryParam("refreshToken", refreshToken)
+                    .build()
+                    .toUriString();
+        }
 
         // 소셜 회원가입 완료 여부 확인
         Boolean socialSignupCompleted = user.getSocialSignupCompleted();

@@ -49,10 +49,39 @@ export const useSearchStore = defineStore('search', () => {
 
     // Actions
     const setStartDate = (date) => {
+        if (date) {
+            const maxDate = new Date()
+            maxDate.setDate(maxDate.getDate() + 365)
+            // 시간대를 무시하고 날짜만 비교하기 위해 시간 초기화
+            maxDate.setHours(0, 0, 0, 0)
+            const inputDate = new Date(date)
+            inputDate.setHours(0, 0, 0, 0)
+
+            if (inputDate.getTime() > maxDate.getTime()) {
+                alert('예약은 오늘부터 1년 이내만 가능합니다.')
+                startDate.value = null
+                return
+            }
+        }
         startDate.value = date
     }
 
     const setEndDate = (date) => {
+        if (date) {
+            const maxDate = new Date()
+            maxDate.setDate(maxDate.getDate() + 365)
+            // 시간대를 무시하고 날짜만 비교하기 위해 시간 초기화
+            maxDate.setHours(0, 0, 0, 0)
+            const inputDate = new Date(date)
+            inputDate.setHours(0, 0, 0, 0)
+
+            if (inputDate.getTime() > maxDate.getTime()) {
+                // 종료일 초과 시에도 사용자에게 피드백을 제공합니다.
+                alert('예약은 오늘부터 1년 이내만 가능합니다.')
+                endDate.value = null
+                return
+            }
+        }
         endDate.value = date
     }
 

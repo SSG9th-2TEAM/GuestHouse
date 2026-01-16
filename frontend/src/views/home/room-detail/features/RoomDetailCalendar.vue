@@ -48,6 +48,10 @@ const getCalendarDays = (year, month) => {
   const startingDay = firstDay.getDay()
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+  
+  const maxDate = new Date()
+  maxDate.setHours(0, 0, 0, 0)
+  maxDate.setDate(today.getDate() + 365)
 
   const days = []
   for (let i = 0; i < startingDay; i += 1) {
@@ -61,7 +65,7 @@ const getCalendarDays = (year, month) => {
     const isInRange = isDateInRange(date)
     const hasEndDate = searchStore.endDate !== null
     const holidayInfo = getHolidayInfo(date)
-    const isDisabled = date.getTime() < today.getTime()
+    const isDisabled = date.getTime() < today.getTime() || date.getTime() > maxDate.getTime()
 
     days.push({
       day,

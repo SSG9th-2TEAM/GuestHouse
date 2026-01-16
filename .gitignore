@@ -198,7 +198,7 @@ scripts/*.sh
 scripts/test_*.py
 scripts/concurrency_test.sh
 scripts/load_test.sh
-scripts/test_email.sh
+scripts/test_email.sh  
 
 # Frontend Build Artifacts
 **/src/main/resources/static/assets/

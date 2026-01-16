@@ -254,6 +254,14 @@ export async function completeSocialSignup(signupData) {
   })
 }
 
+// 자사 계정과 소셜 계정 연결
+export async function linkSocialAccount(provider, providerId) {
+  return authenticatedRequest('/api/auth/link-account', {
+    method: 'POST',
+    body: JSON.stringify({ provider, providerId })
+  })
+}
+
 // 토큰 유효성 검증
 export async function validateToken() {
   const accessToken = getAccessToken()
@@ -293,6 +301,7 @@ export default {
   authenticatedRequest,
   getCurrentUser,
   completeSocialSignup,
+  linkSocialAccount,
   getAccessToken,
   getRefreshToken,
   getUserInfo,

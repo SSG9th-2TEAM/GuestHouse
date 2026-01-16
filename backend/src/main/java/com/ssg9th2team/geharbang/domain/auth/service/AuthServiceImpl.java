@@ -13,7 +13,9 @@ import com.ssg9th2team.geharbang.domain.auth.dto.VerifyCodeRequest;
 import com.ssg9th2team.geharbang.domain.auth.entity.SocialProvider;
 import com.ssg9th2team.geharbang.domain.auth.entity.User;
 import com.ssg9th2team.geharbang.domain.auth.entity.UserRole;
+import com.ssg9th2team.geharbang.domain.auth.entity.UserSocial;
 import com.ssg9th2team.geharbang.domain.auth.repository.UserRepository;
+import com.ssg9th2team.geharbang.domain.auth.repository.UserSocialRepository;
 import com.ssg9th2team.geharbang.domain.theme.entity.Theme;
 import com.ssg9th2team.geharbang.domain.theme.repository.ThemeRepository;
 import com.ssg9th2team.geharbang.global.security.JwtTokenProvider;
@@ -47,6 +49,7 @@ import java.util.Optional;
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
+    private final UserSocialRepository userSocialRepository;
     private final AdminRepository adminRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -329,5 +332,39 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("소셜 회원가입 완료: {}", savedUser.getEmail());
         return UserResponse.from(savedUser);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse linkSocialAccount(Long userId, String provider, String providerId) {
+        // 1. 사용자 조회
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        // 2. 소셜 제공자 변환
+        SocialProvider socialProvider;
+        try {
+            socialProvider = SocialProvider.valueOf(provider.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("지원하지 않는 소셜 로그인 제공자입니다: " + provider);
+        }
+
+        // 3. 이미 연결된 소셜 계정인지 확인
+        boolean alreadyLinked = userSocialRepository.findByProviderAndProviderUid(socialProvider, providerId).isPresent();
+        if (alreadyLinked) {
+            throw new IllegalStateException("이미 다른 계정에 연결된 소셜 계정입니다.");
+        }
+
+        // 4. 소셜 계정 연결
+        UserSocial userSocial = UserSocial.builder()
+                .user(user)
+                .provider(socialProvider)
+                .providerUid(providerId)
+                .email(user.getEmail())
+                .build();
+        userSocialRepository.save(userSocial);
+
+        log.info("계정 통합 완료: userId={}, provider={}, providerId={}", userId, provider, providerId);
+        return UserResponse.from(user);
     }
 }

@@ -342,9 +342,13 @@ const goToSignup = () => {
 .toggle-btn {
   background: none;
   border: none;
-  font-size: 1rem;
+  font-size: 0.85rem;
   cursor: pointer;
   opacity: 0.6;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 0.25rem 0.5rem;
+  min-width: fit-content;
 }
 
 .login-btn {
@@ -567,5 +571,90 @@ const goToSignup = () => {
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* 모바일 반응형 스타일 */
+@media (max-width: 480px) {
+  .login-page {
+    padding: 1rem;
+  }
+
+  .login-container {
+    padding: 2rem 1.25rem;
+  }
+
+  .login-header h1 {
+    font-size: 1.3rem;
+  }
+
+  .login-header p {
+    font-size: 0.85rem;
+  }
+
+  .info-message {
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    word-break: keep-all;
+  }
+
+  .error-message {
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    word-break: keep-all;
+  }
+
+  .input-wrapper {
+    padding: 0 0.75rem;
+  }
+
+  .input-wrapper input {
+    padding: 0.85rem 0;
+    font-size: 0.9rem;
+  }
+
+  .toggle-btn {
+    font-size: 0.8rem;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .login-btn {
+    padding: 0.85rem;
+    font-size: 0.95rem;
+  }
+
+  .find-links {
+    font-size: 0.8rem;
+  }
+
+  .social-btn {
+    padding: 0.85rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .login-container {
+    padding: 1.5rem 1rem;
+  }
+
+  .info-message,
+  .error-message {
+    font-size: 0.75rem;
+    padding: 0.6rem;
+  }
+
+  .toggle-btn {
+    font-size: 0.75rem;
+  }
+
+  .find-links {
+    font-size: 0.75rem;
+  }
+
+  .link-divider {
+    margin: 0 0.3rem;
+  }
 }
 </style>
