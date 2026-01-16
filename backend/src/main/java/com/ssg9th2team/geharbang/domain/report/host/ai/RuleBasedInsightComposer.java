@@ -39,7 +39,7 @@ public class RuleBasedInsightComposer {
         sections.add(section("좋았던 점", result.getPositives()));
         sections.add(section("개선 포인트", result.getNegatives()));
         sections.add(section("다음 액션", result.getActions()));
-        sections.add(section("주의·리스크", result.getRisks()));
+        sections.add(section("모니터링", result.getRisks())); // "주의·리스크" -> "모니터링"으로 통일
         return sections;
     }
 
@@ -87,7 +87,9 @@ public class RuleBasedInsightComposer {
         } else if (sorted.isEmpty()) {
             negatives.add(formatLine("유의미한 부정 신호 없음.", "데이터 부족"));
         } else {
-            negatives.add(formatLine("테마 비교군이 적어 개선 포인트 판단이 제한됩니다.", "테마 수 부족"));
+            // [수정] 테마가 적더라도 개선 포인트를 비워두지 않고 일반적인 조언 추가
+            negatives.add(formatLine("현재 테마 수가 적어 고객 선택의 폭이 좁을 수 있습니다.", "테마 다양성 부족"));
+            negatives.add(formatLine("경쟁 숙소 대비 차별화된 테마 발굴을 고려해보세요.", "경쟁력 강화 필요"));
         }
 
         List<String> actions = new ArrayList<>();
@@ -110,9 +112,9 @@ public class RuleBasedInsightComposer {
         }
 
         return List.of(
-                section("핵심 요약", trim(overview, 2)),
+                section("트렌드 요약", trim(overview, 2)), // "핵심 요약" -> "트렌드 요약"
                 section("강점", trim(positives, 3)),
-                section("개선 포인트", trim(negatives, 3)),
+                section("보완할 점", trim(negatives, 3)), // "개선 포인트" -> "보완할 점"
                 section("다음 액션", ensureCount(actions, ACTION_COUNT)),
                 section("모니터링", trim(risks, 2))
         );
@@ -172,10 +174,10 @@ public class RuleBasedInsightComposer {
         }
 
         return List.of(
-                section("핵심 요약", trim(overview, 2)),
-                section("해석 포인트", trim(positives, 3)),
-                section("개선 포인트", trim(negatives, 3)),
-                section("운영 액션", ensureCount(actions, ACTION_COUNT)),
+                section("수요 예측 요약", trim(overview, 2)), // "핵심 요약" -> "수요 예측 요약"
+                section("기회 요인", trim(positives, 3)), // "해석 포인트" -> "기회 요인"
+                section("리스크 요인", trim(negatives, 3)), // "개선 포인트" -> "리스크 요인"
+                section("다음 액션", ensureCount(actions, ACTION_COUNT)), // "운영 액션" -> "다음 액션"
                 section("모니터링", trim(risks, 2))
         );
     }
