@@ -85,7 +85,8 @@ public class HostReportService {
         }
 
         List<HostReviewReportTagRow> tags = hostReportMapper.selectTopReviewTags(hostId, accommodationId, start, end);
-        List<HostReviewReportRecentRow> recentReviews = hostReportMapper.selectRecentReviews(hostId, accommodationId, start, end, 5);
+        // AI 분석을 위해 최근 리뷰를 더 많이 가져오도록 수정 (5 -> 50)
+        List<HostReviewReportRecentRow> recentReviews = hostReportMapper.selectRecentReviews(hostId, accommodationId, start, end, 50);
 
         summary.setFrom(safeFrom);
         summary.setTo(safeTo);
