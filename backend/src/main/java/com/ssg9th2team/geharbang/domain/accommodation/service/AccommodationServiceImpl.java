@@ -61,7 +61,7 @@ public class AccommodationServiceImpl implements AccommodationService {
             }
 
             // 2. 숙소 이미지 리스트
-            if (createRequestDto.getImages() != null) {
+            if (createRequestDto.getImages() != null) { // DTO로 넘어온 이미지가 있다면
                 for (AccommodationImageDto img : createRequestDto.getImages()) {
                     if (img.getImageUrl() != null) {
                         String savedUrl = objectStorageService.uploadBase64Image(
