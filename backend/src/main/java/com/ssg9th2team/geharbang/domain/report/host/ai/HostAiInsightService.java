@@ -66,7 +66,7 @@ public class HostAiInsightService {
             response = buildMock(tab, request, hostId);
             response.setEngine("MOCK");
             response.setFallbackUsed(false);
-        } else if (selected == Provider.OPENAI) { // Gemini 사용
+        } else if (selected == Provider.GEMINI) { // 명칭 통일: OPENAI -> GEMINI
             response = generateWithGemini(tab, request, hostId, eligibility, isColdStart);
         } else {
             response = buildRule(tab, request, hostId);
@@ -94,7 +94,10 @@ public class HostAiInsightService {
                 if (accs.isEmpty()) throw new IllegalArgumentException("숙소가 없습니다.");
                 accommodationName = "호스트님의 모든 숙소";
                 // 대표 위치는 첫 번째 숙소 기준으로 하되, 여러 지역일 수 있음을 감안
-                location = accs.get(0).getCity() + " " + accs.get(0).getDistrict() + " 외 " + (accs.size() - 1) + "곳";
+                location = accs.get(0).getCity() + " " + accs.get(0).getDistrict();
+                if (accs.size() > 1) { // 위치 정보 포맷 개선
+                    location += " 외 " + (accs.size() - 1) + "곳";
+                }
             } else {
                 // 개별 숙소 선택 시
                 Accommodation accommodation = accommodationRepository.findById(accommodationId)
@@ -113,7 +116,7 @@ public class HostAiInsightService {
                         .limit(50)
                         .collect(Collectors.toList());
                 aiResult = generateReviewAnalysis(reviews, accommodationName, isColdStart);
-                return mapReviewToResponse(aiResult);
+                return mapReviewResultToResponse(aiResult); // 리뷰 전용 매핑
 
             } else if (tab == HostAiInsightTab.THEME) {
                 HostThemeReportResponse report = hostReportService.getThemePopularity(hostId, accommodationId, request.getFrom(), request.getTo(), request.getMetric());
@@ -122,12 +125,12 @@ public class HostAiInsightService {
                 String themeDataSummary = buildThemeSummary(report.getRows(), request.getMetric());
                 
                 aiResult = generateThemeAnalysis(location, themeDataSummary, isColdStart, request.getMetric());
-                return mapThemeToResponse(aiResult);
+                return mapThemeResultToResponse(aiResult); // 테마 전용 매핑
 
             } else { // DEMAND
                 int count = (int) eligibility.getCurrent();
                 aiResult = generateDemandPrediction(count, location, isColdStart);
-                return mapDemandToResponse(aiResult);
+                return mapDemandResultToResponse(aiResult); // 수요 전용 매핑
             }
 
         } catch (Exception ex) {
@@ -160,8 +163,8 @@ public class HostAiInsightService {
     // 3. AI 프롬프트 생성 메소드 (UI 최적화: 짧고 강렬한 데이터)
     // ================================================================================
 
-    // [리뷰 리포트]
-    public Map<String, Object> generateReviewAnalysis(List<String> reviews, String accommodationName, boolean isColdStart) {
+    // [리뷰 리포트] - 접근 제어자 private으로 변경
+    private Map<String, Object> generateReviewAnalysis(List<String> reviews, String accommodationName, boolean isColdStart) {
         String prompt;
         if (isColdStart || reviews.isEmpty()) {
             prompt = String.format("""
@@ -188,8 +191,8 @@ public class HostAiInsightService {
         return callGemini(prompt);
     }
 
-    // [테마 리포트]
-    public Map<String, Object> generateThemeAnalysis(String location, String themeDataSummary, boolean isColdStart, String metric) {
+    // [테마 리포트] - 접근 제어자 private으로 변경
+    private Map<String, Object> generateThemeAnalysis(String location, String themeDataSummary, boolean isColdStart, String metric) {
         String prompt;
         String metricName = "revenue".equalsIgnoreCase(metric) ? "매출" : "예약수";
         
@@ -221,8 +224,8 @@ public class HostAiInsightService {
         return callGemini(prompt);
     }
 
-    // [수요 예측 리포트]
-    public Map<String, Object> generateDemandPrediction(int count, String location, boolean isColdStart) {
+    // [수요 예측 리포트] - 접근 제어자 private으로 변경
+    private Map<String, Object> generateDemandPrediction(int count, String location, boolean isColdStart) {
         String prompt;
         if (isColdStart) {
             prompt = String.format("""
@@ -258,7 +261,7 @@ public class HostAiInsightService {
                 4. **내용**: 서론/본론 없이 **결론만** 타격.
                 
                 {
-                  "summary": "핵심 요약 (1문장, 50자 이내)",
+                  "summary": "핵심 요약 (반드시 2문장 이상으로 구체적이고 풍부하게 작성할 것)",
                   "pros": ["강점1 (50자 이내)", "강점2"],
                   "cons": ["단점1 (50자 이내)", "단점2"],
                   "actions": ["액션1 (50자 이내)", "액션2"],
@@ -268,16 +271,7 @@ public class HostAiInsightService {
 
         try {
             String jsonResponse = geminiApiClient.generateContent(finalPrompt);
-            // 마크다운 코드 블록 제거 처리
-            if (jsonResponse.startsWith("```json")) {
-                jsonResponse = jsonResponse.substring(7);
-            }
-            if (jsonResponse.startsWith("```")) {
-                jsonResponse = jsonResponse.substring(3);
-            }
-            if (jsonResponse.endsWith("```")) {
-                jsonResponse = jsonResponse.substring(0, jsonResponse.length() - 3);
-            }
+            // 중복 로직 제거: 마크다운 제거는 GeminiApiClient에서 처리됨
             return parseSafe(jsonResponse.trim());
         } catch (Exception e) {
             log.error("AI Generation Failed", e);
@@ -364,20 +358,20 @@ public class HostAiInsightService {
     }
 
     // -------------------------------------------------------------------------
-    // [탭별 매핑 로직]
+    // [탭별 매핑 로직] - 분리 및 제목 수정
     // -------------------------------------------------------------------------
 
-    private HostAiInsightResponse mapReviewToResponse(Map<String, Object> result) {
+    private HostAiInsightResponse mapReviewResultToResponse(Map<String, Object> result) {
         List<HostAiInsightSection> sections = new ArrayList<>();
         sections.add(createSection("총평", result.get("summary")));
         sections.add(createSection("좋았던 점", result.get("pros")));
-        sections.add(createSection("개선 포인트", result.get("cons"))); // "아쉬운 점" -> "개선 포인트" 변경
+        sections.add(createSection("개선 포인트", result.get("cons")));
         sections.add(createSection("다음 액션", result.get("actions")));
-        sections.add(createSection("모니터링", result.get("monitoring")));
+        sections.add(createSection("주의·리스크", result.get("monitoring"))); // 리뷰 탭은 "주의·리스크" 유지
         return buildResponse(sections);
     }
 
-    private HostAiInsightResponse mapThemeToResponse(Map<String, Object> result) {
+    private HostAiInsightResponse mapThemeResultToResponse(Map<String, Object> result) {
         List<HostAiInsightSection> sections = new ArrayList<>();
         sections.add(createSection("트렌드 요약", result.get("summary")));
         sections.add(createSection("강점", result.get("pros")));
@@ -387,11 +381,11 @@ public class HostAiInsightService {
         return buildResponse(sections);
     }
 
-    private HostAiInsightResponse mapDemandToResponse(Map<String, Object> result) {
+    private HostAiInsightResponse mapDemandResultToResponse(Map<String, Object> result) {
         List<HostAiInsightSection> sections = new ArrayList<>();
         sections.add(createSection("수요 예측 요약", result.get("summary")));
-        sections.add(createSection("기회 요인", result.get("pros")));
-        sections.add(createSection("리스크 요인", result.get("cons")));
+        sections.add(createSection("기회 요인", result.get("pros"))); // pros -> 기회 요인
+        sections.add(createSection("리스크 요인", result.get("cons"))); // cons -> 리스크 요인
         sections.add(createSection("다음 액션", result.get("actions")));
         sections.add(createSection("모니터링", result.get("monitoring")));
         return buildResponse(sections);
@@ -608,7 +602,8 @@ public class HostAiInsightService {
 
     private enum Provider {
         RULE,
-        OPENAI,
+        OPENAI, // Legacy support
+        GEMINI, // New standard
         MOCK
     }
 }

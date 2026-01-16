@@ -474,20 +474,19 @@ const getSectionItemsParsed = (insight, title, limit) => {
 }
 
 const themeInsightLimits = {
-  '핵심 요약': 2,
+  '트렌드 요약': 2,
   '강점': 2,
-  '개선 포인트': 2,
+  '보완할 점': 2,
   '다음 액션': 3,
   '모니터링': 2,
   defaultLimit: 2
 }
 
 const demandInsightLimits = {
-  '핵심 요약': 2,
-  '해석 포인트': 2,
-  '개선 포인트': 2,
-  '운영 액션': 3,
-  '운영 액션 제안': 3,
+  '수요 예측 요약': 2,
+  '기회 요인': 2,
+  '리스크 요인': 2,
+  '다음 액션': 3,
   '모니터링': 2,
   defaultLimit: 2
 }
@@ -498,7 +497,7 @@ const demandMonitoringDisplay = computed(() => (
   demandMonitoringOpen.value ? demandMonitoringItems.value : demandMonitoringItems.value.slice(0, 2)
 ))
 const demandActionItems = computed(() => {
-  const primary = getSectionItems(demandAiInsight.value, '운영 액션')
+  const primary = getSectionItems(demandAiInsight.value, '다음 액션')
   const items = primary.length > 0
     ? primary
     : getSectionItems(demandAiInsight.value, '운영 액션 제안')
@@ -1390,7 +1389,7 @@ watch(forecastFilters, () => {
                     <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
                   </div>
                   <ul class="ai-list">
-                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '트렌드 요약', themeInsightLimits['핵심 요약'])" :key="item.key">
+                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '트렌드 요약', themeInsightLimits['트렌드 요약'])" :key="item.key">
                       <span class="ai-main">{{ item.main }}</span>
                       <span v-if="item.showEvidence" class="ai-evidence">
                         {{ getEvidenceLabel() }}: {{ item.evidence }}
@@ -1418,7 +1417,7 @@ watch(forecastFilters, () => {
                     <span v-if="isWarnStatus('THEME')" class="ai-badge">참고용</span>
                   </div>
                   <ul class="ai-list">
-                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '보완할 점', themeInsightLimits['개선 포인트'])" :key="item.key">
+                    <li v-for="item in getSectionItemsParsed(themeAiInsight, '보완할 점', themeInsightLimits['보완할 점'])" :key="item.key">
                       <span class="ai-main">{{ item.main }}</span>
                       <span v-if="item.showEvidence" class="ai-evidence">
                         {{ getEvidenceLabel() }}: {{ item.evidence }}
@@ -1680,7 +1679,7 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="item in getSectionItemsParsed(demandAiInsight, '수요 예측 요약', demandInsightLimits['핵심 요약'])" :key="item.key">
+                <li v-for="item in getSectionItemsParsed(demandAiInsight, '수요 예측 요약', demandInsightLimits['수요 예측 요약'])" :key="item.key">
                   <span class="ai-main">{{ item.main }}</span>
                   <span v-if="item.showEvidence" class="ai-evidence">
                     {{ getEvidenceLabel() }}: {{ item.evidence }}
@@ -1694,7 +1693,7 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="item in getSectionItemsParsed(demandAiInsight, '기회 요인', demandInsightLimits['해석 포인트'])" :key="item.key">
+                <li v-for="item in getSectionItemsParsed(demandAiInsight, '기회 요인', demandInsightLimits['기회 요인'])" :key="item.key">
                   <span class="ai-main">{{ item.main }}</span>
                   <span v-if="item.showEvidence" class="ai-evidence">
                     {{ getEvidenceLabel() }}: {{ item.evidence }}
@@ -1722,7 +1721,7 @@ watch(forecastFilters, () => {
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>
               </div>
               <ul class="ai-list">
-                <li v-for="item in getSectionItemsParsed(demandAiInsight, '리스크 요인', demandInsightLimits['개선 포인트'])" :key="item.key">
+                <li v-for="item in getSectionItemsParsed(demandAiInsight, '리스크 요인', demandInsightLimits['리스크 요인'])" :key="item.key">
                   <span class="ai-main">{{ item.main }}</span>
                   <span v-if="item.showEvidence" class="ai-evidence">
                     {{ getEvidenceLabel() }}: {{ item.evidence }}
@@ -1730,7 +1729,7 @@ watch(forecastFilters, () => {
                 </li>
               </ul>
             </div>
-            <div class="ai-block ai-card ai-card--monitoring">
+            <div class="ai-block ai-card ai-card--monitoring ai-wide">
               <div class="ai-card__head">
                 <h4>모니터링</h4>
                 <span v-if="isWarnStatus('DEMAND')" class="ai-badge">참고용</span>

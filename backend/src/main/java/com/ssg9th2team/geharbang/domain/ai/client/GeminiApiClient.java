@@ -27,25 +27,21 @@ public class GeminiApiClient {
     private String apiUrl;
 
     private final ObjectMapper objectMapper;
-    private final RestTemplate restTemplate = new RestTemplate(); // WebClient 대신 RestTemplate 사용
+    private final RestTemplate restTemplate = new RestTemplate();
 
     public String generateContent(String promptText) {
         try {
-            // 1. URL 설정 (공백 제거)
             String finalUrl = apiUrl.trim() + "?key=" + apiKey.trim();
             log.info("Gemini API Request URL: {}", finalUrl);
 
-            // 2. 헤더 설정
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            // 3. 바디 설정
             GeminiRequest requestDto = new GeminiRequest(List.of(
                     new Content(List.of(new Part(promptText)))
             ));
             String requestBody = objectMapper.writeValueAsString(requestDto);
 
-            // 4. 요청 보내기 (RestTemplate은 URL을 안전하게 처리함)
             HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
             ResponseEntity<String> response = restTemplate.postForEntity(finalUrl, entity, String.class);
 
@@ -66,14 +62,14 @@ public class GeminiApiClient {
             JsonNode root = objectMapper.readTree(responseBody);
             JsonNode textNode = root.path("candidates").path(0).path("content").path("parts").path(0).path("text");
 
-            if (textNode.isMissingNode()) return null;
+            if (textNode.isMissingNode()) return "{}"; // NPE 방지: 빈 JSON 반환
 
             String text = textNode.asText();
-            // 마크다운 코드 블록 제거
+            // 마크다운 코드 블록 제거 로직 통합
             return text.replaceAll("```json", "").replaceAll("```", "").trim();
         } catch (Exception e) {
             log.error("Parsing Error", e);
-            return null;
+            return "{}"; // 에러 발생 시에도 빈 JSON 반환
         }
     }
 
