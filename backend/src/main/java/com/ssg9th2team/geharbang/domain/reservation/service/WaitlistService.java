@@ -48,6 +48,14 @@ public class WaitlistService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("인증된 사용자를 찾을 수 없습니다: " + email));
 
+        // accommodationId가 null이면 roomId로 Room을 조회하여 가져오기
+        Long resolvedAccommodationId = accommodationId;
+        if (resolvedAccommodationId == null) {
+            Room room = roomRepository.findById(roomId)
+                    .orElseThrow(() -> new IllegalArgumentException("객실을 찾을 수 없습니다: " + roomId));
+            resolvedAccommodationId = room.getAccommodationsId();
+        }
+
         // 1인당 대기 등록 개수 제한 확인
         int currentWaitlistCount = waitlistRepository.countByUserIdAndIsNotifiedFalse(user.getId());
         if (currentWaitlistCount >= Waitlist.MAX_WAITLIST_PER_USER) {
@@ -65,7 +73,7 @@ public class WaitlistService {
         Waitlist waitlist = Waitlist.builder()
                 .userId(user.getId())
                 .roomId(roomId)
-                .accommodationsId(accommodationId)
+                .accommodationsId(resolvedAccommodationId)
                 .checkin(checkin)
                 .checkout(checkout)
                 .guestCount(guestCount)
