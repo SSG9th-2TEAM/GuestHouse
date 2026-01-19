@@ -21,7 +21,7 @@ public class ReservationController {
      * 예약 생성
      */
     @PostMapping
-    public ResponseEntity<ReservationResponseDto> createReservation(
+    public ResponseEntity<?> createReservation(
             @RequestBody ReservationRequestDto requestDto) {
         try {
             System.out.println("DEBUG: Received reservation request: " + requestDto);
@@ -29,6 +29,15 @@ public class ReservationController {
             return ResponseEntity
                     .created(URI.create("/api/reservations/" + response.reservationId()))
                     .body(response);
+        } catch (IllegalStateException e) {
+            // 정원 초과 등 비즈니스 로직 오류 -> 409 Conflict
+            System.err.println("CONFLICT: " + e.getMessage());
+            return ResponseEntity.status(409).body(java.util.Map.of("error", "Conflict", "message", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            // 잘못된 요청 파라미터 -> 400 Bad Request
+            System.err.println("BAD REQUEST: " + e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(java.util.Map.of("error", "Bad Request", "message", e.getMessage()));
         } catch (Exception e) {
             System.err.println("ERROR: Reservation creation failed!");
             e.printStackTrace();
