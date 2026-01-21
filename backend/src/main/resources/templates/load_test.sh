@@ -2,7 +2,10 @@
 # 간단한 부하 테스트 스크립트 (인증 없이 공개 API 테스트)
 # 사용법: ./load_test.sh
 
-API_URL="http://10.0.2.6:8080/api/public/accommodations"
+# [보안 패치] IP 주소를 환경 변수로 분리 (기본값: localhost)
+API_HOST="${API_HOST:-localhost}"
+API_PORT="${API_PORT:-8080}"
+API_URL="http://${API_HOST}:${API_PORT}/api/public/accommodations"
 CONCURRENT=10
 DURATION=10
 

@@ -3,11 +3,23 @@
 # 사용법: ./concurrency_test.sh [JWT_TOKEN]
 
 # 설정
-API_URL="http://10.0.2.6:8080/api/reservations"
+# [보안 패치] IP 주소를 환경 변수로 분리 (기본값: localhost)
+API_HOST="${API_HOST:-localhost}"
+API_PORT="${API_PORT:-8080}"
+API_URL="http://${API_HOST}:${API_PORT}/api/reservations"
 CONCURRENT_REQUESTS=10  # 동시 요청 수
 
-# JWT 토큰 (인자로 받거나 기본값)
-JWT_TOKEN="Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJsZWVrbWluMTgwNEBnbWFpbC5jb20iLCJhdXRoIjoiUk9MRV9VU0VSIiwiaWF0IjoxNzY3OTE3NTcwLCJleHAiOjE3Njc5MjExNzB9.eQ-6T2FC77XIHlhMo9FnNKLI44FzQKp-6xdFz7YROEo4YC81DenoncKxGN9TXLZb-tILmsB3BTZ3Wis00sAsEQ"
+# JWT 토큰 (인자로 받거나 환경 변수 사용)
+# [보안 패치] 하드코딩된 토큰 제거
+if [ -z "$1" ]; then
+    if [ -z "$JWT_TOKEN" ]; then
+        echo "Error: JWT_TOKEN is required."
+        echo "Usage: ./concurrency_test.sh <YOUR_JWT_TOKEN>"
+        exit 1
+    fi
+else
+    JWT_TOKEN="$1"
+fi
 
 # 테스트 데이터 (동일한 객실에 동시 예약)
 # 실제 데이터에 맞게 수정 필요
@@ -18,6 +30,7 @@ CHECKOUT="2026-01-21T11:00:00Z"
 
 echo "=========================================="
 echo "동시성 테스트 시작"
+echo "Target URL: $API_URL"
 echo "동시 요청 수: $CONCURRENT_REQUESTS"
 echo "대상 객실 ID: $ROOM_ID"
 echo "=========================================="
