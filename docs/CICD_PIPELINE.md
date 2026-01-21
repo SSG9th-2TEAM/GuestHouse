@@ -20,8 +20,8 @@
 
 | 서버 | IP | 역할 |
 |------|-----|------|
-| Public Server | 49.50.138.206 | Jump Host (외부 접근 가능) |
-| Private Server | 10.0.2.6 | Backend Docker Container 실행 |
+| Public Server | x.x.x.x | Jump Host (외부 접근 가능) |
+| Private Server | 10.0.x.x | Backend Docker Container 실행 |
 
 ---
 
@@ -149,8 +149,8 @@ GitHub Repository → **Settings** → **Secrets and variables** → **Actions**
 |-------------|------|------|
 | `SSH_PRIVATE_KEY` | GitHub Actions용 SSH 개인키 | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
 | `SSH_USERNAME` | Public 서버 SSH 사용자명 | `root` |
-| `PUBLIC_SERVER_IP` | Public 서버 IP | `49.50.138.206` |
-| `PRIVATE_SERVER_IP` | Private 서버 IP | `10.0.2.6` |
+| `PUBLIC_SERVER_IP` | Public 서버 IP | `x.x.x.x` |
+| `PRIVATE_SERVER_IP` | Private 서버 IP | `10.0.x.x` |
 
 ---
 
@@ -179,7 +179,7 @@ ssh-keygen -t rsa -b 4096
 
 공개키를 Private 서버의 `~/.ssh/authorized_keys`에 추가:
 ```bash
-ssh-copy-id root@10.0.2.6
+ssh-copy-id root@10.0.x.x
 ```
 
 ---
@@ -201,12 +201,12 @@ ssh-copy-id root@10.0.2.6
 ```env
 # Database
 SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/guesthouse?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-SPRING_DATASOURCE_USERNAME=thismo
-SPRING_DATASOURCE_PASSWORD=thismo1234
+SPRING_DATASOURCE_USERNAME=your_username
+SPRING_DATASOURCE_PASSWORD=your_password
 
 # OAuth2
-OAUTH2_REDIRECT_BASE_URL=http://49.50.138.206
-OAUTH2_FRONTEND_BASE_URL=http://49.50.138.206
+OAUTH2_REDIRECT_BASE_URL=http://x.x.x.x
+OAUTH2_FRONTEND_BASE_URL=http://x.x.x.x
 
 # NCloud Object Storage
 NCLOUD_BUCKET=guesthouse
@@ -303,12 +303,12 @@ docker-compose up -d --build
 로컬 PC에서 다음 명령어로 터널링을 설정합니다:
 
 ```bash
-# Public 서버(Jump Host)를 통해 Private 서버(10.0.2.6)의 6100 포트로 터널링
-ssh -L 6100:10.0.2.6:6100 root@49.50.138.206
+# Public 서버(Jump Host)를 통해 Private 서버(10.0.x.x)의 6100 포트로 터널링
+ssh -L 6100:10.0.x.x:6100 root@x.x.x.x
 ```
 
 ### 3. 구성 요소
-- **Scouter Server**: Private 서버(10.0.2.6)에서 실행 중
+- **Scouter Server**: Private 서버(10.0.x.x)에서 실행 중
 - **Scouter Agent**: Spring Boot Docker 컨테이너 내부에 포함됨 (Dockerfile 참조)
 
 
