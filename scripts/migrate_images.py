@@ -16,13 +16,19 @@ from io import BytesIO
 from PIL import Image, ImageFilter
 import os
 
+def required_env(name):
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"Missing required env var: {name}")
+    return value
+
 # ========== 설정 ==========
 DB_CONFIG = {
-    'host': '127.0.0.1',
-    'port': 13306,
-    'user': 'thismo',
-    'password': 'thismo1234',
-    'database': 'guesthouse'
+    'host': os.environ.get('DB_HOST', '127.0.0.1'),
+    'port': int(os.environ.get('DB_PORT', 13306)),
+    'user': required_env('DB_USER'),
+    'password': required_env('DB_PASSWORD'),
+    'database': os.environ.get('DB_NAME', 'guesthouse')
 }
 
 # 이미지 리사이징 옵션 (선명도를 위해 해상도 상한을 넉넉하게 잡음)
