@@ -59,7 +59,7 @@
 
 ## ✨ Key Features
 
-### 1. 🤖 AI-Powered Features (Gemini Pro)
+### 1. 🤖 AI-Powered Features (Gemini Flash)
 
 프로젝트 전반에 걸쳐 **Google Gemini AI**를 적극적으로 활용하여 사용자 경험과 운영 효율성을 극대화했습니다.
 
